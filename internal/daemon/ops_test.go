@@ -12,6 +12,7 @@ import (
 	ccstore "github.com/yasyf/cc-interact/store"
 	"github.com/yasyf/cc-interact/subject"
 
+	"github.com/yasyf/cc-present/internal/assets"
 	"github.com/yasyf/cc-present/internal/state"
 )
 
@@ -21,6 +22,7 @@ type harness struct {
 	cc       *ccstore.Store
 	resolver subject.Resolver
 	activity *ccd.Activity
+	assets   *assets.Store
 }
 
 func newHarness(t *testing.T) *harness {
@@ -30,9 +32,14 @@ func newHarness(t *testing.T) *harness {
 		t.Fatalf("open store: %v", err)
 	}
 	t.Cleanup(func() { _ = cc.Close() })
+	ast, err := assets.New(filepath.Join(t.TempDir(), "assets"))
+	if err != nil {
+		t.Fatalf("new assets: %v", err)
+	}
 	return &harness{
 		cc:       cc,
 		activity: ccd.NewActivity(),
+		assets:   ast,
 		resolver: subject.Resolver{
 			Store:  ccstore.NewSubjectStore(cc.DB()),
 			Policy: subject.Policy{Active: func(s subject.Subject) bool { return s.Status == statusOpen }},
@@ -115,7 +122,7 @@ func TestStart(t *testing.T) {
 	t.Run("start after close creates a fresh subject", func(t *testing.T) {
 		h := newHarness(t)
 		first := handleStart(h.hc(body{Title: "One"}))
-		if reply := handleClose(h.hc(body{})); !reply.OK {
+		if reply := handleClose(h.hc(body{}), h.assets); !reply.OK {
 			t.Fatalf("close not ok: %s", reply.Error)
 		}
 		second := handleStart(h.hc(body{Title: "One"}))
@@ -154,7 +161,7 @@ func TestPush(t *testing.T) {
 	t.Run("push to a closed artifact is rejected", func(t *testing.T) {
 		h := newHarness(t)
 		handleStart(h.hc(body{Title: "T"}))
-		handleClose(h.hc(body{}))
+		handleClose(h.hc(body{}), h.assets)
 		reply := handlePush(h.hc(body{Doc: json.RawMessage(approvalDoc)}))
 		if reply.OK || !strings.Contains(reply.Error, "closed") {
 			t.Fatalf("push when closed: ok=%v err=%q", reply.OK, reply.Error)
@@ -205,7 +212,7 @@ func TestUpsertBlock(t *testing.T) {
 func TestClose(t *testing.T) {
 	h := newHarness(t)
 	start := handleStart(h.hc(body{Title: "T"}))
-	if reply := handleClose(h.hc(body{Summary: "done"})); !reply.OK {
+	if reply := handleClose(h.hc(body{Summary: "done"}), h.assets); !reply.OK {
 		t.Fatalf("close not ok: %s", reply.Error)
 	}
 	if got := h.eventsOfType(t, start.SubjectID, EventPresentClosed); len(got) != 1 {
@@ -218,7 +225,7 @@ func TestClose(t *testing.T) {
 	if sub.Status != statusClosed {
 		t.Fatalf("status = %q, want closed", sub.Status)
 	}
-	if reply := handleClose(h.hc(body{})); reply.OK || !strings.Contains(reply.Error, "already closed") {
+	if reply := handleClose(h.hc(body{}), h.assets); reply.OK || !strings.Contains(reply.Error, "already closed") {
 		t.Fatalf("re-close: ok=%v err=%q", reply.OK, reply.Error)
 	}
 }

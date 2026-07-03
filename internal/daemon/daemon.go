@@ -74,7 +74,7 @@ func BuildServer(p paths.Paths, version string) (*ccd.Server, error) {
 	s.Register(OpUpsertBlock, handleUpsertBlock)
 	s.Register(OpRemoveBlock, handleRemoveBlock)
 	s.Register(OpReply, handleReply)
-	s.Register(OpClose, handleClose)
+	s.Register(OpClose, func(hc ccd.HandlerCtx) ccd.Reply { return handleClose(hc, ast) })
 	s.Register(OpOutcomes, handleOutcomes)
 	mountREST(s, ast)
 	return s, nil
@@ -244,8 +244,11 @@ func handleReply(hc ccd.HandlerCtx) ccd.Reply {
 // under the system origin and flips the subject to closed. A re-close is
 // rejected. The close is a system lifecycle event like channel.changed, not an
 // agent write, so the agent-side watch and channel (which stream
-// exclude_origin=agent) still receive it and terminate on it.
-func handleClose(hc ccd.HandlerCtx) ccd.Reply {
+// exclude_origin=agent) still receive it and terminate on it. Once the subject
+// is closed, its assets become collectable, so the close drives a GC sweep of
+// the asset store; a sweep failure surfaces in the reply even though the close
+// itself has already taken effect.
+func handleClose(hc ccd.HandlerCtx, ast *assets.Store) ccd.Reply {
 	b := decodeBody(hc.Env.Body)
 	sub, ok, err := hc.Subjects.Find(hc.Ctx, hc.Window, hc.Scope)
 	if err != nil {
@@ -268,6 +271,9 @@ func handleClose(hc ccd.HandlerCtx) ccd.Reply {
 	}
 	if err := hc.Subjects.Store.SetStatus(hc.Ctx, sub.ID, statusClosed); err != nil {
 		return errReply(err.Error())
+	}
+	if err := gcAssets(hc.Ctx, hc.DB, ast); err != nil {
+		return errReply(fmt.Sprintf("artifact %s closed, but asset GC failed: %v", sub.Slug, err))
 	}
 	return okReply(result{Slug: sub.Slug})
 }

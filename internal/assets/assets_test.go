@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestPutGetRoundTrip(t *testing.T) {
@@ -117,5 +118,58 @@ func TestGetErrors(t *testing.T) {
 	}
 	if _, _, err := s.Get("../secret"); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("Get traversal err = %v, want ErrNotFound", err)
+	}
+}
+
+func TestSweep(t *testing.T) {
+	dir := t.TempDir()
+	s, err := New(dir)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	old := time.Now().Add(-time.Hour)
+	young := time.Now()
+	keptRef := strings.Repeat("a", 64)
+	oldUnref := strings.Repeat("b", 64)
+	youngUnref := strings.Repeat("c", 64)
+	const stray = "not-a-content-address"
+	write := func(name string, mtime time.Time) {
+		p := filepath.Join(dir, name)
+		if err := os.WriteFile(p, []byte("x"), 0o600); err != nil {
+			t.Fatalf("write %s: %v", name, err)
+		}
+		if err := os.Chtimes(p, mtime, mtime); err != nil {
+			t.Fatalf("chtimes %s: %v", name, err)
+		}
+	}
+	write(keptRef, old)
+	write(oldUnref, old)
+	write(youngUnref, young)
+	write(stray, old)
+
+	deleted, err := s.Sweep(map[string]bool{keptRef: true}, 15*time.Minute)
+	if err != nil {
+		t.Fatalf("Sweep: %v", err)
+	}
+	if len(deleted) != 1 || deleted[0] != oldUnref {
+		t.Fatalf("deleted = %v, want [%s]", deleted, oldUnref)
+	}
+
+	cases := []struct {
+		name       string
+		wantExists bool
+	}{
+		{keptRef, true},    // in the keep set, so retained regardless of mtime
+		{oldUnref, false},  // unreferenced and older than grace
+		{youngUnref, true}, // unreferenced but within the grace window
+		{stray, true},      // not a content address, so never a sweep target
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, statErr := os.Stat(filepath.Join(dir, tc.name))
+			if exists := statErr == nil; exists != tc.wantExists {
+				t.Fatalf("%s exists=%v, want %v", tc.name, exists, tc.wantExists)
+			}
+		})
 	}
 }

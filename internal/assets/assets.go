@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
 )
 
 // MaxBytes caps a single stored asset.
@@ -87,4 +88,37 @@ func (s *Store) Get(sha string) ([]byte, string, error) {
 		return nil, "", fmt.Errorf("read asset %s: %w", sha, err)
 	}
 	return b, http.DetectContentType(b), nil
+}
+
+// Sweep deletes every stored asset absent from keep whose mtime predates
+// now-grace, returning the shas it deleted. The grace window guards a fresh
+// upload that lands between a caller computing keep and this pass: a just-written
+// file is younger than grace, so it survives even while still unreferenced.
+// Names that are not content addresses are left untouched, and the sweep fails
+// fast on the first deletion error rather than swallowing it.
+func (s *Store) Sweep(keep map[string]bool, grace time.Duration) ([]string, error) {
+	entries, err := os.ReadDir(s.dir)
+	if err != nil {
+		return nil, fmt.Errorf("read asset dir: %w", err)
+	}
+	cutoff := time.Now().Add(-grace)
+	var deleted []string
+	for _, e := range entries {
+		name := e.Name()
+		if e.IsDir() || !shaPattern.MatchString(name) || keep[name] {
+			continue
+		}
+		info, err := e.Info()
+		if err != nil {
+			return deleted, fmt.Errorf("stat asset %s: %w", name, err)
+		}
+		if info.ModTime().After(cutoff) {
+			continue
+		}
+		if err := os.Remove(filepath.Join(s.dir, name)); err != nil {
+			return deleted, fmt.Errorf("delete asset %s: %w", name, err)
+		}
+		deleted = append(deleted, name)
+	}
+	return deleted, nil
 }

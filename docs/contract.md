@@ -131,6 +131,24 @@ form. The Go reducer (`internal/state`) and the TypeScript reducer
 
 The event stream is `GET /events` over SSE, replaying the log from seq 0.
 
+## Asset garbage collection
+
+The content-addressed asset store is swept on every `close`. After the
+`present.closed` append and the status flip succeed, the daemon reduces each
+**open** subject's log, collects every `asset:<sha256>` its live document
+references — walking top-level blocks and card children — and deletes every
+stored file that is both unreferenced and older than a **15-minute mtime grace
+window**.
+
+- Assets referenced only by closed subjects are collectable, so an open browser
+  tab of a closed artifact loses its images on reload by design. The log and its
+  reduction are untouched; only the bytes behind `GET /assets/{sha}` go away.
+- The grace window guards the race where a fresh upload lands between the sweep's
+  subject enumeration and its deletion pass: a file written within the last 15
+  minutes survives even while still unreferenced.
+- A sweep failure surfaces in the `close` reply as an error, but the close has
+  already taken effect — the append and status flip happen first.
+
 ## DedupKey
 
 The dedup key exists for retry idempotency only:
