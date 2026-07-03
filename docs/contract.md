@@ -72,7 +72,7 @@ the reduction of these events.
 | agent | `block.upserted` | `{block, after?}` | If a block with `block.id` exists, replace it in place as a whole block, so nothing from the old block survives. Otherwise insert after `after`, or append when `after` is absent or unknown. |
 | agent | `block.removed` | `{id}` | Remove the top-level block with that id. An unknown id is a no-op. |
 | agent | `reply.created` | `{id, blockId, md}` | Append to the block's reply thread. |
-| agent | `present.closed` | `{summary?}` | Set closed. Terminal for the reduction: any event ordered after it is a no-op (see below). |
+| system | `present.closed` | `{summary?}` | Set closed. Terminal for the reduction: any event ordered after it is a no-op (see below). Recorded with a `system` origin, not `agent`, so it survives the agent-side `watch`/channel `exclude_origin=agent` filter — `watch` terminates on it. |
 | human | `decision.created` | `{blockId, verdict, note?}` | Last-write-wins per block. `verdict` is one of `approved`, `rejected`, `cleared`; `cleared` removes the decision, returning the block to undecided. |
 | human | `choice.selected` | `{blockId, optionIds}` | Last-write-wins per block. |
 | human | `feedback.created` | `{id, blockId, text}` | Append to the block's feedback list. |
@@ -146,5 +146,6 @@ the verdict, is the dedup key.
 
 Browser tabs stream `GET /events` unfiltered, so a tab sees its own echoed events and
 reconciles its optimistic state against them. The agent-side `watch` and channel use
-`exclude_origin=agent`, so the agent is notified of human events only and never of
-its own writes.
+`exclude_origin=agent`, so the agent is notified of human events and the
+`system`-origin `present.closed` close — but never of its own `agent` writes. `watch`
+terminates when the `present.closed` frame arrives.

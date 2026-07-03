@@ -20,7 +20,7 @@
         }
       }
     },
-    { "origin": "agent", "type": "present.closed", "seq": 2, "payload": { "summary": "shipped" } },
+    { "origin": "system", "type": "present.closed", "seq": 2, "payload": { "summary": "shipped" } },
     { "origin": "human", "type": "decision.created", "seq": 3, "payload": { "blockId": "a1", "verdict": "approved" } },
     {
       "origin": "agent",

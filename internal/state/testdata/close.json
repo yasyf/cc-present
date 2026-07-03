@@ -14,7 +14,7 @@
         }
       }
     },
-    { "origin": "agent", "type": "present.closed", "seq": 2, "payload": { "summary": "shipped 3 openers" } }
+    { "origin": "system", "type": "present.closed", "seq": 2, "payload": { "summary": "shipped 3 openers" } }
   ],
   "expected": {
     "doc": {

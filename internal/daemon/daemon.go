@@ -127,7 +127,7 @@ func handleStart(hc ccd.HandlerCtx) ccd.Reply {
 		if err != nil {
 			return errReply(err.Error())
 		}
-		if _, err := hc.Append(hc.Ctx, &ccevent.Event{
+		if _, err := appendEvent(hc.Ctx, hc.Append, &ccevent.Event{
 			SubjectID: sub.ID, Origin: ccevent.OriginAgent, Type: EventDocReplaced,
 			Payload: docReplacedPayload(b.Doc, rev),
 		}); err != nil {
@@ -159,7 +159,7 @@ func handlePush(hc ccd.HandlerCtx) ccd.Reply {
 	if err != nil {
 		return errReply(err.Error())
 	}
-	if _, err := hc.Append(hc.Ctx, &ccevent.Event{
+	if _, err := appendEvent(hc.Ctx, hc.Append, &ccevent.Event{
 		SubjectID: sub.ID, Origin: ccevent.OriginAgent, Type: EventDocReplaced,
 		Payload: docReplacedPayload(b.Doc, rev),
 	}); err != nil {
@@ -184,7 +184,7 @@ func handleUpsertBlock(hc ccd.HandlerCtx) ccd.Reply {
 	if err != nil {
 		return errReply(err.Error())
 	}
-	if _, err := hc.Append(hc.Ctx, &ccevent.Event{
+	if _, err := appendEvent(hc.Ctx, hc.Append, &ccevent.Event{
 		SubjectID: sub.ID, Origin: ccevent.OriginAgent, Type: EventBlockUpserted,
 		Payload: blockUpsertedPayload(b.Block, b.After),
 	}); err != nil {
@@ -204,7 +204,7 @@ func handleRemoveBlock(hc ccd.HandlerCtx) ccd.Reply {
 	if err != nil {
 		return errReply(err.Error())
 	}
-	if _, err := hc.Append(hc.Ctx, &ccevent.Event{
+	if _, err := appendEvent(hc.Ctx, hc.Append, &ccevent.Event{
 		SubjectID: sub.ID, Origin: ccevent.OriginAgent, Type: EventBlockRemoved,
 		Payload: mustJSON(map[string]string{"id": b.ID}),
 	}); err != nil {
@@ -231,7 +231,7 @@ func handleReply(hc ccd.HandlerCtx) ccd.Reply {
 	if id == "" {
 		id = randomHex(4)
 	}
-	if _, err := hc.Append(hc.Ctx, &ccevent.Event{
+	if _, err := appendEvent(hc.Ctx, hc.Append, &ccevent.Event{
 		SubjectID: sub.ID, Origin: ccevent.OriginAgent, Type: EventReplyCreated,
 		Payload: mustJSON(map[string]string{"id": id, "blockId": b.BlockID, "md": b.Md}),
 	}); err != nil {
@@ -241,7 +241,10 @@ func handleReply(hc ccd.HandlerCtx) ccd.Reply {
 }
 
 // handleClose terminally closes the window's artifact: it appends present.closed
-// and flips the subject to closed. A re-close is rejected.
+// under the system origin and flips the subject to closed. A re-close is
+// rejected. The close is a system lifecycle event like channel.changed, not an
+// agent write, so the agent-side watch and channel (which stream
+// exclude_origin=agent) still receive it and terminate on it.
 func handleClose(hc ccd.HandlerCtx) ccd.Reply {
 	b := decodeBody(hc.Env.Body)
 	sub, ok, err := hc.Subjects.Find(hc.Ctx, hc.Window, hc.Scope)
@@ -258,8 +261,8 @@ func handleClose(hc ccd.HandlerCtx) ccd.Reply {
 	if b.Summary != "" {
 		payload = mustJSON(map[string]string{"summary": b.Summary})
 	}
-	if _, err := hc.Append(hc.Ctx, &ccevent.Event{
-		SubjectID: sub.ID, Origin: ccevent.OriginAgent, Type: EventPresentClosed, Payload: payload,
+	if _, err := appendEvent(hc.Ctx, hc.Append, &ccevent.Event{
+		SubjectID: sub.ID, Origin: ccevent.OriginSystem, Type: EventPresentClosed, Payload: payload,
 	}); err != nil {
 		return errReply(err.Error())
 	}
@@ -360,6 +363,28 @@ func mustJSON(v any) json.RawMessage {
 		panic(fmt.Sprintf("marshal payload: %v", err))
 	}
 	return raw
+}
+
+// appendEvent injects the event's Type into its payload as a self-describing
+// "type" field, then appends it through the daemon's Append chokepoint. Every
+// wire frame is thus self-describing: the browser SPA, the agent-side watch, and
+// the channel all read the event discriminant out of the payload JSON, matching
+// the framework's Connectivity convention (channel.changed carries its own type
+// too). It is the single append path for every domain event.
+func appendEvent(ctx context.Context, appendFn ccd.AppendFunc, ev *ccevent.Event) (int64, error) {
+	ev.Payload = injectType(ev.Type, ev.Payload)
+	return appendFn(ctx, ev)
+}
+
+// injectType returns payload with a top-level "type" field set to eventType. The
+// payload must be a JSON object; every domain payload is.
+func injectType(eventType string, payload json.RawMessage) json.RawMessage {
+	var obj map[string]json.RawMessage
+	if err := json.Unmarshal(payload, &obj); err != nil {
+		panic(fmt.Sprintf("event payload is not a JSON object: %v", err))
+	}
+	obj["type"] = mustJSON(eventType)
+	return mustJSON(obj)
 }
 
 // nextRevision is the revision the next doc.replaced takes: one past the count

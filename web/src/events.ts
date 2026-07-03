@@ -66,11 +66,12 @@ export interface SubmitPayload {
   revision: number;
 }
 
-// --- Presence (framework-appended, skipped by the reducer) ---
+// --- System lifecycle (recorded with a `system` origin) ---
 
 // channel.changed is the cc-interact Connectivity presence frame. The framework
 // appends it into the same subject log with a `system` origin; the reducer skips
-// it regardless of origin, so it never touches reduced state.
+// it regardless of origin, so it never touches reduced state. Its payload embeds
+// its own `type`, the self-describing wire shape every frame now takes.
 export interface ChannelChangedPayload {
   type: 'channel.changed';
   connected: boolean;
@@ -83,7 +84,7 @@ export type PresentEvent =
   | { origin: 'agent'; type: 'block.upserted'; seq: number; payload: BlockUpsertedPayload }
   | { origin: 'agent'; type: 'block.removed'; seq: number; payload: BlockRemovedPayload }
   | { origin: 'agent'; type: 'reply.created'; seq: number; payload: ReplyCreatedPayload }
-  | { origin: 'agent'; type: 'present.closed'; seq: number; payload: PresentClosedPayload }
+  | { origin: 'system'; type: 'present.closed'; seq: number; payload: PresentClosedPayload }
   | { origin: 'human'; type: 'decision.created'; seq: number; payload: DecisionCreatedPayload }
   | { origin: 'human'; type: 'choice.selected'; seq: number; payload: ChoiceSelectedPayload }
   | { origin: 'human'; type: 'feedback.created'; seq: number; payload: FeedbackCreatedPayload }
@@ -95,6 +96,28 @@ export type PresentEventType = PresentEvent['type'];
 
 export type AgentEvent = Extract<PresentEvent, { origin: 'agent' }>;
 export type HumanEvent = Extract<PresentEvent, { origin: 'human' }>;
+
+// --- SSE wire frame (what the /events plane delivers as each `data:`) ---
+
+// The self-describing payload the SSE plane writes to each SSE `data:` frame: the
+// event's payload with its `type` spliced in by the daemon. sse.go transmits only
+// `id:` (the seq) and `data:` (the payload); the origin is a database column,
+// never on the wire, so the browser discriminates purely on the embedded `type`.
+// Unlike PresentEvent it is flat — the payload fields sit alongside `type`, with
+// no `origin`/`seq`/nested `payload` envelope. stream.ts lifts it into a
+// PresentEvent for the reducer.
+export type WireFrame =
+  | ({ type: 'doc.replaced' } & DocReplacedPayload)
+  | ({ type: 'block.upserted' } & BlockUpsertedPayload)
+  | ({ type: 'block.removed' } & BlockRemovedPayload)
+  | ({ type: 'reply.created' } & ReplyCreatedPayload)
+  | ({ type: 'present.closed' } & PresentClosedPayload)
+  | ({ type: 'decision.created' } & DecisionCreatedPayload)
+  | ({ type: 'choice.selected' } & ChoiceSelectedPayload)
+  | ({ type: 'feedback.created' } & FeedbackCreatedPayload)
+  | ({ type: 'input.submitted' } & InputSubmittedPayload)
+  | ({ type: 'submit' } & SubmitPayload)
+  | ChannelChangedPayload;
 
 // --- Browser interaction (the POST /api/interactions body's `interaction`) ---
 

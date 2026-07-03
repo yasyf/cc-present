@@ -111,7 +111,7 @@ func (rs *restServer) handleInteractions(w http.ResponseWriter, r *http.Request)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	seq, err := rs.append(r.Context(), &ccevent.Event{
+	seq, err := appendEvent(r.Context(), rs.append, &ccevent.Event{
 		SubjectID: id, Origin: ccevent.OriginHuman, Type: req.Interaction.Type,
 		Payload:  payload,
 		DedupKey: req.Interaction.Type + ":" + req.Interaction.BlockID + ":" + req.Nonce,
