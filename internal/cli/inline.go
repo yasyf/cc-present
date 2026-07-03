@@ -24,8 +24,8 @@ func isLocalSrc(src string) bool {
 		!strings.HasPrefix(src, "data:")
 }
 
-// readImageFile reads a local image, failing loudly when it is missing or past
-// the asset cap.
+// readImageFile reads a local image, failing loudly when it is missing, past
+// the asset cap, or does not sniff as an image.
 func readImageFile(path string) ([]byte, error) {
 	//nolint:gosec // G304: reading the local image the document references is the inliner's purpose.
 	b, err := os.ReadFile(path)
@@ -37,6 +37,9 @@ func readImageFile(path string) ([]byte, error) {
 	}
 	if len(b) > assets.MaxBytes {
 		return nil, fmt.Errorf("image %q is %d bytes, exceeds %d", path, len(b), assets.MaxBytes)
+	}
+	if ct := http.DetectContentType(b); !strings.HasPrefix(ct, "image/") {
+		return nil, fmt.Errorf("image %q sniffs as %s, not an image", path, ct)
 	}
 	return b, nil
 }

@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
 )
 
 // MaxBytes caps a single stored asset.
@@ -22,6 +23,11 @@ var shaPattern = regexp.MustCompile(`^[0-9a-f]{64}$`)
 
 // ErrNotFound reports a missing or malformed asset.
 var ErrNotFound = errors.New("asset not found")
+
+// ErrNotImage reports bytes whose detected content type is not an image. The
+// store only ever holds images; anything else (notably HTML) would be served
+// back same-origin under its sniffed type from GET /assets/{sha}.
+var ErrNotImage = errors.New("asset is not an image")
 
 // Store is a content-addressed blob store under a directory: each asset is a
 // file named by the lowercase hex sha256 of its bytes.
@@ -44,11 +50,15 @@ func SHA(b []byte) string {
 // Valid reports whether sha is a well-formed content address (64 lowercase hex).
 func Valid(sha string) bool { return shaPattern.MatchString(sha) }
 
-// Put stores b and returns its sha256. Storing is idempotent: identical bytes
-// map to the same file, so a repeated Put writes nothing.
+// Put stores b and returns its sha256, rejecting bytes that do not sniff as an
+// image. Storing is idempotent: identical bytes map to the same file, so a
+// repeated Put writes nothing.
 func (s *Store) Put(b []byte) (string, error) {
 	if len(b) > MaxBytes {
 		return "", fmt.Errorf("asset is %d bytes, exceeds %d", len(b), MaxBytes)
+	}
+	if ct := http.DetectContentType(b); !strings.HasPrefix(ct, "image/") {
+		return "", fmt.Errorf("%w: detected %s", ErrNotImage, ct)
 	}
 	sha := SHA(b)
 	path := filepath.Join(s.dir, sha)

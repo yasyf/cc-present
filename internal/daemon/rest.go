@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -256,7 +257,8 @@ func allowsFeedback(ap *doc.Approval) bool {
 }
 
 // handlePutAsset content-addresses the raw request body into the asset store and
-// returns its asset:<sha256> reference, rejecting a body past the cap.
+// returns its asset:<sha256> reference, rejecting a non-image body or one past
+// the cap.
 func (rs *restServer) handlePutAsset(w http.ResponseWriter, r *http.Request) {
 	b, err := io.ReadAll(io.LimitReader(r.Body, assets.MaxBytes+1))
 	if err != nil {
@@ -268,6 +270,10 @@ func (rs *restServer) handlePutAsset(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	sha, err := rs.assets.Put(b)
+	if errors.Is(err, assets.ErrNotImage) {
+		http.Error(w, err.Error(), http.StatusUnsupportedMediaType)
+		return
+	}
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

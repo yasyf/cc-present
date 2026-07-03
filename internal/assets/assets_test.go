@@ -40,7 +40,7 @@ func TestPutIdempotent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
-	b := []byte("hello")
+	b := append([]byte("\x89PNG\r\n\x1a\n"), []byte("hello")...)
 	first, err := s.Put(b)
 	if err != nil {
 		t.Fatalf("Put: %v", err)
@@ -63,6 +63,28 @@ func TestPutCap(t *testing.T) {
 		t.Fatal("Put over cap = nil error, want failure")
 	} else if !strings.Contains(err.Error(), "exceeds") {
 		t.Fatalf("Put over cap error = %q, want 'exceeds'", err.Error())
+	}
+}
+
+func TestPutRejectsNonImage(t *testing.T) {
+	s, err := New(t.TempDir())
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	tests := []struct {
+		name string
+		b    []byte
+	}{
+		{"html document", []byte("<!doctype html><script>alert(1)</script>")},
+		{"plain text", []byte("hello")},
+		{"svg", []byte(`<?xml version="1.0"?><svg xmlns="http://www.w3.org/2000/svg"/>`)},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if _, err := s.Put(tt.b); !errors.Is(err, ErrNotImage) {
+				t.Fatalf("Put err = %v, want ErrNotImage", err)
+			}
+		})
 	}
 }
 

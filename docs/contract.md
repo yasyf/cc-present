@@ -126,7 +126,7 @@ form. The Go reducer (`internal/state`) and the TypeScript reducer
 | Method | Path | Body | Purpose |
 |---|---|---|---|
 | `POST` | `/api/interactions` | `{subject, nonce, interaction}` | Submit one human interaction. `interaction` is a discriminated union over the human event payloads. The handler validates `blockId` and type against the reduced document, then appends. |
-| `POST` | `/api/assets` | image bytes | Store an image content-addressed; returns its `asset:<sha256>`. |
+| `POST` | `/api/assets` | image bytes | Store an image content-addressed; returns its `asset:<sha256>`. A body that does not sniff as an image is rejected with 415. |
 | `GET` | `/assets/{sha}` | none | Fetch a stored asset by its sha256. |
 
 The event stream is `GET /events` over SSE, replaying the log from seq 0.

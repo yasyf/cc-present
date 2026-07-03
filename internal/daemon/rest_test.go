@@ -183,6 +183,20 @@ func TestAssetRoundTrip(t *testing.T) {
 	}
 }
 
+func TestAssetRejectsNonImage(t *testing.T) {
+	h := newRestHarness(t)
+	req := httptest.NewRequest(http.MethodPost, "/api/assets",
+		strings.NewReader("<!doctype html><script>fetch('/api/interactions')</script>"))
+	w := httptest.NewRecorder()
+	h.rs.handlePutAsset(w, req)
+	if w.Code != http.StatusUnsupportedMediaType {
+		t.Fatalf("status = %d, want 415 (body %q)", w.Code, w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), "not an image") {
+		t.Fatalf("body = %q, want 'not an image'", w.Body.String())
+	}
+}
+
 func TestAssetCap(t *testing.T) {
 	h := newRestHarness(t)
 	req := httptest.NewRequest(http.MethodPost, "/api/assets", bytes.NewReader(bytes.Repeat([]byte{1}, assets.MaxBytes+1)))
