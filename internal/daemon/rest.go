@@ -107,7 +107,13 @@ func (rs *restServer) handleInteractions(w http.ResponseWriter, r *http.Request)
 		http.Error(w, "presentation is closed", http.StatusConflict)
 		return
 	}
-	payload, err := validateInteraction(&st, &req.Interaction)
+	revision := 0
+	for _, ev := range events {
+		if ev.Type == EventDocReplaced {
+			revision++
+		}
+	}
+	payload, err := validateInteraction(&st, revision, &req.Interaction)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -127,10 +133,15 @@ func (rs *restServer) handleInteractions(w http.ResponseWriter, r *http.Request)
 // validateInteraction checks one interaction against the reduced document and
 // returns the reducer payload to append. It rejects an unknown block, a block
 // whose type does not match the interaction, an out-of-set choice option, a
-// verdict outside the enum, and feedback on an approval that forbids it.
-func validateInteraction(st *state.State, it *interaction) (json.RawMessage, error) {
+// verdict outside the enum, feedback on an approval that forbids it, and a
+// submit naming a revision the log never produced (revision is the count of
+// doc.replaced events; 0 is a document never replaced).
+func validateInteraction(st *state.State, revision int, it *interaction) (json.RawMessage, error) {
 	switch it.Type {
 	case EventSubmit:
+		if it.Revision < 0 || it.Revision > revision {
+			return nil, fmt.Errorf("submit revision %d does not exist (current revision is %d)", it.Revision, revision)
+		}
 		return mustJSON(map[string]int{"revision": it.Revision}), nil
 	case EventDecisionCreated:
 		ap, err := requireApproval(st, it.BlockID)

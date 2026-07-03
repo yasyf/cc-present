@@ -80,7 +80,7 @@ columns below omit that injected field; both reducers tolerate it.
 | human | `choice.selected` | `{blockId, optionIds}` | Last-write-wins per block. |
 | human | `feedback.created` | `{id, blockId, text}` | Append to the block's feedback list. |
 | human | `input.submitted` | `{blockId, text}` | Last-write-wins per block. |
-| human | `submit` | `{revision}` | Set submitted with the revision. Does not close the document, so rounds continue. |
+| human | `submit` | `{revision}` | Set submitted with the revision. Does not close the document, so rounds continue. The REST plane rejects a revision the log never produced (below 0 or past the current revision). |
 
 Post-close events are no-ops, not errors, by design. A human click can race an
 agent's close, with the browser POSTing an interaction at the same moment
