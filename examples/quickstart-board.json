@@ -1,0 +1,28 @@
+{
+  "version": 1,
+  "title": "Approve the retry plan",
+  "submit": { "label": "Send decisions" },
+  "blocks": [
+    {
+      "id": "plan",
+      "type": "card",
+      "title": "Retry with backoff",
+      "children": [
+        {
+          "id": "summary",
+          "type": "markdown",
+          "md": "Wrap the flaky `fetchInventory` call in a retry: three attempts, exponential backoff, then surface the last error."
+        },
+        {
+          "id": "strategy",
+          "type": "choice",
+          "options": [
+            { "id": "jitter", "label": "Full jitter", "md": "Randomize each delay — smooths thundering herds." },
+            { "id": "fixed", "label": "Fixed steps", "md": "1s, 2s, 4s — predictable, easier to test." }
+          ]
+        },
+        { "id": "verdict", "type": "approval", "prompt": "Ship it?" }
+      ]
+    }
+  ]
+}

@@ -6,6 +6,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `examples/quickstart-board.json`, a quickstart-sized approval board, plus
+  `docs/scripts/demo.sh`, which regenerates the README demo screenshot from a
+  real run of it.
+
+### Changed
+- README restructured to the front-door skeleton: brew as the one install
+  path, a quickstart that drives the installed binary against the committed
+  example, and internals deferred to `docs/contract.md`.
+
 ## [0.1.0] - 2026-07-03
 
 ### Added

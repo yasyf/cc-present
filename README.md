@@ -1,88 +1,82 @@
-# cc-present
+# ![cc-present](docs/assets/readme-banner.webp)
 
-![cc-present banner](docs/assets/readme-banner.webp)
+**Approval boards where every click streams back to the agent.** A Claude session serves a page of typed blocks — approvals, choices, diffs — at a localhost URL and reacts to each click in your open tab, no reload.
 
 [![Release](https://img.shields.io/github/v/release/yasyf/cc-present?sort=semver)](https://github.com/yasyf/cc-present/releases)
 [![CI](https://img.shields.io/github/actions/workflow/status/yasyf/cc-present/ci.yml?branch=main&label=ci)](https://github.com/yasyf/cc-present/actions/workflows/ci.yml)
 [![License: PolyForm-Noncommercial-1.0.0](https://img.shields.io/badge/License-PolyForm--Noncommercial--1.0.0-blue.svg)](https://github.com/yasyf/cc-present/blob/main/LICENSE)
 
-Ad-hoc live web artifacts for Claude sessions — approval boards, choices, and rich content whose every click streams back to the agent.
-
-cc-present turns "here's a static page, reply in chat" into a live loop. A Claude session composes a web page out of typed blocks (approval cards, choices, feedback boxes, code, diffs, tables) and serves it at a localhost URL; every button you click streams back into the session as a typed event, and the agent patches individual blocks in your open tab without a reload.
-
-## Install
-
-Homebrew (macOS):
+## Get started
 
 ```bash
 brew install yasyf/tap/cc-present
 ```
 
-Or with the Go toolchain:
+<img src="docs/assets/demo-quickstart.png" alt="A cc-present board titled 'Approve the retry plan' — an approval card with two choice options, approve and reject controls, and a Send decisions bar" width="700">
 
-```bash
-go install github.com/yasyf/cc-present/cmd/cc-present@latest
-```
+Driving with an agent? Paste this:
 
-Both paths go live with the first tagged release. Until then, build from a clone: `task build` compiles the SPA and then the binary into `./bin/cc-present` (`go:embed` bakes the SPA into the binary, so the order is load-bearing).
-
-## Quickstart
-
-Write a document of blocks, start it, and watch interactions stream back. From a clone:
-
-```bash
-task build
-cat > board.json <<'EOF'
-{
-  "version": 1,
-  "title": "Pick an opener",
-  "submit": { "label": "Send decisions" },
-  "blocks": [
-    { "id": "opener", "type": "card", "title": "README opener", "children": [
-      { "id": "pick", "type": "choice", "options": [
-        { "id": "a", "label": "A", "md": "**Review Claude's diffs like a PR.**" },
-        { "id": "b", "label": "B", "md": "**A PR-style review UI for agent edits.**" }
-      ] },
-      { "id": "verdict", "type": "approval", "prompt": "Ship the selected opener?" }
-    ] }
-  ]
-}
-EOF
-./bin/cc-present start --session demo --cwd "$PWD" --doc board.json
-# session: 969500fae670b596f48dffd8b9859142
-# url: http://127.0.0.1:55339/p/pick-an-opener--5b817e15
-# channel: inactive
-./bin/cc-present watch --session demo --cwd "$PWD"
-# {"blockId":"pick","optionIds":["a"],"type":"choice.selected"}
-# {"blockId":"verdict","type":"decision.created","verdict":"approved"}
-# {"revision":1,"type":"submit"}
-```
-
-Open the URL; picking option A, approving, and pressing Submit produces exactly the three lines shown — `watch` prints one self-describing JSON payload per human interaction as it happens, each carrying its `type` (`channel: inactive` just means no MCP channel is attached; the plugin wires that). When the round is done, collect the reduced state and shut down:
-
-```bash
-./bin/cc-present outcomes --session demo --cwd "$PWD"   # reduced doc + human interactions as JSON
-./bin/cc-present close --session demo --cwd "$PWD"
-# closed: pick-an-opener--5b817e15
-# ...and the watch above prints {"type":"present.closed"} and exits
-./bin/cc-present stop
-# daemon: stopping
-```
-
-Inside a Claude Code session the plugin does this wiring for you — install it and say "present this as an approval board":
-
-```
+```text
 /plugin marketplace add yasyf/cc-present
 /plugin install cc-present@cc-present
 ```
 
-The plugin adds the cc-present MCP channel (human clicks arrive in the session as `<channel source="cc-present">` tags), a SessionStart hook that installs the binary and records the session, and the `/cc-present:present` skill that drives the loop: start, watch, reply, outcomes.
+The plugin auto-installs the binary and wires the loop: an MCP channel that delivers clicks into the session as `<channel source="cc-present">` tags, a SessionStart hook, and the `/cc-present:present` skill that drives compose, watch, reply, and outcomes.
 
-## How it works
+---
 
-A lazy per-user daemon (`~/.cc-present`) owns one append-only event log per artifact and serves the SPA, a REST endpoint for interactions, and an SSE stream on a localhost port; the CLI is a thin client over its unix socket. The log has two lanes: the agent writes the document lane (`doc.replaced`, `block.upserted`, `block.removed`, `reply.created`, `present.closed`) and the human writes the interaction lane (`decision.created`, `choice.selected`, `feedback.created`, `input.submitted`, `submit`). State is a pure reduction of that log — a fresh tab replays it from seq 0 over SSE, so there is no get-document endpoint, and an agent re-upserting a block never clobbers your verdict. `watch` excludes the agent's own origin, so the agent hears the human lane plus the system-origin `present.closed`, on which it exits.
+## Use cases
 
-The document is a flat list of typed blocks (a `card` nests leaf blocks one level deep):
+### Collect verdicts on ten drafts without "card 14, option B"
+
+A static review page still makes you type decisions back into chat. On a board, every card carries its own approve/reject/feedback controls, and each click lands in the session as one typed event:
+
+```text
+{"blockId":"verdict","type":"decision.created","verdict":"approved"}
+```
+
+### Redraft a rejected card without losing the other verdicts
+
+A regenerated one-shot page forgets what you already decided. The agent patches single blocks over the stream your tab is subscribed to, so a rejected draft becomes a redraft in place — and your earlier verdicts survive, because agent content and human decisions live in separate lanes of the event log.
+
+### Cover tomorrow's dashboard with today's JSON
+
+A bespoke review UI takes a repo each. Blocks compose — markdown, cards, choices, inputs, code, diffs, images, tables, progress — so the document that renders an approval board today renders a triage dashboard tomorrow. The full vocabulary is in the table below.
+
+## Quickstart
+
+Run one round end to end in about two minutes: fetch the sample board, serve it, click, and collect the decisions.
+
+```bash
+curl -fsSLO https://raw.githubusercontent.com/yasyf/cc-present/main/examples/quickstart-board.json
+cc-present start --session demo --cwd "$PWD" --doc quickstart-board.json
+# session: <session id>
+# url: http://127.0.0.1:<port>/p/approve-the-retry-plan--<hash>
+# channel: inactive
+cc-present watch --session demo --cwd "$PWD"
+```
+
+Open the URL, pick "Full jitter", approve, and press Send decisions. `watch` prints one self-describing JSON payload per interaction as it happens (`channel: inactive` means no Claude session is attached; the plugin wires that):
+
+```text
+{"blockId":"strategy","optionIds":["jitter"],"type":"choice.selected"}
+{"blockId":"verdict","type":"decision.created","verdict":"approved"}
+{"revision":1,"type":"submit"}
+```
+
+Collect the round and shut down — on close, `watch` prints `{"type":"present.closed"}` and exits:
+
+```bash
+cc-present outcomes --session demo --cwd "$PWD"   # reduced doc + human interactions as JSON
+cc-present close --session demo --cwd "$PWD"
+# closed: approve-the-retry-plan--<hash>
+cc-present stop
+# daemon: stopping
+```
+
+## Blocks
+
+The document is a flat list of typed blocks (a `card` nests leaf blocks one level deep), and the document-level Submit button emits `submit`:
 
 | Block | Renders | A click emits |
 |---|---|---|
@@ -98,13 +92,8 @@ The document is a flat list of typed blocks (a `card` nests leaf blocks one leve
 | `table` | aligned columns of inline-markdown cells | — |
 | `progress` | a labeled meter | — |
 
-The document-level Submit button emits `submit`. The full wire contract — block fields, validation rules, event payloads, and the REST surface — is [docs/contract.md](docs/contract.md); [`plugin/skills/present`](plugin/skills/present/SKILL.md) is the skill that drives the loop from inside a session. A complete sample document lives in [`examples/opener-board.json`](examples/opener-board.json).
+A complete sample document lives in [`examples/opener-board.json`](examples/opener-board.json). The wire contract — block fields, validation rules, event payloads, the REST surface — is [docs/contract.md](docs/contract.md), and the [present skill](plugin/skills/present/SKILL.md) drives the loop from inside a session.
 
-## What problems does this solve?
+Under the hood, a per-user daemon owns one append-only event log per artifact: the agent writes one lane, the human writes the other, and the page is a pure reduction of the log — a fresh tab replays it over SSE, and an agent redraft never clobbers your verdict.
 
-- **Static artifacts collect decisions out-of-band.** An agent that drafts 26 README openers as an HTML page still needs you to type "card 14, option B" back into chat. Here every card carries its own approve/reject/feedback controls, and each click arrives in the session as a typed event.
-- **Approval state gets lost between rounds.** The document is a pure reduction of an append-only event log. Agent content and human decisions live in separate lanes of that log, so a redrafted card keeps your earlier verdicts intact.
-- **One-shot UIs go stale mid-conversation.** The agent patches single blocks over the same stream your browser is subscribed to. A rejected opener becomes a redraft in your open tab, no reload.
-- **Bespoke review UIs take a repo each.** Blocks compose (markdown, cards, choices, inputs, code, diffs, images, tables, progress), so one JSON document covers an approval board today and a triage dashboard tomorrow.
-
-Everything else — per-command flags, the daemon lifecycle, the channel — is in `cc-present --help`.
+Everything else — per-command flags, the daemon lifecycle, the channel — is in `cc-present --help`. Licensed under [PolyForm Noncommercial 1.0.0](LICENSE).
