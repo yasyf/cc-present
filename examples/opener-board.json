@@ -1,0 +1,295 @@
+{
+  "version": 1,
+  "title": "26 openers, redrafted with teeth",
+  "intro": "Round-2 verdict was more punchy — every opener is redrafted with command-form hooks, tension, and loss-framing (hype adjectives still banned). Each card shows my pick, two alternates, and the round-1 line; approve, or name any card where you prefer an alternate. The opener doubles as the GitHub About text, package description, docs hero tagline, and banner tagline. Nothing lands until you approve.",
+  "stats": [
+    { "label": "repos drafted", "value": "26" },
+    { "label": "flagged (pre-release)", "value": "2" },
+    { "label": "animated demos", "value": "11" }
+  ],
+  "submit": {
+    "label": "Approve openers",
+    "note": "Approving green-lights the retrofit: README rewrites, demo media, and gh repo edit --description, pushed direct to main."
+  },
+  "blocks": [
+    {
+      "id": "sec-flagged",
+      "type": "section",
+      "title": "Flagged — corrected before approval",
+      "md": "Both repos are pre-release; their drafted install commands do not work today. Corrections are shown inline, and the get-started block is held until the plugin ships."
+    },
+    {
+      "id": "card-cc-factory",
+      "type": "card",
+      "title": "cc-factory",
+      "flagged": true,
+      "status": "redrafted",
+      "chips": [
+        { "label": "plugin" },
+        { "label": "animated", "tone": "demo" },
+        { "label": "corrected", "tone": "flag" }
+      ],
+      "children": [
+        {
+          "id": "cc-factory-was",
+          "type": "markdown",
+          "struck": true,
+          "md": "A software factory for Claude Code: orchestrated agents that plan, build, review, and ship software."
+        },
+        {
+          "id": "cc-factory-opener",
+          "type": "markdown",
+          "md": "**Your spec clocks in. A reviewed diff clocks out.**\n\ncc-factory is an assembly line of agents: your spec gets designed, planned, built in parallel, reviewed, and argued against before it leaves the floor."
+        },
+        {
+          "id": "cc-factory-alts",
+          "type": "choice",
+          "prompt": "My pick is selected. Prefer an alternate?",
+          "options": [
+            { "id": "pick", "label": "Your spec clocks in. A reviewed diff clocks out.", "md": "My pick." },
+            { "id": "alt-a", "label": "Stop reviewing your agent's first draft." },
+            { "id": "alt-b", "label": "Your spec runs the line: design, plan, parallel build, review, pushback." }
+          ]
+        },
+        {
+          "id": "cc-factory-flag-note",
+          "type": "markdown",
+          "md": "**Correction:** the repo is docs-only — no `.claude-plugin/` manifest exists, so the install commands (also in today's README) fail. The retrofit keeps the opener but adds an honest **Status: design stage** line and defers the install/agent block and demo until the plugin ships."
+        },
+        {
+          "id": "cc-factory-approval",
+          "type": "approval",
+          "prompt": "Approve this opener and the deferred-install correction?",
+          "allowFeedback": true
+        }
+      ]
+    },
+    {
+      "id": "sec-docs-site",
+      "type": "section",
+      "title": "Tier A — repos with docs sites",
+      "md": "README, docs landing, and walkthrough all get the treatment."
+    },
+    {
+      "id": "card-captain-hook",
+      "type": "card",
+      "title": "captain-hook",
+      "chips": [
+        { "label": "both" },
+        { "label": "freeze", "tone": "demo" }
+      ],
+      "children": [
+        {
+          "id": "captain-hook-was",
+          "type": "markdown",
+          "struck": true,
+          "md": "Guardrails for Claude Code, written as typed, testable data — and learned from the corrections you give Claude."
+        },
+        {
+          "id": "captain-hook-opener",
+          "type": "markdown",
+          "md": "**Stop repeating yourself to Claude.**\n\ncaptain-hook mines your transcripts for the corrections you keep giving and opens PRs that turn each one into a typed, tested Python hook."
+        },
+        {
+          "id": "captain-hook-alts",
+          "type": "choice",
+          "prompt": "My pick is selected. Prefer an alternate?",
+          "options": [
+            { "id": "pick", "label": "Stop repeating yourself to Claude.", "md": "My pick." },
+            { "id": "alt-a", "label": "Claude isn't done until the tests pass." },
+            { "id": "alt-b", "label": "All the autonomy. None of the rm -rf." }
+          ]
+        },
+        {
+          "id": "captain-hook-get-started",
+          "type": "code",
+          "title": "Get started",
+          "lang": "bash",
+          "code": "uvx capt-hook init"
+        },
+        {
+          "id": "captain-hook-approval",
+          "type": "approval",
+          "prompt": "Approve this opener?",
+          "allowFeedback": true
+        }
+      ]
+    },
+    {
+      "id": "card-cc-review",
+      "type": "card",
+      "title": "cc-review",
+      "chips": [
+        { "label": "both" },
+        { "label": "screenshot", "tone": "demo" }
+      ],
+      "children": [
+        {
+          "id": "cc-review-was",
+          "type": "markdown",
+          "struck": true,
+          "md": "Local code-review daemon + Claude plugin — review what Claude writes in a PR-like web UI and stream feedback back."
+        },
+        {
+          "id": "cc-review-opener",
+          "type": "markdown",
+          "md": "**The only thing between Claude and its next edit is your Submit button.**\n\ncc-review renders your working tree as a local PR page and streams your comments to Claude live; a PreToolUse hook freezes edits until you press Submit."
+        },
+        {
+          "id": "cc-review-alts",
+          "type": "choice",
+          "prompt": "My pick is selected. Prefer an alternate?",
+          "options": [
+            { "id": "pick", "label": "The only thing between Claude and its next edit is your Submit button.", "md": "My pick." },
+            { "id": "alt-a", "label": "Stop reviewing Claude's diffs in terminal scrollback." },
+            { "id": "alt-b", "label": "Inline-comment a commit that doesn't exist yet." }
+          ]
+        },
+        {
+          "id": "cc-review-approval",
+          "type": "approval",
+          "prompt": "Approve this opener?",
+          "allowFeedback": true
+        }
+      ]
+    },
+    {
+      "id": "sec-plugin",
+      "type": "section",
+      "title": "Tier B — plugin & marketplace repos"
+    },
+    {
+      "id": "card-slop-cop",
+      "type": "card",
+      "title": "slop-cop",
+      "chips": [
+        { "label": "both" },
+        { "label": "freeze", "tone": "demo" }
+      ],
+      "children": [
+        {
+          "id": "slop-cop-was",
+          "type": "markdown",
+          "struck": true,
+          "md": "A Go CLI that detects the rhetorical and structural tells of LLM-generated prose and emits a structured JSON report."
+        },
+        {
+          "id": "slop-cop-opener",
+          "type": "markdown",
+          "md": "**Never ship 'delve' again.**\n\nslop-cop reads your agent's prose with 48 detectors and returns a JSON rap sheet the agent revises against, in CI, pre-commit, or inline."
+        },
+        {
+          "id": "slop-cop-alts",
+          "type": "choice",
+          "prompt": "My pick is selected. Prefer an alternate?",
+          "options": [
+            { "id": "pick", "label": "Never ship 'delve' again.", "md": "My pick." },
+            { "id": "alt-a", "label": "Your agent's prose, booked on 48 counts of slop." },
+            { "id": "alt-b", "label": "AI-written, without the AI accent." }
+          ]
+        },
+        {
+          "id": "slop-cop-get-started",
+          "type": "code",
+          "title": "Get started",
+          "lang": "bash",
+          "code": "brew install yasyf/tap/slop-cop\nslop-cop check draft.md --pretty"
+        },
+        {
+          "id": "slop-cop-approval",
+          "type": "approval",
+          "prompt": "Approve this opener?",
+          "allowFeedback": true
+        }
+      ]
+    },
+    {
+      "id": "sec-readme-only",
+      "type": "section",
+      "title": "Tier C — README-only repos"
+    },
+    {
+      "id": "card-cc-notes",
+      "type": "card",
+      "title": "cc-notes",
+      "chips": [
+        { "label": "both" },
+        { "label": "freeze", "tone": "demo" }
+      ],
+      "children": [
+        {
+          "id": "cc-notes-was",
+          "type": "markdown",
+          "struck": true,
+          "md": "Notes and tasks for AI agents, stored as objects in your repo's git database — no server, no sidecar, invisible in checkouts."
+        },
+        {
+          "id": "cc-notes-opener",
+          "type": "markdown",
+          "md": "**Delete your HANDOFF.md.**\n\ncc-notes keeps agent tasks, notes, and docs as a CRDT op-log on refs/cc-notes/*, synced over plain git and invisible to checkout and diff."
+        },
+        {
+          "id": "cc-notes-alts",
+          "type": "choice",
+          "prompt": "My pick is selected. Prefer an alternate?",
+          "options": [
+            { "id": "pick", "label": "Delete your HANDOFF.md.", "md": "My pick." },
+            { "id": "alt-a", "label": "Your agents remember. Your diff never knows." },
+            { "id": "alt-b", "label": "Never re-explain the plan to a fresh agent." }
+          ]
+        },
+        {
+          "id": "cc-notes-get-started",
+          "type": "code",
+          "title": "Get started",
+          "lang": "bash",
+          "code": "brew install yasyf/tap/cc-notes\ncc-notes init"
+        },
+        {
+          "id": "cc-notes-approval",
+          "type": "approval",
+          "prompt": "Approve this opener?",
+          "allowFeedback": true
+        }
+      ]
+    },
+    {
+      "id": "card-cc-interact",
+      "type": "card",
+      "title": "cc-interact",
+      "chips": [
+        { "label": "prompt" },
+        { "label": "animated", "tone": "demo" }
+      ],
+      "children": [
+        {
+          "id": "cc-interact-was",
+          "type": "markdown",
+          "struck": true,
+          "md": "A domain-agnostic framework for human-in-the-loop Claude agents — daemon, event stream, MCP channel, and optional web UI."
+        },
+        {
+          "id": "cc-interact-opener",
+          "type": "markdown",
+          "md": "**Never write a daemon for a Claude Code tool again.**\n\ncc-interact extracts cc-review's daemon, event log, SSE, edit-gate, and MCP plumbing into a reusable Go framework; the echo example is 381 lines."
+        },
+        {
+          "id": "cc-interact-alts",
+          "type": "choice",
+          "prompt": "My pick is selected. Prefer an alternate?",
+          "options": [
+            { "id": "pick", "label": "Never write a daemon for a Claude Code tool again.", "md": "My pick." },
+            { "id": "alt-a", "label": "An echo server with a daemon, event log, SSE, edit gate, and MCP is 381 lines." },
+            { "id": "alt-b", "label": "All of cc-review's plumbing. None of the review." }
+          ]
+        },
+        {
+          "id": "cc-interact-approval",
+          "type": "approval",
+          "prompt": "Approve this opener?",
+          "allowFeedback": true
+        }
+      ]
+    }
+  ]
+}
