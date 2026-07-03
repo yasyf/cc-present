@@ -1,5 +1,11 @@
 version: '3'
 
+# The web SPA MUST be built before the Go binary: //go:embed all:internal/web/dist
+# reads at compile time, so a stale or empty dist gets baked into the binary
+# otherwise. `build` runs build-web then build-go so the order is enforced. A
+# clean tree still compiles against the committed placeholder index.html when the
+# web toolchain is absent.
+
 vars:
   VERSION:
     sh: git describe --tags --always --dirty 2>/dev/null || echo dev
@@ -12,7 +18,20 @@ vars:
 
 tasks:
   build:
-    desc: Build the binary into ./bin
+    desc: Build the SPA then the binary (order is load-bearing for go:embed)
+    cmds:
+      - task: build-web
+      - task: build-go
+
+  build-web:
+    desc: Install web deps and build the SPA into internal/web/dist
+    dir: web
+    cmds:
+      - bun install
+      - bunx vite build
+
+  build-go:
+    desc: Build the binary into ./bin (embeds whatever is in internal/web/dist)
     cmds:
       - go build -trimpath -ldflags "{{.LDFLAGS}}" -o bin/cc-present ./cmd/cc-present
 

@@ -5,8 +5,12 @@ version: 2
 
 project_name: cc-present
 
+# The web SPA must be built before `go build`: //go:embed all:internal/web/dist
+# reads at compile time, so the dist dir must be fresh first. goreleaser runs
+# these before hooks once, before any build (the release workflow sets up bun).
 before:
   hooks:
+    - bash -c 'cd web && bun install --frozen-lockfile && bunx vite build'
     - go mod tidy
 
 builds:
@@ -27,7 +31,18 @@ builds:
     mod_timestamp: "{{ .CommitTimestamp }}"
 
 archives:
-  - id: cc-present
+  # Bare per-arch binaries named cc-present_<os>_<arch> — the Claude Code plugin's
+  # plugin/scripts/install-binary.sh fetches these directly from the release:
+  #   https://github.com/yasyf/cc-present/releases/download/v${VERSION}/cc-present_${OS}_${ARCH}
+  - id: binary
+    ids:
+      - cc-present
+    formats: [binary]
+    name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"
+  # A normal tar.gz archive for general use (and the Homebrew cask).
+  - id: archive
+    ids:
+      - cc-present
     formats: [tar.gz]
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
 
@@ -62,6 +77,10 @@ checksum:
 # reference/go-ci-and-release.md § Formula recipe.
 homebrew_casks:
   - name: cc-present
+    # Use the tar.gz archive (not the bare binary) for the cask: two archives
+    # cover each OS/Arch, so the cask must pick one.
+    ids:
+      - archive
     binaries:
       - cc-present
     repository:

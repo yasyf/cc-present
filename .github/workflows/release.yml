@@ -11,3 +11,7 @@ jobs:
   release:
     uses: yasyf/homebrew-tap/.github/workflows/release-go.yml@v1
     secrets: inherit
+    # The goreleaser before-hook builds the go:embed web SPA with bun, so the
+    # shared workflow must put bun on PATH before it runs goreleaser.
+    with:
+      setup-bun: true
