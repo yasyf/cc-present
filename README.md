@@ -24,11 +24,14 @@ Or with the Go toolchain:
 go install github.com/yasyf/cc-present/cmd/cc-present@latest
 ```
 
+Both paths go live with the first tagged release. Until then, build from a clone: `task build` compiles the SPA and then the binary into `./bin/cc-present` (`go:embed` bakes the SPA into the binary, so the order is load-bearing).
+
 ## Quickstart
 
-Write a document of blocks, start it, and watch clicks stream back:
+Write a document of blocks, start it, and watch interactions stream back. From a clone:
 
 ```bash
+task build
 cat > board.json <<'EOF'
 {
   "version": 1,
@@ -45,21 +48,56 @@ cat > board.json <<'EOF'
   ]
 }
 EOF
-cc-present start --session demo --cwd "$PWD" --title "Openers" --doc board.json
-# session: demo
-# url: http://127.0.0.1:52780/p/openers--3f9c21aa
-cc-present watch --session demo --cwd "$PWD"
-# {"type":"choice.selected","payload":{"blockId":"pick","optionIds":["a"]}}
-# {"type":"decision.created","payload":{"blockId":"verdict","verdict":"approved"}}
-# {"type":"submit","payload":{"revision":1}}
+./bin/cc-present start --session demo --cwd "$PWD" --doc board.json
+# session: 969500fae670b596f48dffd8b9859142
+# url: http://127.0.0.1:55339/p/pick-an-opener--5b817e15
+# channel: inactive
+./bin/cc-present watch --session demo --cwd "$PWD"
+# {"blockId":"pick","optionIds":["a"]}
+# {"blockId":"verdict","verdict":"approved"}
+# {"revision":1}
 ```
 
-Open the URL, click, and each interaction appears on the stream as it happens. Inside a Claude Code session the plugin does this wiring for you — install it and say "present this as an approval board":
+Open the URL; picking option A, approving, and pressing Submit produces exactly the three lines shown — `watch` prints one JSON payload per human interaction as it happens (`channel: inactive` just means no MCP channel is attached; the plugin wires that). When the round is done, collect the reduced state and shut down:
+
+```bash
+./bin/cc-present outcomes --session demo --cwd "$PWD"   # reduced doc + human interactions as JSON
+./bin/cc-present close --session demo --cwd "$PWD"
+# closed: pick-an-opener--5b817e15
+./bin/cc-present stop
+# daemon: stopping
+```
+
+Inside a Claude Code session the plugin does this wiring for you — install it and say "present this as an approval board":
 
 ```
 /plugin marketplace add yasyf/cc-present
 /plugin install cc-present@cc-present
 ```
+
+The plugin adds the cc-present MCP channel (human clicks arrive in the session as `<channel source="cc-present">` tags), a SessionStart hook that installs the binary and records the session, and the `/cc-present:present` skill that drives the loop: start, watch, reply, outcomes.
+
+## How it works
+
+A lazy per-user daemon (`~/.cc-present`) owns one append-only event log per artifact and serves the SPA, a REST endpoint for interactions, and an SSE stream on a localhost port; the CLI is a thin client over its unix socket. The log has two lanes: the agent writes the document lane (`doc.replaced`, `block.upserted`, `block.removed`, `reply.created`, `present.closed`) and the human writes the interaction lane (`decision.created`, `choice.selected`, `feedback.created`, `input.submitted`, `submit`). State is a pure reduction of that log — a fresh tab replays it from seq 0 over SSE, so there is no get-document endpoint, and an agent re-upserting a block never clobbers your verdict. `watch` excludes the agent's own origin, so the agent hears the human lane only.
+
+The document is a flat list of typed blocks (a `card` nests leaf blocks one level deep):
+
+| Block | Renders | A click emits |
+|---|---|---|
+| `section` | a header with optional prose | — |
+| `card` | a titled container with chips and a status, nesting leaf blocks | — |
+| `approval` | approve/reject controls, plus a feedback box when allowed | `decision.created`, `feedback.created` |
+| `choice` | a single- or multi-select set of options | `choice.selected` |
+| `input` | a free-text field | `input.submitted` |
+| `markdown` | prose, optionally struck through | — |
+| `code` | a highlighted snippet | — |
+| `diff` | a unified diff | — |
+| `image` | an image with a caption | — |
+| `table` | aligned columns of inline-markdown cells | — |
+| `progress` | a labeled meter | — |
+
+The document-level Submit button emits `submit`. The full wire contract — block fields, validation rules, event payloads, and the REST surface — is [docs/contract.md](docs/contract.md); [`plugin/skills/present`](plugin/skills/present/SKILL.md) is the skill that drives the loop from inside a session. A complete sample document lives in [`examples/opener-board.json`](examples/opener-board.json).
 
 ## What problems does this solve?
 
@@ -67,3 +105,5 @@ Open the URL, click, and each interaction appears on the stream as it happens. I
 - **Approval state gets lost between rounds.** The document is a pure reduction of an append-only event log. Agent content and human decisions live in separate lanes of that log, so a redrafted card keeps your earlier verdicts intact.
 - **One-shot UIs go stale mid-conversation.** The agent patches single blocks over the same stream your browser is subscribed to. A rejected opener becomes a redraft in your open tab, no reload.
 - **Bespoke review UIs take a repo each.** Blocks compose (markdown, cards, choices, inputs, code, diffs, images, tables, progress), so one JSON document covers an approval board today and a triage dashboard tomorrow.
+
+Everything else — per-command flags, the daemon lifecycle, the channel — is in `cc-present --help`.

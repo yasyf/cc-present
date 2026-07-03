@@ -22,6 +22,7 @@ cc-present/
 ├── web/                   # Vite + React SPA (block renderer), builds into internal/web/dist
 ├── plugin/                # Claude Code plugin payload: manifest, hooks, skills/present
 ├── examples/              # sample block documents (opener-board.json)
+├── docs/                  # contract.md — the wire contract (blocks, events, REST) + README assets
 ├── .claude-plugin/        # marketplace.json — this repo is its own plugin marketplace
 ├── .github/               # GitHub Actions workflows
 ├── AGENTS.md              # This file — shared conventions
