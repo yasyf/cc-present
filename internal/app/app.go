@@ -6,8 +6,6 @@ package app
 
 import (
 	"context"
-	"os"
-	"syscall"
 
 	"github.com/yasyf/cc-interact/channel"
 	"github.com/yasyf/cc-interact/cmd"
@@ -15,6 +13,7 @@ import (
 	"github.com/yasyf/cc-interact/paths"
 
 	ccdaemon "github.com/yasyf/cc-present/internal/daemon"
+	"github.com/yasyf/cc-present/internal/procs"
 	"github.com/yasyf/cc-present/internal/version"
 )
 
@@ -46,15 +45,6 @@ func launcher() ccd.Launcher {
 	return ccd.Launcher{Paths: Paths(), Version: version.String(), Args: []string{"daemon"}}
 }
 
-// windowAlive reports whether pid still names a live process, so a pid-bound
-// stream consumer exits once its window dies.
-func windowAlive(pid int) bool {
-	if pid <= 0 {
-		return false
-	}
-	return syscall.Kill(pid, 0) == nil
-}
-
 // Deps wires cc-interact's substrate commands to cc-present's host.
 func Deps() cmd.Deps {
 	return cmd.Deps{
@@ -63,8 +53,8 @@ func Deps() cmd.Deps {
 		NewClient:              NewClient,
 		EnsureCurrent:          func(context.Context) error { return launcher().EnsureCurrent(ccd.UpgradeTimeout) },
 		EnsureCurrentIfRunning: func() error { return launcher().EnsureCurrentIfRunning() },
-		ClaudePID:              os.Getpid,
-		WindowAlive:            windowAlive,
+		ClaudePID:              procs.ClaudePID,
+		WindowAlive:            procs.LiveClaude,
 		TerminalEvent:          func(t string) bool { return t == ccdaemon.EventPresentClosed },
 		Serve:                  func(ctx context.Context) error { return ccdaemon.Serve(ctx, Paths(), version.String()) },
 		ChannelTools:           channelTools,
