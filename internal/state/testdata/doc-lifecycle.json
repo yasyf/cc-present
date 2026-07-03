@@ -1,0 +1,85 @@
+{
+  "name": "doc-lifecycle",
+  "events": [
+    {
+      "origin": "agent",
+      "type": "doc.replaced",
+      "seq": 1,
+      "payload": {
+        "revision": 1,
+        "doc": {
+          "version": 1,
+          "title": "Opener approvals",
+          "intro": "Review each opener.",
+          "stats": [{ "label": "Repos", "value": "2" }],
+          "submit": { "label": "Apply" },
+          "blocks": [
+            { "id": "sec1", "type": "section", "title": "Batch one" },
+            {
+              "id": "c1",
+              "type": "card",
+              "title": "acme",
+              "status": "open",
+              "children": [
+                { "id": "a1", "type": "approval", "prompt": "Use this?" },
+                {
+                  "id": "ch1",
+                  "type": "choice",
+                  "options": [
+                    { "id": "o1", "label": "Terse" },
+                    { "id": "o2", "label": "Warm" }
+                  ]
+                },
+                { "id": "in1", "type": "input", "label": "Notes" }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    { "origin": "human", "type": "decision.created", "seq": 2, "payload": { "blockId": "a1", "verdict": "approved", "note": "looks good" } },
+    { "origin": "human", "type": "choice.selected", "seq": 3, "payload": { "blockId": "ch1", "optionIds": ["o2"] } },
+    { "origin": "human", "type": "input.submitted", "seq": 4, "payload": { "blockId": "in1", "text": "some notes" } },
+    { "origin": "human", "type": "feedback.created", "seq": 5, "payload": { "id": "f1", "blockId": "a1", "text": "tighten it" } },
+    { "origin": "agent", "type": "reply.created", "seq": 6, "payload": { "id": "r1", "blockId": "a1", "md": "done" } },
+    { "origin": "human", "type": "submit", "seq": 7, "payload": { "revision": 1 } }
+  ],
+  "expected": {
+    "doc": {
+      "version": 1,
+      "title": "Opener approvals",
+      "intro": "Review each opener.",
+      "stats": [{ "label": "Repos", "value": "2" }],
+      "submit": { "label": "Apply" },
+      "blocks": [
+        { "id": "sec1", "type": "section", "title": "Batch one" },
+        {
+          "id": "c1",
+          "type": "card",
+          "title": "acme",
+          "status": "open",
+          "children": [
+            { "id": "a1", "type": "approval", "prompt": "Use this?" },
+            {
+              "id": "ch1",
+              "type": "choice",
+              "options": [
+                { "id": "o1", "label": "Terse" },
+                { "id": "o2", "label": "Warm" }
+              ]
+            },
+            { "id": "in1", "type": "input", "label": "Notes" }
+          ]
+        }
+      ]
+    },
+    "interactions": {
+      "decisions": { "a1": { "verdict": "approved", "note": "looks good" } },
+      "choices": { "ch1": { "optionIds": ["o2"] } },
+      "inputs": { "in1": { "text": "some notes" } },
+      "feedback": { "a1": [{ "id": "f1", "text": "tighten it" }] },
+      "replies": { "a1": [{ "id": "r1", "md": "done" }] },
+      "submitted": { "value": true, "revision": 1 }
+    }
+  }
+}

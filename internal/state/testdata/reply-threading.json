@@ -1,0 +1,41 @@
+{
+  "name": "reply-threading",
+  "events": [
+    {
+      "origin": "agent",
+      "type": "doc.replaced",
+      "seq": 1,
+      "payload": {
+        "revision": 1,
+        "doc": {
+          "version": 1,
+          "title": "T",
+          "blocks": [
+            { "id": "c1", "type": "card", "children": [{ "id": "a1", "type": "approval" }] }
+          ]
+        }
+      }
+    },
+    { "origin": "human", "type": "feedback.created", "seq": 2, "payload": { "id": "f1", "blockId": "a1", "text": "please shorten" } },
+    { "origin": "agent", "type": "reply.created", "seq": 3, "payload": { "id": "r1", "blockId": "a1", "md": "shortened" } },
+    { "origin": "agent", "type": "reply.created", "seq": 4, "payload": { "id": "r2", "blockId": "a1", "md": "and clarified" } }
+  ],
+  "expected": {
+    "doc": {
+      "version": 1,
+      "title": "T",
+      "blocks": [
+        { "id": "c1", "type": "card", "children": [{ "id": "a1", "type": "approval" }] }
+      ]
+    },
+    "interactions": {
+      "feedback": { "a1": [{ "id": "f1", "text": "please shorten" }] },
+      "replies": {
+        "a1": [
+          { "id": "r1", "md": "shortened" },
+          { "id": "r2", "md": "and clarified" }
+        ]
+      }
+    }
+  }
+}

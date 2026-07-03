@@ -1,0 +1,37 @@
+{
+  "name": "upsert-unknown-after-appends",
+  "events": [
+    {
+      "origin": "agent",
+      "type": "doc.replaced",
+      "seq": 1,
+      "payload": {
+        "revision": 1,
+        "doc": {
+          "version": 1,
+          "title": "T",
+          "blocks": [{ "id": "c1", "type": "card", "children": [] }]
+        }
+      }
+    },
+    {
+      "origin": "agent",
+      "type": "block.upserted",
+      "seq": 2,
+      "payload": {
+        "after": "does-not-exist",
+        "block": { "id": "c2", "type": "card", "children": [] }
+      }
+    }
+  ],
+  "expected": {
+    "doc": {
+      "version": 1,
+      "title": "T",
+      "blocks": [
+        { "id": "c1", "type": "card", "children": [] },
+        { "id": "c2", "type": "card", "children": [] }
+      ]
+    }
+  }
+}

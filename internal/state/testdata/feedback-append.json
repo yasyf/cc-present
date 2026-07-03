@@ -1,0 +1,39 @@
+{
+  "name": "feedback-append",
+  "events": [
+    {
+      "origin": "agent",
+      "type": "doc.replaced",
+      "seq": 1,
+      "payload": {
+        "revision": 1,
+        "doc": {
+          "version": 1,
+          "title": "T",
+          "blocks": [
+            { "id": "c1", "type": "card", "children": [{ "id": "a1", "type": "approval" }] }
+          ]
+        }
+      }
+    },
+    { "origin": "human", "type": "feedback.created", "seq": 2, "payload": { "id": "f1", "blockId": "a1", "text": "first" } },
+    { "origin": "human", "type": "feedback.created", "seq": 3, "payload": { "id": "f2", "blockId": "a1", "text": "second" } }
+  ],
+  "expected": {
+    "doc": {
+      "version": 1,
+      "title": "T",
+      "blocks": [
+        { "id": "c1", "type": "card", "children": [{ "id": "a1", "type": "approval" }] }
+      ]
+    },
+    "interactions": {
+      "feedback": {
+        "a1": [
+          { "id": "f1", "text": "first" },
+          { "id": "f2", "text": "second" }
+        ]
+      }
+    }
+  }
+}

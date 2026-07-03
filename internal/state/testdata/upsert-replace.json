@@ -1,0 +1,43 @@
+{
+  "name": "upsert-replace-preserves-interactions",
+  "events": [
+    {
+      "origin": "agent",
+      "type": "doc.replaced",
+      "seq": 1,
+      "payload": {
+        "revision": 1,
+        "doc": {
+          "version": 1,
+          "title": "T",
+          "blocks": [
+            { "id": "c1", "type": "card", "title": "acme", "status": "open", "children": [{ "id": "a1", "type": "approval", "prompt": "v1?" }] },
+            { "id": "c2", "type": "card", "title": "beta", "children": [] }
+          ]
+        }
+      }
+    },
+    { "origin": "human", "type": "decision.created", "seq": 2, "payload": { "blockId": "a1", "verdict": "approved" } },
+    {
+      "origin": "agent",
+      "type": "block.upserted",
+      "seq": 3,
+      "payload": {
+        "block": { "id": "c1", "type": "card", "title": "acme v2", "status": "redrafted", "children": [{ "id": "a1", "type": "approval", "prompt": "v2?" }] }
+      }
+    }
+  ],
+  "expected": {
+    "doc": {
+      "version": 1,
+      "title": "T",
+      "blocks": [
+        { "id": "c1", "type": "card", "title": "acme v2", "status": "redrafted", "children": [{ "id": "a1", "type": "approval", "prompt": "v2?" }] },
+        { "id": "c2", "type": "card", "title": "beta", "children": [] }
+      ]
+    },
+    "interactions": {
+      "decisions": { "a1": { "verdict": "approved" } }
+    }
+  }
+}

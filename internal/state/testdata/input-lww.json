@@ -1,0 +1,34 @@
+{
+  "name": "input-lww",
+  "events": [
+    {
+      "origin": "agent",
+      "type": "doc.replaced",
+      "seq": 1,
+      "payload": {
+        "revision": 1,
+        "doc": {
+          "version": 1,
+          "title": "T",
+          "blocks": [
+            { "id": "c1", "type": "card", "children": [{ "id": "in1", "type": "input", "label": "Notes" }] }
+          ]
+        }
+      }
+    },
+    { "origin": "human", "type": "input.submitted", "seq": 2, "payload": { "blockId": "in1", "text": "draft one" } },
+    { "origin": "human", "type": "input.submitted", "seq": 3, "payload": { "blockId": "in1", "text": "final" } }
+  ],
+  "expected": {
+    "doc": {
+      "version": 1,
+      "title": "T",
+      "blocks": [
+        { "id": "c1", "type": "card", "children": [{ "id": "in1", "type": "input", "label": "Notes" }] }
+      ]
+    },
+    "interactions": {
+      "inputs": { "in1": { "text": "final" } }
+    }
+  }
+}
