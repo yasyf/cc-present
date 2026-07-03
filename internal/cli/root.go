@@ -1,9 +1,15 @@
-// Package cli builds the cobra command tree.
+// Package cli builds the cobra command tree: cc-present's artifact commands
+// (start, push, update-block, remove-block, reply, outcomes, close) layered on
+// cc-interact's reusable substrate commands (daemon, watch, status, stop,
+// session-record, guard-edit, channel-ack, channel).
 package cli
 
 import (
 	"github.com/spf13/cobra"
 
+	"github.com/yasyf/cc-interact/cmd"
+
+	"github.com/yasyf/cc-present/internal/app"
 	"github.com/yasyf/cc-present/internal/version"
 )
 
@@ -17,6 +23,25 @@ func NewRootCmd() *cobra.Command {
 		SilenceErrors: true,
 	}
 	root.SetVersionTemplate("{{.Version}}\n")
-	root.AddCommand(newHelloCmd())
+	d := app.Deps()
+	root.AddCommand(
+		// Substrate commands from cc-interact.
+		cmd.DaemonCmd(d),
+		cmd.WatchCmd(d),
+		cmd.StatusCmd(d),
+		cmd.StopCmd(d),
+		cmd.SessionRecordCmd(d),
+		cmd.GuardEditCmd(d),
+		cmd.ChannelAckCmd(d),
+		cmd.ChannelCmd(d),
+		// cc-present artifact commands.
+		newStartCmd(d),
+		newPushCmd(d),
+		newUpdateBlockCmd(d),
+		newRemoveBlockCmd(d),
+		newReplyCmd(d),
+		newOutcomesCmd(d),
+		newCloseCmd(d),
+	)
 	return root
 }
