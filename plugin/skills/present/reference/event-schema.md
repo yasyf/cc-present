@@ -47,3 +47,5 @@ For completeness — these are what your own CLI calls append. The browser reduc
 ```
 
 Document state and human state never mix: the document carries only agent-owned display state (`card.status`, `progress`), while verdicts live in `interactions`, keyed by block id — which is why re-upserting a block never clobbers a human's decision, and why a redrafted card's approval block keeps its id if you want the standing verdict to survive the redraft (give it a fresh id to demand a fresh verdict).
+
+The flip side: interactions outlive their blocks, so `outcomes` may hold keys for blocks a later redraft removed — match interaction keys against the current `doc.blocks` when applying results.
