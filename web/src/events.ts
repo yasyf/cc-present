@@ -96,6 +96,20 @@ export type PresentEventType = PresentEvent['type'];
 export type AgentEvent = Extract<PresentEvent, { origin: 'agent' }>;
 export type HumanEvent = Extract<PresentEvent, { origin: 'human' }>;
 
+// --- Browser interaction (the POST /api/interactions body's `interaction`) ---
+
+// One human interaction the browser submits. It is a discriminated union over
+// the human event payloads, tagged with the event `type` so the daemon can
+// validate it against the reduced document and append the matching event. The
+// browser generates the feedback `id` (like the request nonce) so a retry is
+// idempotent.
+export type Interaction =
+  | ({ type: 'decision.created' } & DecisionCreatedPayload)
+  | ({ type: 'choice.selected' } & ChoiceSelectedPayload)
+  | ({ type: 'feedback.created' } & FeedbackCreatedPayload)
+  | ({ type: 'input.submitted' } & InputSubmittedPayload)
+  | ({ type: 'submit' } & SubmitPayload);
+
 // --- Interaction cache (mirrors internal/state.State) ---
 
 export interface Decision {
