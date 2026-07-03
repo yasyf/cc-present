@@ -1,0 +1,157 @@
+package doc_test
+
+import (
+	"encoding/json"
+	"fmt"
+	"strings"
+	"testing"
+
+	"github.com/yasyf/cc-present/internal/doc"
+)
+
+func parse(data string) (*doc.Doc, error) {
+	var d doc.Doc
+	if err := json.Unmarshal([]byte(data), &d); err != nil {
+		return nil, err
+	}
+	return &d, d.Validate()
+}
+
+func card(id, children string) string {
+	return fmt.Sprintf(`{"id":%q,"type":"card","children":[%s]}`, id, children)
+}
+
+func docWith(blocks string) string {
+	return fmt.Sprintf(`{"version":1,"title":"T","blocks":[%s]}`, blocks)
+}
+
+const richDoc = `{
+  "version": 1,
+  "title": "Opener approvals",
+  "intro": "Review each proposed opener.",
+  "stats": [{"label": "Repos", "value": "26"}],
+  "submit": {"label": "Apply approved", "note": "Undecided stay as-is."},
+  "blocks": [
+    {"id": "sec1", "type": "section", "title": "Batch one", "md": "First ten."},
+    {"id": "c1", "type": "card", "title": "acme", "flagged": true, "status": "open",
+     "chips": [{"label": "demo", "tone": "demo"}, {"label": "flagged", "tone": "flag"}],
+     "children": [
+       {"id": "a1", "type": "approval", "prompt": "Use this opener?", "allowFeedback": false},
+       {"id": "ch1", "type": "choice", "prompt": "Pick a variant", "multi": true,
+        "options": [{"id": "o1", "label": "Terse", "md": "A terse line."}, {"id": "o2", "label": "Warm"}]},
+       {"id": "in1", "type": "input", "label": "Notes", "placeholder": "optional", "multiline": true},
+       {"id": "md1", "type": "markdown", "md": "Was: old opener", "struck": true},
+       {"id": "cd1", "type": "code", "lang": "go", "code": "package main", "title": "main.go"},
+       {"id": "df1", "type": "diff", "diff": "@@ -1 +1 @@\n-a\n+b", "title": "README.md"},
+       {"id": "img1", "type": "image", "src": "asset:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "alt": "logo", "caption": "the mark"},
+       {"id": "tb1", "type": "table", "columns": [{"key": "k", "label": "Key", "align": "right"}], "rows": [{"k": "v"}]},
+       {"id": "pr1", "type": "progress", "label": "Drafting", "value": 3, "max": 10, "state": "active"}
+     ]}
+  ]
+}`
+
+func TestValidate(t *testing.T) {
+	bigData := "data:image/png;base64," + strings.Repeat("A", doc.MaxDataURIBytes)
+	okData := "data:image/png;base64," + strings.Repeat("A", 100)
+	bigMd := strings.Repeat("x", doc.MaxDocBytes+1)
+
+	tests := []struct {
+		name    string
+		doc     string
+		wantErr string
+	}{
+		{"happy path rich doc", richDoc, ""},
+		{"empty card children", docWith(card("c1", "")), ""},
+		{"table with no rows", docWith(card("c1", `{"id":"t1","type":"table","columns":[{"key":"k","label":"K"}],"rows":[]}`)), ""},
+		{"https image", docWith(card("c1", `{"id":"i1","type":"image","src":"https://x/y.png","alt":"a"}`)), ""},
+		{"small data uri image", docWith(card("c1", fmt.Sprintf(`{"id":"i1","type":"image","src":%q,"alt":"a"}`, okData))), ""},
+
+		{"version not 1", `{"version":2,"title":"T","blocks":[]}`, "version must be 1"},
+		{"empty title", `{"version":1,"title":"","blocks":[]}`, "title must not be empty"},
+		{"unknown block type", docWith(`{"id":"x1","type":"frobnicate"}`), `unknown type "frobnicate"`},
+		{"empty block id", docWith(`{"id":"","type":"section","title":"S"}`), "block id must not be empty"},
+		{"duplicate top-level id", docWith(`{"id":"d","type":"section","title":"A"},{"id":"d","type":"section","title":"B"}`), `duplicate block id "d"`},
+		{"duplicate child vs card id", docWith(card("c1", `{"id":"c1","type":"markdown","md":"m"}`)), `duplicate block id "c1"`},
+		{"leaf at top level", docWith(`{"id":"m1","type":"markdown","md":"hi"}`), "top-level blocks must be section or card"},
+		{"card nested in card", docWith(card("c1", card("c2", ""))), `may not be a card`},
+		{"section nested in card", docWith(card("c1", `{"id":"s2","type":"section","title":"S"}`)), `may not be a section`},
+
+		{"section missing title", docWith(`{"id":"s1","type":"section"}`), "title must not be empty"},
+		{"input missing label", docWith(card("c1", `{"id":"in1","type":"input"}`)), "label must not be empty"},
+		{"markdown missing md", docWith(card("c1", `{"id":"m1","type":"markdown"}`)), "md must not be empty"},
+		{"code missing lang", docWith(card("c1", `{"id":"cd1","type":"code","code":"x"}`)), "lang must not be empty"},
+		{"code missing code", docWith(card("c1", `{"id":"cd1","type":"code","lang":"go"}`)), "code must not be empty"},
+		{"diff missing diff", docWith(card("c1", `{"id":"df1","type":"diff"}`)), "diff must not be empty"},
+
+		{"image missing alt", docWith(card("c1", `{"id":"i1","type":"image","src":"https://x/y.png"}`)), "alt must not be empty"},
+		{"image bad scheme", docWith(card("c1", `{"id":"i1","type":"image","src":"ftp://x","alt":"a"}`)), "src must be https"},
+		{"image bad asset sha", docWith(card("c1", `{"id":"i1","type":"image","src":"asset:zzz","alt":"a"}`)), "asset src must be"},
+		{"image data uri too big", docWith(card("c1", fmt.Sprintf(`{"id":"i1","type":"image","src":%q,"alt":"a"}`, bigData))), "data URI is"},
+
+		{"table no columns", docWith(card("c1", `{"id":"t1","type":"table","columns":[],"rows":[]}`)), "at least one column"},
+		{"table column missing key", docWith(card("c1", `{"id":"t1","type":"table","columns":[{"key":"","label":"K"}],"rows":[]}`)), "column key must not be empty"},
+		{"table column missing label", docWith(card("c1", `{"id":"t1","type":"table","columns":[{"key":"k","label":""}],"rows":[]}`)), "label must not be empty"},
+		{"table bad align", docWith(card("c1", `{"id":"t1","type":"table","columns":[{"key":"k","label":"K","align":"center"}],"rows":[]}`)), "invalid align"},
+
+		{"progress max zero", docWith(card("c1", `{"id":"p1","type":"progress","label":"L","value":0,"max":0}`)), "max must be > 0"},
+		{"progress value out of range", docWith(card("c1", `{"id":"p1","type":"progress","label":"L","value":5,"max":3}`)), "out of range"},
+		{"progress missing label", docWith(card("c1", `{"id":"p1","type":"progress","value":1,"max":3}`)), "label must not be empty"},
+		{"progress bad state", docWith(card("c1", `{"id":"p1","type":"progress","label":"L","value":1,"max":3,"state":"paused"}`)), "invalid state"},
+
+		{"choice no options", docWith(card("c1", `{"id":"ch1","type":"choice","options":[]}`)), "at least one option"},
+		{"choice duplicate option id", docWith(card("c1", `{"id":"ch1","type":"choice","options":[{"id":"o","label":"A"},{"id":"o","label":"B"}]}`)), `duplicate option id "o"`},
+		{"choice option missing id", docWith(card("c1", `{"id":"ch1","type":"choice","options":[{"id":"","label":"A"}]}`)), "option id must not be empty"},
+		{"choice option missing label", docWith(card("c1", `{"id":"ch1","type":"choice","options":[{"id":"o","label":""}]}`)), "label must not be empty"},
+
+		{"card bad status", docWith(`{"id":"c1","type":"card","status":"pending","children":[]}`), "invalid status"},
+		{"card bad chip tone", docWith(`{"id":"c1","type":"card","chips":[{"label":"x","tone":"loud"}],"children":[]}`), "invalid chip tone"},
+
+		{"doc too big", docWith(card("c1", fmt.Sprintf(`{"id":"m1","type":"markdown","md":%q}`, bigMd))), "exceeds"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := parse(tt.doc)
+			if tt.wantErr == "" {
+				if err != nil {
+					t.Fatalf("parse() error = %v, want nil", err)
+				}
+				return
+			}
+			if err == nil {
+				t.Fatalf("parse() error = nil, want error containing %q", tt.wantErr)
+			}
+			if !strings.Contains(err.Error(), tt.wantErr) {
+				t.Fatalf("parse() error = %q, want substring %q", err.Error(), tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestRoundTrip(t *testing.T) {
+	var d doc.Doc
+	if err := json.Unmarshal([]byte(richDoc), &d); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	out, err := json.Marshal(&d)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	var reparsed doc.Doc
+	if err := json.Unmarshal(out, &reparsed); err != nil {
+		t.Fatalf("re-unmarshal: %v", err)
+	}
+	if err := reparsed.Validate(); err != nil {
+		t.Fatalf("validate re-parsed: %v", err)
+	}
+	if got := len(reparsed.Blocks); got != 2 {
+		t.Fatalf("blocks = %d, want 2", got)
+	}
+	c, ok := reparsed.Blocks[1].(*doc.Card)
+	if !ok {
+		t.Fatalf("block[1] type = %T, want *doc.Card", reparsed.Blocks[1])
+	}
+	if got := len(c.Children); got != 9 {
+		t.Fatalf("card children = %d, want 9", got)
+	}
+}

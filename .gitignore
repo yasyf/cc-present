@@ -27,5 +27,8 @@ coverage.txt
 # go-task cache
 .task/
 
+# Web (npm/bun)
+web/node_modules/
+
 # bootstrap verify binary smoke test
 .go-smoke/
