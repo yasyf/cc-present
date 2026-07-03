@@ -1,0 +1,14 @@
+{
+  "name": "cc-present",
+  "owner": {
+    "name": "Yasyf Mohamedali",
+    "email": "yasyfm@gmail.com"
+  },
+  "plugins": [
+    {
+      "name": "cc-present",
+      "source": "./plugin",
+      "description": "Ad-hoc live web artifacts for Claude sessions: approval boards, choices, and rich content whose every click streams back to the agent."
+    }
+  ]
+}
