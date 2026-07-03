@@ -84,8 +84,8 @@ agent's close, with the browser POSTing an interaction at the same moment
 `present.closed` is appended. Turning that into a hard error would permanently
 poison every future reduction of the subject, including fresh-tab replay and
 recorded outcomes, so the reducer leaves state unchanged. Rejecting new
-interactions after close is enforced at the edges, the REST handler and the CLI,
-which Phase 2 implements.
+interactions after close is enforced at the edges: the REST handler answers 409
+and the CLI refuses the append.
 
 The framework appends `channel.changed` presence frames, the cc-interact
 Connectivity type emitted with a `system` origin, into the same subject log.
@@ -115,7 +115,8 @@ are always present, empty when unused. A fixture's `expected` may omit an empty 
 and the reducer treats the omission as empty.
 
 The fixtures in `internal/state/testdata/*.json` are this contract in executable
-form. Both the Go reducer and the Phase 2 TypeScript reducer read the same files.
+form. The Go reducer (`internal/state`) and the TypeScript reducer
+(`web/src/reduce.ts`) read the same files.
 
 ## REST surface
 
