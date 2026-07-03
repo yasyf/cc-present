@@ -64,16 +64,17 @@ Either way: **do not block waiting.** Tell the user you're watching and continue
 
 ## 4. React to each event live
 
-Each event (Monitor line or channel tag) is the event's JSON payload. Identify it by shape — the payload carries no `type` field (full schema: `reference/event-schema.md`):
+Each event (Monitor line or channel tag) is the event's JSON payload, self-describing via its embedded `type` field — route on that (full schema: `reference/event-schema.md`):
 
-| Payload shape | Event | React |
+| `type` | Payload | React |
 |---|---|---|
-| `{blockId, text, id}` | `feedback.created` | Reply under the block, and when the feedback warrants a redraft, upsert the card with `"status": "redrafted"`. |
-| `{blockId, verdict, note?}` | `decision.created` | `rejected` — redraft: upsert the card with alternates folded in. `approved` — optionally upsert with `"status": "resolved"`. `cleared` — the human withdrew their verdict; nothing to do. |
-| `{blockId, optionIds}` | `choice.selected` | Informational until submit. |
-| `{blockId, text}` (no `id`) | `input.submitted` | Informational until submit. |
-| `{revision}` | `submit` | Go to step 5. |
-| `{type: "channel.changed", connected}` | presence | Informational — a browser tab connected or dropped. |
+| `feedback.created` | `{blockId, id, text, type}` | Reply under the block, and when the feedback warrants a redraft, upsert the card with `"status": "redrafted"`. |
+| `decision.created` | `{blockId, note?, type, verdict}` | `rejected` — redraft: upsert the card with alternates folded in. `approved` — optionally upsert with `"status": "resolved"`. `cleared` — the human withdrew their verdict; nothing to do. |
+| `choice.selected` | `{blockId, optionIds, type}` | Informational until submit. |
+| `input.submitted` | `{blockId, text, type}` | Informational until submit. |
+| `submit` | `{revision, type}` | Go to step 5. |
+| `channel.changed` | `{type, connected}` | Presence — a browser tab connected or dropped. Informational. |
+| `present.closed` | `{summary?, type}` | Your own `close` echoing back — terminal. `watch` exits on it, completing its Monitor; nothing to do. |
 
 To reply — it renders under the block in realtime:
 
@@ -105,7 +106,7 @@ This prints the reduced state: the current document plus every human interaction
 "${CLAUDE_PLUGIN_ROOT}/bin/cc-present" close --summary "All 5 openers approved; two redrafted per feedback."
 ```
 
-`close` is **terminal**: the board greys out, later interactions get a 409, and no event un-closes it. Stop the Monitor (TaskStop) when you close — your own `present.closed` never streams back to you. A later `start` in this window creates a fresh artifact.
+`close` is **terminal**: the board greys out, later interactions get a 409, and no event un-closes it. The `present.closed` event streams back to you as the final frame, and `watch` exits on it — a Monitor wrapping `watch` completes on its own, no TaskStop needed. A later `start` in this window creates a fresh artifact.
 
 ## Worked example, end to end
 
@@ -151,11 +152,11 @@ The user asks: "present the two release-note drafts for approval." Write this to
 
 Channel is `pending`, so arm the Monitor on `watch` and keep working. Events arrive:
 
-- `<channel source="cc-present">{"id":"9f2c11ab","blockId":"cli-approval","text":"mention the exit code"}</channel>` — feedback. React: `reply --block cli-approval --body "Adding it."`, then upsert `card-cli` with the reworded draft and `"status": "redrafted"`.
-- `{"blockId":"opener-choice","optionIds":["punchy"]}` — choice. Informational; note it.
-- `{"blockId":"opener-approval","verdict":"rejected","note":"neither lands"}` — rejection. React: upsert `card-opener` with two fresh alternates in the choice.
-- `{"blockId":"opener-approval","verdict":"approved"}` — the redraft landed. Optionally upsert with `"status": "resolved"`.
-- `{"revision":1}` — submit. Run `outcomes`, summarize in chat ("CLI wording approved with the exit-code mention; opener: 'Validate first. Ship faster.'"), write the approved text into `CHANGELOG.md`, then `close --summary "Both drafts approved."` and TaskStop the Monitor.
+- `<channel source="cc-present">{"blockId":"cli-approval","id":"9f2c11ab","text":"mention the exit code","type":"feedback.created"}</channel>` — feedback. React: `reply --block cli-approval --body "Adding it."`, then upsert `card-cli` with the reworded draft and `"status": "redrafted"`.
+- `{"blockId":"opener-choice","optionIds":["punchy"],"type":"choice.selected"}` — choice. Informational; note it.
+- `{"blockId":"opener-approval","note":"neither lands","type":"decision.created","verdict":"rejected"}` — rejection. React: upsert `card-opener` with two fresh alternates in the choice.
+- `{"blockId":"opener-approval","type":"decision.created","verdict":"approved"}` — the redraft landed. Optionally upsert with `"status": "resolved"`.
+- `{"revision":1,"type":"submit"}` — submit. Run `outcomes`, summarize in chat ("CLI wording approved with the exit-code mention; opener: 'Validate first. Ship faster.'"), write the approved text into `CHANGELOG.md`, then `close --summary "Both drafts approved."` — the Monitor's `watch` prints `{"summary":"Both drafts approved.","type":"present.closed"}` and exits on its own.
 
 ## Reference
 

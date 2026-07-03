@@ -64,7 +64,10 @@ naming the offending block id.
 
 The event `type` is the reduction discriminant. Each log entry is
 `{ origin, type, seq, payload }`, and the reducer orders by `seq`. Document state is
-the reduction of these events.
+the reduction of these events. The append chokepoint also injects a top-level
+`"type"` into every payload, so a frame delivered bare — a `watch` line, a channel
+tag, an SSE `data:` field — is self-describing without the envelope. The payload
+columns below omit that injected field; both reducers tolerate it.
 
 | Origin | Type | Payload | Reduction |
 |---|---|---|---|

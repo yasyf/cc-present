@@ -53,17 +53,18 @@ EOF
 # url: http://127.0.0.1:55339/p/pick-an-opener--5b817e15
 # channel: inactive
 ./bin/cc-present watch --session demo --cwd "$PWD"
-# {"blockId":"pick","optionIds":["a"]}
-# {"blockId":"verdict","verdict":"approved"}
-# {"revision":1}
+# {"blockId":"pick","optionIds":["a"],"type":"choice.selected"}
+# {"blockId":"verdict","type":"decision.created","verdict":"approved"}
+# {"revision":1,"type":"submit"}
 ```
 
-Open the URL; picking option A, approving, and pressing Submit produces exactly the three lines shown — `watch` prints one JSON payload per human interaction as it happens (`channel: inactive` just means no MCP channel is attached; the plugin wires that). When the round is done, collect the reduced state and shut down:
+Open the URL; picking option A, approving, and pressing Submit produces exactly the three lines shown — `watch` prints one self-describing JSON payload per human interaction as it happens, each carrying its `type` (`channel: inactive` just means no MCP channel is attached; the plugin wires that). When the round is done, collect the reduced state and shut down:
 
 ```bash
 ./bin/cc-present outcomes --session demo --cwd "$PWD"   # reduced doc + human interactions as JSON
 ./bin/cc-present close --session demo --cwd "$PWD"
 # closed: pick-an-opener--5b817e15
+# ...and the watch above prints {"type":"present.closed"} and exits
 ./bin/cc-present stop
 # daemon: stopping
 ```
@@ -79,7 +80,7 @@ The plugin adds the cc-present MCP channel (human clicks arrive in the session a
 
 ## How it works
 
-A lazy per-user daemon (`~/.cc-present`) owns one append-only event log per artifact and serves the SPA, a REST endpoint for interactions, and an SSE stream on a localhost port; the CLI is a thin client over its unix socket. The log has two lanes: the agent writes the document lane (`doc.replaced`, `block.upserted`, `block.removed`, `reply.created`, `present.closed`) and the human writes the interaction lane (`decision.created`, `choice.selected`, `feedback.created`, `input.submitted`, `submit`). State is a pure reduction of that log — a fresh tab replays it from seq 0 over SSE, so there is no get-document endpoint, and an agent re-upserting a block never clobbers your verdict. `watch` excludes the agent's own origin, so the agent hears the human lane only.
+A lazy per-user daemon (`~/.cc-present`) owns one append-only event log per artifact and serves the SPA, a REST endpoint for interactions, and an SSE stream on a localhost port; the CLI is a thin client over its unix socket. The log has two lanes: the agent writes the document lane (`doc.replaced`, `block.upserted`, `block.removed`, `reply.created`, `present.closed`) and the human writes the interaction lane (`decision.created`, `choice.selected`, `feedback.created`, `input.submitted`, `submit`). State is a pure reduction of that log — a fresh tab replays it from seq 0 over SSE, so there is no get-document endpoint, and an agent re-upserting a block never clobbers your verdict. `watch` excludes the agent's own origin, so the agent hears the human lane plus the system-origin `present.closed`, on which it exits.
 
 The document is a flat list of typed blocks (a `card` nests leaf blocks one level deep):
 
