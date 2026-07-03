@@ -30,5 +30,10 @@ coverage.txt
 # Web (npm/bun)
 web/node_modules/
 
+# Embedded SPA build output — rebuilt by the web build; keep only the committed
+# placeholder so a clean tree compiles with no web toolchain.
+internal/web/dist/*
+!internal/web/dist/index.html
+
 # bootstrap verify binary smoke test
 .go-smoke/
