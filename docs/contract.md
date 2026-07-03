@@ -21,8 +21,8 @@ seq 0 reconstructs a fresh tab's state; there is no get-document endpoint.
 Doc = { version: 1, title, intro?, stats?: {label, value}[], submit?: {label, note?}, blocks: Block[] }
 ```
 
-`blocks` is a flat list of top-level blocks. Only `section` and `card` may appear
-at the top level; the nine leaf blocks live inside a card.
+`blocks` is a flat list of blocks. A `section`, a `card`, or any of the nine leaf
+blocks may appear directly in `blocks`; a card nests leaf blocks only.
 
 ## Block schema
 
@@ -30,15 +30,15 @@ at the top level; the nine leaf blocks live inside a card.
 |---|---|---|---|
 | `section` | top | `id`, `type`, `title`, `md?` | Header marker with optional prose. |
 | `card` | top | `id`, `type`, `title?`, `chips?`, `flagged?`, `status?`, `children` | `chips[].tone` is one of `default`, `flag`, `demo`. `status` is one of `open`, `resolved`, `redrafted` and is agent-owned. `children` nests one level of leaf blocks. |
-| `approval` | child | `id`, `type`, `prompt?`, `allowFeedback?` | `allowFeedback` defaults to true at render time. |
-| `choice` | child | `id`, `type`, `prompt?`, `multi?`, `options` | `options[]` is `{id, label, md?}`; option ids are unique within the block. |
-| `input` | child | `id`, `type`, `label`, `placeholder?`, `multiline?` | Free-text field. |
-| `markdown` | child | `id`, `type`, `md`, `struck?` | `struck` applies the "was:" treatment. |
-| `code` | child | `id`, `type`, `lang`, `code`, `title?` | |
-| `diff` | child | `id`, `type`, `diff`, `title?` | Unified diff text. |
-| `image` | child | `id`, `type`, `src`, `alt`, `caption?` | `src` is `https://…`, `asset:<sha256>`, or `data:…`. |
-| `table` | child | `id`, `type`, `columns`, `rows` | `columns[]` is `{key, label, align?}` where `align` is `left` or `right`; `rows[]` is a `Record<string,string>` of inline-markdown cells. |
-| `progress` | child | `id`, `type`, `label`, `value`, `max`, `state?` | `state` is one of `active`, `done`, `error` and is agent-owned. |
+| `approval` | top or child | `id`, `type`, `prompt?`, `allowFeedback?` | `allowFeedback` defaults to true at render time. |
+| `choice` | top or child | `id`, `type`, `prompt?`, `multi?`, `options` | `options[]` is `{id, label, md?}`; option ids are unique within the block. |
+| `input` | top or child | `id`, `type`, `label`, `placeholder?`, `multiline?` | Free-text field. |
+| `markdown` | top or child | `id`, `type`, `md`, `struck?` | `struck` applies the "was:" treatment. |
+| `code` | top or child | `id`, `type`, `lang`, `code`, `title?` | |
+| `diff` | top or child | `id`, `type`, `diff`, `title?` | Unified diff text. |
+| `image` | top or child | `id`, `type`, `src`, `alt`, `caption?` | `src` is `https://…`, `asset:<sha256>`, or `data:…`. |
+| `table` | top or child | `id`, `type`, `columns`, `rows` | `columns[]` is `{key, label, align?}` where `align` is `left` or `right`; `rows[]` is a `Record<string,string>` of inline-markdown cells. |
+| `progress` | top or child | `id`, `type`, `label`, `value`, `max`, `state?` | `state` is one of `active`, `done`, `error` and is agent-owned. |
 
 ### Validation
 
@@ -47,8 +47,8 @@ at the top level; the nine leaf blocks live inside a card.
 - `version` must be 1; `title` must be non-empty.
 - Every block id is globally unique, including card children. Choice option ids are
   unique within their block.
-- Only `section` and `card` at the top level. A card may not contain a section or
-  another card, so the tree is one nesting level deep.
+- A `section`, `card`, or leaf block may appear at the top level. A card may not
+  contain a section or another card, so the tree is at most one nesting level deep.
 - Per-type required fields are present and non-empty, such as `input.label`,
   `markdown.md`, `code.lang` and `code.code`, `image.src` and `image.alt`, and
   `progress.label`.
@@ -72,16 +72,25 @@ the reduction of these events.
 | agent | `block.upserted` | `{block, after?}` | If a block with `block.id` exists, replace it in place as a whole block, so nothing from the old block survives. Otherwise insert after `after`, or append when `after` is absent or unknown. |
 | agent | `block.removed` | `{id}` | Remove the top-level block with that id. An unknown id is a no-op. |
 | agent | `reply.created` | `{id, blockId, md}` | Append to the block's reply thread. |
-| agent | `present.closed` | `{summary?}` | Set closed. This is terminal: any event ordered after it is an error. |
+| agent | `present.closed` | `{summary?}` | Set closed. Terminal for the reduction: any event ordered after it is a no-op (see below). |
 | human | `decision.created` | `{blockId, verdict, note?}` | Last-write-wins per block. `verdict` is one of `approved`, `rejected`, `cleared`; `cleared` removes the decision, returning the block to undecided. |
 | human | `choice.selected` | `{blockId, optionIds}` | Last-write-wins per block. |
 | human | `feedback.created` | `{id, blockId, text}` | Append to the block's feedback list. |
 | human | `input.submitted` | `{blockId, text}` | Last-write-wins per block. |
 | human | `submit` | `{revision}` | Set submitted with the revision. Does not close the document, so rounds continue. |
 
-Presence frames such as `channel.changed` are handled by the transport layer, not
-the document reducer. Feeding one to `Reduce` is an error, like any other unknown
-type.
+Post-close events are no-ops, not errors, by design. A human click can race an
+agent's close, with the browser POSTing an interaction at the same moment
+`present.closed` is appended. Turning that into a hard error would permanently
+poison every future reduction of the subject, including fresh-tab replay and
+recorded outcomes, so the reducer leaves state unchanged. Rejecting new
+interactions after close is enforced at the edges, the REST handler and the CLI,
+which Phase 2 implements.
+
+The framework appends `channel.changed` presence frames, the cc-interact
+Connectivity type emitted with a `system` origin, into the same subject log.
+`Reduce` explicitly skips them regardless of origin, so state is unaffected. Every
+other unknown event type is still an error.
 
 ### Reduced state
 

@@ -66,6 +66,16 @@ export interface SubmitPayload {
   revision: number;
 }
 
+// --- Presence (framework-appended, skipped by the reducer) ---
+
+// channel.changed is the cc-interact Connectivity presence frame. The framework
+// appends it into the same subject log with a `system` origin; the reducer skips
+// it regardless of origin, so it never touches reduced state.
+export interface ChannelChangedPayload {
+  type: 'channel.changed';
+  connected: boolean;
+}
+
 // --- Event envelope (discriminated union on `type`) ---
 
 export type PresentEvent =
@@ -78,7 +88,8 @@ export type PresentEvent =
   | { origin: 'human'; type: 'choice.selected'; seq: number; payload: ChoiceSelectedPayload }
   | { origin: 'human'; type: 'feedback.created'; seq: number; payload: FeedbackCreatedPayload }
   | { origin: 'human'; type: 'input.submitted'; seq: number; payload: InputSubmittedPayload }
-  | { origin: 'human'; type: 'submit'; seq: number; payload: SubmitPayload };
+  | { origin: 'human'; type: 'submit'; seq: number; payload: SubmitPayload }
+  | { origin: 'system'; type: 'channel.changed'; seq: number; payload: ChannelChangedPayload };
 
 export type PresentEventType = PresentEvent['type'];
 

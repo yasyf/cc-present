@@ -1,0 +1,43 @@
+{
+  "name": "presence-skipped",
+  "events": [
+    {
+      "origin": "agent",
+      "type": "doc.replaced",
+      "seq": 1,
+      "payload": {
+        "revision": 1,
+        "doc": {
+          "version": 1,
+          "title": "T",
+          "blocks": [
+            {
+              "id": "c1",
+              "type": "card",
+              "children": [{ "id": "a1", "type": "approval", "prompt": "Use this?" }]
+            }
+          ]
+        }
+      }
+    },
+    { "origin": "system", "type": "channel.changed", "seq": 2, "payload": { "type": "channel.changed", "connected": true } },
+    { "origin": "human", "type": "decision.created", "seq": 3, "payload": { "blockId": "a1", "verdict": "approved" } },
+    { "origin": "system", "type": "channel.changed", "seq": 4, "payload": { "type": "channel.changed", "connected": false } }
+  ],
+  "expected": {
+    "doc": {
+      "version": 1,
+      "title": "T",
+      "blocks": [
+        {
+          "id": "c1",
+          "type": "card",
+          "children": [{ "id": "a1", "type": "approval", "prompt": "Use this?" }]
+        }
+      ]
+    },
+    "interactions": {
+      "decisions": { "a1": { "verdict": "approved" } }
+    }
+  }
+}

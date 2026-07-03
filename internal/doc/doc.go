@@ -29,9 +29,9 @@ var (
 	errEmptyTitle      = errors.New("doc title must not be empty")
 )
 
-// Block is a node in a document. The concrete types are Section and Card
-// (top-level structural blocks) and the nine leaf blocks that a card nests.
-// The interface is sealed to this package.
+// Block is a node in a document. The concrete types are Section, Card, and the
+// nine leaf blocks. A section, card, or leaf may appear at the top level, while
+// a card nests only leaf blocks. The interface is sealed to this package.
 type Block interface {
 	BlockID() string
 	BlockType() string
@@ -284,10 +284,10 @@ func decodeInto[T Block](data json.RawMessage, dst T) (Block, error) {
 }
 
 // Validate reports the first structural violation in the document: version must
-// be 1, the title non-empty, every block id globally unique, only section and
-// card blocks at the top level, cards nesting exactly one level of leaf blocks,
-// per-type required fields present, the serialized doc within MaxDocBytes, and
-// image data URIs within MaxDataURIBytes.
+// be 1, the title non-empty, every block id globally unique, cards nesting
+// exactly one level of leaf blocks (a card may not contain a section or another
+// card), per-type required fields present, the serialized doc within
+// MaxDocBytes, and image data URIs within MaxDataURIBytes.
 func (d *Doc) Validate() error {
 	if d.Version != 1 {
 		return fmt.Errorf("doc version must be 1, got %d", d.Version)
@@ -297,23 +297,22 @@ func (d *Doc) Validate() error {
 	}
 	seen := map[string]bool{}
 	for _, b := range d.Blocks {
+		if err := registerID(seen, b.BlockID()); err != nil {
+			return err
+		}
 		switch blk := b.(type) {
 		case *Section:
-			if err := registerID(seen, blk.ID); err != nil {
-				return err
-			}
 			if err := validateSection(blk); err != nil {
 				return err
 			}
 		case *Card:
-			if err := registerID(seen, blk.ID); err != nil {
-				return err
-			}
 			if err := validateCard(seen, blk); err != nil {
 				return err
 			}
 		default:
-			return fmt.Errorf("block %q: top-level blocks must be section or card, got %q", b.BlockID(), b.BlockType())
+			if err := validateLeaf(b); err != nil {
+				return err
+			}
 		}
 	}
 	data, err := json.Marshal(d)
@@ -365,38 +364,44 @@ func validateCard(seen map[string]bool, c *Card) error {
 }
 
 func validateChild(cardID string, child Block) error {
-	switch cb := child.(type) {
+	switch child.(type) {
 	case *Section, *Card:
 		return fmt.Errorf("card %q: child %q may not be a %s (cards allow exactly one nesting level)", cardID, child.BlockID(), child.BlockType())
+	}
+	return validateLeaf(child)
+}
+
+func validateLeaf(b Block) error {
+	switch lb := b.(type) {
 	case *Approval:
 		return nil
 	case *Choice:
-		return validateChoice(cb)
+		return validateChoice(lb)
 	case *Input:
-		if cb.Label == "" {
-			return fmt.Errorf("input %q: label must not be empty", cb.ID)
+		if lb.Label == "" {
+			return fmt.Errorf("input %q: label must not be empty", lb.ID)
 		}
 		return nil
 	case *Markdown:
-		if cb.Md == "" {
-			return fmt.Errorf("markdown %q: md must not be empty", cb.ID)
+		if lb.Md == "" {
+			return fmt.Errorf("markdown %q: md must not be empty", lb.ID)
 		}
 		return nil
 	case *Code:
-		return validateCode(cb)
+		return validateCode(lb)
 	case *Diff:
-		if cb.Diff == "" {
-			return fmt.Errorf("diff %q: diff must not be empty", cb.ID)
+		if lb.Diff == "" {
+			return fmt.Errorf("diff %q: diff must not be empty", lb.ID)
 		}
 		return nil
 	case *Image:
-		return validateImage(cb)
+		return validateImage(lb)
 	case *Table:
-		return validateTable(cb)
+		return validateTable(lb)
 	case *Progress:
-		return validateProgress(cb)
+		return validateProgress(lb)
 	}
-	panic(fmt.Sprintf("unreachable: unhandled block type %q", child.BlockType()))
+	panic(fmt.Sprintf("unreachable: unhandled block type %q", b.BlockType()))
 }
 
 func validateChoice(c *Choice) error {

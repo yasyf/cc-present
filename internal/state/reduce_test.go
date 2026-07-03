@@ -72,14 +72,6 @@ func TestReduceErrors(t *testing.T) {
 			wantErr: "unknown event type",
 		},
 		{
-			name: "event after close is terminal",
-			events: []state.Event{
-				{Origin: "agent", Type: "present.closed", Seq: 1, Payload: []byte(`{}`)},
-				{Origin: "human", Type: "submit", Seq: 2, Payload: []byte(`{"revision":1}`)},
-			},
-			wantErr: "terminal",
-		},
-		{
 			name:    "invalid verdict",
 			events:  []state.Event{{Origin: "human", Type: "decision.created", Seq: 1, Payload: []byte(`{"blockId":"a1","verdict":"maybe"}`)}},
 			wantErr: "invalid verdict",

@@ -65,6 +65,7 @@ func TestValidate(t *testing.T) {
 		{"table with no rows", docWith(card("c1", `{"id":"t1","type":"table","columns":[{"key":"k","label":"K"}],"rows":[]}`)), ""},
 		{"https image", docWith(card("c1", `{"id":"i1","type":"image","src":"https://x/y.png","alt":"a"}`)), ""},
 		{"small data uri image", docWith(card("c1", fmt.Sprintf(`{"id":"i1","type":"image","src":%q,"alt":"a"}`, okData))), ""},
+		{"leaf at top level", docWith(`{"id":"m1","type":"markdown","md":"hi"}`), ""},
 
 		{"version not 1", `{"version":2,"title":"T","blocks":[]}`, "version must be 1"},
 		{"empty title", `{"version":1,"title":"","blocks":[]}`, "title must not be empty"},
@@ -72,7 +73,6 @@ func TestValidate(t *testing.T) {
 		{"empty block id", docWith(`{"id":"","type":"section","title":"S"}`), "block id must not be empty"},
 		{"duplicate top-level id", docWith(`{"id":"d","type":"section","title":"A"},{"id":"d","type":"section","title":"B"}`), `duplicate block id "d"`},
 		{"duplicate child vs card id", docWith(card("c1", `{"id":"c1","type":"markdown","md":"m"}`)), `duplicate block id "c1"`},
-		{"leaf at top level", docWith(`{"id":"m1","type":"markdown","md":"hi"}`), "top-level blocks must be section or card"},
 		{"card nested in card", docWith(card("c1", card("c2", ""))), `may not be a card`},
 		{"section nested in card", docWith(card("c1", `{"id":"s2","type":"section","title":"S"}`)), `may not be a section`},
 

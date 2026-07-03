@@ -158,9 +158,10 @@ export type ContentBlock = Markdown | Code | Diff | Image | Table | Progress;
 // or another card.
 export type ChildBlock = InteractiveBlock | ContentBlock;
 
-// A top-level block. The document body and every block.upserted patch carry
-// one of these.
-export type Block = StructuralBlock;
+// A block. A section, a card, or any of the nine leaf blocks may appear directly
+// in Doc.blocks; a card nests leaf blocks only. The document body and every
+// block.upserted patch carry one of these.
+export type Block = StructuralBlock | ChildBlock;
 
 export interface Doc {
   version: 1;

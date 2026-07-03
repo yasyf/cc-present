@@ -1,0 +1,48 @@
+{
+  "name": "events-after-close-are-noops",
+  "events": [
+    {
+      "origin": "agent",
+      "type": "doc.replaced",
+      "seq": 1,
+      "payload": {
+        "revision": 1,
+        "doc": {
+          "version": 1,
+          "title": "T",
+          "blocks": [
+            {
+              "id": "c1",
+              "type": "card",
+              "children": [{ "id": "a1", "type": "approval", "prompt": "Use this?" }]
+            }
+          ]
+        }
+      }
+    },
+    { "origin": "agent", "type": "present.closed", "seq": 2, "payload": { "summary": "shipped" } },
+    { "origin": "human", "type": "decision.created", "seq": 3, "payload": { "blockId": "a1", "verdict": "approved" } },
+    {
+      "origin": "agent",
+      "type": "block.upserted",
+      "seq": 4,
+      "payload": { "block": { "id": "c2", "type": "card", "children": [] } }
+    }
+  ],
+  "expected": {
+    "doc": {
+      "version": 1,
+      "title": "T",
+      "blocks": [
+        {
+          "id": "c1",
+          "type": "card",
+          "children": [{ "id": "a1", "type": "approval", "prompt": "Use this?" }]
+        }
+      ]
+    },
+    "interactions": {
+      "closed": { "value": true, "summary": "shipped" }
+    }
+  }
+}

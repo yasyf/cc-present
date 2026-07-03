@@ -85,9 +85,11 @@ type State struct {
 
 // Reduce folds the log into a State. Events are processed in ascending Seq
 // order; last-write-wins interactions resolve by that order. The document
-// starts empty, so a block.upserted before any doc.replaced appends to it. A
-// present.closed is terminal: any event ordered after it is an error. Unknown
-// event types are an error.
+// starts empty, so a block.upserted before any doc.replaced appends to it.
+// present.closed is terminal for the reduction: any event ordered after it is a
+// no-op, so a human interaction that races the close never poisons replay. The
+// framework appends channel.changed presence frames into the same log, so Reduce
+// skips them regardless of origin; any other unknown event type is an error.
 func Reduce(events []Event) (State, error) {
 	s := State{
 		Doc: &doc.Doc{Version: 1, Blocks: []doc.Block{}},
@@ -104,7 +106,7 @@ func Reduce(events []Event) (State, error) {
 
 	for _, ev := range ordered {
 		if s.Interactions.Closed.Value {
-			return State{}, fmt.Errorf("event %q at seq %d after present.closed: log is terminal", ev.Type, ev.Seq)
+			continue
 		}
 		if err := s.apply(ev); err != nil {
 			return State{}, fmt.Errorf("apply %s at seq %d: %w", ev.Type, ev.Seq, err)
@@ -228,6 +230,8 @@ func (s *State) apply(ev Event) error {
 			return err
 		}
 		s.Interactions.Submitted = Submitted{Value: true, Revision: p.Revision}
+		return nil
+	case "channel.changed":
 		return nil
 	default:
 		return fmt.Errorf("unknown event type %q", ev.Type)
