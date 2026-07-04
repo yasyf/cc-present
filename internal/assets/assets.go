@@ -53,7 +53,8 @@ func Valid(sha string) bool { return shaPattern.MatchString(sha) }
 
 // Put stores b and returns its sha256, rejecting bytes that do not sniff as an
 // image. Storing is idempotent: identical bytes map to the same file, so a
-// repeated Put writes nothing.
+// repeated Put writes nothing — but it refreshes the file's mtime, so Sweep's
+// grace window protects a just-re-referenced asset even when the bytes are old.
 func (s *Store) Put(b []byte) (string, error) {
 	if len(b) > MaxBytes {
 		return "", fmt.Errorf("asset is %d bytes, exceeds %d", len(b), MaxBytes)
@@ -64,6 +65,10 @@ func (s *Store) Put(b []byte) (string, error) {
 	sha := SHA(b)
 	path := filepath.Join(s.dir, sha)
 	if _, err := os.Stat(path); err == nil {
+		now := time.Now()
+		if err := os.Chtimes(path, now, now); err != nil {
+			return "", fmt.Errorf("refresh asset %s mtime: %w", sha, err)
+		}
 		return sha, nil
 	}
 	if err := os.WriteFile(path, b, 0o600); err != nil {

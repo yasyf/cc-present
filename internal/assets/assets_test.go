@@ -55,6 +55,37 @@ func TestPutIdempotent(t *testing.T) {
 	}
 }
 
+func TestPutRefreshesMtimeSoSweepSpares(t *testing.T) {
+	dir := t.TempDir()
+	s, err := New(dir)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	b := append([]byte("\x89PNG\r\n\x1a\n"), []byte("re-referenced")...)
+	sha, err := s.Put(b)
+	if err != nil {
+		t.Fatalf("Put: %v", err)
+	}
+	p := filepath.Join(dir, sha)
+	stale := time.Now().Add(-time.Hour)
+	if err := os.Chtimes(p, stale, stale); err != nil {
+		t.Fatalf("chtimes: %v", err)
+	}
+	if _, err := s.Put(b); err != nil {
+		t.Fatalf("Put again: %v", err)
+	}
+	deleted, err := s.Sweep(map[string]bool{}, 15*time.Minute)
+	if err != nil {
+		t.Fatalf("Sweep: %v", err)
+	}
+	if len(deleted) != 0 {
+		t.Fatalf("deleted = %v, want none: a re-Put asset must sit inside the grace window", deleted)
+	}
+	if _, err := os.Stat(p); err != nil {
+		t.Fatalf("asset gone after sweep: %v", err)
+	}
+}
+
 func TestPutCap(t *testing.T) {
 	s, err := New(t.TempDir())
 	if err != nil {
