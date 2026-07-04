@@ -2,23 +2,15 @@
 // cache through the shared reducer. The SSE plane delivers each event as a flat,
 // self-describing wire frame (the payload with its `type` embedded); this module
 // lifts that frame into the reducer's PresentEvent envelope. Toasts fire only for
-// live agent activity: the replay arrives as a burst on connect, and a macrotask
-// after the first frame marks the replay/live boundary so replayed frames stay
-// silent.
+// live agent activity: the SSE plane replays the whole log on connect, then emits
+// a `caught-up` marker at the replay/live boundary. The library tracks that marker
+// per connection and toasts only frames past it — until the marker lands the
+// highWaterSeq fallback below treats every frame as replay history and stays silent.
 
 import { createEventStream } from '@cc-interact/react';
 import { applyEvent } from './reduce';
 import { presentKey, revisionKey } from './api';
 import type { PresentEvent, PresentState, WireFrame } from './events';
-
-// The replay gate. The SSE plane replays the whole log from cursor 0 on every
-// connect, so those frames patch state silently; a macrotask after the first
-// frame flips replayDone, and every later (live) frame toasts. The library gates
-// on the frame's lastEventId against highWaterSeq, so a threshold above every seq
-// suppresses during replay and below every seq allows afterward — the seq itself
-// is the SSE event id and never rides in the payload to threshold on directly.
-let replayDone = false;
-let scheduled = false;
 
 // frameToEvent lifts a flat self-describing wire frame into the reducer's
 // PresentEvent envelope. applyEvent reads only `type` and `payload`, and the flat
@@ -46,15 +38,13 @@ export const { EventStreamProvider, useEventStream } = createEventStream<WireFra
         return null;
     }
   },
-  highWaterSeq: () => (replayDone ? -1 : Number.MAX_SAFE_INTEGER),
+  // The pre-marker fallback: a threshold above every seq means no replayed frame
+  // clears it, so the whole from-zero replay (and any Last-Event-ID resume) stays
+  // silent. Once the caught-up marker arrives the library ignores this and gates
+  // on the exact boundary seq, so only the live tail (seq > marker) toasts.
+  highWaterSeq: () => Number.POSITIVE_INFINITY,
   peerPresence: (frame) => (frame.type === 'channel.changed' ? frame.connected : null),
   onEvent: (frame, ctx) => {
-    if (!scheduled) {
-      scheduled = true;
-      setTimeout(() => {
-        replayDone = true;
-      }, 0);
-    }
     if (frame.type === 'doc.replaced') {
       ctx.queryClient.setQueryData(revisionKey(ctx.subject), frame.revision);
     }

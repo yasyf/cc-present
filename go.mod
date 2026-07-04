@@ -5,7 +5,7 @@ go 1.26.2
 require (
 	github.com/shirou/gopsutil/v4 v4.26.5
 	github.com/spf13/cobra v1.10.2
-	github.com/yasyf/cc-interact v0.1.9
+	github.com/yasyf/cc-interact v0.1.10
 )
 
 require (

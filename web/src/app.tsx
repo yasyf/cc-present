@@ -5,8 +5,9 @@
 
 import { useMemo, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { AppShell, NotificationsBar, useFlip } from '@cc-interact/react';
+import { AppShell, useFlip } from '@cc-interact/react';
 import { EventStreamProvider, useEventStream } from './stream';
+import { NotificationsBar } from './components/NotificationsBar';
 import { SubjectProvider, presentKey, queryClient, usePostInteraction } from './api';
 import { emptyState } from './reduce';
 import { PresentContext } from './present';
@@ -69,11 +70,7 @@ function PresentView({ subject }: { subject: string }) {
           <DocHeader doc={state.doc} connected={stream.connected} peerPresent={stream.peerPresent} />
         }
         notifications={
-          <NotificationsBar
-            connected={stream.connected}
-            notifications={stream.notifications}
-            onDismiss={stream.dismiss}
-          />
+          <NotificationsBar notifications={stream.notifications} onDismiss={stream.dismiss} />
         }
         main={
           <>
