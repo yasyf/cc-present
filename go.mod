@@ -1,6 +1,6 @@
 module github.com/yasyf/cc-present
 
-go 1.26.3
+go 1.26.4
 
 require (
 	github.com/shirou/gopsutil/v4 v4.26.5
