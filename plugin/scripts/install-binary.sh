@@ -11,13 +11,13 @@ BIN="$ROOT/bin/cc-present"
 VERSION="$(sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' "$ROOT/.claude-plugin/plugin.json")"
 
 if [ -x "$BIN" ]; then
-  # Release builds print exactly the tag (the release workflow injects only
-  # version.Version=$GITHUB_REF_NAME) — keep that coupling or this re-downloads
-  # every run.
+  # Release builds print the bare goreleaser version ({{ .Version }}, no "v") —
+  # keep that coupling or a stale release binary is never replaced.
   installed="$("$BIN" --version 2>/dev/null || true)"
+  installed="${installed#v}"
   case "$installed" in
-    "v$VERSION") exit 0 ;;
-    v[0-9]*) ;;
+    "$VERSION") exit 0 ;;
+    [0-9]*) ;;
     *) exit 0 ;;
   esac
 fi
