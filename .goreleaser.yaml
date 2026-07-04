@@ -88,7 +88,7 @@ homebrew_casks:
       name: homebrew-tap
       token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
     homepage: https://github.com/yasyf/cc-present
-    description: Ad-hoc live web artifacts for Claude sessions — approval boards, choices, and rich content whose every click streams back to the agent.
+    description: Approval boards where every click streams back to the agent.
     # Strip the quarantine attribute so the (notarized, or unsigned) binary runs on first launch.
     hooks:
       post:

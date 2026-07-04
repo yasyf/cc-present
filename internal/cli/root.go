@@ -17,7 +17,7 @@ import (
 func NewRootCmd() *cobra.Command {
 	root := &cobra.Command{
 		Use:           "cc-present",
-		Short:         "Ad-hoc live web artifacts for Claude sessions — approval boards, choices, and rich content whose every click streams back to the agent.",
+		Short:         "Approval boards where every click streams back to the agent.",
 		Version:       version.String(),
 		SilenceUsage:  true,
 		SilenceErrors: true,
