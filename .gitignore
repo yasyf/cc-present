@@ -37,3 +37,4 @@ internal/web/dist/*
 
 # bootstrap verify binary smoke test
 .go-smoke/
+plugin/bin/
