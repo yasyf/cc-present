@@ -37,7 +37,9 @@ mkdir -p "$ROOT/bin"
 # daemon still executing it.
 TMP="$(mktemp "$ROOT/bin/.cc-present.XXXXXX")"
 trap 'rm -f "$TMP"' EXIT
-curl -fsSL --retry 2 -o "$TMP" "$URL"
+# Bound connect + transfer so a stalled network fails fast and lands in the
+# session-start log, rather than hanging the SessionStart hook (600s budget).
+curl -fsSL --connect-timeout 10 --max-time 60 --retry 2 -o "$TMP" "$URL"
 chmod +x "$TMP"
 mv -f "$TMP" "$BIN"
 echo "cc-present: installed $BIN" >&2
