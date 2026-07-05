@@ -1,1 +1,1 @@
-{"v":1,"lamport":3,"ops":[{"kind":"remove_criterion","id":"72dafee8fc3f58c83dd078dc38d33951"}]}
+{"v":1,"lamport":4,"ops":[{"kind":"add_criterion","id":"c224e2357dd4a60d0acecf07d8d30f4f","text":"a fresh SessionStart hook run on yasyf-home leaves an executable cc-present at $PLUGIN_ROOT/bin (binary is by-design not on PATH) and writes install-binary.log with a success line","script":""}]}
