@@ -1,1 +1,1 @@
-{"v":1,"lamport":1,"ops":[{"kind":"create_note","nonce":"98a553e6a93b4f9205c27cda045d1311","title":"Dev overlay in web/node_modules: @cc-interact/react is registry 0.2.1 with dist/base.css manually overwritten by the local cc-interact build (new design tokens). Any 'bun install' drops the overlay — re-copy from ~/Code/cc-interact/web/dist/base.css. Torn down when 0.3.0 ships (pin bump).","body":"","tags":null,"anchors":[]}]}
+{"v":1,"lamport":2,"ops":[{"kind":"verify_note","witness":null,"verified_commit":"6486b2932849e47a9bd0d085ee1ce8f223cb878f"}]}
