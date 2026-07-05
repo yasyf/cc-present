@@ -1,6 +1,7 @@
 import { ConnectionFrame } from '@cc-interact/react';
 import type { Doc } from '../schema';
 import { StatsBar } from './StatsBar';
+import { ThemeToggle } from './ThemeToggle';
 
 export interface DocHeaderProps {
   doc: Doc;
@@ -20,6 +21,7 @@ export function DocHeader({ doc, connected, peerPresent }: DocHeaderProps) {
             </span>
           )}
           <ConnectionFrame connected={connected} />
+          <ThemeToggle />
         </span>
       </div>
       {doc.intro && <p className="doc-intro">{doc.intro}</p>}
