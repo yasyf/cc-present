@@ -4,6 +4,17 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.1] - 2026-07-05
+
+### Fixed
+- Diagnosable binary install: the SessionStart hook no longer discards the
+  installer's output — it captures stdout and stderr to `install-binary.log`
+  under the plugin root, so a failed remote install leaves a trace instead of
+  nothing. The hook stays non-fatal.
+- Bounded install download: `install-binary.sh`'s `curl` gained
+  `--connect-timeout`/`--max-time`, so a stalled network fails fast and lands in
+  the log instead of hanging the SessionStart hook.
+
 ## [0.2.0] - 2026-07-03
 
 ### Added
@@ -50,5 +61,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   marketplace.
 - `examples/opener-board.json`, a complete sample document.
 
-[Unreleased]: https://github.com/yasyf/cc-present/compare/v0.1.0...main
+[Unreleased]: https://github.com/yasyf/cc-present/compare/v0.2.1...main
+[0.2.1]: https://github.com/yasyf/cc-present/compare/v0.2.0...v0.2.1
+[0.2.0]: https://github.com/yasyf/cc-present/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/yasyf/cc-present/releases/tag/v0.1.0
