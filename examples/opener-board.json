@@ -22,6 +22,7 @@
       "id": "card-cc-factory",
       "type": "card",
       "title": "cc-factory",
+      "summary": "An assembly line of agents that plan, build, review, and ship your spec.",
       "flagged": true,
       "status": "redrafted",
       "chips": [
@@ -46,9 +47,9 @@
           "type": "choice",
           "prompt": "My pick is selected. Prefer an alternate?",
           "options": [
-            { "id": "pick", "label": "Your spec clocks in. A reviewed diff clocks out.", "md": "My pick." },
-            { "id": "alt-a", "label": "Stop reviewing your agent's first draft." },
-            { "id": "alt-b", "label": "Your spec runs the line: design, plan, parallel build, review, pushback." }
+            { "id": "pick", "label": "Your spec clocks in. A reviewed diff clocks out.", "hint": "command form", "md": "My pick." },
+            { "id": "alt-a", "label": "Stop reviewing your agent's first draft.", "hint": "loss-framed" },
+            { "id": "alt-b", "label": "Your spec runs the line: design, plan, parallel build, review, pushback.", "hint": "descriptive" }
           ]
         },
         {
@@ -74,6 +75,7 @@
       "id": "card-captain-hook",
       "type": "card",
       "title": "captain-hook",
+      "summary": "Turns the corrections you keep giving Claude into typed, tested hooks.",
       "chips": [
         { "label": "both" },
         { "label": "freeze", "tone": "demo" }
@@ -95,9 +97,9 @@
           "type": "choice",
           "prompt": "My pick is selected. Prefer an alternate?",
           "options": [
-            { "id": "pick", "label": "Stop repeating yourself to Claude.", "md": "My pick." },
-            { "id": "alt-a", "label": "Claude isn't done until the tests pass." },
-            { "id": "alt-b", "label": "All the autonomy. None of the rm -rf." }
+            { "id": "pick", "label": "Stop repeating yourself to Claude.", "hint": "the core promise", "md": "My pick." },
+            { "id": "alt-a", "label": "Claude isn't done until the tests pass.", "hint": "test-integrity angle" },
+            { "id": "alt-b", "label": "All the autonomy. None of the rm -rf.", "hint": "safety angle" }
           ]
         },
         {
@@ -119,6 +121,7 @@
       "id": "card-cc-review",
       "type": "card",
       "title": "cc-review",
+      "summary": "Renders your working tree as a local PR and freezes edits until you Submit.",
       "chips": [
         { "label": "both" },
         { "label": "screenshot", "tone": "demo" }
@@ -140,9 +143,9 @@
           "type": "choice",
           "prompt": "My pick is selected. Prefer an alternate?",
           "options": [
-            { "id": "pick", "label": "The only thing between Claude and its next edit is your Submit button.", "md": "My pick." },
-            { "id": "alt-a", "label": "Stop reviewing Claude's diffs in terminal scrollback." },
-            { "id": "alt-b", "label": "Inline-comment a commit that doesn't exist yet." }
+            { "id": "pick", "label": "The only thing between Claude and its next edit is your Submit button.", "hint": "the gate, dramatized", "md": "My pick." },
+            { "id": "alt-a", "label": "Stop reviewing Claude's diffs in terminal scrollback.", "hint": "pain-point" },
+            { "id": "alt-b", "label": "Inline-comment a commit that doesn't exist yet.", "hint": "novelty hook" }
           ]
         },
         {
@@ -162,6 +165,7 @@
       "id": "card-slop-cop",
       "type": "card",
       "title": "slop-cop",
+      "summary": "48 detectors that catch the tells of LLM-written prose, in CI or inline.",
       "chips": [
         { "label": "both" },
         { "label": "freeze", "tone": "demo" }
@@ -183,9 +187,9 @@
           "type": "choice",
           "prompt": "My pick is selected. Prefer an alternate?",
           "options": [
-            { "id": "pick", "label": "Never ship 'delve' again.", "md": "My pick." },
-            { "id": "alt-a", "label": "Your agent's prose, booked on 48 counts of slop." },
-            { "id": "alt-b", "label": "AI-written, without the AI accent." }
+            { "id": "pick", "label": "Never ship 'delve' again.", "hint": "concrete tell", "md": "My pick." },
+            { "id": "alt-a", "label": "Your agent's prose, booked on 48 counts of slop.", "hint": "playful" },
+            { "id": "alt-b", "label": "AI-written, without the AI accent.", "hint": "outcome-framed" }
           ]
         },
         {
@@ -212,6 +216,7 @@
       "id": "card-cc-notes",
       "type": "card",
       "title": "cc-notes",
+      "summary": "Agent tasks and notes as a git op-log, invisible to checkout and diff.",
       "chips": [
         { "label": "both" },
         { "label": "freeze", "tone": "demo" }
@@ -233,9 +238,9 @@
           "type": "choice",
           "prompt": "My pick is selected. Prefer an alternate?",
           "options": [
-            { "id": "pick", "label": "Delete your HANDOFF.md.", "md": "My pick." },
-            { "id": "alt-a", "label": "Your agents remember. Your diff never knows." },
-            { "id": "alt-b", "label": "Never re-explain the plan to a fresh agent." }
+            { "id": "pick", "label": "Delete your HANDOFF.md.", "hint": "kill the artifact", "md": "My pick." },
+            { "id": "alt-a", "label": "Your agents remember. Your diff never knows.", "hint": "invisibility angle" },
+            { "id": "alt-b", "label": "Never re-explain the plan to a fresh agent.", "hint": "continuity angle" }
           ]
         },
         {
@@ -257,6 +262,7 @@
       "id": "card-cc-interact",
       "type": "card",
       "title": "cc-interact",
+      "summary": "The reusable daemon, event log, SSE, and MCP plumbing behind cc-review.",
       "chips": [
         { "label": "prompt" },
         { "label": "animated", "tone": "demo" }
@@ -278,9 +284,9 @@
           "type": "choice",
           "prompt": "My pick is selected. Prefer an alternate?",
           "options": [
-            { "id": "pick", "label": "Never write a daemon for a Claude Code tool again.", "md": "My pick." },
-            { "id": "alt-a", "label": "An echo server with a daemon, event log, SSE, edit gate, and MCP is 381 lines." },
-            { "id": "alt-b", "label": "All of cc-review's plumbing. None of the review." }
+            { "id": "pick", "label": "Never write a daemon for a Claude Code tool again.", "hint": "developer pain", "md": "My pick." },
+            { "id": "alt-a", "label": "An echo server with a daemon, event log, SSE, edit gate, and MCP is 381 lines.", "hint": "proof by numbers" },
+            { "id": "alt-b", "label": "All of cc-review's plumbing. None of the review.", "hint": "framing by contrast" }
           ]
         },
         {

@@ -1,5 +1,6 @@
 import type { Card as CardBlock } from '../schema';
 import type { Interactions } from '../events';
+import { renderInlineMarkdown } from '../markdown';
 import { BlockRenderer } from './BlockRenderer';
 
 export function Card({ block, interactions }: { block: CardBlock; interactions: Interactions }) {
@@ -18,6 +19,12 @@ export function Card({ block, interactions }: { block: CardBlock; interactions: 
           </span>
         )}
       </div>
+      {block.summary && (
+        <div
+          className="card-summary"
+          dangerouslySetInnerHTML={{ __html: renderInlineMarkdown(block.summary) }}
+        />
+      )}
       {block.flagged && <div className="flag-callout">Flagged for review</div>}
       <div className="card-body">
         {block.children.map((child) => (

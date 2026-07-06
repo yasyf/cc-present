@@ -88,6 +88,7 @@ type Chip struct {
 type Card struct {
 	base
 	Title    string  `json:"title,omitempty"`
+	Summary  string  `json:"summary,omitempty"`
 	Chips    []Chip  `json:"chips,omitempty"`
 	Flagged  bool    `json:"flagged,omitempty"`
 	Status   string  `json:"status,omitempty"`
@@ -105,6 +106,7 @@ type Approval struct {
 type Option struct {
 	ID    string `json:"id"`
 	Label string `json:"label"`
+	Hint  string `json:"hint,omitempty"`
 	Md    string `json:"md,omitempty"`
 }
 
@@ -208,6 +210,7 @@ func (c *Card) UnmarshalJSON(data []byte) error {
 	var raw struct {
 		base
 		Title    string            `json:"title"`
+		Summary  string            `json:"summary"`
 		Chips    []Chip            `json:"chips"`
 		Flagged  bool              `json:"flagged"`
 		Status   string            `json:"status"`
@@ -218,6 +221,7 @@ func (c *Card) UnmarshalJSON(data []byte) error {
 	}
 	c.base = raw.base
 	c.Title = raw.Title
+	c.Summary = raw.Summary
 	c.Chips = raw.Chips
 	c.Flagged = raw.Flagged
 	c.Status = raw.Status
@@ -344,6 +348,9 @@ func validateSection(s *Section) error {
 }
 
 func validateCard(seen map[string]bool, c *Card) error {
+	if strings.Contains(c.Summary, "\n") {
+		return fmt.Errorf("card %q: summary must be a single line", c.ID)
+	}
 	if c.Status != "" && !validStatus[c.Status] {
 		return fmt.Errorf("card %q: invalid status %q", c.ID, c.Status)
 	}
@@ -419,6 +426,9 @@ func validateChoice(c *Choice) error {
 		optSeen[o.ID] = true
 		if o.Label == "" {
 			return fmt.Errorf("choice %q: option %q label must not be empty", c.ID, o.ID)
+		}
+		if strings.Contains(o.Hint, "\n") {
+			return fmt.Errorf("choice %q: option %q hint must be a single line", c.ID, o.ID)
 		}
 	}
 	return nil

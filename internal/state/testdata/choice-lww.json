@@ -14,13 +14,14 @@
             {
               "id": "c1",
               "type": "card",
+              "summary": "Pick one or more variants to keep.",
               "children": [
                 {
                   "id": "ch1",
                   "type": "choice",
                   "multi": true,
                   "options": [
-                    { "id": "o1", "label": "One" },
+                    { "id": "o1", "label": "One", "hint": "the default" },
                     { "id": "o2", "label": "Two" },
                     { "id": "o3", "label": "Three" }
                   ]
@@ -42,13 +43,14 @@
         {
           "id": "c1",
           "type": "card",
+          "summary": "Pick one or more variants to keep.",
           "children": [
             {
               "id": "ch1",
               "type": "choice",
               "multi": true,
               "options": [
-                { "id": "o1", "label": "One" },
+                { "id": "o1", "label": "One", "hint": "the default" },
                 { "id": "o2", "label": "Two" },
                 { "id": "o3", "label": "Three" }
               ]

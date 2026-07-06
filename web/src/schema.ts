@@ -48,6 +48,8 @@ export interface Card {
   id: string;
   type: 'card';
   title?: string;
+  // Single-line inline markdown shown under the card title.
+  summary?: string;
   chips?: Chip[];
   flagged?: boolean;
   status?: CardStatus;
@@ -67,6 +69,8 @@ export interface Approval {
 export interface ChoiceOption {
   id: string;
   label: string;
+  // Single-line inline markdown shown beside the option label.
+  hint?: string;
   md?: string;
 }
 

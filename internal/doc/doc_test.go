@@ -102,7 +102,11 @@ func TestValidate(t *testing.T) {
 		{"choice duplicate option id", docWith(card("c1", `{"id":"ch1","type":"choice","options":[{"id":"o","label":"A"},{"id":"o","label":"B"}]}`)), `duplicate option id "o"`},
 		{"choice option missing id", docWith(card("c1", `{"id":"ch1","type":"choice","options":[{"id":"","label":"A"}]}`)), "option id must not be empty"},
 		{"choice option missing label", docWith(card("c1", `{"id":"ch1","type":"choice","options":[{"id":"o","label":""}]}`)), "label must not be empty"},
+		{"choice option with hint", docWith(card("c1", `{"id":"ch1","type":"choice","options":[{"id":"o","label":"A","hint":"a few words"}]}`)), ""},
+		{"choice option hint with newline", docWith(card("c1", `{"id":"ch1","type":"choice","options":[{"id":"o","label":"A","hint":"line1\nline2"}]}`)), "hint must be a single line"},
 
+		{"card with summary", docWith(`{"id":"c1","type":"card","summary":"One crisp line.","children":[]}`), ""},
+		{"card summary with newline", docWith(`{"id":"c1","type":"card","summary":"line1\nline2","children":[]}`), "summary must be a single line"},
 		{"card bad status", docWith(`{"id":"c1","type":"card","status":"pending","children":[]}`), "invalid status"},
 		{"card bad chip tone", docWith(`{"id":"c1","type":"card","chips":[{"label":"x","tone":"loud"}],"children":[]}`), "invalid chip tone"},
 
@@ -153,5 +157,61 @@ func TestRoundTrip(t *testing.T) {
 	}
 	if got := len(c.Children); got != 9 {
 		t.Fatalf("card children = %d, want 9", got)
+	}
+}
+
+// TestFieldRoundTrip guards the tier fields against silent loss on the marshal
+// path: card.summary must survive Card.UnmarshalJSON's raw struct (which decodes
+// into a shadow type and copies fields across), and option.hint must survive the
+// plain Option struct's tags.
+func TestFieldRoundTrip(t *testing.T) {
+	tests := []struct {
+		name  string
+		doc   string
+		check func(t *testing.T, c *doc.Card)
+	}{
+		{
+			name: "card summary survives marshal",
+			doc:  docWith(`{"id":"c1","type":"card","title":"acme","summary":"One crisp line.","children":[]}`),
+			check: func(t *testing.T, c *doc.Card) {
+				if c.Summary != "One crisp line." {
+					t.Fatalf("summary = %q, want %q", c.Summary, "One crisp line.")
+				}
+			},
+		},
+		{
+			name: "option hint survives marshal",
+			doc:  docWith(card("c1", `{"id":"ch1","type":"choice","options":[{"id":"o1","label":"Terse","hint":"fewest words"}]}`)),
+			check: func(t *testing.T, c *doc.Card) {
+				ch, ok := c.Children[0].(*doc.Choice)
+				if !ok {
+					t.Fatalf("child[0] type = %T, want *doc.Choice", c.Children[0])
+				}
+				if got := ch.Options[0].Hint; got != "fewest words" {
+					t.Fatalf("hint = %q, want %q", got, "fewest words")
+				}
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var d doc.Doc
+			if err := json.Unmarshal([]byte(tt.doc), &d); err != nil {
+				t.Fatalf("unmarshal: %v", err)
+			}
+			out, err := json.Marshal(&d)
+			if err != nil {
+				t.Fatalf("marshal: %v", err)
+			}
+			var reparsed doc.Doc
+			if err := json.Unmarshal(out, &reparsed); err != nil {
+				t.Fatalf("re-unmarshal: %v", err)
+			}
+			c, ok := reparsed.Blocks[0].(*doc.Card)
+			if !ok {
+				t.Fatalf("block[0] type = %T, want *doc.Card", reparsed.Blocks[0])
+			}
+			tt.check(t, c)
+		})
 	}
 }

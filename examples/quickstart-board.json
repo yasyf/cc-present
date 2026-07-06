@@ -7,6 +7,7 @@
       "id": "plan",
       "type": "card",
       "title": "Retry with backoff",
+      "summary": "Three attempts with exponential backoff, then surface the last error.",
       "children": [
         {
           "id": "summary",
@@ -17,8 +18,8 @@
           "id": "strategy",
           "type": "choice",
           "options": [
-            { "id": "jitter", "label": "Full jitter", "md": "Randomize each delay — smooths thundering herds." },
-            { "id": "fixed", "label": "Fixed steps", "md": "1s, 2s, 4s — predictable, easier to test." }
+            { "id": "jitter", "label": "Full jitter", "hint": "spreads load", "md": "Randomize each delay — smooths thundering herds." },
+            { "id": "fixed", "label": "Fixed steps", "hint": "deterministic", "md": "1s, 2s, 4s — predictable, easier to test." }
           ]
         },
         { "id": "verdict", "type": "approval", "prompt": "Ship it?" }
