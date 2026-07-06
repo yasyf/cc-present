@@ -10,7 +10,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@cc-interact/react": "^0.2.1",
+    "@cc-interact/react": "^0.3.0",
     "@shikijs/langs": "^4",
     "@shikijs/themes": "^4",
     "@tanstack/react-query": "^5",
