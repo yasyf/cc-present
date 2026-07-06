@@ -1,1 +1,1 @@
-{"v":1,"lamport":2,"ops":[{"kind":"verify_note","witness":null,"verified_commit":"6486b2932849e47a9bd0d085ee1ce8f223cb878f"}]}
+{"v":1,"lamport":3,"ops":[{"kind":"mark_stale","reason":"0.3.0 shipped; cc-present now pins ^0.3.0 from the registry, overlay torn down"}]}
