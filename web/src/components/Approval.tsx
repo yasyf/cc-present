@@ -3,6 +3,7 @@ import type { Approval as ApprovalBlock } from '../schema';
 import type { Interactions } from '../events';
 import { usePresent } from '../present';
 import { renderMarkdown } from '../markdown';
+import { Clamped } from './Clamped';
 
 export function Approval({ block, interactions }: { block: ApprovalBlock; interactions: Interactions }) {
   const { post, closed } = usePresent();
@@ -96,10 +97,7 @@ export function Approval({ block, interactions }: { block: ApprovalBlock; intera
           {replies.map((r) => (
             <div key={r.id} className="thread-item reply-item">
               <span className="thread-who">agent</span>
-              <span
-                className="thread-text prose"
-                dangerouslySetInnerHTML={{ __html: renderMarkdown(r.md) }}
-              />
+              <Clamped html={renderMarkdown(r.md)} lines={4} className="thread-text prose" />
             </div>
           ))}
         </div>

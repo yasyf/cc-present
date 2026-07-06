@@ -2,6 +2,7 @@ import type { Choice as ChoiceBlock } from '../schema';
 import type { Interactions } from '../events';
 import { usePresent } from '../present';
 import { renderInlineMarkdown } from '../markdown';
+import { Clamped } from './Clamped';
 
 export function Choice({ block, interactions }: { block: ChoiceBlock; interactions: Interactions }) {
   const { post, closed } = usePresent();
@@ -27,23 +28,39 @@ export function Choice({ block, interactions }: { block: ChoiceBlock; interactio
         {block.options.map((option) => {
           const on = selected.includes(option.id);
           return (
-            <button
-              type="button"
+            <div
               key={option.id}
               role={multi ? 'checkbox' : 'radio'}
               aria-checked={on}
-              disabled={closed}
+              aria-disabled={closed}
+              tabIndex={0}
               className={`option${on ? ' selected' : ''}`}
-              onClick={() => toggle(option.id)}
+              onClick={() => {
+                if (!closed) toggle(option.id);
+              }}
+              onKeyDown={(e) => {
+                if (closed) return;
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  toggle(option.id);
+                }
+              }}
             >
               <span className="option-label">{option.label}</span>
-              {option.md && (
-                <span
-                  className="option-md prose"
-                  dangerouslySetInnerHTML={{ __html: renderInlineMarkdown(option.md) }}
+              {option.hint && (
+                <div
+                  className="option-hint"
+                  dangerouslySetInnerHTML={{ __html: renderInlineMarkdown(option.hint) }}
                 />
               )}
-            </button>
+              {option.md && (
+                <Clamped
+                  html={renderInlineMarkdown(option.md)}
+                  lines={3}
+                  className="option-md prose"
+                />
+              )}
+            </div>
           );
         })}
       </div>

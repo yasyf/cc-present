@@ -109,6 +109,21 @@
 .peer-on {
   color: var(--ok);
 }
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: none;
+  padding: var(--space-1);
+  border-radius: var(--radius-sm);
+  color: var(--muted);
+  line-height: 0;
+}
+.theme-toggle:hover:not(:disabled) {
+  color: var(--ink);
+  background: none;
+}
 .doc-intro {
   color: var(--muted);
   max-width: 64ch;
@@ -172,6 +187,11 @@
   font-family: ui-monospace, 'SF Mono', Menlo, monospace;
   font-size: var(--text-base);
   font-weight: 700;
+}
+.card-summary {
+  font-size: var(--text-sm);
+  color: var(--muted);
+  margin-bottom: var(--space-3);
 }
 .status {
   font-size: var(--text-2xs);
@@ -384,9 +404,24 @@
 .option-label {
   font-weight: 600;
 }
+.option-hint {
+  font-size: var(--text-xs);
+  color: var(--muted);
+}
 .option-md {
   color: var(--muted);
   font-size: var(--text-sm);
+}
+.option {
+  cursor: pointer;
+}
+.option:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
+}
+.option[aria-disabled='true'] {
+  opacity: 0.55;
+  cursor: default;
 }
 
 /* --- Input --- */
@@ -654,4 +689,23 @@
   .cc-flip {
     transition: none;
   }
+}
+
+/* --- Clamped (expand/collapse for long text) --- */
+
+.clamped {
+  min-width: 0;
+}
+.clamped-content.is-clamped {
+  display: -webkit-box;
+  -webkit-line-clamp: var(--clamp-lines);
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.clamped-content.is-faded {
+  -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 65%, transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 0%, #000 65%, transparent 100%);
+}
+.clamp-toggle {
+  margin-top: var(--space-1);
 }
