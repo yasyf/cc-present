@@ -27,6 +27,20 @@ The document is JSON, validated by `push --dry-run` before anything touches the 
 - **Ids are globally unique kebab-case**, card children included. Choice option ids are unique within their block.
 - **Agent-owned display state** rides the document: `card.status`, `progress.state`, `chips`, `struck` markdown. Human verdicts live outside it — re-upserting a block never clobbers a decision.
 
+### Content density
+
+The UI clamps long prose behind "Show more" — markdown blocks at ~10 lines, approval replies at 4, option bodies at 3. Write for the fold. Labels carry the pick, `hint` the one-line why, `md` only detail the human must read.
+
+```json
+{ "id": "sqlite", "label": "Use SQLite because it gives us a single-file deployment with zero operational overhead, WAL supports our single-writer daemon, and migrating to Postgres later stays easy since all SQL lives in the store package" }
+```
+
+```json
+{ "id": "sqlite", "label": "SQLite, single writer", "hint": "zero ops; rules out horizontal scaling", "md": "WAL fits the per-repo daemon; all SQL stays in `store`, so a later Postgres move is contained." }
+```
+
+The first buries the tradeoff in a label nobody scans; the second reads at a glance and keeps the detail one clamp away.
+
 ## Size caps
 
 | Cap | Limit |
@@ -50,6 +64,7 @@ The document is JSON, validated by `push --dry-run` before anything touches the 
   "id": "card-slop-cop",
   "type": "card",
   "title": "slop-cop",
+  "summary": "Opener redrafted; install command corrected.",
   "chips": [ { "label": "plugin" }, { "label": "corrected", "tone": "flag" } ],
   "flagged": true,
   "status": "open",
@@ -57,7 +72,7 @@ The document is JSON, validated by `push --dry-run` before anything touches the 
 }
 ```
 
-`chips[].tone` is `default`, `flag`, or `demo`. `status` is agent-owned: `open`, `resolved` (verdict landed), or `redrafted` (you replaced the content after feedback). `flagged` marks a card needing extra scrutiny.
+`chips[].tone` is `default`, `flag`, or `demo`. `status` is agent-owned: `open`, `resolved` (verdict landed), or `redrafted` (you replaced the content after feedback). `flagged` marks a card needing extra scrutiny. `summary` is an optional one-line inline-markdown lede rendered dim under the title; a newline in it fails validation, naming the block id.
 
 ### `approval` — approve/reject verdict
 
@@ -76,11 +91,13 @@ The document is JSON, validated by `push --dry-run` before anything touches the 
   "prompt": "My pick is selected. Prefer an alternate?",
   "multi": false,
   "options": [
-    { "id": "pick", "label": "Never ship 'delve' again.", "md": "My pick." },
-    { "id": "alt-a", "label": "AI-written, without the AI accent." }
+    { "id": "pick", "label": "Never ship 'delve' again.", "hint": "my pick — shortest, boldest" },
+    { "id": "alt-a", "label": "AI-written, without the AI accent.", "hint": "safer, less memorable" }
   ]
 }
 ```
+
+An option has three tiers: `label` (the pick itself, ~6 words), optional `hint` (a one-line inline-markdown qualifier rendered dim beside the label — the why or the cost), and optional `md` (a detail body the UI clamps at ~3 lines). A newline in `hint` fails validation, naming the block id.
 
 ### `input` — free text
 
@@ -171,6 +188,7 @@ A condensed version of `examples/opener-board.json` — sections as tiers, one c
       "id": "card-cc-factory",
       "type": "card",
       "title": "cc-factory",
+      "summary": "Opener redrafted; install command corrected to the released path.",
       "flagged": true,
       "status": "redrafted",
       "chips": [ { "label": "plugin" }, { "label": "corrected", "tone": "flag" } ],
@@ -191,8 +209,8 @@ A condensed version of `examples/opener-board.json` — sections as tiers, one c
           "type": "choice",
           "prompt": "My pick is selected. Prefer an alternate?",
           "options": [
-            { "id": "pick", "label": "Your spec clocks in. A reviewed diff clocks out.", "md": "My pick." },
-            { "id": "alt-a", "label": "Stop reviewing your agent's first draft." }
+            { "id": "pick", "label": "Your spec clocks in. A reviewed diff clocks out.", "hint": "my pick — names both ends of the loop" },
+            { "id": "alt-a", "label": "Stop reviewing your agent's first draft.", "hint": "punchier, but leads with a negative" }
           ]
         },
         {
