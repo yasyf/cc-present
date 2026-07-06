@@ -46,20 +46,23 @@ export function Choice({ block, interactions }: { block: ChoiceBlock; interactio
                 }
               }}
             >
-              <span className="option-label">{option.label}</span>
-              {option.hint && (
-                <div
-                  className="option-hint"
-                  dangerouslySetInnerHTML={{ __html: renderInlineMarkdown(option.hint) }}
-                />
-              )}
-              {option.md && (
-                <Clamped
-                  html={renderInlineMarkdown(option.md)}
-                  lines={3}
-                  className="option-md prose"
-                />
-              )}
+              <span className="option-indicator" aria-hidden />
+              <span className="option-body">
+                <span className="option-label">{option.label}</span>
+                {option.hint && (
+                  <div
+                    className="option-hint"
+                    dangerouslySetInnerHTML={{ __html: renderInlineMarkdown(option.hint) }}
+                  />
+                )}
+                {option.md && (
+                  <Clamped
+                    html={renderInlineMarkdown(option.md)}
+                    lines={3}
+                    className="option-md prose"
+                  />
+                )}
+              </span>
             </div>
           );
         })}

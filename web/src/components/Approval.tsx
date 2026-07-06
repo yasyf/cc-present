@@ -39,6 +39,9 @@ export function Approval({ block, interactions }: { block: ApprovalBlock; intera
           className={`verdict verdict-approve${verdict === 'approved' ? ' active' : ''}`}
           onClick={() => choose('approved')}
         >
+          <span className="verdict-glyph" aria-hidden>
+            ✓
+          </span>
           Approve
         </button>
         <button
@@ -49,6 +52,9 @@ export function Approval({ block, interactions }: { block: ApprovalBlock; intera
           className={`verdict verdict-reject${verdict === 'rejected' ? ' active' : ''}`}
           onClick={() => choose('rejected')}
         >
+          <span className="verdict-glyph" aria-hidden>
+            ✕
+          </span>
           Reject
         </button>
       </div>
