@@ -1,43 +1,44 @@
-/* cc-present domain styling. Ports the opener-board paper/ink/amber palette onto
- * the @cc-interact/react base.css token system and styles the block library:
- * cards, chips, verdict pairs, the struck "was:" treatment, sections, stats,
- * code, diffs, tables, progress, threads, the submit bar, and the closed banner.
- * Every palette token resolves per-theme with CSS light-dark(): light is the
- * default, dark follows prefers-color-scheme, and a data-theme override on :root
- * forces either mode. Rules below are token-pure — candidate themes swap the
- * token values only (see theme-candidates.css, dev-only). */
+/* cc-present domain styling. Applies the graphite palette — cool neutral
+ * surfaces, a single restrained violet-blue accent, and a sans display face —
+ * onto the @cc-interact/react base.css token system and styles the block
+ * library: cards, chips, verdict pairs, the struck "was:" treatment, sections,
+ * stats, code, diffs, tables, progress, threads, the submit bar, and the closed
+ * banner. Every palette token resolves per-theme with CSS light-dark(): light is
+ * the default, dark follows prefers-color-scheme, and a data-theme override on
+ * :root forces either mode. */
 
 :root {
-  --paper: light-dark(#faf9f5, #17150f);
-  --card: light-dark(#ffffff, #201d15);
-  --ink: light-dark(#211f1a, #ece7da);
-  --muted: light-dark(#6e685c, #a29a87);
-  --line: light-dark(#e5e1d6, #383325);
-  --amber: light-dark(#9a6a00, #d9a63a);
-  --amber-ink: light-dark(#7a5400, #e3b654);
-  --mono-bg: light-dark(#f3f1e9, #14120c);
-  --flag: light-dark(#a33d2a, #e07a5f);
-  --flag-bg: light-dark(#f7e9e5, #3a231c);
-  --chip-bg: light-dark(#efece2, #2c2818);
-  --was: light-dark(#948d7d, #7d766a);
-  --ok: light-dark(#1a7f37, #3fb950);
+  --paper: light-dark(#fafafa, #0e0f11);
+  --card: light-dark(#ffffff, #16181c);
+  --ink: light-dark(#1a1c20, #e6e8ec);
+  --muted: light-dark(#66707d, #969ea9);
+  --line: light-dark(#e5e6e9, #24262b);
+  --amber: light-dark(#5e63d6, #8890f4);
+  --amber-ink: light-dark(#4d53c8, #9aa2ff);
+  --mono-bg: light-dark(#f2f3f5, #131519);
+  --flag: light-dark(#c03b2e, #ee7b6b);
+  --flag-bg: light-dark(#faecea, #34201d);
+  --chip-bg: light-dark(#ececef, #212329);
+  --was: light-dark(#9aa1ab, #6c737e);
+  --ok: light-dark(#177a36, #46bb58);
 
   /* Map the palette onto the base.css chrome variables. */
   --bg: var(--paper);
   --bg-soft: var(--mono-bg);
   --border: var(--line);
-  --border-strong: light-dark(#cbc5b6, #55503e);
+  --border-strong: light-dark(#c7cad0, #3c4048);
   --text: var(--ink);
   --dim: var(--muted);
   --accent: var(--amber);
-  --accent-fg: light-dark(#ffffff, #201807);
+  --accent-fg: light-dark(#ffffff, #0e0f11);
   --danger: var(--flag);
   --warn: var(--amber-ink);
   --surface: var(--card);
   --surface-raised: var(--card);
 
-  /* Display face for the doc title; candidates may swap it for a sans. */
-  --font-display: ui-serif, 'Iowan Old Style', Palatino, Georgia, serif;
+  /* Sans display face for the doc title. */
+  --font-display: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial,
+    sans-serif;
 
   /* Upward elevation for the sticky submit bar (mirror of --shadow-2). */
   --shadow-up: 0 -6px 16px rgb(0 0 0 / 8%), 0 -2px 5px rgb(0 0 0 / 6%);
@@ -100,11 +101,11 @@
 .doc-title {
   font-family: var(--font-display);
   font-size: var(--text-xl);
-  font-weight: 600;
+  font-weight: 650;
   line-height: 1.15;
   margin: 0;
   text-wrap: balance;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.02em;
 }
 .doc-conn {
   display: inline-flex;
@@ -182,9 +183,9 @@
 .section-title {
   font-family: var(--font-display);
   font-size: var(--text-lg);
-  font-weight: 600;
+  font-weight: 650;
   margin: 0 0 var(--space-1);
-  letter-spacing: -0.005em;
+  letter-spacing: -0.01em;
 }
 .section-md {
   color: var(--muted);
