@@ -33,15 +33,15 @@ export function Choice({ block, interactions }: { block: ChoiceBlock; interactio
               role={multi ? 'checkbox' : 'radio'}
               aria-checked={on}
               aria-disabled={closed}
-              tabIndex={0}
+              tabIndex={closed ? -1 : 0}
               className={`option${on ? ' selected' : ''}`}
               onClick={() => {
                 if (!closed) toggle(option.id);
               }}
               onKeyDown={(e) => {
-                if (closed) return;
                 if (e.key === 'Enter' || e.key === ' ') {
                   e.preventDefault();
+                  if (closed) return;
                   toggle(option.id);
                 }
               }}

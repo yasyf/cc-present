@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 
 export type ThemeMode = 'system' | 'light' | 'dark';
 
+// Duplicated by the FOUC script in index.html; keep both literals in sync.
 const STORAGE_KEY = 'cc-present:theme';
 const DARK_QUERY = '(prefers-color-scheme: dark)';
 

@@ -12,17 +12,30 @@ export function Clamped({ html, children, lines, className }: ClampedProps) {
   const contentRef = useRef<HTMLDivElement>(null);
   const [expanded, setExpanded] = useState(false);
   const [overflowing, setOverflowing] = useState(false);
+  const expandedRef = useRef(expanded);
+  expandedRef.current = expanded;
+  const mounted = useRef(false);
 
   useLayoutEffect(() => {
-    if (expanded) return;
     const el = contentRef.current;
     if (!el) return;
-    const measure = () => setOverflowing(el.scrollHeight > el.clientHeight);
+    const measure = () => {
+      if (expandedRef.current) return;
+      setOverflowing(el.scrollHeight > el.clientHeight);
+    };
     measure();
     const observer = new ResizeObserver(measure);
     observer.observe(el);
     return () => observer.disconnect();
-  }, [expanded, html, children, lines]);
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!mounted.current) {
+      mounted.current = true;
+      return;
+    }
+    setExpanded(false);
+  }, [html, children]);
 
   const collapsed = !expanded;
   const contentClass = `clamped-content${className ? ` ${className}` : ''}${
