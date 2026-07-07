@@ -1,10 +1,10 @@
 # ![cc-present](docs/assets/readme-banner.webp)
 
-**Approval boards where every click streams back to the agent.** A Claude session serves a page of typed blocks — approvals, choices, diffs — at a localhost URL and reacts to each click in your open tab, no reload.
+**Approval boards where every click streams back to the agent.** A Claude session serves a page of typed approval, choice, and diff blocks at a localhost URL and reacts to each click in your open tab, no reload.
 
 [![Release](https://img.shields.io/github/v/release/yasyf/cc-present?sort=semver)](https://github.com/yasyf/cc-present/releases)
 [![CI](https://img.shields.io/github/actions/workflow/status/yasyf/cc-present/ci.yml?branch=main&label=ci)](https://github.com/yasyf/cc-present/actions/workflows/ci.yml)
-[![License: PolyForm-Noncommercial-1.0.0](https://img.shields.io/badge/License-PolyForm--Noncommercial--1.0.0-blue.svg)](https://github.com/yasyf/cc-present/blob/main/LICENSE)
+[![License PolyForm-Noncommercial-1.0.0](https://img.shields.io/badge/License-PolyForm--Noncommercial--1.0.0-blue.svg)](https://github.com/yasyf/cc-present/blob/main/LICENSE)
 
 ## Get started
 
@@ -47,7 +47,7 @@ Driving with an agent? Paste this:
 /plugin install cc-present@cc-present
 ```
 
-The plugin auto-installs the binary and wires the loop: an MCP channel that delivers clicks into the session as `<channel source="cc-present">` tags, a SessionStart hook, and the `/cc-present:present` skill that drives compose, watch, reply, and outcomes.
+The plugin auto-installs the binary and wires the loop. It adds an MCP channel that delivers clicks into the session as `<channel source="cc-present">` tags, a SessionStart hook, and the `/cc-present:present` skill that drives compose, watch, reply, and outcomes.
 
 ---
 
@@ -63,32 +63,32 @@ A static review page still makes you type decisions back into chat. On a board, 
 
 ### Redraft a rejected card without losing the other verdicts
 
-A regenerated one-shot page forgets what you already decided. The agent patches single blocks over the stream your tab is subscribed to, so a rejected draft becomes a redraft in place — and your earlier verdicts survive, because agent content and human decisions live in separate lanes of the event log.
+A regenerated one-shot page forgets what you already decided. The agent patches single blocks over the stream your tab is subscribed to, so a rejected draft becomes a redraft in place while your earlier verdicts survive, because agent content and human decisions live in separate lanes of the event log.
 
 ### Cover tomorrow's dashboard with today's JSON
 
-A bespoke review UI takes a repo each. Blocks compose — markdown, cards, choices, inputs, code, diffs, images, tables, progress — so the document that renders an approval board today renders a triage dashboard tomorrow. The full vocabulary is in the table below.
+A bespoke review UI takes a repo each. Blocks compose, so the document that renders an approval board today renders a triage dashboard tomorrow. The full vocabulary, from markdown and cards to diffs and progress meters, is in the table below.
 
 ## Blocks
 
-The document is a flat list of typed blocks (a `card` nests leaf blocks one level deep), and the document-level Submit button emits `submit`:
+The document is a flat list of typed blocks, and a `card` nests leaf blocks one level deep. The document-level Submit button emits `submit`:
 
 | Block | Renders | A click emits |
 |---|---|---|
-| `section` | a header with optional prose | — |
-| `card` | a titled container with chips and a status, nesting leaf blocks | — |
+| `section` | a header with optional prose | nothing |
+| `card` | a titled container with chips and a status, nesting leaf blocks | nothing |
 | `approval` | approve/reject controls, plus a feedback box when allowed | `decision.created`, `feedback.created` |
 | `choice` | a single- or multi-select set of options | `choice.selected` |
 | `input` | a free-text field | `input.submitted` |
-| `markdown` | prose, optionally struck through | — |
-| `code` | a highlighted snippet | — |
-| `diff` | a unified diff | — |
-| `image` | an image with a caption | — |
-| `table` | aligned columns of inline-markdown cells | — |
-| `progress` | a labeled meter | — |
+| `markdown` | prose, optionally struck through | nothing |
+| `code` | a highlighted snippet | nothing |
+| `diff` | a unified diff | nothing |
+| `image` | an image with a caption | nothing |
+| `table` | aligned columns of inline-markdown cells | nothing |
+| `progress` | a labeled meter | nothing |
 
-A complete sample document lives in [`examples/opener-board.json`](examples/opener-board.json). The wire contract — block fields, validation rules, event payloads, the REST surface — is [docs/contract.md](docs/contract.md), and the [present skill](plugin/skills/present/SKILL.md) drives the loop from inside a session.
+A complete sample document lives in [`examples/opener-board.json`](examples/opener-board.json). The wire contract lives in [docs/contract.md](docs/contract.md), which covers block fields, validation rules, event payloads, and the REST surface. The [present skill](plugin/skills/present/SKILL.md) drives the loop from inside a session.
 
-Under the hood, a per-user daemon owns one append-only event log per artifact: the agent writes one lane, the human writes the other, and the page is a pure reduction of the log — a fresh tab replays it over SSE, and an agent redraft never clobbers your verdict.
+Under the hood, a per-user daemon owns one append-only event log per artifact. The agent writes one lane, the human writes the other, and the page is a pure reduction of the log. A fresh tab replays it over SSE, and an agent redraft never clobbers your verdict.
 
-Everything else — per-command flags, the daemon lifecycle, the channel — is in `cc-present --help`. Licensed under [PolyForm Noncommercial 1.0.0](LICENSE).
+Per-command flags, the daemon lifecycle, and the channel are all in `cc-present --help`. Licensed under [PolyForm Noncommercial 1.0.0](LICENSE).
