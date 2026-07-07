@@ -8,11 +8,37 @@
 
 ## Get started
 
+One round takes about two minutes end to end. Install, serve the sample board, click, and collect the decisions.
+
 ```bash
 brew install yasyf/tap/cc-present
+curl -fsSLO https://raw.githubusercontent.com/yasyf/cc-present/main/examples/quickstart-board.json
+cc-present start --session demo --cwd "$PWD" --doc quickstart-board.json
+# session: <session id>
+# url: http://127.0.0.1:<port>/p/approve-the-retry-plan--<hash>
+# channel: inactive
+cc-present watch --session demo --cwd "$PWD"
 ```
 
 <img src="docs/assets/demo-quickstart.png" alt="A cc-present board titled 'Approve the retry plan' — an approval card with two choice options, approve and reject controls, and a Send decisions bar" width="700">
+
+Open the URL, pick "Full jitter", approve, and press Send decisions. `channel: inactive` means no Claude session is attached; the Claude plugin wires that. `watch` prints one self-describing JSON payload per interaction as it happens:
+
+```text
+{"blockId":"strategy","optionIds":["jitter"],"type":"choice.selected"}
+{"blockId":"verdict","type":"decision.created","verdict":"approved"}
+{"revision":1,"type":"submit"}
+```
+
+Collect the round and shut down. On close, `watch` prints `{"type":"present.closed"}` and exits:
+
+```bash
+cc-present outcomes --session demo --cwd "$PWD"   # reduced doc + human interactions as JSON
+cc-present close --session demo --cwd "$PWD"
+# closed: approve-the-retry-plan--<hash>
+cc-present stop
+# daemon: stopping
+```
 
 Driving with an agent? Paste this:
 
@@ -42,37 +68,6 @@ A regenerated one-shot page forgets what you already decided. The agent patches 
 ### Cover tomorrow's dashboard with today's JSON
 
 A bespoke review UI takes a repo each. Blocks compose — markdown, cards, choices, inputs, code, diffs, images, tables, progress — so the document that renders an approval board today renders a triage dashboard tomorrow. The full vocabulary is in the table below.
-
-## Quickstart
-
-Run one round end to end in about two minutes: fetch the sample board, serve it, click, and collect the decisions.
-
-```bash
-curl -fsSLO https://raw.githubusercontent.com/yasyf/cc-present/main/examples/quickstart-board.json
-cc-present start --session demo --cwd "$PWD" --doc quickstart-board.json
-# session: <session id>
-# url: http://127.0.0.1:<port>/p/approve-the-retry-plan--<hash>
-# channel: inactive
-cc-present watch --session demo --cwd "$PWD"
-```
-
-Open the URL, pick "Full jitter", approve, and press Send decisions. `watch` prints one self-describing JSON payload per interaction as it happens (`channel: inactive` means no Claude session is attached; the plugin wires that):
-
-```text
-{"blockId":"strategy","optionIds":["jitter"],"type":"choice.selected"}
-{"blockId":"verdict","type":"decision.created","verdict":"approved"}
-{"revision":1,"type":"submit"}
-```
-
-Collect the round and shut down — on close, `watch` prints `{"type":"present.closed"}` and exits:
-
-```bash
-cc-present outcomes --session demo --cwd "$PWD"   # reduced doc + human interactions as JSON
-cc-present close --session demo --cwd "$PWD"
-# closed: approve-the-retry-plan--<hash>
-cc-present stop
-# daemon: stopping
-```
 
 ## Blocks
 
