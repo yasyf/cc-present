@@ -1,1 +1,1 @@
-{"v":1,"lamport":1,"ops":[{"kind":"create_task","nonce":"c88a88864b33184b6cf8b864c160d831","title":"Extend cc-present schema with card.summary and option.hint fields","description":"","type":"task","priority":2,"branch":"","parent":"","labels":null},{"kind":"add_criterion","id":"1a3ed0297a0b7abac22c33bb8caa33a4","text":"push --dry-run accepts new fields, rejects newlines; doc_test.go round-trips both fields","script":""}]}
+{"v":1,"lamport":2,"ops":[{"kind":"set_criterion_status","id":"1a3ed0297a0b7abac22c33bb8caa33a4","status":"met"}]}
