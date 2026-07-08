@@ -36,6 +36,7 @@
           { "id": "r2", "md": "and clarified" }
         ]
       }
-    }
+    },
+    "rounds": { "current": 1, "blockRounds": { "c1": 1 }, "history": [] }
   }
 }

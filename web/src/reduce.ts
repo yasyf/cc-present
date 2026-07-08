@@ -8,11 +8,14 @@ import type { Block, Doc } from './schema';
 import type {
   Closed,
   Decision,
+  Feedback,
   HumanEvent,
   Interaction,
   Interactions,
   PresentEvent,
   PresentState,
+  RoundRecord,
+  Rounds,
   Verdict,
 } from './events';
 
@@ -34,6 +37,7 @@ export function emptyState(): PresentState {
       submitted: { value: false, revision: 0 },
       closed: { value: false },
     },
+    rounds: { current: 1, blockRounds: {}, history: [] },
   };
 }
 
@@ -55,18 +59,34 @@ export function reduce(events: readonly PresentEvent[]): PresentState {
 export function applyEvent(state: PresentState, ev: PresentEvent): PresentState {
   if (state.interactions.closed.value) return state;
   switch (ev.type) {
-    case 'doc.replaced':
-      return { ...state, doc: ev.payload.doc };
-    case 'block.upserted':
-      return {
-        ...state,
-        doc: { ...state.doc, blocks: upsert(state.doc.blocks, ev.payload.block, ev.payload.after) },
-      };
-    case 'block.removed':
-      return { ...state, doc: { ...state.doc, blocks: remove(state.doc.blocks, ev.payload.id) } };
+    case 'doc.replaced': {
+      const doc = ev.payload.doc;
+      const blockRounds: Record<string, number> = {};
+      for (const b of doc.blocks) blockRounds[b.id] = state.rounds.current;
+      return { ...state, doc, rounds: { ...state.rounds, blockRounds } };
+    }
+    case 'block.upserted': {
+      const blocks = upsert(state.doc.blocks, ev.payload.block, ev.payload.after);
+      const blockRounds = { ...state.rounds.blockRounds, [ev.payload.block.id]: state.rounds.current };
+      return { ...state, doc: { ...state.doc, blocks }, rounds: { ...state.rounds, blockRounds } };
+    }
+    case 'block.removed': {
+      const blocks = remove(state.doc.blocks, ev.payload.id);
+      const blockRounds = { ...state.rounds.blockRounds };
+      delete blockRounds[ev.payload.id];
+      return { ...state, doc: { ...state.doc, blocks }, rounds: { ...state.rounds, blockRounds } };
+    }
     case 'reply.created': {
       const { blockId, id, md } = ev.payload;
       return withInteractions(state, { replies: append(state.interactions.replies, blockId, { id, md }) });
+    }
+    case 'round.started': {
+      const { title } = ev.payload;
+      const advanced = isDirty(state) ? closeRound(state, undefined) : state;
+      const rounds = { ...advanced.rounds };
+      if (title) rounds.currentTitle = title;
+      else delete rounds.currentTitle;
+      return { ...advanced, rounds };
     }
     case 'present.closed': {
       const closed: Closed = { value: true };
@@ -99,11 +119,18 @@ export function applyEvent(state: PresentState, ev: PresentEvent): PresentState 
     case 'input.submitted': {
       const { blockId, text } = ev.payload;
       return withInteractions(state, {
-        inputs: { ...state.interactions.inputs, [blockId]: { text } },
+        inputs: { ...state.interactions.inputs, [blockId]: { text, round: inputRound(state, blockId) } },
       });
     }
-    case 'submit':
-      return withInteractions(state, { submitted: { value: true, revision: ev.payload.revision } });
+    case 'submit': {
+      const { revision } = ev.payload;
+      const submitted = withInteractions(state, { submitted: { value: true, revision } });
+      if (!isDirty(submitted)) return submitted;
+      const closed = closeRound(submitted, revision);
+      const rounds = { ...closed.rounds };
+      delete rounds.currentTitle;
+      return { ...closed, rounds };
+    }
     case 'channel.changed':
       return state;
     default: {
@@ -165,6 +192,75 @@ function withInteractions(state: PresentState, patch: Partial<Interactions>): Pr
 
 function append<T>(map: Record<string, T[]>, key: string, item: T): Record<string, T[]> {
   return { ...map, [key]: [...(map[key] ?? []), item] };
+}
+
+function isDirty(state: PresentState): boolean {
+  return state.doc.blocks.some((b) => state.rounds.blockRounds[b.id] === state.rounds.current);
+}
+
+// closeRound appends a frozen snapshot of the current round and advances current.
+// The caller owns currentTitle: submit clears it, round.started sets the next.
+function closeRound(state: PresentState, revision: number | undefined): PresentState {
+  const cur = state.rounds.current;
+  const blocks = state.doc.blocks.filter((b) => state.rounds.blockRounds[b.id] === cur);
+  const ids = idsOf(blocks);
+  const record: RoundRecord = {
+    number: cur,
+    blocks: [...blocks],
+    decisions: filterMap(state.interactions.decisions, ids),
+    choices: filterMap(state.interactions.choices, ids),
+    inputs: filterMap(state.interactions.inputs, ids),
+    feedback: filterFeedback(state.interactions.feedback, ids),
+  };
+  if (state.rounds.currentTitle) record.title = state.rounds.currentTitle;
+  if (revision !== undefined) record.submittedRevision = revision;
+  const rounds: Rounds = {
+    ...state.rounds,
+    current: cur + 1,
+    history: [...state.rounds.history, record],
+  };
+  return { ...state, rounds };
+}
+
+// inputRound resolves the round an input value belongs to: the round of its
+// enclosing top-level block (the block itself when top-level, else the card one
+// level up that contains it), mirroring idsOf's one-level child resolution. An
+// id with no block in the doc (an orphaned interaction) falls back to the current
+// round so the reduction stays total.
+function inputRound(state: PresentState, id: string): number {
+  const { blockRounds, current } = state.rounds;
+  for (const b of state.doc.blocks) {
+    if (b.id === id) return blockRounds[id] ?? current;
+    if (b.type === 'card') {
+      for (const child of b.children) {
+        if (child.id === id) return blockRounds[b.id] ?? current;
+      }
+    }
+  }
+  return current;
+}
+
+// idsOf collects the ids of a block slice plus one level of card children,
+// mirroring where interactive blocks may nest (see SubmitBar's flatten).
+function idsOf(blocks: readonly Block[]): Set<string> {
+  const ids = new Set<string>();
+  for (const b of blocks) {
+    ids.add(b.id);
+    if (b.type === 'card') for (const child of b.children) ids.add(child.id);
+  }
+  return ids;
+}
+
+function filterMap<T>(map: Record<string, T>, ids: Set<string>): Record<string, T> {
+  const out: Record<string, T> = {};
+  for (const [id, v] of Object.entries(map)) if (ids.has(id)) out[id] = v;
+  return out;
+}
+
+function filterFeedback(map: Record<string, Feedback[]>, ids: Set<string>): Record<string, Feedback[]> {
+  const out: Record<string, Feedback[]> = {};
+  for (const [id, v] of Object.entries(map)) if (ids.has(id)) out[id] = [...v];
+  return out;
 }
 
 function upsert(blocks: readonly Block[], block: Block, after: string | undefined): Block[] {

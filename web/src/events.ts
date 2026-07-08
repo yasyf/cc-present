@@ -38,6 +38,10 @@ export interface PresentClosedPayload {
   summary?: string;
 }
 
+export interface RoundStartedPayload {
+  title?: string;
+}
+
 // --- Human-origin payloads ---
 
 export interface DecisionCreatedPayload {
@@ -84,6 +88,7 @@ export type PresentEvent =
   | { origin: 'agent'; type: 'block.upserted'; seq: number; payload: BlockUpsertedPayload }
   | { origin: 'agent'; type: 'block.removed'; seq: number; payload: BlockRemovedPayload }
   | { origin: 'agent'; type: 'reply.created'; seq: number; payload: ReplyCreatedPayload }
+  | { origin: 'agent'; type: 'round.started'; seq: number; payload: RoundStartedPayload }
   | { origin: 'system'; type: 'present.closed'; seq: number; payload: PresentClosedPayload }
   | { origin: 'human'; type: 'decision.created'; seq: number; payload: DecisionCreatedPayload }
   | { origin: 'human'; type: 'choice.selected'; seq: number; payload: ChoiceSelectedPayload }
@@ -111,6 +116,7 @@ export type WireFrame =
   | ({ type: 'block.upserted' } & BlockUpsertedPayload)
   | ({ type: 'block.removed' } & BlockRemovedPayload)
   | ({ type: 'reply.created' } & ReplyCreatedPayload)
+  | ({ type: 'round.started' } & RoundStartedPayload)
   | ({ type: 'present.closed' } & PresentClosedPayload)
   | ({ type: 'decision.created' } & DecisionCreatedPayload)
   | ({ type: 'choice.selected' } & ChoiceSelectedPayload)
@@ -146,6 +152,9 @@ export interface Selection {
 
 export interface InputValue {
   text: string;
+  // The round its enclosing top-level block was in when the entry was committed,
+  // stamped by the reducer.
+  round: number;
 }
 
 export interface Feedback {
@@ -178,8 +187,34 @@ export interface Interactions {
   closed: Closed;
 }
 
-// The full reduction: the current document plus the keyed human interactions.
+// RoundRecord is a closed round: the top-level blocks live at close (frozen
+// copies) plus the interaction values snapshotted to those blocks' ids.
+// submittedRevision is present only when the round closed on a submit.
+export interface RoundRecord {
+  number: number;
+  title?: string;
+  blocks: Block[];
+  decisions: Record<string, Decision>;
+  choices: Record<string, Selection>;
+  inputs: Record<string, InputValue>;
+  feedback: Record<string, Feedback[]>;
+  submittedRevision?: number;
+}
+
+// Rounds tracks the round partition. current is 1-based; blockRounds maps a
+// top-level block id to the round of its last agent touch; history holds the
+// closed rounds in ascending order.
+export interface Rounds {
+  current: number;
+  currentTitle?: string;
+  blockRounds: Record<string, number>;
+  history: RoundRecord[];
+}
+
+// The full reduction: the current document, the keyed human interactions, and
+// the round partition.
 export interface PresentState {
   doc: Doc;
   interactions: Interactions;
+  rounds: Rounds;
 }

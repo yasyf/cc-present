@@ -35,9 +35,12 @@ type Selection struct {
 	OptionIDs []string `json:"optionIds"`
 }
 
-// InputValue is a human's last-write-wins text entry on an input block.
+// InputValue is a human's last-write-wins text entry on an input block. Round is
+// the round its enclosing top-level block was in when the entry was committed,
+// stamped by the reducer.
 type InputValue struct {
-	Text string `json:"text"`
+	Text  string `json:"text"`
+	Round int    `json:"round"`
 }
 
 // Feedback is one entry in a block's append-only feedback list.
@@ -77,10 +80,37 @@ type Interactions struct {
 	Closed    Closed                `json:"closed"`
 }
 
-// State is the full reduction: the current document and the human interactions.
+// RoundRecord is a closed round: the top-level blocks live at close (frozen
+// copies) plus the interaction values snapshotted to those blocks' ids.
+// SubmittedRevision is set only when the round closed on a submit.
+type RoundRecord struct {
+	Number            int                   `json:"number"`
+	Title             string                `json:"title,omitempty"`
+	Blocks            doc.BlockList         `json:"blocks"`
+	Decisions         map[string]Decision   `json:"decisions"`
+	Choices           map[string]Selection  `json:"choices"`
+	Inputs            map[string]InputValue `json:"inputs"`
+	Feedback          map[string][]Feedback `json:"feedback"`
+	SubmittedRevision *int                  `json:"submittedRevision,omitempty"`
+}
+
+// Rounds tracks the round partition. Current is 1-based; BlockRounds maps a
+// top-level block id to the round of its last agent touch; History holds the
+// closed rounds in ascending order. A round is dirty when a live top-level block
+// carries the current round.
+type Rounds struct {
+	Current      int            `json:"current"`
+	CurrentTitle string         `json:"currentTitle,omitempty"`
+	BlockRounds  map[string]int `json:"blockRounds"`
+	History      []RoundRecord  `json:"history"`
+}
+
+// State is the full reduction: the current document, the human interactions, and
+// the round partition.
 type State struct {
 	Doc          *doc.Doc     `json:"doc"`
 	Interactions Interactions `json:"interactions"`
+	Rounds       Rounds       `json:"rounds"`
 }
 
 // Reduce folds the log into a State. Events are processed in ascending Seq
@@ -99,6 +129,11 @@ func Reduce(events []Event) (State, error) {
 			Inputs:    map[string]InputValue{},
 			Feedback:  map[string][]Feedback{},
 			Replies:   map[string][]Reply{},
+		},
+		Rounds: Rounds{
+			Current:     1,
+			BlockRounds: map[string]int{},
+			History:     []RoundRecord{},
 		},
 	}
 	ordered := append([]Event(nil), events...)
@@ -126,6 +161,10 @@ func (s *State) apply(ev Event) error {
 			return err
 		}
 		s.Doc = p.Doc
+		s.Rounds.BlockRounds = map[string]int{}
+		for _, b := range s.Doc.Blocks {
+			s.Rounds.BlockRounds[b.BlockID()] = s.Rounds.Current
+		}
 		return nil
 	case "block.upserted":
 		var p struct {
@@ -140,6 +179,7 @@ func (s *State) apply(ev Event) error {
 			return err
 		}
 		s.upsert(b, p.After)
+		s.Rounds.BlockRounds[b.BlockID()] = s.Rounds.Current
 		return nil
 	case "block.removed":
 		var p struct {
@@ -149,6 +189,7 @@ func (s *State) apply(ev Event) error {
 			return err
 		}
 		s.remove(p.ID)
+		delete(s.Rounds.BlockRounds, p.ID)
 		return nil
 	case "reply.created":
 		var p struct {
@@ -220,7 +261,7 @@ func (s *State) apply(ev Event) error {
 		if err := json.Unmarshal(ev.Payload, &p); err != nil {
 			return err
 		}
-		s.Interactions.Inputs[p.BlockID] = InputValue{Text: p.Text}
+		s.Interactions.Inputs[p.BlockID] = InputValue{Text: p.Text, Round: s.inputRound(p.BlockID)}
 		return nil
 	case "submit":
 		var p struct {
@@ -230,6 +271,32 @@ func (s *State) apply(ev Event) error {
 			return err
 		}
 		s.Interactions.Submitted = Submitted{Value: true, Revision: p.Revision}
+		if s.dirty() {
+			rec, err := s.closeRound(&p.Revision)
+			if err != nil {
+				return err
+			}
+			s.Rounds.History = append(s.Rounds.History, rec)
+			s.Rounds.Current++
+			s.Rounds.CurrentTitle = ""
+		}
+		return nil
+	case "round.started":
+		var p struct {
+			Title string `json:"title"`
+		}
+		if err := json.Unmarshal(ev.Payload, &p); err != nil {
+			return err
+		}
+		if s.dirty() {
+			rec, err := s.closeRound(nil)
+			if err != nil {
+				return err
+			}
+			s.Rounds.History = append(s.Rounds.History, rec)
+			s.Rounds.Current++
+		}
+		s.Rounds.CurrentTitle = p.Title
 		return nil
 	case "channel.changed":
 		return nil
@@ -270,4 +337,115 @@ func (s *State) remove(id string) {
 			return
 		}
 	}
+}
+
+func (s *State) dirty() bool {
+	for _, b := range s.Doc.Blocks {
+		if s.Rounds.BlockRounds[b.BlockID()] == s.Rounds.Current {
+			return true
+		}
+	}
+	return false
+}
+
+func (s *State) closeRound(revision *int) (RoundRecord, error) {
+	cur := s.Rounds.Current
+	var live []doc.Block
+	for _, b := range s.Doc.Blocks {
+		if s.Rounds.BlockRounds[b.BlockID()] == cur {
+			live = append(live, b)
+		}
+	}
+	blocks, err := copyBlocks(live)
+	if err != nil {
+		return RoundRecord{}, err
+	}
+	ids := idsOf(blocks)
+	return RoundRecord{
+		Number:            cur,
+		Title:             s.Rounds.CurrentTitle,
+		Blocks:            blocks,
+		Decisions:         filterMap(s.Interactions.Decisions, ids),
+		Choices:           filterMap(s.Interactions.Choices, ids),
+		Inputs:            filterMap(s.Interactions.Inputs, ids),
+		Feedback:          filterFeedback(s.Interactions.Feedback, ids),
+		SubmittedRevision: revision,
+	}, nil
+}
+
+// inputRound resolves the round an input value belongs to: the round of its
+// enclosing top-level block (the block itself when top-level, else the card one
+// level up that contains it), mirroring idsOf's one-level child resolution. An
+// id with no block in the doc (an orphaned interaction) falls back to the current
+// round so the reduction stays total.
+func (s *State) inputRound(id string) int {
+	for _, b := range s.Doc.Blocks {
+		if b.BlockID() == id {
+			return s.stampedRound(id)
+		}
+		if card, ok := b.(*doc.Card); ok {
+			for _, child := range card.Children {
+				if child.BlockID() == id {
+					return s.stampedRound(b.BlockID())
+				}
+			}
+		}
+	}
+	return s.Rounds.Current
+}
+
+func (s *State) stampedRound(id string) int {
+	if r, ok := s.Rounds.BlockRounds[id]; ok {
+		return r
+	}
+	return s.Rounds.Current
+}
+
+// idsOf collects the ids of a block slice plus one level of card children,
+// mirroring where interactive blocks may nest (see daemon.findBlock).
+func idsOf(blocks []doc.Block) map[string]bool {
+	ids := map[string]bool{}
+	for _, b := range blocks {
+		ids[b.BlockID()] = true
+		if card, ok := b.(*doc.Card); ok {
+			for _, child := range card.Children {
+				ids[child.BlockID()] = true
+			}
+		}
+	}
+	return ids
+}
+
+func filterMap[T any](m map[string]T, ids map[string]bool) map[string]T {
+	out := map[string]T{}
+	for id, v := range m {
+		if ids[id] {
+			out[id] = v
+		}
+	}
+	return out
+}
+
+func filterFeedback(m map[string][]Feedback, ids map[string]bool) map[string][]Feedback {
+	out := map[string][]Feedback{}
+	for id, v := range m {
+		if ids[id] {
+			out[id] = append([]Feedback(nil), v...)
+		}
+	}
+	return out
+}
+
+// copyBlocks deep-copies blocks through the doc decoder so a later in-place
+// mutation of the live document cannot reach a round's frozen snapshot.
+func copyBlocks(blocks []doc.Block) (doc.BlockList, error) {
+	data, err := json.Marshal(blocks)
+	if err != nil {
+		return nil, fmt.Errorf("marshal round blocks: %w", err)
+	}
+	var out doc.BlockList
+	if err := json.Unmarshal(data, &out); err != nil {
+		return nil, fmt.Errorf("decode round blocks: %w", err)
+	}
+	return out, nil
 }

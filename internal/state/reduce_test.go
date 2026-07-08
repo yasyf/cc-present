@@ -114,6 +114,15 @@ func initMaps(s *state.State) {
 	if s.Doc == nil {
 		s.Doc = &doc.Doc{Version: 1, Blocks: []doc.Block{}}
 	}
+	if s.Rounds.Current == 0 {
+		s.Rounds.Current = 1
+	}
+	if s.Rounds.BlockRounds == nil {
+		s.Rounds.BlockRounds = map[string]int{}
+	}
+	if s.Rounds.History == nil {
+		s.Rounds.History = []state.RoundRecord{}
+	}
 }
 
 func assertStateEqual(t *testing.T, got, want state.State) {

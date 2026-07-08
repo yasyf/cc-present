@@ -46,6 +46,7 @@
     },
     "interactions": {
       "decisions": { "a1": { "verdict": "approved" } }
-    }
+    },
+    "rounds": { "current": 1, "blockRounds": { "c1": 1 }, "history": [] }
   }
 }

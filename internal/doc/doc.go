@@ -245,6 +245,25 @@ func decodeBlocks(raw []json.RawMessage) ([]Block, error) {
 	return blocks, nil
 }
 
+// BlockList is a slice of blocks that decodes each element polymorphically by
+// its type tag, mirroring Doc.Blocks; it lets a struct hold a block slice that
+// round-trips through JSON without a bespoke decoder.
+type BlockList []Block
+
+// UnmarshalJSON decodes a JSON array, dispatching each element by its type tag.
+func (bl *BlockList) UnmarshalJSON(data []byte) error {
+	var raw []json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return fmt.Errorf("unmarshal block list: %w", err)
+	}
+	blocks, err := decodeBlocks(raw)
+	if err != nil {
+		return err
+	}
+	*bl = blocks
+	return nil
+}
+
 // DecodeBlock decodes a single block from its JSON, dispatching on the type tag.
 // An unknown type is an error naming the offending block id.
 func DecodeBlock(data json.RawMessage) (Block, error) {

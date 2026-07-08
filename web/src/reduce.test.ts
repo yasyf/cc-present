@@ -10,14 +10,14 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { reduce } from './reduce';
 import type { Doc } from './schema';
-import type { Interactions, PresentEvent, PresentState } from './events';
+import type { Interactions, PresentEvent, PresentState, Rounds } from './events';
 
 const testdataDir = fileURLToPath(new URL('../../internal/state/testdata/', import.meta.url));
 
 interface Fixture {
   name: string;
   events: PresentEvent[];
-  expected: { doc: Doc; interactions?: Partial<Interactions> };
+  expected: { doc: Doc; interactions?: Partial<Interactions>; rounds?: Partial<Rounds> };
 }
 
 function normalizeInteractions(i: Partial<Interactions> | undefined): Interactions {
@@ -29,6 +29,15 @@ function normalizeInteractions(i: Partial<Interactions> | undefined): Interactio
     replies: i?.replies ?? {},
     submitted: i?.submitted ?? { value: false, revision: 0 },
     closed: i?.closed ?? { value: false },
+  };
+}
+
+function normalizeRounds(r: Partial<Rounds> | undefined): Rounds {
+  return {
+    current: r?.current ?? 1,
+    currentTitle: r?.currentTitle,
+    blockRounds: r?.blockRounds ?? {},
+    history: r?.history ?? [],
   };
 }
 
@@ -56,6 +65,7 @@ describe('reduce fixture parity', () => {
       const want: PresentState = {
         doc: fx.expected.doc,
         interactions: normalizeInteractions(fx.expected.interactions),
+        rounds: normalizeRounds(fx.expected.rounds),
       };
       expect(canonical(got)).toEqual(canonical(want));
     });

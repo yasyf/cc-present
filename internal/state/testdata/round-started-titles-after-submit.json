@@ -1,12 +1,12 @@
 {
-  "name": "submit-records-revision",
+  "name": "round-started-titles-after-submit",
   "events": [
     {
       "origin": "agent",
       "type": "doc.replaced",
       "seq": 1,
       "payload": {
-        "revision": 2,
+        "revision": 1,
         "doc": {
           "version": 1,
           "title": "T",
@@ -17,7 +17,8 @@
       }
     },
     { "origin": "human", "type": "decision.created", "seq": 2, "payload": { "blockId": "a1", "verdict": "approved" } },
-    { "origin": "human", "type": "submit", "seq": 3, "payload": { "revision": 2 } }
+    { "origin": "human", "type": "submit", "seq": 3, "payload": { "revision": 1 } },
+    { "origin": "agent", "type": "round.started", "seq": 4, "payload": { "title": "Round two" } }
   ],
   "expected": {
     "doc": {
@@ -29,10 +30,11 @@
     },
     "interactions": {
       "decisions": { "a1": { "verdict": "approved" } },
-      "submitted": { "value": true, "revision": 2 }
+      "submitted": { "value": true, "revision": 1 }
     },
     "rounds": {
       "current": 2,
+      "currentTitle": "Round two",
       "blockRounds": { "c1": 1 },
       "history": [
         {
@@ -44,7 +46,7 @@
           "choices": {},
           "inputs": {},
           "feedback": {},
-          "submittedRevision": 2
+          "submittedRevision": 1
         }
       ]
     }

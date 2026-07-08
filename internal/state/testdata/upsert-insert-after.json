@@ -36,6 +36,7 @@
         { "id": "c3", "type": "card", "children": [] },
         { "id": "c2", "type": "card", "children": [] }
       ]
-    }
+    },
+    "rounds": { "current": 1, "blockRounds": { "c1": 1, "c2": 1, "c3": 1 }, "history": [] }
   }
 }

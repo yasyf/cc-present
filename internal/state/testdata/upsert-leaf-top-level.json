@@ -13,6 +13,7 @@
       "version": 1,
       "title": "",
       "blocks": [{ "id": "m1", "type": "markdown", "md": "a top-level note" }]
-    }
+    },
+    "rounds": { "current": 1, "blockRounds": { "m1": 1 }, "history": [] }
   }
 }

@@ -61,6 +61,7 @@
     },
     "interactions": {
       "choices": { "ch1": { "optionIds": ["o2", "o3"] } }
-    }
+    },
+    "rounds": { "current": 1, "blockRounds": { "c1": 1 }, "history": [] }
   }
 }

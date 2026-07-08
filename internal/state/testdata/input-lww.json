@@ -28,7 +28,8 @@
       ]
     },
     "interactions": {
-      "inputs": { "in1": { "text": "final" } }
-    }
+      "inputs": { "in1": { "text": "final", "round": 1 } }
+    },
+    "rounds": { "current": 1, "blockRounds": { "c1": 1 }, "history": [] }
   }
 }

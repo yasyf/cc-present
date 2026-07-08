@@ -1,12 +1,12 @@
 {
-  "name": "submit-records-revision",
+  "name": "round-started-advances-mid-round",
   "events": [
     {
       "origin": "agent",
       "type": "doc.replaced",
       "seq": 1,
       "payload": {
-        "revision": 2,
+        "revision": 1,
         "doc": {
           "version": 1,
           "title": "T",
@@ -17,7 +17,7 @@
       }
     },
     { "origin": "human", "type": "decision.created", "seq": 2, "payload": { "blockId": "a1", "verdict": "approved" } },
-    { "origin": "human", "type": "submit", "seq": 3, "payload": { "revision": 2 } }
+    { "origin": "agent", "type": "round.started", "seq": 3, "payload": { "title": "Round two" } }
   ],
   "expected": {
     "doc": {
@@ -28,11 +28,11 @@
       ]
     },
     "interactions": {
-      "decisions": { "a1": { "verdict": "approved" } },
-      "submitted": { "value": true, "revision": 2 }
+      "decisions": { "a1": { "verdict": "approved" } }
     },
     "rounds": {
       "current": 2,
+      "currentTitle": "Round two",
       "blockRounds": { "c1": 1 },
       "history": [
         {
@@ -43,8 +43,7 @@
           "decisions": { "a1": { "verdict": "approved" } },
           "choices": {},
           "inputs": {},
-          "feedback": {},
-          "submittedRevision": 2
+          "feedback": {}
         }
       ]
     }

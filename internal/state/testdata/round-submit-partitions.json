@@ -1,0 +1,151 @@
+{
+  "name": "round-submit-partitions",
+  "events": [
+    {
+      "origin": "agent",
+      "type": "doc.replaced",
+      "seq": 1,
+      "payload": {
+        "revision": 1,
+        "doc": {
+          "version": 1,
+          "title": "T",
+          "blocks": [
+            {
+              "id": "c1",
+              "type": "card",
+              "title": "acme v1",
+              "children": [
+                { "id": "a1", "type": "approval", "prompt": "Use?" },
+                {
+                  "id": "chc",
+                  "type": "choice",
+                  "options": [
+                    { "id": "o1", "label": "One" },
+                    { "id": "o2", "label": "Two" }
+                  ]
+                }
+              ]
+            },
+            { "id": "in1", "type": "input", "label": "Notes" }
+          ]
+        }
+      }
+    },
+    { "origin": "human", "type": "decision.created", "seq": 2, "payload": { "blockId": "a1", "verdict": "approved" } },
+    { "origin": "human", "type": "choice.selected", "seq": 3, "payload": { "blockId": "chc", "optionIds": ["o1"] } },
+    { "origin": "human", "type": "input.submitted", "seq": 4, "payload": { "blockId": "in1", "text": "r1 note" } },
+    { "origin": "human", "type": "submit", "seq": 5, "payload": { "revision": 1 } },
+    {
+      "origin": "agent",
+      "type": "block.upserted",
+      "seq": 6,
+      "payload": {
+        "block": {
+          "id": "c1",
+          "type": "card",
+          "title": "acme v2",
+          "children": [
+            { "id": "a1", "type": "approval", "prompt": "Use?" },
+            {
+              "id": "chc",
+              "type": "choice",
+              "options": [
+                { "id": "o1", "label": "One" },
+                { "id": "o2", "label": "Two" }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "origin": "agent",
+      "type": "block.upserted",
+      "seq": 7,
+      "payload": {
+        "after": "c1",
+        "block": {
+          "id": "c2",
+          "type": "card",
+          "title": "beta",
+          "children": [{ "id": "in2", "type": "input", "label": "More" }]
+        }
+      }
+    },
+    { "origin": "human", "type": "input.submitted", "seq": 8, "payload": { "blockId": "in2", "text": "r2 note" } }
+  ],
+  "expected": {
+    "doc": {
+      "version": 1,
+      "title": "T",
+      "blocks": [
+        {
+          "id": "c1",
+          "type": "card",
+          "title": "acme v2",
+          "children": [
+            { "id": "a1", "type": "approval", "prompt": "Use?" },
+            {
+              "id": "chc",
+              "type": "choice",
+              "options": [
+                { "id": "o1", "label": "One" },
+                { "id": "o2", "label": "Two" }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "c2",
+          "type": "card",
+          "title": "beta",
+          "children": [{ "id": "in2", "type": "input", "label": "More" }]
+        },
+        { "id": "in1", "type": "input", "label": "Notes" }
+      ]
+    },
+    "interactions": {
+      "decisions": { "a1": { "verdict": "approved" } },
+      "choices": { "chc": { "optionIds": ["o1"] } },
+      "inputs": {
+        "in1": { "text": "r1 note", "round": 1 },
+        "in2": { "text": "r2 note", "round": 2 }
+      },
+      "submitted": { "value": true, "revision": 1 }
+    },
+    "rounds": {
+      "current": 2,
+      "blockRounds": { "c1": 2, "in1": 1, "c2": 2 },
+      "history": [
+        {
+          "number": 1,
+          "blocks": [
+            {
+              "id": "c1",
+              "type": "card",
+              "title": "acme v1",
+              "children": [
+                { "id": "a1", "type": "approval", "prompt": "Use?" },
+                {
+                  "id": "chc",
+                  "type": "choice",
+                  "options": [
+                    { "id": "o1", "label": "One" },
+                    { "id": "o2", "label": "Two" }
+                  ]
+                }
+              ]
+            },
+            { "id": "in1", "type": "input", "label": "Notes" }
+          ],
+          "decisions": { "a1": { "verdict": "approved" } },
+          "choices": { "chc": { "optionIds": ["o1"] } },
+          "inputs": { "in1": { "text": "r1 note", "round": 1 } },
+          "feedback": {},
+          "submittedRevision": 1
+        }
+      ]
+    }
+  }
+}

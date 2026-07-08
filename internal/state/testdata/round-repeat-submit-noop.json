@@ -1,12 +1,12 @@
 {
-  "name": "submit-records-revision",
+  "name": "round-repeat-submit-noop",
   "events": [
     {
       "origin": "agent",
       "type": "doc.replaced",
       "seq": 1,
       "payload": {
-        "revision": 2,
+        "revision": 1,
         "doc": {
           "version": 1,
           "title": "T",
@@ -17,7 +17,8 @@
       }
     },
     { "origin": "human", "type": "decision.created", "seq": 2, "payload": { "blockId": "a1", "verdict": "approved" } },
-    { "origin": "human", "type": "submit", "seq": 3, "payload": { "revision": 2 } }
+    { "origin": "human", "type": "submit", "seq": 3, "payload": { "revision": 1 } },
+    { "origin": "human", "type": "submit", "seq": 4, "payload": { "revision": 2 } }
   ],
   "expected": {
     "doc": {
@@ -44,7 +45,7 @@
           "choices": {},
           "inputs": {},
           "feedback": {},
-          "submittedRevision": 2
+          "submittedRevision": 1
         }
       ]
     }

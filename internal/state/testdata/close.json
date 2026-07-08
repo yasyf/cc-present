@@ -24,6 +24,7 @@
     },
     "interactions": {
       "closed": { "value": true, "summary": "shipped 3 openers" }
-    }
+    },
+    "rounds": { "current": 1, "blockRounds": { "c1": 1 }, "history": [] }
   }
 }

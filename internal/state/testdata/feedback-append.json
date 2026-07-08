@@ -34,6 +34,7 @@
           { "id": "f2", "text": "second" }
         ]
       }
-    }
+    },
+    "rounds": { "current": 1, "blockRounds": { "c1": 1 }, "history": [] }
   }
 }

@@ -1,0 +1,69 @@
+{
+  "name": "round-doc-replaced-restamps",
+  "events": [
+    {
+      "origin": "agent",
+      "type": "doc.replaced",
+      "seq": 1,
+      "payload": {
+        "revision": 1,
+        "doc": {
+          "version": 1,
+          "title": "T",
+          "blocks": [
+            { "id": "c1", "type": "card", "children": [] },
+            { "id": "c2", "type": "card", "children": [] }
+          ]
+        }
+      }
+    },
+    { "origin": "human", "type": "submit", "seq": 2, "payload": { "revision": 1 } },
+    {
+      "origin": "agent",
+      "type": "doc.replaced",
+      "seq": 3,
+      "payload": {
+        "revision": 2,
+        "doc": {
+          "version": 1,
+          "title": "T",
+          "blocks": [
+            { "id": "c1", "type": "card", "children": [] },
+            { "id": "c3", "type": "card", "children": [] }
+          ]
+        }
+      }
+    }
+  ],
+  "expected": {
+    "doc": {
+      "version": 1,
+      "title": "T",
+      "blocks": [
+        { "id": "c1", "type": "card", "children": [] },
+        { "id": "c3", "type": "card", "children": [] }
+      ]
+    },
+    "interactions": {
+      "submitted": { "value": true, "revision": 1 }
+    },
+    "rounds": {
+      "current": 2,
+      "blockRounds": { "c1": 2, "c3": 2 },
+      "history": [
+        {
+          "number": 1,
+          "blocks": [
+            { "id": "c1", "type": "card", "children": [] },
+            { "id": "c2", "type": "card", "children": [] }
+          ],
+          "decisions": {},
+          "choices": {},
+          "inputs": {},
+          "feedback": {},
+          "submittedRevision": 1
+        }
+      ]
+    }
+  }
+}

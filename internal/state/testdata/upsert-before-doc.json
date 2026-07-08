@@ -13,6 +13,7 @@
       "version": 1,
       "title": "",
       "blocks": [{ "id": "c1", "type": "card", "title": "acme", "children": [] }]
-    }
+    },
+    "rounds": { "current": 1, "blockRounds": { "c1": 1 }, "history": [] }
   }
 }

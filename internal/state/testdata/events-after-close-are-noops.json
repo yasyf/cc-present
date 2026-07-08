@@ -43,6 +43,7 @@
     },
     "interactions": {
       "closed": { "value": true, "summary": "shipped" }
-    }
+    },
+    "rounds": { "current": 1, "blockRounds": { "c1": 1 }, "history": [] }
   }
 }
