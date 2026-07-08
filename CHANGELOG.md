@@ -4,6 +4,37 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-07-08
+
+### Added
+- Rounds partition the board over time. A submit on a board the agent has
+  touched closes the current round: its blocks collapse into a read-only
+  "Round N" group with an outcome summary (verdicts, picks, notes), and only
+  blocks upserted afterward render live. A new `round` verb
+  (`cc-present round [--title <t>]`) names the next round, or forces a
+  boundary mid-round; after a submit it titles the round the submit already
+  opened. Blocks carry forward by re-upsert — touching an old block pulls it
+  into the current round while its frozen copy stays in the collapsed group.
+- Inputs are fresh each round. A carried-forward field renders empty with a
+  dim "last round: …" hint showing the previous entry, which also stays
+  read-only inside the collapsed round. Values are stamped with the round of
+  their enclosing block, not the board's current round, so an SSE echo
+  replayed after an optimistic submit cannot restamp them into the new round.
+- The REST plane rejects block-scoped interactions on a closed round's blocks
+  (400, `block "id" belongs to closed round N`), so a stale tab cannot write
+  into history. Submit stays exempt.
+
+### Changed
+- Reduced state gains `rounds` — `current`, `currentTitle`, per-block round
+  stamps, and a `history` of frozen `RoundRecord`s (blocks plus that round's
+  decisions, choices, inputs, and feedback; `submittedRevision` when a submit
+  closed it) — and `outcomes` reports it. `InputValue` carries the round it
+  was entered in. Old event logs replay unchanged: submits partition them.
+- Closed rounds render through @cc-interact/react 0.4.0's `CollapsedGroup`,
+  whose cooperative read-only context disables controls inside expanded
+  history without `inert`, keeping "show more" clamps working. The submit bar
+  tallies the current round only and shows a round chip once history exists.
+
 ## [0.3.0] - 2026-07-07
 
 ### Added
