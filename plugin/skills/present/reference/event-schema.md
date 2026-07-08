@@ -10,7 +10,7 @@
 | `choice.selected` | `{"blockId":"opener-choice","optionIds":["punchy"],"type":"choice.selected"}` — `optionIds` is always an array, possibly empty | Last-write-wins per block | Informational until submit. |
 | `feedback.created` | `{"blockId":"cli-approval","id":"9f2c11ab","text":"mention the exit code","type":"feedback.created"}` | Append-only per block; `id` is the entry's stable identity | `reply --block` under it; redraft the card via `update-block` with `"status": "redrafted"` when warranted. |
 | `input.submitted` | `{"blockId":"board-notes","text":"also check the docs site","type":"input.submitted"}` | Last-write-wins per block | Informational until submit. |
-| `submit` | `{"revision":1,"type":"submit"}` | Marks submitted with the revision; does **not** close the artifact — rounds continue | Run `outcomes`, summarize in chat, apply, then push a revised doc or `close`. |
+| `submit` | `{"revision":1,"type":"submit"}` | Marks submitted with the revision; when the round is dirty (some top-level block was agent-touched this round) it also snapshots the round into `rounds.history` (with `submittedRevision`) and advances the round. Never closes the artifact | Run `outcomes`, summarize in chat, apply, then start the next round or `close`. |
 | `channel.changed` | `{"type":"channel.changed","connected":true}` | Presence frame (system origin); skipped by the reducer | Informational — a browser tab connected or dropped. Needs no reply. |
 | `present.closed` | `{"summary":"Both drafts approved.","type":"present.closed"}` — `summary` only when `close --summary` passed one | Terminal (system origin): your own `close` echoing back; every later event is a no-op in the reduction | Nothing — `watch` exits on it, so its Monitor completes on its own. |
 
@@ -26,6 +26,7 @@ For completeness — these are what your own CLI calls append. The browser reduc
 | `block.upserted` | `{block, after?}` — replaces the block in place as a whole (nothing from the old block survives), or inserts after `after`, appending when absent or unknown | `update-block` |
 | `block.removed` | `{id}` — unknown id is a no-op | `remove-block` |
 | `reply.created` | `{id, blockId, md}` — append-only thread under the block | `reply` |
+| `round.started` | `{title?}` — dirty round: snapshots it into `rounds.history` (no `submittedRevision`) and advances, then titles the new round; clean round: only titles the current one. The revision is untouched; it counts `doc.replaced` alone | `round` |
 
 ## The reduced state (`outcomes`)
 
@@ -37,14 +38,23 @@ For completeness — these are what your own CLI calls append. The browser reduc
   "interactions": {
     "decisions": { "cli-approval": { "verdict": "approved" } },
     "choices":   { "opener-choice": { "optionIds": ["punchy"] } },
-    "inputs":    { "board-notes": { "text": "also check the docs site" } },
+    "inputs":    { "board-notes": { "text": "also check the docs site", "round": 1 } },
     "feedback":  { "cli-approval": [ { "id": "9f2c11ab", "text": "mention the exit code" } ] },
     "replies":   { "cli-approval": [ { "id": "4dd66d6b", "md": "Adding it." } ] },
     "submitted": { "value": true, "revision": 1 },
     "closed":    { "value": false }
+  },
+  "rounds": {
+    "current": 2,
+    "blockRounds": { "card-cli": 2, "card-opener": 1 },
+    "history": [
+      { "number": 1, "blocks": [], "decisions": {}, "choices": {}, "inputs": {}, "feedback": {}, "submittedRevision": 1 }
+    ]
   }
 }
 ```
+
+`rounds` partitions the board over time. `current` is 1-based; `blockRounds` maps each top-level block id to the round of its last agent touch — an upsert stamps the block into the current round, a full push stamps the entire document. Each closed round lands in `history` as a frozen record: deep copies of that round's blocks plus the decisions, choices, inputs, and feedback filtered to those blocks (card children included, one level deep). `submittedRevision` appears only when a submit closed the round, not a `round` call. An `InputValue` carries the round it was entered in; a carried-forward input renders empty each round with a dim "last round" hint, so never ask the human to clear a field.
 
 Document state and human state never mix: the document carries only agent-owned display state (`card.status`, `progress`), while verdicts live in `interactions`, keyed by block id — which is why re-upserting a block never clobbers a human's decision, and why a redrafted card's approval block keeps its id if you want the standing verdict to survive the redraft (give it a fresh id to demand a fresh verdict).
 

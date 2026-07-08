@@ -75,12 +75,13 @@ columns below omit that injected field; both reducers tolerate it.
 | agent | `block.upserted` | `{block, after?}` | If a block with `block.id` exists, replace it in place as a whole block, so nothing from the old block survives. Otherwise insert after `after`, or append when `after` is absent or unknown. |
 | agent | `block.removed` | `{id}` | Remove the top-level block with that id. An unknown id is a no-op. |
 | agent | `reply.created` | `{id, blockId, md}` | Append to the block's reply thread. |
+| agent | `round.started` | `{title?}` | When the round is dirty (a live top-level block is stamped with the current round), snapshot it into `rounds.history` without a `submittedRevision` and advance `rounds.current`; then set the current round's title. When clean, only the title changes — so a `round.started` right after a submit names the round the submit already opened. Never bumps the revision, which counts `doc.replaced` events only. |
 | system | `present.closed` | `{summary?}` | Set closed. Terminal for the reduction: any event ordered after it is a no-op (see below). Recorded with a `system` origin, not `agent`, so it survives the agent-side `watch`/channel `exclude_origin=agent` filter — `watch` terminates on it. |
 | human | `decision.created` | `{blockId, verdict, note?}` | Last-write-wins per block. `verdict` is one of `approved`, `rejected`, `cleared`; `cleared` removes the decision, returning the block to undecided. |
 | human | `choice.selected` | `{blockId, optionIds}` | Last-write-wins per block. |
 | human | `feedback.created` | `{id, blockId, text}` | Append to the block's feedback list. |
 | human | `input.submitted` | `{blockId, text}` | Last-write-wins per block. |
-| human | `submit` | `{revision}` | Set submitted with the revision. Does not close the document, so rounds continue. The REST plane rejects a revision the log never produced (below 0 or past the current revision). |
+| human | `submit` | `{revision}` | Set submitted with the revision. When the round is dirty, additionally snapshot the current round into `rounds.history` with `submittedRevision` set, advance `rounds.current`, and clear the title; a clean submit records only the revision. Does not close the document, so rounds continue. The REST plane rejects a revision the log never produced (below 0 or past the current revision). |
 
 Post-close events are no-ops, not errors, by design. A human click can race an
 agent's close, with the browser POSTing an interaction at the same moment
@@ -97,19 +98,27 @@ other unknown event type is still an error.
 
 ### Reduced state
 
-`internal/state.State` holds the document plus the keyed human interactions:
+`internal/state.State` holds the document, the keyed human interactions, and the
+round partition:
 
 ```
-State = { doc, interactions }
+State = { doc, interactions, rounds }
 interactions = {
   decisions: { [blockId]: {verdict, note?} },     // last-write-wins
   choices:   { [blockId]: {optionIds} },          // last-write-wins
-  inputs:    { [blockId]: {text} },               // last-write-wins
+  inputs:    { [blockId]: {text, round} },        // last-write-wins; round-stamped
   feedback:  { [blockId]: {id, text}[] },         // append-only
   replies:   { [blockId]: {id, md}[] },           // append-only
   submitted: {value, revision},
   closed:    {value, summary?}
 }
+rounds = {
+  current: number,                                // 1-based
+  currentTitle?: string,
+  blockRounds: { [topLevelBlockId]: number },     // round of the block's last agent touch
+  history: RoundRecord[]                          // closed rounds, ascending
+}
+RoundRecord = { number, title?, blocks, decisions, choices, inputs, feedback, submittedRevision? }
 ```
 
 `Reduce` starts from an empty document with `version 1`, no title, and no blocks, so
@@ -121,6 +130,30 @@ The fixtures in `internal/state/testdata/*.json` are this contract in executable
 form. The Go reducer (`internal/state`) and the TypeScript reducer
 (`web/src/reduce.ts`) read the same files.
 
+## Rounds
+
+A round is reducer-derived: there is no round entity in the store, only the
+`round.started` event and the `blockRounds` stamps the reducer maintains.
+
+**Boundaries.** A round closes on a human `submit` or an agent `round.started`,
+and only when it is dirty — a live top-level block is stamped with the current
+round. A clean submit records only the revision; a clean `round.started` only
+retitles the current round.
+
+**Carry-forward.** `block.upserted` stamps its block into the current round —
+re-upserting a block, even byte-identical, is how it stays actionable across a
+boundary. `doc.replaced` stamps the entire new document. Closing a round never
+prunes `doc.blocks`: untouched blocks stay in the document, stamped with the
+closed round, and the REST plane rejects interactions on them (below).
+
+**Snapshots.** Each closed round lands in `history` as a `RoundRecord`: deep
+copies of the blocks stamped with that round, plus the decisions, choices,
+inputs, and feedback filtered to those blocks' ids, including one level of card
+children. `submittedRevision` is set only when a submit closed the round.
+
+**Revision is not round.** The revision counts `doc.replaced` events only;
+`round.started` never bumps it, and a round can span many revisions or none.
+
 ## REST surface
 
 | Method | Path | Body | Purpose |
@@ -128,6 +161,11 @@ form. The Go reducer (`internal/state`) and the TypeScript reducer
 | `POST` | `/api/interactions` | `{subject, nonce, interaction}` | Submit one human interaction. `interaction` is a discriminated union over the human event payloads. The handler validates `blockId` and type against the reduced document, then appends. |
 | `POST` | `/api/assets` | image bytes | Store an image content-addressed; returns its `asset:<sha256>`. A body that does not sniff as an image is rejected with 415. |
 | `GET` | `/assets/{sha}` | none | Fetch a stored asset by its sha256. |
+
+A block-scoped interaction (`decision.created`, `choice.selected`,
+`feedback.created`, `input.submitted`) whose enclosing top-level block belongs
+to a closed round is rejected with `400 block "<id>" belongs to closed round
+<n>`. `submit` is exempt from the round guard — it is what closes a round.
 
 The event stream is `GET /events` over SSE, replaying the log from seq 0.
 

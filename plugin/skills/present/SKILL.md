@@ -76,7 +76,7 @@ Each event (Monitor line or channel tag) is the event's JSON payload, self-descr
 | `decision.created` | `{blockId, note?, type, verdict}` | `rejected` — redraft: upsert the card with alternates folded in. `approved` — optionally upsert with `"status": "resolved"`. `cleared` — the human withdrew their verdict; nothing to do. |
 | `choice.selected` | `{blockId, optionIds, type}` | Informational until submit. |
 | `input.submitted` | `{blockId, text, type}` | Informational until submit. |
-| `submit` | `{revision, type}` | Go to step 5. |
+| `submit` | `{revision, type}` | Also closes the current round when you've touched a block this round. Go to step 5. |
 | `channel.changed` | `{type, connected}` | Presence — a browser tab connected or dropped. Informational. |
 | `present.closed` | `{summary?, type}` | Your own `close` echoing back — terminal. `watch` exits on it, completing its Monitor; nothing to do. |
 
@@ -94,17 +94,28 @@ To redraft, write the revised block JSON to the scratchpad and upsert it:
 
 **Prefer `update-block` over a full `push`** — it keeps the event log lean and never disturbs the rest of the board. Upserting replaces the block wholesale (nothing from the old block survives), and human verdicts live outside the document, so a redraft never clobbers a decision. `remove-block <id>` drops a block you no longer want on the board.
 
-## 5. On the `submit` event — drain outcomes, then act
+## 5. On the `submit` event — the round lifecycle
+
+A submit on a board you've touched this round also closes the round: those blocks collapse into a read-only "Round N" group in the browser, and the next round opens on the same URL. A submit on an untouched board records only the revision. Either way, drain the outcomes:
 
 ```bash
 "${CLAUDE_PLUGIN_ROOT}/bin/cc-present" outcomes --session "$CLAUDE_CODE_SESSION_ID" --cwd "$PWD"
 ```
 
-This prints the reduced state: the current document plus every human interaction keyed by block id — `decisions`, `choices`, `inputs`, `feedback`, your `replies`, and the `submitted` marker. Then:
+This prints the reduced state: the current document plus every human interaction keyed by block id — `decisions`, `choices`, `inputs`, `feedback`, your `replies`, the `submitted` marker, and `rounds` (the closed-round history). Then:
 
 1. **Summarize the verdicts, picks, and feedback in chat** so the user sees what you took away.
 2. **Apply them to the underlying task** — the artifact is the approval surface, not the deliverable.
-3. Either **push a revised document** for round 2 (submit does not close the artifact; rounds continue on the same URL) or finish:
+3. Either **close** (below), or **start the next round**: optionally name it, then upsert the blocks the round is about.
+
+```bash
+"${CLAUDE_PLUGIN_ROOT}/bin/cc-present" round --title "Redrafts"   # → round: 2 — names the round the submit just opened
+"${CLAUDE_PLUGIN_ROOT}/bin/cc-present" update-block "$BLOCK"      # each upsert pulls its block into the new round
+```
+
+**Carry-forward is explicit.** After a submit, a block stays actionable only if you re-upsert it — even unchanged. Touching an old block pulls it into the current round; that *is* the redraft flow, and the old version stays frozen in the collapsed group. Blocks you don't touch stay in the closed round, read-only. A full `push` pulls the entire new document into the current round. Inputs come back fresh each round automatically (the UI shows a dim "last round" hint) — never ask the human to clear a field.
+
+To finish instead:
 
 ```bash
 "${CLAUDE_PLUGIN_ROOT}/bin/cc-present" close --summary "All 5 openers approved; two redrafted per feedback."
@@ -160,7 +171,8 @@ Channel is `pending`, so arm the Monitor on `watch` and keep working. Events arr
 - `{"blockId":"opener-choice","optionIds":["punchy"],"type":"choice.selected"}` — choice. Informational; note it.
 - `{"blockId":"opener-approval","note":"neither lands","type":"decision.created","verdict":"rejected"}` — rejection. React: upsert `card-opener` with two fresh alternates in the choice.
 - `{"blockId":"opener-approval","type":"decision.created","verdict":"approved"}` — the redraft landed. Optionally upsert with `"status": "resolved"`.
-- `{"revision":1,"type":"submit"}` — submit. Run `outcomes`, summarize in chat ("CLI wording approved with the exit-code mention; opener: 'Validate first. Ship faster.'"), write the approved text into `CHANGELOG.md`, then `close --summary "Both drafts approved."` — the Monitor's `watch` prints `{"summary":"Both drafts approved.","type":"present.closed"}` and exits on its own.
+- `{"revision":1,"type":"submit"}` — submit. Both cards were upserted this round, so the submit also closes round 1: they collapse into a read-only "Round 1" group. Run `outcomes`, summarize in chat ("CLI wording approved with the exit-code mention; opener: 'Validate first. Ship faster.'"), write the approved text into `CHANGELOG.md`.
+- Round 2: the exit-code mention deserves its own sign-off. `round --title "Exit-code wording"` prints `round: 2`, then upsert a fresh `card-exit-code` — the live board shows only that card, with round 1 collapsed above it. On `{"blockId":"exit-approval","type":"decision.created","verdict":"approved"}` and the next submit, `close --summary "Both drafts approved."` — the Monitor's `watch` prints `{"summary":"Both drafts approved.","type":"present.closed"}` and exits on its own.
 
 ## Reference
 
