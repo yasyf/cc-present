@@ -259,6 +259,33 @@ func newReplyCmd(d cmd.Deps) *cobra.Command {
 	return c
 }
 
+// newRoundCmd force-advances the round or titles the current one, printing the
+// resulting round number.
+func newRoundCmd(d cmd.Deps) *cobra.Command {
+	var session, cwd, title string
+	c := &cobra.Command{
+		Use:   "round",
+		Short: "Force-advance the round or title the current one",
+		Args:  cobra.NoArgs,
+		RunE: func(c *cobra.Command, _ []string) error {
+			ctx := c.Context()
+			if err := d.EnsureCurrent(ctx); err != nil {
+				return err
+			}
+			n, err := client(d).Round(ctx, sessionOr(session), mustCwd(cwd), d.ClaudePID(), title)
+			if err != nil {
+				return err
+			}
+			_, _ = fmt.Fprintf(c.OutOrStdout(), "round: %d\n", n)
+			return nil
+		},
+	}
+	c.Flags().StringVar(&title, "title", "", "title for the round (optional)")
+	c.Flags().StringVar(&session, "session", "", "Claude session id (defaults to $CLAUDE_CODE_SESSION_ID)")
+	c.Flags().StringVar(&cwd, "cwd", "", "working directory / scope (defaults to the current directory)")
+	return c
+}
+
 // newOutcomesCmd prints the artifact's reduced state as JSON — the post-submit
 // drain.
 func newOutcomesCmd(d cmd.Deps) *cobra.Command {

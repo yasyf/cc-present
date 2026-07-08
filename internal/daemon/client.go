@@ -96,6 +96,13 @@ func (cl *Client) Reply(ctx context.Context, session, scope string, pid int, blo
 	return err
 }
 
+// Round force-advances the round when the current one is dirty, or titles the
+// current round when clean, returning the resulting current round.
+func (cl *Client) Round(ctx context.Context, session, scope string, pid int, title string) (int, error) {
+	_, res, err := cl.do(ctx, OpRound, session, scope, pid, body{Title: title})
+	return res.Round, err
+}
+
 // Close terminally closes the window's artifact and returns its slug.
 func (cl *Client) Close(ctx context.Context, session, scope string, pid int, summary string) (string, error) {
 	_, res, err := cl.do(ctx, OpClose, session, scope, pid, body{Summary: summary})

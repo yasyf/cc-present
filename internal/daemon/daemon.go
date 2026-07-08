@@ -74,6 +74,7 @@ func BuildServer(p paths.Paths, version string) (*ccd.Server, error) {
 	s.Register(OpUpsertBlock, handleUpsertBlock)
 	s.Register(OpRemoveBlock, handleRemoveBlock)
 	s.Register(OpReply, handleReply)
+	s.Register(OpRound, handleRound)
 	s.Register(OpClose, func(hc ccd.HandlerCtx) ccd.Reply { return handleClose(hc, ast) })
 	s.Register(OpOutcomes, handleOutcomes)
 	mountREST(s, ast)
@@ -238,6 +239,37 @@ func handleReply(hc ccd.HandlerCtx) ccd.Reply {
 		return errReply(err.Error())
 	}
 	return okReply(result{})
+}
+
+// handleRound appends an agent round.started under the agent origin, then
+// reduces the log to report the resulting current round. A dirty round (a live
+// top-level block stamped with the current round) force-advances; a clean one is
+// merely retitled. A closed artifact rejects the round. round.started carries no
+// revision, so unlike a doc write it never bumps the revision counter.
+func handleRound(hc ccd.HandlerCtx) ccd.Reply {
+	b := decodeBody(hc.Env.Body)
+	sub, err := resolveOpen(hc)
+	if err != nil {
+		return errReply(err.Error())
+	}
+	payload := json.RawMessage("{}")
+	if b.Title != "" {
+		payload = mustJSON(map[string]string{"title": b.Title})
+	}
+	if _, err := appendEvent(hc.Ctx, hc.Append, &ccevent.Event{
+		SubjectID: sub.ID, Origin: ccevent.OriginAgent, Type: EventRoundStarted, Payload: payload,
+	}); err != nil {
+		return errReply(err.Error())
+	}
+	events, err := loadEvents(hc.Ctx, hc.DB, sub.ID)
+	if err != nil {
+		return errReply(err.Error())
+	}
+	st, err := state.Reduce(events)
+	if err != nil {
+		return errReply(err.Error())
+	}
+	return okReply(result{Round: st.Rounds.Current})
 }
 
 // handleClose terminally closes the window's artifact: it appends present.closed

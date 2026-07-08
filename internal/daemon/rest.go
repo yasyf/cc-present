@@ -133,9 +133,11 @@ func (rs *restServer) handleInteractions(w http.ResponseWriter, r *http.Request)
 // validateInteraction checks one interaction against the reduced document and
 // returns the reducer payload to append. It rejects an unknown block, a block
 // whose type does not match the interaction, an out-of-set choice option, a
-// verdict outside the enum, feedback on an approval that forbids it, and a
+// verdict outside the enum, feedback on an approval that forbids it, a
+// block-scoped interaction on a block from a round already closed, and a
 // submit naming a revision the log never produced (revision is the count of
-// doc.replaced events; 0 is a document never replaced).
+// doc.replaced events; 0 is a document never replaced). Submit is exempt from
+// the round guard: it is what closes a round.
 func validateInteraction(st *state.State, revision int, it *interaction) (json.RawMessage, error) {
 	switch it.Type {
 	case EventSubmit:
@@ -144,8 +146,11 @@ func validateInteraction(st *state.State, revision int, it *interaction) (json.R
 		}
 		return mustJSON(map[string]int{"revision": it.Revision}), nil
 	case EventDecisionCreated:
-		ap, err := requireApproval(st, it.BlockID)
+		ap, topID, err := requireApproval(st, it.BlockID)
 		if err != nil {
+			return nil, err
+		}
+		if err := requireCurrentRound(st, it.BlockID, topID); err != nil {
 			return nil, err
 		}
 		if !validVerdict[it.Verdict] {
@@ -160,8 +165,11 @@ func validateInteraction(st *state.State, revision int, it *interaction) (json.R
 		}
 		return mustJSON(p), nil
 	case EventChoiceSelected:
-		ch, err := requireChoice(st, it.BlockID)
+		ch, topID, err := requireChoice(st, it.BlockID)
 		if err != nil {
+			return nil, err
+		}
+		if err := requireCurrentRound(st, it.BlockID, topID); err != nil {
 			return nil, err
 		}
 		valid := map[string]bool{}
@@ -182,8 +190,11 @@ func validateInteraction(st *state.State, revision int, it *interaction) (json.R
 		}
 		return mustJSON(map[string]any{"blockId": it.BlockID, "optionIds": ids}), nil
 	case EventFeedbackCreated:
-		ap, err := requireApproval(st, it.BlockID)
+		ap, topID, err := requireApproval(st, it.BlockID)
 		if err != nil {
+			return nil, err
+		}
+		if err := requireCurrentRound(st, it.BlockID, topID); err != nil {
 			return nil, err
 		}
 		if !allowsFeedback(ap) {
@@ -198,7 +209,11 @@ func validateInteraction(st *state.State, revision int, it *interaction) (json.R
 		}
 		return mustJSON(map[string]string{"id": id, "blockId": it.BlockID, "text": it.Text}), nil
 	case EventInputSubmitted:
-		if _, err := requireInput(st, it.BlockID); err != nil {
+		_, topID, err := requireInput(st, it.BlockID)
+		if err != nil {
+			return nil, err
+		}
+		if err := requireCurrentRound(st, it.BlockID, topID); err != nil {
 			return nil, err
 		}
 		return mustJSON(map[string]string{"blockId": it.BlockID, "text": it.Text}), nil
@@ -207,58 +222,71 @@ func validateInteraction(st *state.State, revision int, it *interaction) (json.R
 	}
 }
 
-func requireApproval(st *state.State, id string) (*doc.Approval, error) {
-	b, ok := findBlock(st.Doc, id)
+func requireApproval(st *state.State, id string) (*doc.Approval, string, error) {
+	b, topID, ok := findBlock(st.Doc, id)
 	if !ok {
-		return nil, fmt.Errorf("unknown block %q", id)
+		return nil, "", fmt.Errorf("unknown block %q", id)
 	}
 	ap, ok := b.(*doc.Approval)
 	if !ok {
-		return nil, fmt.Errorf("block %q is a %s, not an approval", id, b.BlockType())
+		return nil, "", fmt.Errorf("block %q is a %s, not an approval", id, b.BlockType())
 	}
-	return ap, nil
+	return ap, topID, nil
 }
 
-func requireChoice(st *state.State, id string) (*doc.Choice, error) {
-	b, ok := findBlock(st.Doc, id)
+func requireChoice(st *state.State, id string) (*doc.Choice, string, error) {
+	b, topID, ok := findBlock(st.Doc, id)
 	if !ok {
-		return nil, fmt.Errorf("unknown block %q", id)
+		return nil, "", fmt.Errorf("unknown block %q", id)
 	}
 	ch, ok := b.(*doc.Choice)
 	if !ok {
-		return nil, fmt.Errorf("block %q is a %s, not a choice", id, b.BlockType())
+		return nil, "", fmt.Errorf("block %q is a %s, not a choice", id, b.BlockType())
 	}
-	return ch, nil
+	return ch, topID, nil
 }
 
-func requireInput(st *state.State, id string) (*doc.Input, error) {
-	b, ok := findBlock(st.Doc, id)
+func requireInput(st *state.State, id string) (*doc.Input, string, error) {
+	b, topID, ok := findBlock(st.Doc, id)
 	if !ok {
-		return nil, fmt.Errorf("unknown block %q", id)
+		return nil, "", fmt.Errorf("unknown block %q", id)
 	}
 	in, ok := b.(*doc.Input)
 	if !ok {
-		return nil, fmt.Errorf("block %q is a %s, not an input", id, b.BlockType())
+		return nil, "", fmt.Errorf("block %q is a %s, not an input", id, b.BlockType())
 	}
-	return in, nil
+	return in, topID, nil
+}
+
+// requireCurrentRound rejects an interaction on a block whose enclosing
+// top-level block belongs to a round the reducer has already closed, so a human
+// can never act on a superseded round's blocks.
+func requireCurrentRound(st *state.State, id, topID string) error {
+	if r := st.Rounds.BlockRounds[topID]; r != st.Rounds.Current {
+		return fmt.Errorf("block %q belongs to closed round %d", id, r)
+	}
+	return nil
 }
 
 // findBlock locates a block by id at the top level or one level deep inside a
-// card, mirroring where interactive blocks may appear.
-func findBlock(d *doc.Doc, id string) (doc.Block, bool) {
+// card, mirroring where interactive blocks may appear. It also returns the id of
+// the enclosing top-level block — the block itself when top-level, or the card
+// when the block is a card child — which is the key the reducer stamps a round
+// against.
+func findBlock(d *doc.Doc, id string) (doc.Block, string, bool) {
 	for _, b := range d.Blocks {
 		if b.BlockID() == id {
-			return b, true
+			return b, b.BlockID(), true
 		}
 		if card, ok := b.(*doc.Card); ok {
 			for _, child := range card.Children {
 				if child.BlockID() == id {
-					return child, true
+					return child, card.BlockID(), true
 				}
 			}
 		}
 	}
-	return nil, false
+	return nil, "", false
 }
 
 // allowsFeedback reports whether an approval permits free-text feedback;

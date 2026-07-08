@@ -249,6 +249,73 @@ func TestReply(t *testing.T) {
 	}
 }
 
+func TestRound(t *testing.T) {
+	tests := []struct {
+		name      string
+		setup     func(t *testing.T, h *harness)
+		title     string
+		wantErr   string
+		wantRound int
+	}{
+		{
+			name: "advance on a dirty round",
+			setup: func(t *testing.T, h *harness) {
+				if r := handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)})); !r.OK {
+					t.Fatalf("start not ok: %s", r.Error)
+				}
+			},
+			wantRound: 2,
+		},
+		{
+			name: "title-only on a clean round after submit",
+			setup: func(t *testing.T, h *harness) {
+				start := handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}))
+				// A submit on the dirty round closes it and advances to round 2; the
+				// live block keeps its round-1 stamp, so round 2 is clean.
+				if _, err := h.cc.AppendEvent(context.Background(), &ccevent.Event{
+					SubjectID: start.SubjectID, Origin: ccevent.OriginHuman, Type: EventSubmit,
+					Payload: json.RawMessage(`{"revision":1}`),
+				}); err != nil {
+					t.Fatalf("append submit: %v", err)
+				}
+			},
+			title:     "Round Two",
+			wantRound: 2,
+		},
+		{
+			name: "rejected on a closed artifact",
+			setup: func(_ *testing.T, h *harness) {
+				handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}))
+				handleClose(h.hc(body{}), h.assets)
+			},
+			wantErr: "closed",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := newHarness(t)
+			tt.setup(t, h)
+			reply := handleRound(h.hc(body{Title: tt.title}))
+			if tt.wantErr != "" {
+				if reply.OK || !strings.Contains(reply.Error, tt.wantErr) {
+					t.Fatalf("round: ok=%v err=%q, want %q", reply.OK, reply.Error, tt.wantErr)
+				}
+				return
+			}
+			if !reply.OK {
+				t.Fatalf("round not ok: %s", reply.Error)
+			}
+			var res result
+			if err := json.Unmarshal(reply.Body, &res); err != nil {
+				t.Fatalf("decode result: %v", err)
+			}
+			if res.Round != tt.wantRound {
+				t.Fatalf("round = %d, want %d", res.Round, tt.wantRound)
+			}
+		})
+	}
+}
+
 func TestOutcomes(t *testing.T) {
 	h := newHarness(t)
 	start := handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}))

@@ -128,6 +128,35 @@ func TestInteractionClosed(t *testing.T) {
 	}
 }
 
+func TestInteractionClosedRound(t *testing.T) {
+	h := newRestHarness(t)
+	// Submit round 1 (its seed blocks carry the current round, so it is dirty):
+	// this closes round 1 and advances to round 2.
+	if w := h.post(t, `{"subject":"board--abcd0000","nonce":"sub","interaction":{"type":"submit","revision":1}}`); w.Code != http.StatusOK {
+		t.Fatalf("submit status = %d (%s)", w.Code, w.Body.String())
+	}
+	// Upsert a fresh block for round 2; the seed blocks keep their round-1 stamp,
+	// so the document now holds both a closed-round and a current-round block.
+	if _, err := h.cc.AppendEvent(context.Background(), &ccevent.Event{
+		SubjectID: h.id, Origin: ccevent.OriginAgent, Type: EventBlockUpserted,
+		Payload: blockUpsertedPayload(json.RawMessage(`{"id":"b2","type":"approval"}`), ""),
+	}); err != nil {
+		t.Fatalf("upsert round-2 block: %v", err)
+	}
+	// A decision on a round-1 block is rejected as belonging to a closed round.
+	w := h.post(t, `{"subject":"board--abcd0000","nonce":"cr1","interaction":{"type":"decision.created","blockId":"a2","verdict":"approved"}}`)
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("closed-round status = %d, want 400 (body %q)", w.Code, w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), "closed round") {
+		t.Fatalf("body = %q, want 'closed round'", w.Body.String())
+	}
+	// A decision on the current-round block still passes.
+	if w := h.post(t, `{"subject":"board--abcd0000","nonce":"cr2","interaction":{"type":"decision.created","blockId":"b2","verdict":"approved"}}`); w.Code != http.StatusOK {
+		t.Fatalf("current-round status = %d, want 200 (body %q)", w.Code, w.Body.String())
+	}
+}
+
 func TestInteractionDedup(t *testing.T) {
 	h := newRestHarness(t)
 	const b = `{"subject":"board--abcd0000","nonce":"same","interaction":{"type":"decision.created","blockId":"a2","verdict":"approved"}}`

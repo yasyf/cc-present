@@ -18,6 +18,7 @@ const (
 	OpUpsertBlock ccd.Op = "upsert-block"
 	OpRemoveBlock ccd.Op = "remove-block"
 	OpReply       ccd.Op = "reply"
+	OpRound       ccd.Op = "round"
 	OpClose       ccd.Op = "close"
 	OpOutcomes    ccd.Op = "outcomes"
 )
@@ -31,6 +32,7 @@ const (
 	EventBlockUpserted   = "block.upserted"
 	EventBlockRemoved    = "block.removed"
 	EventReplyCreated    = "reply.created"
+	EventRoundStarted    = "round.started"
 	EventPresentClosed   = "present.closed"
 	EventDecisionCreated = "decision.created"
 	EventChoiceSelected  = "choice.selected"
@@ -44,7 +46,7 @@ const (
 // envelope itself.
 type body struct {
 	New     bool            `json:"new,omitempty"`     // start
-	Title   string          `json:"title,omitempty"`   // start
+	Title   string          `json:"title,omitempty"`   // start | round
 	Doc     json.RawMessage `json:"doc,omitempty"`     // start | push
 	Block   json.RawMessage `json:"block,omitempty"`   // upsert-block
 	After   string          `json:"after,omitempty"`   // upsert-block
@@ -61,6 +63,7 @@ type result struct {
 	Slug         string          `json:"slug,omitempty"`         // start | close
 	ChannelState string          `json:"channelState,omitempty"` // start
 	Revision     int             `json:"revision,omitempty"`     // push
+	Round        int             `json:"round,omitempty"`        // round
 	State        json.RawMessage `json:"state,omitempty"`        // outcomes
 }
 

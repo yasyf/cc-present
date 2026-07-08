@@ -1,7 +1,7 @@
 // Package cli builds the cobra command tree: cc-present's artifact commands
-// (start, push, update-block, remove-block, reply, outcomes, close) layered on
-// cc-interact's reusable substrate commands (daemon, watch, status, stop,
-// session-record, guard-edit, channel-ack, channel).
+// (start, push, update-block, remove-block, reply, round, outcomes, close)
+// layered on cc-interact's reusable substrate commands (daemon, watch, status,
+// stop, session-record, guard-edit, channel-ack, channel).
 package cli
 
 import (
@@ -40,6 +40,7 @@ func NewRootCmd() *cobra.Command {
 		newUpdateBlockCmd(d),
 		newRemoveBlockCmd(d),
 		newReplyCmd(d),
+		newRoundCmd(d),
 		newOutcomesCmd(d),
 		newCloseCmd(d),
 	)
