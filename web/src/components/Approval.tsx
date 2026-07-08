@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useGroupReadOnly } from '@cc-interact/react';
 import type { Approval as ApprovalBlock } from '../schema';
 import type { Interactions } from '../events';
 import { usePresent } from '../present';
@@ -7,6 +8,7 @@ import { Clamped } from './Clamped';
 
 export function Approval({ block, interactions }: { block: ApprovalBlock; interactions: Interactions }) {
   const { post, closed } = usePresent();
+  const readOnly = useGroupReadOnly();
   const [composing, setComposing] = useState(false);
   const [draft, setDraft] = useState('');
 
@@ -35,7 +37,7 @@ export function Approval({ block, interactions }: { block: ApprovalBlock; intera
           type="button"
           role="radio"
           aria-checked={verdict === 'approved'}
-          disabled={closed}
+          disabled={closed || readOnly}
           className={`verdict verdict-approve${verdict === 'approved' ? ' active' : ''}`}
           onClick={() => choose('approved')}
         >
@@ -48,7 +50,7 @@ export function Approval({ block, interactions }: { block: ApprovalBlock; intera
           type="button"
           role="radio"
           aria-checked={verdict === 'rejected'}
-          disabled={closed}
+          disabled={closed || readOnly}
           className={`verdict verdict-reject${verdict === 'rejected' ? ' active' : ''}`}
           onClick={() => choose('rejected')}
         >
@@ -59,7 +61,7 @@ export function Approval({ block, interactions }: { block: ApprovalBlock; intera
         </button>
       </div>
 
-      {allowFeedback && !closed && (
+      {allowFeedback && !(closed || readOnly) && (
         <div className="feedback-affordance">
           {composing ? (
             <div className="feedback-editor">

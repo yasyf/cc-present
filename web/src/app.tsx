@@ -14,6 +14,7 @@ import { PresentContext } from './present';
 import type { PresentApi } from './present';
 import type { PresentState } from './events';
 import { BlockRenderer } from './components/BlockRenderer';
+import { RoundGroup } from './components/RoundGroup';
 import { DocHeader } from './components/DocHeader';
 import { SubmitBar } from './components/SubmitBar';
 import { ClosedBanner } from './components/ClosedBanner';
@@ -55,9 +56,11 @@ function PresentView({ subject }: { subject: string }) {
 
   const mutation = usePostInteraction(subject);
   const closed = state.interactions.closed.value;
+  const currentRound = state.rounds.current;
+  const liveBlocks = state.doc.blocks.filter((b) => state.rounds.blockRounds[b.id] === currentRound);
   const api = useMemo<PresentApi>(
-    () => ({ post: (interaction) => mutation.mutate(interaction), closed }),
-    [mutation, closed],
+    () => ({ post: (interaction) => mutation.mutate(interaction), closed, currentRound }),
+    [mutation, closed, currentRound],
   );
 
   const listRef = useRef<HTMLDivElement>(null);
@@ -76,13 +79,34 @@ function PresentView({ subject }: { subject: string }) {
           <>
             {closed && <ClosedBanner summary={state.interactions.closed.summary} />}
             <div className="blocks" ref={listRef}>
-              {state.doc.blocks.map((block) => (
+              {state.rounds.history.map((record) => (
+                <div
+                  className="round-group"
+                  key={`round-${record.number}`}
+                  data-flip-key={`round-${record.number}`}
+                >
+                  <RoundGroup record={record} interactions={state.interactions} />
+                </div>
+              ))}
+              {(state.rounds.history.length > 0 || state.rounds.currentTitle) && (
+                <div className="round-current-header">
+                  Round {currentRound}
+                  {state.rounds.currentTitle && ` · ${state.rounds.currentTitle}`}
+                </div>
+              )}
+              {liveBlocks.map((block) => (
                 <div className="block-row" key={block.id} data-flip-key={block.id}>
                   <BlockRenderer block={block} interactions={state.interactions} />
                 </div>
               ))}
             </div>
-            <SubmitBar doc={state.doc} interactions={state.interactions} subject={subject} />
+            <SubmitBar
+              blocks={liveBlocks}
+              doc={state.doc}
+              interactions={state.interactions}
+              subject={subject}
+              hasHistory={state.rounds.history.length > 0}
+            />
           </>
         }
       />

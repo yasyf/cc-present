@@ -9,6 +9,7 @@ import type { Interaction } from './events';
 export interface PresentApi {
   post: (interaction: Interaction) => void;
   closed: boolean;
+  currentRound: number;
 }
 
 export const PresentContext = createContext<PresentApi | null>(null);

@@ -1,16 +1,21 @@
 <!doctype html>
 <html lang="en">
   <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="color-scheme" content="light dark" />
     <title>cc-present</title>
+    <script>
+      try {
+        // Duplicates STORAGE_KEY in src/theme.ts; keep both literals in sync.
+        var t = localStorage.getItem('cc-present:theme');
+        if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t;
+      } catch (e) {}
+    </script>
+    <script type="module" crossorigin src="/assets/index-C2HgXsi2.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-DY4lIFSB.css">
   </head>
   <body>
-    <div id="root">
-      cc-present: the web UI has not been built. Run the web build
-      (cd web &amp;&amp; bunx vite build) to populate internal/web/dist, then rebuild
-      the binary.
-    </div>
+    <div id="root"></div>
   </body>
 </html>

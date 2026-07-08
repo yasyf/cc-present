@@ -1,3 +1,4 @@
+import { useGroupReadOnly } from '@cc-interact/react';
 import type { Choice as ChoiceBlock } from '../schema';
 import type { Interactions } from '../events';
 import { usePresent } from '../present';
@@ -6,6 +7,8 @@ import { Clamped } from './Clamped';
 
 export function Choice({ block, interactions }: { block: ChoiceBlock; interactions: Interactions }) {
   const { post, closed } = usePresent();
+  const readOnly = useGroupReadOnly();
+  const locked = closed || readOnly;
   const selected = interactions.choices[block.id]?.optionIds ?? [];
   const multi = block.multi ?? false;
 
@@ -32,16 +35,16 @@ export function Choice({ block, interactions }: { block: ChoiceBlock; interactio
               key={option.id}
               role={multi ? 'checkbox' : 'radio'}
               aria-checked={on}
-              aria-disabled={closed}
-              tabIndex={closed ? -1 : 0}
+              aria-disabled={locked}
+              tabIndex={locked ? -1 : 0}
               className={`option${on ? ' selected' : ''}`}
               onClick={() => {
-                if (!closed) toggle(option.id);
+                if (!locked) toggle(option.id);
               }}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' || e.key === ' ') {
                   e.preventDefault();
-                  if (closed) return;
+                  if (locked) return;
                   toggle(option.id);
                 }
               }}
