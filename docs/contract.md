@@ -161,6 +161,7 @@ children. `submittedRevision` is set only when a submit closed the round.
 | `POST` | `/api/interactions` | `{subject, nonce, interaction}` | Submit one human interaction. `interaction` is a discriminated union over the human event payloads. The handler validates `blockId` and type against the reduced document, then appends. |
 | `POST` | `/api/assets` | image bytes | Store an image content-addressed; returns its `asset:<sha256>`. A body that does not sniff as an image is rejected with 415. |
 | `GET` | `/assets/{sha}` | none | Fetch a stored asset by its sha256. |
+| `GET` | `/api/sessions` | none | List the open artifacts, most-recently-updated first (see Session listing). |
 
 A block-scoped interaction (`decision.created`, `choice.selected`,
 `feedback.created`, `input.submitted`) whose enclosing top-level block belongs
@@ -168,6 +169,71 @@ to a closed round is rejected with `400 block "<id>" belongs to closed round
 <n>`. `submit` is exempt from the round guard — it is what closes a round.
 
 The event stream is `GET /events` over SSE, replaying the log from seq 0.
+
+## Authentication
+
+The HTTP plane binds per `~/.cc-present/config.json`: an absent file or empty
+`bind` is loopback-only `127.0.0.1`, and `"bind": "0.0.0.0"` exposes the plane to
+the LAN. The bearer token lives at `~/.cc-present/token` — 32 crypto-random bytes
+as lowercase hex, written 0600. `cc-present pair` writes both; an absent or empty
+token disables the check entirely. The daemon refuses to start the HTTP plane
+on a non-loopback bind with no token; it never serves an off-host request
+unauthenticated.
+
+The auth middleware wraps the whole plane: `GET /events`, the REST routes,
+`/assets/{sha}`, and the SPA.
+
+- A loopback request always passes, token or no token. The check reads the
+  immediate TCP peer (a v4-in-v6 `::ffff:127.0.0.1` counts as loopback), so a
+  reverse proxy in front of the daemon arrives as a loopback peer and bypasses
+  the token — the plane is dialed directly, never reverse-proxied.
+- A non-loopback request must carry the token, in an `Authorization: Bearer
+  <token>` header or the `?token=` query fallback that browser `EventSource`
+  needs, since it cannot set headers. The header wins when both are present. The
+  comparison is constant-time; anything else is 401. A `?token=` parameter is
+  stripped from the request before any handler runs, so it never reaches a
+  redirect `Location` or access log.
+
+## Session listing
+
+`GET /api/sessions` returns the open artifacts, most-recently-updated first, so a
+paired client can pick one to open:
+
+```ts
+SessionSummary = { subject, slug, title, status, updatedAt, revision }
+```
+
+`title` is the reduced document's title; `status` is always `open`, since closed
+artifacts are not listed. `updatedAt` is an RFC 3339 string. `revision` counts
+the artifact's `doc.replaced` events — 0 for a document never replaced.
+
+## Discovery
+
+A daemon bound non-loopback advertises the HTTP plane over mDNS; a loopback bind
+advertises nothing. The TXT records carry the protocol version and the host
+name, never the token.
+
+| Field | Value |
+|---|---|
+| Service type | `_cc-present._tcp` |
+| Domain | `local.` |
+| Instance name | the host name |
+| Port | the HTTP plane's bound port |
+| TXT records | `v=1`, `name=<hostname>` |
+
+`cc-present pair` carries the secret the advertisement omits. It writes
+`"bind": "0.0.0.0"` to the host config, ensures the token, restarts the daemon
+when its effective bind differs or the token changed (open browser tabs
+reconnect on their own), and prints a terminal QR code plus the same payload as
+copyable text:
+
+```ts
+PairPayload = { v: 1, url: "http://<lan-ip>:<port>", token: string }
+```
+
+`v` is the pairing-payload schema version. `--reset-token` regenerates the token
+before pairing; `--off` rebinds the daemon to loopback, taking the plane off the
+LAN.
 
 ## Asset garbage collection
 

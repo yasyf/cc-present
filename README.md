@@ -49,6 +49,16 @@ Driving with an agent? Paste this:
 
 The plugin auto-installs the binary and wires the loop. It adds an MCP channel that delivers clicks into the session as `<channel source="cc-present">` tags, a SessionStart hook, and the `/cc-present:present` skill that drives compose, watch, reply, and outcomes.
 
+## Pair your phone
+
+Boards work from the couch too. Expose the daemon to your LAN and scan the terminal QR code with the cc-present iOS app:
+
+```bash
+cc-present pair
+```
+
+Your open boards appear in the app, and every tap streams back like any other click. `cc-present pair --off` rebinds to loopback and takes the boards off the LAN.
+
 ---
 
 ## Use cases
