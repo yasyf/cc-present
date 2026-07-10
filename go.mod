@@ -1,6 +1,6 @@
 module github.com/yasyf/cc-present
 
-go 1.26.4
+go 1.26.5
 
 require (
 	github.com/grandcat/zeroconf v1.0.0
