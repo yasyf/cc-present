@@ -4,6 +4,42 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2026-07-10
+
+### Fixed
+- A finished round no longer leaves an empty "Round N" header and a "0/0
+  decided" bar on the board. The view now derives a board phase — live,
+  waiting, or closed — so between rounds a waiting panel names what comes
+  next, and a closed presentation shows only its banner and read-only
+  history. The close notice itself moved out of the notification strip
+  (whose full-bleed layout stranded it at the window edge) and into the
+  in-flow banner.
+
+### Added
+- Keyboard-first reviewing: `j`/`k` walk the decidable items, `n` jumps to
+  the next undecided one, `a`/`r`/`c` decide the focused approval, `1`–`9`
+  toggle choice options, `f` opens the feedback composer or focuses a
+  field, `⌘/Ctrl+Enter` submits through the same confirm as the button,
+  and `?` shows the shortcut reference. The submit bar gains per-item
+  progress dots that jump on click.
+- Lifecycle and failure states: a loading skeleton until the event replay
+  catches up, error toasts when a post fails (the round stays live and
+  retryable — submits are no longer applied optimistically), a pending
+  "sending…" marker on feedback until its echo lands, and an in-bar armed
+  confirm replacing the native dialog for undecided submits.
+- The Ledger visual language: bond-paper and phosphor-ink palettes with a
+  deep-teal accent, a monospace structural voice, flat rows with left
+  rails that encode each block's state, a round-timeline spine, rotated
+  APPROVED/REJECTED stamps, and a mono masthead. Both themes hold WCAG AA
+  contrast.
+
+### Changed
+- `@cc-interact/react` 0.5.0: toasts render through the library's new
+  floating `ToastStack`; the board gates its skeleton on the stream's
+  `caughtUp`; failed posts surface via the mutation `onError` hook; posts
+  serialize per subject via the mutation `scope` so append order matches
+  action order.
+
 ## [0.4.0] - 2026-07-08
 
 ### Added
