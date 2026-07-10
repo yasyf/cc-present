@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_cc-present._tcp</string>
+	</array>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>CcPresent discovers cc-present sessions on your local network.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>CcPresent uses the camera to scan the pairing QR code.</string>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
+</dict>
+</plist>

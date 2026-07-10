@@ -21,6 +21,7 @@ cc-present/
 │   ├── version/           # build version, stamped via -ldflags
 │   └── log/               # slog setup
 ├── web/                   # Vite + React SPA (block renderer), builds into internal/web/dist
+├── ios/                   # SwiftUI iOS client — CcPresent.xcodeproj (app + tests) + CcPresentKit SPM package
 ├── plugin/                # Claude Code plugin payload: manifest, hooks, skills/present
 ├── examples/              # sample block documents (opener-board.json)
 ├── docs/                  # contract.md — the wire contract (blocks, events, REST) + README assets
@@ -29,6 +30,12 @@ cc-present/
 ├── AGENTS.md              # This file — shared conventions
 └── README.md              # Project overview
 ```
+
+## iOS / Swift (ios/)
+
+The `ios/` tree is a native SwiftUI client, kept separate from the Go layer. Tests use **Swift Testing** (`@Test` / `#expect`), never XCTest. **SwiftFormat** owns mechanical formatting and **SwiftLint** owns the judgment rules; both run warnings-only — style alone never blocks a commit or fails CI. Drive builds, tests, and simulators through **XcodeBuildMCP** (the `xcodebuildmcp` CLI / MCP), the sanctioned build driver, rather than raw `xcodebuild` / `xcrun` / `simctl`. The Xcode project is a synced-folder `project.pbxproj` (objectVersion 77, fixed synthetic UUIDs, `PBXFileSystemSynchronizedRootGroup` — new files land on disk with no project edit); hand-edit build-setting *values* only — the sole committed object-graph edits are the Info.plist membership-exception set (keeping the custom `Info.plist` out of Copy Bundle Resources) and the CcPresentKit local-package wiring (landing later) — and never let Xcode or any tool regenerate the file.
+
+**TestFlight uploads** run through the `TestFlight (iOS)` workflow (`.github/workflows/testflight-ios.yml`), dispatch-only (`workflow_dispatch`) — no push or PR trigger. It archives and exports with cloud signing (`-allowProvisioningUpdates` plus App Store Connect API-key auth; no certs or profiles in CI) straight to App Store Connect. Four repo secrets drive it: `ASC_KEY_ID`, `ASC_ISSUER_ID`, `ASC_KEY_P8` (the `.p8` private key), and `APPLE_TEAM_ID`. One-time manual setup: create the App Store Connect app record for `com.yasyf.cc-present`, and mint an API key with the **App Manager** role.
 
 ## Ask Before Assuming
 

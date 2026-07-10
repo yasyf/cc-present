@@ -39,3 +39,9 @@ internal/web/dist/*
 .go-smoke/
 plugin/bin/
 plugin/install-binary.log
+
+# iOS / Xcode
+xcuserdata/
+ios/CcPresentKit/.build/
+DerivedData/
+.xcodebuildmcp/

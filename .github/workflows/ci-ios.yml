@@ -1,0 +1,48 @@
+name: CI (iOS)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "ios/**"
+      - ".github/workflows/ci-ios.yml"
+  pull_request:
+    paths:
+      - "ios/**"
+      - ".github/workflows/ci-ios.yml"
+
+concurrency:
+  group: ci-ios-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+# One job, not a matrix: everything needs the same macOS runner, and macOS
+# minutes bill 10x. macos-26 is pinned (not macos-latest) because the image
+# ships Xcode 26.x — the toolchain and iOS SDK this app targets.
+jobs:
+  test:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install lint tools missing from the image
+        # macos-26 ships swiftformat but not swiftlint; guard both against image churn.
+        run: |
+          command -v swiftformat >/dev/null || brew install swiftformat
+          command -v swiftlint >/dev/null || brew install swiftlint
+      - name: Format (lint mode)
+        working-directory: ios
+        run: swiftformat --lint .
+      - name: Lint
+        working-directory: ios
+        run: swiftlint --quiet
+      - name: Test (CcPresentKit package)
+        run: swift test --package-path ios/CcPresentKit
+      - name: Test (iOS Simulator)
+        run: >
+          xcodebuild test
+          -project ios/CcPresent.xcodeproj
+          -scheme CcPresent
+          -destination 'platform=iOS Simulator,name=iPhone 17'
+          CODE_SIGNING_ALLOWED=NO
