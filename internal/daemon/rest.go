@@ -65,6 +65,7 @@ func mountREST(s *ccd.Server, ast *assets.Store) {
 		static:  sse.StaticHandler(web.Dist()),
 	}
 	mux := s.Mux()
+	mux.HandleFunc("GET /api/sessions", rs.handleSessions)
 	mux.HandleFunc("POST /api/interactions", rs.handleInteractions)
 	mux.HandleFunc("POST /api/assets", rs.handlePutAsset)
 	mux.HandleFunc("GET /assets/{sha}", rs.handleGetAsset)

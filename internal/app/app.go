@@ -56,9 +56,24 @@ func Deps() cmd.Deps {
 		ClaudePID:              procs.ClaudePID,
 		WindowAlive:            procs.LiveClaude,
 		TerminalEvent:          func(t string) bool { return t == ccdaemon.EventPresentClosed },
-		Serve:                  func(ctx context.Context) error { return ccdaemon.Serve(ctx, Paths(), version.String()) },
+		Serve:                  serve,
 		ChannelTools:           channelTools,
 	}
+}
+
+// serve runs the long-lived daemon, binding and authenticating the HTTP plane
+// per the host config: an absent config binds loopback with no token, exactly
+// today's behavior.
+func serve(ctx context.Context) error {
+	cfg, err := ReadConfig()
+	if err != nil {
+		return err
+	}
+	token, err := ReadToken()
+	if err != nil {
+		return err
+	}
+	return ccdaemon.Serve(ctx, Paths(), version.String(), cfg.Bind, token)
 }
 
 // channelTools advertises zero domain tools: the cc-present channel is a pure

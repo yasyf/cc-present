@@ -43,6 +43,7 @@ func NewRootCmd() *cobra.Command {
 		newRoundCmd(d),
 		newOutcomesCmd(d),
 		newCloseCmd(d),
+		newPairCmd(d),
 	)
 	return root
 }

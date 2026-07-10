@@ -44,9 +44,10 @@ var lifecycle = subject.Lifecycle{Initial: statusOpen, Closed: statusClosed}
 var slugStrip = regexp.MustCompile(`[^a-z0-9]+`)
 
 // BuildServer composes the cc-present daemon: presence via channel.Connectivity,
-// no edit gate, raw-cwd scope. It registers the artifact ops and mounts the REST
-// plane, returning a Server the caller Serves.
-func BuildServer(p paths.Paths, version string) (*ccd.Server, error) {
+// no edit gate, raw-cwd scope. bind is the HTTP plane's bind address (empty =
+// loopback), token the optional LAN bearer token. It registers the artifact ops
+// and mounts the REST plane, returning a Server the caller Serves.
+func BuildServer(p paths.Paths, version, bind, token string) (*ccd.Server, error) {
 	c := channel.Connectivity{}
 	s, err := ccd.New(ccd.Config{
 		AppName:        appName,
@@ -58,6 +59,11 @@ func BuildServer(p paths.Paths, version string) (*ccd.Server, error) {
 		PresenceEventType: c.Type(),
 		OnPresenceChange:  c.OnPresenceChange,
 		BootReconcile:     c.BootReconcile,
+		// bind/token expose the plane to the LAN; bonjourHook advertises it over
+		// mDNS only when the bind is non-loopback (nil otherwise).
+		BindAddr:    bind,
+		HTTPToken:   token,
+		OnHTTPStart: bonjourHook(bind),
 		// Gate nil → no edit gate; ScopeResolve nil → raw cwd; Migrate nil → no
 		// domain tables (document and interaction state are a pure reduction of the
 		// event log).
@@ -81,9 +87,11 @@ func BuildServer(p paths.Paths, version string) (*ccd.Server, error) {
 	return s, nil
 }
 
-// Serve builds the daemon and runs it until ctx is cancelled.
-func Serve(ctx context.Context, p paths.Paths, version string) error {
-	s, err := BuildServer(p, version)
+// Serve builds the daemon and runs it until ctx is cancelled. bind is the HTTP
+// plane's bind address (empty = loopback) and token the optional LAN bearer
+// token; the caller reads both from the host config.
+func Serve(ctx context.Context, p paths.Paths, version, bind, token string) error {
+	s, err := BuildServer(p, version, bind, token)
 	if err != nil {
 		return err
 	}
