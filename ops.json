@@ -1,1 +1,1 @@
-{"v":1,"lamport":4,"ops":[{"kind":"add_comment","body":"Criterion evidence: httpauth_test.go table tests (401 w/o token non-loopback, loopback bypass v4+v6), BindAddr threads Config-\u003elistenHTTP, go test -race green. Shipped as v0.6.0, not v0.5.0 — that tag was cut+npm-released independently mid-flight; semver next-minor."}]}
+{"v":1,"lamport":5,"ops":[{"kind":"set_status","status":"done"},{"kind":"link_commit","sha":"bef355ba26cc9872120c18850a6117731b24ce2d"}]}
