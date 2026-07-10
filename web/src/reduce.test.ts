@@ -8,7 +8,7 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { reduce } from './reduce';
+import { applyEvent, applyInteraction, reduce } from './reduce';
 import type { Doc } from './schema';
 import type { Interactions, PresentEvent, PresentState, Rounds } from './events';
 
@@ -70,6 +70,29 @@ describe('reduce fixture parity', () => {
       expect(canonical(got)).toEqual(canonical(want));
     });
   }
+});
+
+describe('applyInteraction optimistic path', () => {
+  const base = reduce([
+    { origin: 'agent', type: 'block.upserted', seq: 1, payload: { block: { id: 'a1', type: 'approval' } } },
+  ]);
+
+  it('applies a decision optimistically before the echo', () => {
+    const next = applyInteraction(base, { type: 'decision.created', blockId: 'a1', verdict: 'approved' });
+    expect(next.interactions.decisions.a1).toEqual({ verdict: 'approved' });
+  });
+
+  it('defers submit to the echo, leaving the cache unchanged', () => {
+    // A failed POST must not strand the UI past the round; the optimistic patch
+    // is a no-op and the SSE echo advances the round instead.
+    expect(applyInteraction(base, { type: 'submit', revision: 3 })).toBe(base);
+  });
+
+  it('advances the round when the submit event itself replays', () => {
+    const echoed = applyEvent(base, { origin: 'human', type: 'submit', seq: 2, payload: { revision: 3 } });
+    expect(echoed.rounds.current).toBe(2);
+    expect(echoed.rounds.history.map((r) => r.submittedRevision)).toEqual([3]);
+  });
 });
 
 describe('reduce errors', () => {

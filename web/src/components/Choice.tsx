@@ -2,6 +2,8 @@ import { useGroupReadOnly } from '@cc-interact/react';
 import type { Choice as ChoiceBlock } from '../schema';
 import type { Interactions } from '../events';
 import { usePresent } from '../present';
+import { choiceToggle } from '../decide';
+import { useDecidable } from '../keyboard';
 import { renderInlineMarkdown } from '../markdown';
 import { Clamped } from './Clamped';
 
@@ -13,19 +15,20 @@ export function Choice({ block, interactions }: { block: ChoiceBlock; interactio
   const multi = block.multi ?? false;
 
   function toggle(optionId: string) {
-    let next: string[];
-    if (multi) {
-      next = selected.includes(optionId)
-        ? selected.filter((id) => id !== optionId)
-        : [...selected, optionId];
-    } else {
-      next = selected.includes(optionId) ? [] : [optionId];
-    }
-    post({ type: 'choice.selected', blockId: block.id, optionIds: next });
+    post({ type: 'choice.selected', blockId: block.id, optionIds: choiceToggle(selected, optionId, multi) });
   }
 
+  const { ref, cursor } = useDecidable(block.id, {
+    kind: 'choice',
+    disabled: locked,
+    choose: (n) => {
+      const option = block.options[n - 1];
+      if (option) toggle(option.id);
+    },
+  });
+
   return (
-    <div className="choice">
+    <div className="choice" ref={ref} data-kbd-cursor={cursor || undefined}>
       {block.prompt && <p className="choice-prompt">{block.prompt}</p>}
       <div className="options" role={multi ? 'group' : 'radiogroup'}>
         {block.options.map((option) => {

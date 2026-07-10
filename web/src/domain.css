@@ -1,49 +1,65 @@
-/* cc-present domain styling. Applies the graphite palette — cool neutral
- * surfaces, a single restrained violet-blue accent, and a sans display face —
- * onto the @cc-interact/react base.css token system and styles the block
- * library: cards, chips, verdict pairs, the struck "was:" treatment, sections,
- * stats, code, diffs, tables, progress, threads, the submit bar, and the closed
- * banner. Every palette token resolves per-theme with CSS light-dark(): light is
- * the default, dark follows prefers-color-scheme, and a data-theme override on
- * :root forces either mode. */
+/* cc-present domain styling. Applies the "Ledger" palette — a bond-paper light
+ * ground / phosphor-ink dark ground, deep-teal accent, editorial verdict
+ * semantics, and a two-voice type system (system-ui prose + uppercase mono for
+ * every structural label) — onto the @cc-interact/react base.css token system,
+ * and styles the block library: flat hairline rows with :has() state rails,
+ * rotated verdict stamps, the round spine, chips, verdict pairs, the struck
+ * "was:" treatment, sections, stats, code, diffs, tables, progress, threads, the
+ * submit bar, and the closed banner. Every palette token resolves per-theme with
+ * CSS light-dark(): light is the default, dark follows prefers-color-scheme, and
+ * a data-theme override on :root forces either mode. Direction B squares base's
+ * radii and remaps the base chrome variables here; base.css stays untouched. */
 
 :root {
-  --paper: light-dark(#fafafa, #0e0f11);
-  --card: light-dark(#ffffff, #16181c);
-  --ink: light-dark(#1a1c20, #e6e8ec);
-  --muted: light-dark(#66707d, #969ea9);
-  --line: light-dark(#e5e6e9, #24262b);
-  --amber: light-dark(#5e63d6, #8890f4);
-  --amber-ink: light-dark(#4d53c8, #9aa2ff);
-  --mono-bg: light-dark(#f2f3f5, #131519);
-  --flag: light-dark(#c03b2e, #ee7b6b);
-  --flag-bg: light-dark(#faecea, #34201d);
-  --chip-bg: light-dark(#ececef, #212329);
+  /* Palette — light "bond paper"  /  dark "phosphor ink". */
+  --paper: light-dark(#f8f6f2, #101514);
+  --card: light-dark(#fffdf9, #161c1a);
+  --ink: light-dark(#23262f, #e8ece9);
+  --muted: light-dark(#5f6672, #94a09b);
+  --line: light-dark(#e3ded4, #26302c);
+  --accent-fill: light-dark(#0f7b8a, #4fd6c4);
+  --accent-ink: light-dark(#0c6a77, #4fd6c4);
+  --approve: light-dark(#1c7c40, #58c07a);
+  --reject: light-dark(#b3382c, #e57b6d);
+  --pending: light-dark(#8a5a00, #d9a13f);
+  --mono-bg: light-dark(#f1ede6, #0c110f);
+  --reject-bg: light-dark(#f6e7e4, #2b1e1c);
+  --pending-bg: light-dark(#f3ebd9, #2a2415);
+  --chip-bg: light-dark(#efeadf, #1c231f);
   --was: light-dark(#9aa1ab, #6c737e);
-  --ok: light-dark(#177a36, #46bb58);
 
   /* Map the palette onto the base.css chrome variables. */
   --bg: var(--paper);
   --bg-soft: var(--mono-bg);
   --border: var(--line);
-  --border-strong: light-dark(#c7cad0, #3c4048);
+  --border-strong: light-dark(#cdc7ba, #3a453f);
   --text: var(--ink);
   --dim: var(--muted);
-  --accent: var(--amber);
-  --accent-fg: light-dark(#ffffff, #0e0f11);
-  --danger: var(--flag);
-  --warn: var(--amber-ink);
+  --accent: var(--accent-fill);
+  --accent-fg: light-dark(#ffffff, #06100e);
   --surface: var(--card);
   --surface-raised: var(--card);
+  --focus-ring: color-mix(in srgb, var(--accent-fill) 50%, transparent);
+  /* Semantic base chrome for library rules (toasts, progress, connection). */
+  --danger: var(--reject);
+  --warn: var(--pending);
+  --ok: var(--approve);
 
-  /* Sans display face for the doc title. */
-  --font-display: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial,
-    sans-serif;
+  /* Squared radii — domain-level override; base.css scale untouched. */
+  --radius-sm: 2px;
+  --radius-md: 4px;
+  --radius-lg: 6px;
+  --radius-pill: 2px;
 
-  /* Upward elevation for the sticky submit bar (mirror of --shadow-2). */
-  --shadow-up: 0 -6px 16px rgb(0 0 0 / 8%), 0 -2px 5px rgb(0 0 0 / 6%);
+  /* Two type voices + the single structural tracking value. */
+  --font-prose: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', 'SFMono-Regular', Menlo, Consolas, monospace;
+  --track-caps: 0.1em;
 
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+  /* Softer upward elevation for the sticky submit bar than base's --shadow-up. */
+  --shadow-up: 0 -8px 22px rgb(0 0 0 / 10%), 0 -2px 6px rgb(0 0 0 / 6%);
+
+  font-family: var(--font-prose);
   color-scheme: light dark;
 }
 
@@ -54,10 +70,37 @@
   color-scheme: dark;
 }
 
+/* The one structural voice: every non-prose label is mono / uppercase / tracked. */
+.status,
+.chip,
+.stat,
+.peer,
+.conn,
+.round-title,
+.round-chip,
+.round-current-header,
+.code-title,
+.diff-title,
+.closed-badge,
+.submit-round,
+.submit-count,
+.submit-done,
+.verdict,
+.doc-section::before,
+.doc-header::before,
+.option-hint,
+.cc-group-header,
+.submit-btn {
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: var(--track-caps);
+  font-feature-settings: 'kern' off;
+}
+
 /* --- Layout --- */
 
 .main {
-  max-width: 900px;
+  max-width: var(--content-width);
   margin: 0 auto;
   width: 100%;
 }
@@ -71,26 +114,34 @@
   background: var(--mono-bg);
   padding: var(--space-1) var(--space-2);
   border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
 }
 
 .blocks {
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
+  gap: var(--space-5);
   counter-reset: doc-section;
 }
 .block-row {
   will-change: transform;
 }
 
-/* --- Document header --- */
+/* --- Document header (mono masthead) --- */
 
 .doc-header {
-  max-width: 900px;
+  max-width: var(--content-width);
   margin: 0 auto;
   width: 100%;
-  padding: var(--space-5) var(--space-4) var(--space-2);
-  border-bottom: 1px solid var(--line);
+  padding: var(--space-5) var(--space-4) var(--space-4);
+  border-bottom: 2px solid var(--ink);
+}
+.doc-header::before {
+  content: 'CC-PRESENT';
+  display: block;
+  font-size: var(--text-2xs);
+  color: var(--accent-ink);
+  margin-bottom: var(--space-2);
 }
 .doc-header-top {
   display: flex;
@@ -99,13 +150,13 @@
   justify-content: space-between;
 }
 .doc-title {
-  font-family: var(--font-display);
-  font-size: var(--text-xl);
-  font-weight: 650;
-  line-height: 1.15;
+  font-family: var(--font-prose);
+  font-size: clamp(1.75rem, 1.3rem + 2.5vw, 2.75rem);
+  font-weight: 700;
+  line-height: 1.05;
+  letter-spacing: -0.03em;
   margin: 0;
   text-wrap: balance;
-  letter-spacing: -0.02em;
 }
 .doc-conn {
   display: inline-flex;
@@ -113,30 +164,45 @@
   gap: var(--space-2);
   flex: none;
 }
-.peer {
+.peer,
+.conn {
   font-size: var(--text-2xs);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
   color: var(--muted);
+  border-radius: var(--radius-sm);
+  padding: 0;
+}
+.peer::before,
+.conn::before {
+  content: '[ ';
+}
+.peer::after,
+.conn::after {
+  content: ' ]';
 }
 .peer-on {
-  color: var(--ok);
+  color: var(--approve);
+}
+.conn-on {
+  color: var(--accent-ink);
+}
+.conn-off {
+  color: var(--pending);
 }
 .theme-toggle {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border: none;
+  border: 1px solid var(--line);
   background: none;
-  padding: var(--space-1);
+  padding: 2px 5px;
   border-radius: var(--radius-sm);
   color: var(--muted);
   line-height: 0;
 }
 .theme-toggle:hover:not(:disabled) {
   color: var(--ink);
-  background: var(--bg-soft);
-  border-color: transparent;
+  background: var(--mono-bg);
+  border-color: var(--border-strong);
 }
 .doc-intro {
   color: var(--muted);
@@ -145,84 +211,106 @@
   margin: var(--space-3) 0 0;
   line-height: var(--leading-normal);
 }
+
+/* Stats as a bordered mono data strip. */
 .stats {
   display: flex;
-  gap: var(--space-6);
   flex-wrap: wrap;
-  padding: var(--space-4) 0 var(--space-3);
-  margin-top: var(--space-3);
+  margin-top: var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--card);
 }
 .stat {
-  font-size: var(--text-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: var(--space-3) var(--space-4);
+  border-right: 1px solid var(--line);
   color: var(--muted);
+  font-size: var(--text-2xs);
+}
+.stat:last-child {
+  border-right: none;
 }
 .stat b {
-  display: block;
-  font-size: var(--text-lg);
+  font-family: var(--font-mono);
+  font-size: var(--text-md);
+  font-weight: 600;
   color: var(--ink);
+  letter-spacing: 0.02em;
   font-variant-numeric: tabular-nums;
-  font-weight: 650;
 }
 
 /* --- Sections --- */
 
 .doc-section {
-  margin-top: var(--space-4);
+  margin-top: var(--space-2);
   counter-increment: doc-section;
 }
 .doc-section::before {
   content: 'Section ' counter(doc-section, decimal-leading-zero);
   display: block;
   font-size: var(--text-2xs);
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.14em;
-  color: var(--amber-ink);
+  font-weight: 500;
+  color: var(--accent-ink);
   margin-bottom: var(--space-1);
 }
 .section-title {
-  font-family: var(--font-display);
+  font-family: var(--font-prose);
   font-size: var(--text-lg);
   font-weight: 650;
-  margin: 0 0 var(--space-1);
-  letter-spacing: -0.01em;
+  margin: 0 0 var(--space-2);
+  letter-spacing: -0.015em;
 }
 .section-md {
   color: var(--muted);
   font-size: var(--text-base);
   max-width: 72ch;
+  line-height: var(--leading-normal);
+}
+.section-md p {
+  margin: 0;
 }
 
-/* --- Cards --- */
+/* --- Cards → flat hairline rows on bg with a 3px state rail (no float) --- */
 
 .card {
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-md);
-  padding: var(--space-4) var(--space-5);
-  box-shadow: var(--shadow-1);
-  transition: box-shadow 0.15s ease, border-color 0.15s ease;
+  --rail: var(--line);
+  background: transparent;
+  border: none;
+  border-left: 3px solid var(--rail);
+  border-radius: 0;
+  box-shadow: none;
+  padding: var(--space-1) 0 var(--space-1) var(--space-4);
 }
-.card:hover {
-  box-shadow: var(--shadow-2);
+/* State encoding via :has() — cascade order sets precedence:
+   neutral → accent-undecided → flagged-reject → decided approve/reject (win). */
+.card:has(.verdict) {
+  --rail: var(--accent-fill);
 }
 .card.flagged {
-  box-shadow: inset 3px 0 0 var(--flag), var(--shadow-1);
+  --rail: var(--reject);
 }
-.card.flagged:hover {
-  box-shadow: inset 3px 0 0 var(--flag), var(--shadow-2);
+.card:has(.verdict-approve.active) {
+  --rail: var(--approve);
+}
+.card:has(.verdict-reject.active) {
+  --rail: var(--reject);
 }
 .card-head {
   display: flex;
   align-items: baseline;
   gap: var(--space-2);
   flex-wrap: wrap;
-  margin-bottom: var(--space-1);
+  margin-bottom: var(--space-2);
 }
 .card-title {
+  font-family: var(--font-prose);
   font-size: var(--text-md);
-  font-weight: 600;
-  letter-spacing: -0.005em;
+  font-weight: 650;
+  letter-spacing: -0.01em;
 }
 .card-summary {
   font-size: var(--text-sm);
@@ -234,22 +322,29 @@
 .card-head + .card-body {
   margin-top: var(--space-2);
 }
+.card-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
 .status {
   font-size: var(--text-2xs);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  padding: var(--space-1) var(--space-2);
+  padding: 2px var(--space-2);
   border-radius: var(--radius-pill);
   border: 1px solid var(--line);
   color: var(--muted);
 }
+.status-open {
+  color: var(--accent-ink);
+  border-color: color-mix(in srgb, var(--accent-fill) 45%, transparent);
+}
 .status-resolved {
-  color: var(--ok);
-  border-color: color-mix(in srgb, var(--ok) 45%, transparent);
+  color: var(--approve);
+  border-color: color-mix(in srgb, var(--approve) 45%, transparent);
 }
 .status-redrafted {
-  color: var(--amber-ink);
-  border-color: color-mix(in srgb, var(--amber) 45%, transparent);
+  color: var(--accent-ink);
+  border-color: color-mix(in srgb, var(--accent-fill) 45%, transparent);
 }
 .chips {
   display: flex;
@@ -258,42 +353,38 @@
   margin-left: auto;
 }
 .chip {
-  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
   font-size: var(--text-2xs);
-  letter-spacing: 0.05em;
-  padding: var(--space-1) var(--space-2);
+  padding: 2px var(--space-2);
   border-radius: var(--radius-pill);
   background: var(--chip-bg);
   color: var(--muted);
+  border: 1px solid var(--line);
   white-space: nowrap;
 }
 .chip-demo {
-  color: var(--amber-ink);
+  color: var(--accent-ink);
 }
 .chip-flag {
-  background: var(--flag-bg);
-  color: var(--flag);
+  background: var(--reject-bg);
+  color: var(--reject);
+  border-color: color-mix(in srgb, var(--reject) 40%, transparent);
   font-weight: 600;
 }
 .flag-callout {
-  background: var(--flag-bg);
-  border-left: 3px solid var(--flag);
-  color: var(--flag);
+  background: var(--reject-bg);
+  border-left: 3px solid var(--reject);
+  color: var(--reject);
   padding: var(--space-2) var(--space-3);
   font-size: var(--text-sm);
   border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
   margin-bottom: var(--space-3);
-}
-.card-body {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
 }
 
 /* --- Prose / markdown --- */
 
 .prose {
   line-height: var(--leading-normal);
+  font-family: var(--font-prose);
 }
 .prose :first-child {
   margin-top: 0;
@@ -303,12 +394,13 @@
 }
 .prose code {
   background: var(--mono-bg);
-  padding: var(--space-1) var(--space-1);
+  padding: var(--space-1);
   border-radius: var(--radius-sm);
   font-size: 0.85em;
+  font-family: var(--font-mono);
 }
 .prose a {
-  color: var(--amber-ink);
+  color: var(--accent-ink);
 }
 /* Top-level prose keeps a comfortable reading measure. */
 .blocks > .block-row > .clamped .markdown-block,
@@ -327,6 +419,7 @@
   margin: var(--space-3) 0 var(--space-1);
 }
 .card .prose h3 {
+  font-family: var(--font-mono);
   font-size: var(--text-xs);
   font-weight: 650;
   text-transform: uppercase;
@@ -347,19 +440,22 @@
 /* --- Approval --- */
 
 .approval {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
 }
 .approval-prompt {
   margin: 0;
-  font-weight: 500;
+  font-family: var(--font-prose);
+  font-weight: 550;
+  font-size: var(--text-base);
 }
 .verdict-pair {
   display: inline-flex;
   gap: var(--space-1);
   padding: var(--space-1);
-  background: var(--bg-soft);
+  background: var(--mono-bg);
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
   width: fit-content;
@@ -373,7 +469,8 @@
   background: transparent;
   color: var(--muted);
   padding: var(--space-1) var(--space-3);
-  font-size: var(--text-sm);
+  min-height: 2rem;
+  font-size: var(--text-2xs);
   font-weight: 600;
 }
 .verdict-glyph {
@@ -381,37 +478,80 @@
   line-height: 1;
 }
 .verdict:hover:not(:disabled):not(.active) {
-  background: var(--surface);
+  background: var(--card);
   border-color: var(--line);
   color: var(--ink);
 }
 .verdict-approve:hover:not(:disabled):not(.active) {
-  color: var(--ok);
+  color: var(--approve);
 }
 .verdict-reject:hover:not(:disabled):not(.active) {
-  color: var(--flag);
+  color: var(--reject);
 }
-.verdict.active {
-  box-shadow: var(--shadow-1);
-}
-.verdict-approve.active,
-.verdict-approve.active:hover:not(:disabled) {
-  background: var(--ok);
+.verdict-approve.active {
+  background: var(--approve);
   border-color: transparent;
   color: var(--accent-fg);
 }
-.verdict-reject.active,
-.verdict-reject.active:hover:not(:disabled) {
-  background: var(--flag);
+.verdict-reject.active {
+  background: var(--reject);
   border-color: transparent;
   color: var(--accent-fg);
+}
+
+/* Rotated verdict stamps for decided approvals — pure :has()::after. */
+.approval:has(.verdict-approve.active)::after,
+.approval:has(.verdict-reject.active)::after {
+  position: absolute;
+  top: -0.35rem;
+  right: 0.35rem;
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  padding: 0.22rem 0.55rem;
+  border: 2px solid;
+  border-radius: var(--radius-sm);
+  transform: rotate(-3deg);
+  transform-origin: center;
+  background: color-mix(in srgb, var(--card) 82%, transparent);
+  animation: stamp-in var(--dur-3) var(--ease-out);
+  pointer-events: none;
+}
+.approval:has(.verdict-approve.active)::after {
+  content: 'APPROVED';
+  color: var(--approve);
+  border-color: var(--approve);
+}
+.approval:has(.verdict-reject.active)::after {
+  content: 'REJECTED';
+  color: var(--reject);
+  border-color: var(--reject);
+}
+@keyframes stamp-in {
+  from {
+    transform: rotate(-3deg) scale(1.6);
+    opacity: 0;
+  }
+  to {
+    transform: rotate(-3deg) scale(1);
+    opacity: 1;
+  }
+}
+
+.feedback-affordance {
+  display: flex;
 }
 .link-btn {
   border: none;
   background: none;
-  color: var(--amber-ink);
+  color: var(--accent-ink);
   padding: 0;
-  font-size: var(--text-sm);
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: var(--track-caps);
+  font-size: var(--text-2xs);
 }
 .link-btn:hover:not(:disabled) {
   background: none;
@@ -428,7 +568,7 @@
   resize: vertical;
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
-  background: var(--paper);
+  background: var(--card);
   color: var(--ink);
   padding: var(--space-2);
   font: inherit;
@@ -455,22 +595,26 @@
 }
 .thread-who {
   flex: none;
-  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-family: var(--font-mono);
   font-size: var(--text-2xs);
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--muted);
-  padding-top: var(--space-1);
+  padding-top: 2px;
   width: 3rem;
 }
+.thread-text {
+  font-family: var(--font-prose);
+  line-height: var(--leading-normal);
+}
 .reply-item .thread-who {
-  color: var(--amber-ink);
+  color: var(--accent-ink);
 }
 .reply-item .clamped {
   flex: 1;
   min-width: 0;
-  background: color-mix(in srgb, var(--amber) 6%, var(--bg-soft));
-  border-left: 2px solid color-mix(in srgb, var(--amber) 55%, transparent);
+  background: color-mix(in srgb, var(--accent-fill) 7%, var(--mono-bg));
+  border-left: 2px solid color-mix(in srgb, var(--accent-fill) 55%, transparent);
   border-radius: 0 var(--radius-md) var(--radius-md) 0;
   padding: var(--space-2) var(--space-3);
 }
@@ -484,7 +628,9 @@
 }
 .choice-prompt {
   margin: 0;
-  font-weight: 500;
+  font-family: var(--font-prose);
+  font-weight: 550;
+  font-size: var(--text-base);
 }
 .options {
   display: flex;
@@ -498,23 +644,23 @@
   align-items: start;
   text-align: left;
   border: 1px solid var(--line);
-  background: var(--surface);
+  background: var(--card);
   border-radius: var(--radius-md);
-  padding: var(--space-3) var(--space-3);
+  padding: var(--space-3);
   cursor: pointer;
-  transition: border-color 0.12s ease, background 0.12s ease;
+  transition: border-color var(--dur-1) var(--ease-out), background var(--dur-1) var(--ease-out);
 }
 .option:hover:not([aria-disabled='true']) {
   border-color: var(--border-strong);
-  background: color-mix(in srgb, var(--bg-soft) 45%, var(--surface));
+  background: color-mix(in srgb, var(--mono-bg) 45%, var(--card));
 }
 .option:focus-visible {
   outline: 2px solid var(--focus-ring);
   outline-offset: 1px;
 }
 .option.selected {
-  border-color: var(--amber);
-  background: color-mix(in srgb, var(--amber) 7%, var(--surface));
+  border-color: var(--accent-fill);
+  background: color-mix(in srgb, var(--accent-fill) 8%, var(--card));
 }
 .option[aria-disabled='true'] {
   opacity: 0.55;
@@ -523,13 +669,13 @@
 .option-indicator {
   width: var(--text-base);
   height: var(--text-base);
-  margin-top: var(--space-1);
+  margin-top: 2px;
   border: 1.5px solid var(--border-strong);
-  background: var(--surface);
+  background: var(--card);
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  transition: border-color 0.12s ease, background 0.12s ease;
+  transition: border-color var(--dur-1) var(--ease-out), background var(--dur-1) var(--ease-out);
 }
 .option[role='radio'] .option-indicator {
   border-radius: var(--radius-pill);
@@ -538,17 +684,17 @@
   border-radius: var(--radius-sm);
 }
 .option.selected .option-indicator {
-  border-color: var(--amber);
+  border-color: var(--accent-fill);
 }
 .option[role='radio'].selected .option-indicator::after {
   content: '';
   width: 40%;
   height: 40%;
   border-radius: var(--radius-pill);
-  background: var(--amber);
+  background: var(--accent-fill);
 }
 .option[role='checkbox'].selected .option-indicator {
-  background: var(--amber);
+  background: var(--accent-fill);
 }
 .option[role='checkbox'].selected .option-indicator::after {
   content: '';
@@ -566,12 +712,13 @@
   min-width: 0;
 }
 .option-label {
+  font-family: var(--font-prose);
   font-size: var(--text-base);
   font-weight: 600;
   line-height: var(--leading-tight);
 }
 .option-hint {
-  font-size: var(--text-xs);
+  font-size: var(--text-2xs);
   color: var(--muted);
 }
 .option-md {
@@ -595,7 +742,7 @@
 .input-block textarea {
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
-  background: var(--paper);
+  background: var(--card);
   color: var(--ink);
   padding: var(--space-2);
   font: inherit;
@@ -607,16 +754,13 @@
   color: var(--was);
 }
 
-/* --- Code --- */
+/* --- Code (nested panel) --- */
 
 .code-block {
   margin: 0;
 }
 .code-title {
-  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
-  font-size: var(--text-xs);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
+  font-size: var(--text-2xs);
   color: var(--muted);
   margin-bottom: var(--space-1);
 }
@@ -627,7 +771,7 @@
   border-radius: var(--radius-md);
   padding: var(--space-3) var(--space-4);
   overflow-x: auto;
-  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-family: var(--font-mono);
   font-size: var(--text-sm);
   line-height: 1.5;
   margin: 0;
@@ -655,10 +799,7 @@
   margin: 0;
 }
 .diff-title {
-  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
-  font-size: var(--text-xs);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
+  font-size: var(--text-2xs);
   color: var(--muted);
   margin-bottom: var(--space-1);
 }
@@ -666,7 +807,7 @@
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
   overflow: hidden;
-  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-family: var(--font-mono);
   font-size: var(--text-xs);
   overflow-x: auto;
 }
@@ -697,16 +838,16 @@
   color: var(--muted);
 }
 .diff-add {
-  background: color-mix(in srgb, var(--ok) 14%, transparent);
+  background: color-mix(in srgb, var(--approve) 14%, transparent);
 }
 .diff-add .diff-mark {
-  color: var(--ok);
+  color: var(--approve);
 }
 .diff-del {
-  background: color-mix(in srgb, var(--flag) 14%, transparent);
+  background: color-mix(in srgb, var(--reject) 14%, transparent);
 }
 .diff-del .diff-mark {
-  color: var(--flag);
+  color: var(--reject);
 }
 
 /* --- Table --- */
@@ -728,17 +869,18 @@
 .table-block th {
   background: transparent;
   border-bottom: 1px solid var(--border-strong);
-  font-size: var(--text-xs);
-  font-weight: 650;
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.06em;
   color: var(--muted);
 }
 .table-block tbody tr:last-child td {
   border-bottom: none;
 }
 .table-block tbody tr:hover td {
-  background: color-mix(in srgb, var(--bg-soft) 55%, transparent);
+  background: color-mix(in srgb, var(--mono-bg) 55%, transparent);
 }
 
 /* --- Progress --- */
@@ -762,13 +904,13 @@
   height: 0.4rem;
 }
 .progress-state-done .progress-fill {
-  background: var(--ok);
+  background: var(--approve);
 }
 .progress-state-error .progress-fill {
-  background: var(--flag);
+  background: var(--reject);
 }
 .progress-state-active .progress-fill {
-  background: var(--amber);
+  background: var(--accent-fill);
 }
 
 /* --- Image --- */
@@ -788,7 +930,7 @@
   margin-top: var(--space-1);
 }
 
-/* --- Submit bar --- */
+/* --- Submit bar (solid, 2px accent top rule, mono readout) --- */
 
 .submit-bar {
   position: sticky;
@@ -798,44 +940,57 @@
   justify-content: space-between;
   gap: var(--space-4);
   padding: var(--space-3) var(--space-4);
-  margin-top: var(--space-2);
-  background: color-mix(in srgb, var(--paper) 92%, transparent);
-  backdrop-filter: blur(6px);
-  border-top: 1px solid var(--line);
+  margin-top: var(--space-4);
+  background: var(--surface);
+  border-top: 2px solid var(--accent-fill);
   box-shadow: var(--shadow-up);
 }
 .submit-status {
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  font-size: var(--text-sm);
+  font-size: var(--text-2xs);
   color: var(--muted);
-}
-.submit-count {
-  font-variant-numeric: tabular-nums;
-  font-weight: 600;
-  color: var(--ink);
-  background: var(--chip-bg);
-  padding: var(--space-1) var(--space-3);
-  border-radius: var(--radius-pill);
-  font-size: var(--text-xs);
 }
 .submit-round {
   font-weight: 600;
-  font-size: var(--text-xs);
-  color: var(--amber-ink);
-  background: color-mix(in srgb, var(--amber) 12%, transparent);
-  padding: var(--space-1) var(--space-3);
-  border-radius: var(--radius-pill);
+  font-size: var(--text-2xs);
+  color: var(--accent-ink);
+  font-variant-numeric: tabular-nums;
+}
+.submit-round::after {
+  content: ' ·';
+  color: var(--muted);
+  margin-left: var(--space-2);
+}
+/* Tally reads pending (gold) until every item is decided, then approve (green). */
+.submit-count {
+  border: none;
+  background: none;
+  padding: 0;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  color: var(--pending);
+  font-size: var(--text-2xs);
+}
+.submit-count:hover:not(:disabled) {
+  background: none;
+  text-decoration: underline;
 }
 .submit-done {
-  color: var(--ok);
+  color: var(--approve);
 }
 .submit-btn {
   padding: var(--space-2) var(--space-6);
-  font-weight: 600;
-  font-size: var(--text-base);
+  font-weight: 700;
+  font-size: var(--text-2xs);
+  color: var(--accent-fg);
+  background: var(--accent-fill);
+  border: none;
   border-radius: var(--radius-md);
+}
+.submit-btn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent-fill) 88%, #000);
 }
 
 /* --- Closed banner --- */
@@ -852,18 +1007,34 @@
 .closed-badge {
   align-self: flex-start;
   font-size: var(--text-2xs);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
   padding: var(--space-1) var(--space-2);
   border-radius: var(--radius-pill);
-  background: var(--amber);
+  background: var(--accent-fill);
   color: var(--accent-fg);
 }
 
-/* --- Rounds --- */
+/* --- Rounds: collapsed history reads as a one-line entry pinned to the spine --- */
 
 .round-group {
   will-change: transform;
+}
+.round-group .cc-group {
+  background: transparent;
+  border: none;
+  border-radius: 0;
+}
+.round-group .cc-group-header {
+  padding: var(--space-2) 0;
+  color: var(--muted);
+  border-bottom: 1px solid var(--line);
+}
+.round-group .cc-group-header:hover:not(:disabled) {
+  color: var(--ink);
+  background: none;
+}
+.cc-group-caret {
+  color: var(--muted);
+  font-size: var(--text-2xs);
 }
 .round-header {
   display: flex;
@@ -873,9 +1044,10 @@
   min-width: 0;
 }
 .round-title {
-  font-size: var(--text-sm);
-  font-weight: 550;
+  font-size: var(--text-2xs);
+  font-weight: 600;
   color: var(--ink);
+  font-variant-numeric: tabular-nums;
 }
 .round-summary {
   display: flex;
@@ -885,20 +1057,18 @@
 }
 .round-chip {
   font-size: var(--text-2xs);
-  letter-spacing: 0.04em;
-  padding: var(--space-1) var(--space-2);
+  padding: 2px var(--space-2);
   border-radius: var(--radius-pill);
   border: 1px solid var(--line);
   color: var(--muted);
   white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 .round-current-header {
-  font-size: var(--text-xs);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--muted);
+  font-size: var(--text-2xs);
+  color: var(--accent-ink);
   padding-top: var(--space-2);
-  border-top: 1px solid var(--line);
+  font-variant-numeric: tabular-nums;
 }
 /* A frozen round reads as one uniformly muted surface at the disabled-option
    opacity, rather than compounding the group dim with each control's own. */
@@ -911,25 +1081,88 @@
   cursor: default;
 }
 
+/* --- Round spine (Direction B signature) ---
+   app.tsx wraps .blocks in .spine and marks the round anchors with
+   .spine-node + data-node (and .spine-current on the live round). The current
+   segment's accent line is drawn tall and clipped by the spine; `overflow: clip`
+   (with a margin) bounds it WITHOUT clipping the keyboard cursor ring's glow the
+   way `overflow: hidden` would, and without adding page scroll height the way an
+   unclipped 9999px child would. */
+.spine {
+  position: relative;
+  padding-left: var(--space-7);
+  overflow: clip;
+  overflow-clip-margin: 20px;
+}
+.spine::before {
+  content: '';
+  position: absolute;
+  left: 1.15rem;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--line);
+}
+.spine-node {
+  position: relative;
+}
+.spine-node::before {
+  content: attr(data-node);
+  position: absolute;
+  left: -2.1rem;
+  top: 0;
+  width: 1.5rem;
+  height: 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  font-weight: 600;
+  color: var(--muted);
+  background: var(--paper);
+  border: 2px solid var(--line);
+  border-radius: var(--radius-sm);
+  font-variant-numeric: tabular-nums;
+}
+/* Current segment: accent node + accent timeline running downward from it. */
+.spine-current::before {
+  color: var(--accent-ink);
+  border-color: var(--accent-fill);
+  animation: node-pulse var(--dur-3) var(--ease-out) 1;
+}
+.spine-current::after {
+  content: '';
+  position: absolute;
+  left: -1.35rem;
+  top: 1.5rem;
+  width: 2px;
+  height: 9999px;
+  background: var(--accent-fill);
+}
+@keyframes node-pulse {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent-fill) 55%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 12px color-mix(in srgb, var(--accent-fill) 0%, transparent);
+  }
+}
+
 /* --- FLIP transition on top-level block reorders --- */
 
 .cc-flip {
-  transition: transform 0.28s cubic-bezier(0.2, 0.7, 0.2, 1);
+  transition: transform 0.28s var(--ease-out);
 }
 .cc-flip-moved {
   animation: cc-flip-highlight 0.9s ease;
 }
 @keyframes cc-flip-highlight {
   0% {
-    background: color-mix(in srgb, var(--amber) 16%, transparent);
+    background: color-mix(in srgb, var(--accent-fill) 16%, transparent);
   }
   100% {
     background: transparent;
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .cc-flip {
-    transition: none;
   }
 }
 
@@ -950,4 +1183,256 @@
 }
 .clamp-toggle {
   margin-top: var(--space-1);
+}
+
+/* --- Lifecycle: waiting, skeleton, armed confirm, pending feedback ---
+   Landed after the mockup was drawn; styled in the Ledger voice (mono structural
+   text, hairline / dashed rules, squared corners, the B palette). */
+
+.waiting-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-7) var(--space-4);
+  margin-top: var(--space-4);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-md);
+  color: var(--muted);
+  text-align: center;
+}
+.waiting-title {
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: var(--track-caps);
+  font-size: var(--text-2xs);
+  font-weight: 600;
+  color: var(--ink);
+}
+.waiting-sub {
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+.waiting-dots {
+  display: flex;
+  gap: var(--space-1);
+}
+.waiting-dots span {
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background: var(--accent-fill);
+  animation: waiting-pulse 1.2s ease-in-out infinite;
+}
+.waiting-dots span:nth-child(2) {
+  animation-delay: 0.2s;
+}
+.waiting-dots span:nth-child(3) {
+  animation-delay: 0.4s;
+}
+@keyframes waiting-pulse {
+  0%,
+  100% {
+    opacity: 0.3;
+    transform: scale(0.8);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding-top: var(--space-2);
+}
+.skeleton-header {
+  height: 1.5rem;
+  width: 40%;
+  border-radius: var(--radius-sm);
+}
+.skeleton-card {
+  height: 5rem;
+  border-radius: var(--radius-sm);
+}
+.skeleton-header,
+.skeleton-card {
+  background: linear-gradient(
+    90deg,
+    var(--mono-bg) 25%,
+    color-mix(in srgb, var(--line) 60%, var(--mono-bg)) 37%,
+    var(--mono-bg) 63%
+  );
+  background-size: 400% 100%;
+  animation: skeleton-shimmer 1.4s ease infinite;
+}
+@keyframes skeleton-shimmer {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: 0 0;
+  }
+}
+
+.submit-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.submit-warn {
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: var(--track-caps);
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  color: var(--reject);
+}
+.submit-btn.confirm,
+.submit-btn.confirm:hover:not(:disabled) {
+  background: var(--reject);
+  border-color: transparent;
+  color: var(--accent-fg);
+}
+
+.thread-item.pending {
+  opacity: 0.6;
+}
+.thread-status {
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: var(--text-2xs);
+  color: var(--muted);
+}
+
+/* --- Keyboard review layer: cursor ring, progress dots, help overlay --- */
+
+/* The cursor ring persists on the block the cursor rests on; the arrival pulse
+   is a one-shot outer glow that replays each time the attribute re-lands, so it
+   doubles as the jump highlight. */
+[data-kbd-cursor] {
+  border-radius: var(--radius-sm);
+  box-shadow: 0 0 0 2px var(--accent-fill);
+  animation: kbd-arrive var(--dur-3) var(--ease-out);
+}
+@keyframes kbd-arrive {
+  0% {
+    box-shadow:
+      0 0 0 2px var(--accent-fill),
+      0 0 0 8px color-mix(in srgb, var(--accent-fill) 30%, transparent);
+  }
+  100% {
+    box-shadow:
+      0 0 0 2px var(--accent-fill),
+      0 0 0 8px color-mix(in srgb, var(--accent-fill) 0%, transparent);
+  }
+}
+
+.submit-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+.dot {
+  width: 10px;
+  height: 10px;
+  padding: 0;
+  border: 1.5px solid var(--border-strong);
+  border-radius: var(--radius-pill);
+  background: transparent;
+}
+.dot.on {
+  background: var(--accent-fill);
+  border-color: var(--accent-fill);
+}
+.dot:hover:not(:disabled) {
+  border-color: var(--accent-fill);
+  background: color-mix(in srgb, var(--accent-fill) 35%, transparent);
+}
+
+/* base.css lands a global :focus-visible ring; re-state it on the review-layer
+   controls so the Ledger skin keeps a consistent 2px offset on each. */
+.verdict:focus-visible,
+.link-btn:focus-visible,
+.dot:focus-visible,
+.submit-count:focus-visible,
+.submit-btn:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+.help-dialog {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface-raised);
+  color: var(--ink);
+  padding: var(--space-5);
+  max-width: 34rem;
+  width: calc(100vw - var(--space-6));
+  box-shadow: var(--shadow-3);
+}
+.help-dialog::backdrop {
+  background: rgb(0 0 0 / 45%);
+  backdrop-filter: blur(2px);
+}
+.help-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-4);
+}
+.help-title {
+  margin: 0;
+  font-family: var(--font-prose);
+  font-size: var(--text-md);
+  font-weight: 650;
+}
+.help-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.help-table td {
+  padding: var(--space-2) var(--space-3) var(--space-2) 0;
+  vertical-align: top;
+  border-top: 1px solid color-mix(in srgb, var(--line) 60%, transparent);
+  font-size: var(--text-sm);
+}
+.help-table tr:first-child td {
+  border-top: none;
+}
+.help-keys {
+  white-space: nowrap;
+}
+.help-ctx {
+  color: var(--muted);
+}
+kbd {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  line-height: 1;
+  padding: var(--space-1) var(--space-2);
+  margin-right: var(--space-1);
+  border: 1px solid var(--border-strong);
+  border-bottom-width: 2px;
+  border-radius: var(--radius-sm);
+  background: var(--mono-bg);
+  color: var(--ink);
 }

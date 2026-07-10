@@ -28,7 +28,10 @@ export function revisionKey(subject: string) {
   return scopedKey('present-revision', subject, undefined);
 }
 
-export function usePostInteraction(subject: string): UseMutationResult<unknown, Error, Interaction> {
+export function usePostInteraction(
+  subject: string,
+  onError: (err: Error, interaction: Interaction) => void,
+): UseMutationResult<unknown, Error, Interaction> {
   return useOptimisticMutation<Interaction, unknown, PresentState>({
     mutationFn: (interaction) =>
       request<unknown>('/api/interactions', {
@@ -37,5 +40,10 @@ export function usePostInteraction(subject: string): UseMutationResult<unknown, 
       }),
     queryKey: () => presentKey(subject),
     applyOptimistic: (cache, interaction) => applyInteraction(cache, interaction),
+    onError,
+    // Serialize posts per subject so append order matches action order — the
+    // keyboard submit blurs a focused input first, and that blur-commit must
+    // reach the daemon before the submit it triggered.
+    scope: subject,
   });
 }

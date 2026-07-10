@@ -1,0 +1,80 @@
+// The keyboard grammar as a pure function: a KeyDescriptor (a plain snapshot of a
+// keydown, DOM-free) plus whether the target is a text field and whether the
+// board is closed, folded into a KbdAction the provider dispatches. KEYMAP is the
+// same grammar in prose, driving the help overlay so the two never drift.
+
+export interface KeyDescriptor {
+  key: string;
+  meta: boolean;
+  ctrl: boolean;
+  alt: boolean;
+  shift: boolean;
+  repeat: boolean;
+}
+
+export type KbdAction =
+  | { kind: 'move'; delta: 1 | -1 }
+  | { kind: 'next-undecided' }
+  | { kind: 'verdict'; verdict: 'approved' | 'rejected' }
+  | { kind: 'clear' }
+  | { kind: 'choose'; option: number }
+  | { kind: 'engage' }
+  | { kind: 'submit' }
+  | { kind: 'help-toggle' }
+  | { kind: 'escape' };
+
+export interface KeymapRow {
+  keys: string[];
+  context: string;
+  action: string;
+}
+
+export const KEYMAP: KeymapRow[] = [
+  { keys: ['j', '↓', 'k', '↑'], context: 'Browsing', action: 'Move to the next / previous item' },
+  { keys: ['n'], context: 'Browsing', action: 'Jump to the next undecided item' },
+  { keys: ['a', 'r'], context: 'On an approval', action: 'Approve / reject (press again to clear)' },
+  { keys: ['c'], context: 'On an approval', action: 'Clear the verdict' },
+  { keys: ['1', '…', '9'], context: 'On a choice', action: 'Toggle option 1–9' },
+  { keys: ['f'], context: 'On an approval or field', action: 'Add feedback / focus the field' },
+  { keys: ['⌘/Ctrl', '⏎'], context: 'Anywhere', action: 'Submit the round (confirm when items are undecided); while writing feedback, sends the note instead' },
+  { keys: ['?'], context: 'Anywhere', action: 'Toggle this help' },
+  { keys: ['Esc'], context: 'Anywhere', action: 'Close help, else leave the field' },
+];
+
+// interpretKey resolves one keydown. mod+Enter submits from anywhere (text fields
+// included) but its auto-repeat is dropped so a held chord cannot blow through an
+// armed confirm; every other binding bails on a modifier. `?` and Esc survive a
+// closed board; nothing else does. A text field swallows all but mod+Enter and Esc.
+export function interpretKey(d: KeyDescriptor, typing: boolean, closed: boolean): KbdAction | null {
+  if ((d.meta || d.ctrl) && d.key === 'Enter') {
+    return d.repeat ? null : { kind: 'submit' };
+  }
+  if (d.meta || d.ctrl || d.alt) return null;
+
+  if (d.key === 'Escape') return { kind: 'escape' };
+  if (typing) return null;
+
+  if (d.key === '?') return { kind: 'help-toggle' };
+  if (closed) return null;
+
+  switch (d.key) {
+    case 'j':
+    case 'ArrowDown':
+      return { kind: 'move', delta: 1 };
+    case 'k':
+    case 'ArrowUp':
+      return { kind: 'move', delta: -1 };
+    case 'n':
+      return { kind: 'next-undecided' };
+    case 'a':
+      return { kind: 'verdict', verdict: 'approved' };
+    case 'r':
+      return { kind: 'verdict', verdict: 'rejected' };
+    case 'c':
+      return { kind: 'clear' };
+    case 'f':
+      return { kind: 'engage' };
+  }
+  if (/^[1-9]$/.test(d.key)) return { kind: 'choose', option: Number(d.key) };
+  return null;
+}

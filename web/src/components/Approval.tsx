@@ -1,8 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useGroupReadOnly } from '@cc-interact/react';
 import type { Approval as ApprovalBlock } from '../schema';
 import type { Interactions } from '../events';
 import { usePresent } from '../present';
+import { verdictToggle } from '../decide';
+import { useDecidable } from '../keyboard';
 import { renderMarkdown } from '../markdown';
 import { Clamped } from './Clamped';
 
@@ -11,26 +13,47 @@ export function Approval({ block, interactions }: { block: ApprovalBlock; intera
   const readOnly = useGroupReadOnly();
   const [composing, setComposing] = useState(false);
   const [draft, setDraft] = useState('');
+  // Feedback is append-only and echoes back through the stream; a pending item
+  // shows optimistically until its id lands in interactions.feedback.
+  const [pending, setPending] = useState<{ id: string; text: string }[]>([]);
+  const composerRef = useRef<HTMLTextAreaElement>(null);
 
   const verdict = interactions.decisions[block.id]?.verdict;
   const allowFeedback = block.allowFeedback ?? true;
   const feedback = interactions.feedback[block.id] ?? [];
   const replies = interactions.replies[block.id] ?? [];
+  const stillPending = pending.filter((p) => !feedback.some((f) => f.id === p.id));
 
   function choose(next: 'approved' | 'rejected') {
-    post({ type: 'decision.created', blockId: block.id, verdict: verdict === next ? 'cleared' : next });
+    post({ type: 'decision.created', blockId: block.id, verdict: verdictToggle(verdict, next) });
   }
 
-  function sendFeedback() {
+  const { ref, cursor } = useDecidable(block.id, {
+    kind: 'approval',
+    disabled: closed || readOnly,
+    verdict: choose,
+    clear: () => {
+      if (verdict) post({ type: 'decision.created', blockId: block.id, verdict: 'cleared' });
+    },
+    engage: allowFeedback ? () => setComposing(true) : undefined,
+  });
+  useEffect(() => {
+    if (composing) composerRef.current?.focus();
+  }, [composing]);
+
+  async function sendFeedback() {
     const text = draft.trim();
     if (!text) return;
-    post({ type: 'feedback.created', id: crypto.randomUUID(), blockId: block.id, text });
+    const id = crypto.randomUUID();
+    setPending((prev) => [...prev, { id, text }]);
     setDraft('');
     setComposing(false);
+    const ok = await post({ type: 'feedback.created', id, blockId: block.id, text });
+    if (!ok) setPending((prev) => prev.filter((p) => p.id !== id));
   }
 
   return (
-    <div className="approval">
+    <div className="approval" ref={ref} data-kbd-cursor={cursor || undefined}>
       {block.prompt && <p className="approval-prompt">{block.prompt}</p>}
       <div className="verdict-pair" role="radiogroup" aria-label="verdict">
         <button
@@ -66,10 +89,17 @@ export function Approval({ block, interactions }: { block: ApprovalBlock; intera
           {composing ? (
             <div className="feedback-editor">
               <textarea
+                ref={composerRef}
                 value={draft}
                 rows={2}
                 placeholder="Add feedback for the agent…"
                 onChange={(e) => setDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (!e.repeat && (e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+                    e.preventDefault();
+                    void sendFeedback();
+                  }
+                }}
               />
               <div className="feedback-actions">
                 <button type="button" className="primary" onClick={sendFeedback}>
@@ -94,12 +124,19 @@ export function Approval({ block, interactions }: { block: ApprovalBlock; intera
         </div>
       )}
 
-      {(feedback.length > 0 || replies.length > 0) && (
+      {(feedback.length > 0 || stillPending.length > 0 || replies.length > 0) && (
         <div className="thread">
           {feedback.map((f) => (
             <div key={f.id} className="thread-item feedback-item">
               <span className="thread-who">you</span>
               <span className="thread-text">{f.text}</span>
+            </div>
+          ))}
+          {stillPending.map((p) => (
+            <div key={p.id} className="thread-item feedback-item pending">
+              <span className="thread-who">you</span>
+              <span className="thread-text">{p.text}</span>
+              <span className="thread-status">sending…</span>
             </div>
           ))}
           {replies.map((r) => (

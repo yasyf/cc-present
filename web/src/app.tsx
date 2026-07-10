@@ -5,23 +5,41 @@
 
 import { useMemo, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { AppShell, useFlip } from '@cc-interact/react';
+import { AppShell, ToastStack, useFlip } from '@cc-interact/react';
 import { EventStreamProvider, useEventStream } from './stream';
-import { NotificationsBar } from './components/NotificationsBar';
 import { SubjectProvider, presentKey, queryClient, usePostInteraction } from './api';
 import { emptyState } from './reduce';
+import { boardPhase } from './lifecycle';
+import { KeyboardProvider } from './keyboard';
 import { PresentContext } from './present';
 import type { PresentApi } from './present';
-import type { PresentState } from './events';
+import type { Interaction, PresentState } from './events';
 import { BlockRenderer } from './components/BlockRenderer';
 import { RoundGroup } from './components/RoundGroup';
 import { DocHeader } from './components/DocHeader';
 import { SubmitBar } from './components/SubmitBar';
+import { WaitingPanel } from './components/WaitingPanel';
+import { BoardSkeleton } from './components/BoardSkeleton';
 import { ClosedBanner } from './components/ClosedBanner';
 
 function subjectFromPath(): string | null {
   const match = /^\/p\/(.+)$/.exec(window.location.pathname);
   return match && match[1] ? decodeURIComponent(match[1]) : null;
+}
+
+function interactionErrorText(interaction: Interaction): string {
+  switch (interaction.type) {
+    case 'decision.created':
+      return 'Could not record your verdict. Check your connection and try again.';
+    case 'choice.selected':
+      return 'Could not record your choice. Check your connection and try again.';
+    case 'feedback.created':
+      return 'Could not send your feedback. Check your connection and try again.';
+    case 'input.submitted':
+      return 'Could not save your input. Check your connection and try again.';
+    case 'submit':
+      return 'Could not submit. Check your connection and try again.';
+  }
 }
 
 export function App() {
@@ -54,62 +72,89 @@ function PresentView({ subject }: { subject: string }) {
     gcTime: Infinity,
   });
 
-  const mutation = usePostInteraction(subject);
+  const mutation = usePostInteraction(subject, (_err, interaction) =>
+    stream.notify({ kind: 'error', text: interactionErrorText(interaction) }),
+  );
+
+  const phase = boardPhase(state);
   const closed = state.interactions.closed.value;
   const currentRound = state.rounds.current;
-  const liveBlocks = state.doc.blocks.filter((b) => state.rounds.blockRounds[b.id] === currentRound);
+  const hasHistory = state.rounds.history.length > 0;
+  const liveBlocks = phase.kind === 'waiting' ? [] : phase.blocks;
+  // Content the cache already holds must survive a stream-provider remount (HMR,
+  // StrictMode, subject remount) that resets caughtUp: the skeleton shows only
+  // for a genuinely empty board that has not caught up yet.
+  const hasContent = state.doc.blocks.length > 0 || hasHistory || closed;
+
   const api = useMemo<PresentApi>(
-    () => ({ post: (interaction) => mutation.mutate(interaction), closed, currentRound }),
+    () => ({
+      post: (interaction) => mutation.mutateAsync(interaction).then(() => true, () => false),
+      closed,
+      currentRound,
+    }),
     [mutation, closed, currentRound],
   );
 
   const listRef = useRef<HTMLDivElement>(null);
   useFlip(listRef);
 
+  const board = (
+    <>
+      {closed && <ClosedBanner summary={state.interactions.closed.summary} />}
+      <div className="spine">
+        <div className="blocks" ref={listRef}>
+          {state.rounds.history.map((record) => (
+            <div
+              className="round-group spine-node"
+              key={`round-${record.number}`}
+              data-flip-key={`round-${record.number}`}
+              data-node={record.number}
+            >
+              <RoundGroup record={record} interactions={state.interactions} />
+            </div>
+          ))}
+          {liveBlocks.length > 0 && (hasHistory || state.rounds.currentTitle) && (
+            <div className="round-current-header spine-node spine-current" data-node={currentRound}>
+              Round {currentRound}
+              {state.rounds.currentTitle && ` · ${state.rounds.currentTitle}`}
+            </div>
+          )}
+          {liveBlocks.map((block) => (
+            <div className="block-row" key={block.id} data-flip-key={block.id}>
+              <BlockRenderer block={block} interactions={state.interactions} />
+            </div>
+          ))}
+        </div>
+      </div>
+      {phase.kind === 'waiting' && <WaitingPanel round={currentRound} lastRound={phase.lastRound} />}
+      {phase.kind === 'live' && (
+        <SubmitBar
+          blocks={liveBlocks}
+          doc={state.doc}
+          interactions={state.interactions}
+          subject={subject}
+          hasHistory={hasHistory}
+        />
+      )}
+    </>
+  );
+
   return (
     <PresentContext.Provider value={api}>
-      <AppShell
-        header={
-          <DocHeader doc={state.doc} connected={stream.connected} peerPresent={stream.peerPresent} />
-        }
-        notifications={
-          <NotificationsBar notifications={stream.notifications} onDismiss={stream.dismiss} />
-        }
-        main={
-          <>
-            {closed && <ClosedBanner summary={state.interactions.closed.summary} />}
-            <div className="blocks" ref={listRef}>
-              {state.rounds.history.map((record) => (
-                <div
-                  className="round-group"
-                  key={`round-${record.number}`}
-                  data-flip-key={`round-${record.number}`}
-                >
-                  <RoundGroup record={record} interactions={state.interactions} />
-                </div>
-              ))}
-              {(state.rounds.history.length > 0 || state.rounds.currentTitle) && (
-                <div className="round-current-header">
-                  Round {currentRound}
-                  {state.rounds.currentTitle && ` · ${state.rounds.currentTitle}`}
-                </div>
-              )}
-              {liveBlocks.map((block) => (
-                <div className="block-row" key={block.id} data-flip-key={block.id}>
-                  <BlockRenderer block={block} interactions={state.interactions} />
-                </div>
-              ))}
-            </div>
-            <SubmitBar
-              blocks={liveBlocks}
-              doc={state.doc}
-              interactions={state.interactions}
-              subject={subject}
-              hasHistory={state.rounds.history.length > 0}
-            />
-          </>
-        }
-      />
+      <KeyboardProvider
+        blocks={liveBlocks}
+        interactions={state.interactions}
+        closed={closed}
+        round={currentRound}
+      >
+        <AppShell
+          header={
+            <DocHeader doc={state.doc} connected={stream.connected} peerPresent={stream.peerPresent} />
+          }
+          main={stream.caughtUp || hasContent ? board : <BoardSkeleton />}
+        />
+        <ToastStack notifications={stream.notifications} onDismiss={stream.dismiss} />
+      </KeyboardProvider>
     </PresentContext.Provider>
   );
 }

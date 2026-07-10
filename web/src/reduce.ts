@@ -142,11 +142,13 @@ export function applyEvent(state: PresentState, ev: PresentEvent): PresentState 
 
 // applyInteraction applies a human interaction optimistically, before the SSE
 // echo arrives, using the same reduction the log replay uses. Feedback is
-// append-only, so applying it here would double-count once the echo lands; it
-// is deferred to the echo. Every last-write-wins interaction is idempotent
+// append-only, so applying it here would double-count once the echo lands; and a
+// submit optimistically advances the round, which a failed POST could never walk
+// back — stranding the UI in waiting with no live blocks and no way to retry.
+// Both are deferred to the echo. Every last-write-wins interaction is idempotent
 // under a re-apply, so the echo reconciles it cleanly.
 export function applyInteraction(state: PresentState, interaction: Interaction): PresentState {
-  if (interaction.type === 'feedback.created') return state;
+  if (interaction.type === 'feedback.created' || interaction.type === 'submit') return state;
   return applyEvent(state, interactionEvent(interaction));
 }
 

@@ -1,19 +1,7 @@
 import { CollapsedGroup } from '@cc-interact/react';
-import type { Block } from '../schema';
 import type { Interactions, RoundRecord } from '../events';
+import { flatten } from '../decide';
 import { BlockRenderer } from './BlockRenderer';
-
-// flatten yields every top-level block plus every card child, mirroring
-// SubmitBar so the round tally spans approvals, choices, and inputs wherever
-// they nest.
-function flatten(blocks: Block[]): Block[] {
-  const out: Block[] = [];
-  for (const block of blocks) {
-    out.push(block);
-    if (block.type === 'card') out.push(...block.children);
-  }
-  return out;
-}
 
 // RoundGroup renders one closed round as a read-only CollapsedGroup: the frozen
 // blocks and interaction snapshot from the record, with replies threaded live so

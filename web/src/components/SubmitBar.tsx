@@ -1,8 +1,12 @@
+import { useEffect, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import type { Block, Doc } from '../schema';
 import type { Interactions } from '../events';
 import { usePresent } from '../present';
 import { revisionKey } from '../api';
+import { undecidedKey } from '../submit';
+import { submitItems } from '../decide';
+import { useKeyboardApi } from '../keyboard';
 
 export interface SubmitBarProps {
   // The current round's live blocks; the decided/total tally spans only these.
@@ -13,68 +17,118 @@ export interface SubmitBarProps {
   hasHistory: boolean;
 }
 
-// flatten yields every top-level block plus every card child, so the decided /
-// total tally spans approvals and choices wherever they nest.
-function flatten(blocks: Block[]): Block[] {
-  const out: Block[] = [];
-  for (const block of blocks) {
-    out.push(block);
-    if (block.type === 'card') out.push(...block.children);
-  }
-  return out;
-}
-
 export function SubmitBar({ blocks, doc, interactions, subject, hasHistory }: SubmitBarProps) {
-  const { post, closed, currentRound } = usePresent();
+  const { post, currentRound } = usePresent();
+  const kbd = useKeyboardApi();
   const { data: revision } = useQuery<number>({
     queryKey: revisionKey(subject),
     queryFn: () => 0,
     initialData: 0,
     staleTime: Infinity,
   });
+  const [armed, setArmed] = useState<{ ids: string; round: number } | null>(null);
+  // The submit is no longer optimistic, so the bar stays mounted until the echo
+  // advances the round; inFlight bridges that window so a second click can't
+  // post twice. A failed post re-enables for retry; a successful one unmounts
+  // the bar with the echo.
+  const [inFlight, setInFlight] = useState(false);
 
-  const all = flatten(blocks);
-  const approvalIds = all.filter((b) => b.type === 'approval').map((b) => b.id);
-  const choiceIds = all.filter((b) => b.type === 'choice').map((b) => b.id);
-  const total = approvalIds.length + choiceIds.length;
-
-  if (total === 0 && !doc.submit) return null;
-
-  const decidedApprovals = approvalIds.filter((id) => interactions.decisions[id] !== undefined).length;
-  const decidedChoices = choiceIds.filter((id) => (interactions.choices[id]?.optionIds.length ?? 0) > 0).length;
-  const decided = decidedApprovals + decidedChoices;
-  const undecidedApprovals = approvalIds.length - decidedApprovals;
+  const items = submitItems(blocks, interactions);
+  const total = items.length;
+  const decided = items.filter((i) => i.decided).length;
+  const undecidedApprovalIds = items.filter((i) => i.kind === 'approval' && !i.decided).map((i) => i.id);
+  const undecidedApprovals = undecidedApprovalIds.length;
+  const armedKey = undecidedKey(undecidedApprovalIds);
 
   const label = doc.submit?.label ?? 'Submit';
-  const submitted = interactions.submitted;
-  // Right after a submit the round advances and its blocks belong to history, so
-  // the live round is momentarily empty; there is nothing to submit until the
-  // next round's content lands.
-  const empty = blocks.length === 0;
+  // The confirm is derived, never synced: it keys on the exact set of undecided
+  // approvals (not just their count) and the round, so a same-round block swap
+  // that preserves the count still derives it false — no stale "Submit anyway?".
+  const confirming = armed !== null && armed.ids === armedKey && armed.round === currentRound;
 
-  function submit() {
-    if (undecidedApprovals > 0) {
-      const noun = undecidedApprovals === 1 ? 'approval is' : 'approvals are';
-      if (!window.confirm(`${undecidedApprovals} ${noun} still undecided. Submit anyway?`)) return;
+  const hidden = total === 0 && !doc.submit;
+
+  const submit = () => {
+    // Invocation-time guard: registration is effect-driven, so a chord can land
+    // in the commit-to-cleanup window after the bar hides — the stale handle
+    // must no-op.
+    if (hidden || inFlight) return;
+    if (undecidedApprovals > 0 && !confirming) {
+      setArmed({ ids: armedKey, round: currentRound });
+      return;
     }
-    post({ type: 'submit', revision });
-  }
+    setInFlight(true);
+    void post({ type: 'submit', revision }).then((ok) => {
+      if (!ok) setInFlight(false);
+    });
+    setArmed(null);
+  };
+
+  // The keyboard layer's mod+Enter drives the exact same confirm-aware submit as
+  // the button; a latest-value ref keeps the registered handle current without
+  // re-registering each render. Registration is gated on visibility so the chord
+  // is a no-op exactly when the bar renders nothing.
+  const submitRef = useRef(submit);
+  submitRef.current = submit;
+  useEffect(() => {
+    if (hidden) return;
+    kbd.registerSubmit(() => submitRef.current());
+    return () => kbd.registerSubmit(null);
+  }, [kbd, hidden]);
+
+  if (hidden) return null;
 
   return (
-    <div className="submit-bar">
+    <div
+      className="submit-bar"
+      onKeyDown={(e) => {
+        if (e.key === 'Escape') setArmed(null);
+      }}
+    >
       <div className="submit-status">
         {hasHistory && <span className="submit-round">Round {currentRound}</span>}
-        <span className="submit-count">
+        {total > 0 && (
+          <div className="submit-dots" role="group" aria-label="review progress">
+            {items.map((item, i) => (
+              <button
+                key={item.id}
+                type="button"
+                className={`dot${item.decided ? ' on' : ''}`}
+                aria-label={`Item ${i + 1} of ${total}, ${item.decided ? 'decided' : 'undecided'} — jump`}
+                onClick={() => kbd.jumpTo(item.id)}
+              />
+            ))}
+          </div>
+        )}
+        <button
+          type="button"
+          className={`submit-count${total > 0 && decided === total ? ' submit-done' : ''}`}
+          onClick={() => kbd.jumpNextUndecided()}
+        >
           {decided}/{total} decided
-        </span>
-        {empty && submitted.value && (
-          <span className="submit-done">submitted · rev {submitted.revision}</span>
+        </button>
+        {confirming && (
+          <span className="submit-warn" role="status">
+            {undecidedApprovals} {undecidedApprovals === 1 ? 'approval' : 'approvals'} still undecided
+          </span>
         )}
         {doc.submit?.note && <span className="submit-note">{doc.submit.note}</span>}
       </div>
-      <button type="button" className="primary submit-btn" disabled={closed || empty} onClick={submit}>
-        {label}
-      </button>
+      <div className="submit-actions">
+        {confirming && (
+          <button type="button" className="link-btn" onClick={() => setArmed(null)}>
+            Cancel
+          </button>
+        )}
+        <button
+          type="button"
+          className={`primary submit-btn${confirming ? ' confirm' : ''}`}
+          disabled={inFlight}
+          onClick={submit}
+        >
+          {confirming ? 'Submit anyway?' : label}
+        </button>
+      </div>
     </div>
   );
 }

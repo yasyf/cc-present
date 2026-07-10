@@ -7,7 +7,9 @@ import { createContext, useContext } from 'react';
 import type { Interaction } from './events';
 
 export interface PresentApi {
-  post: (interaction: Interaction) => void;
+  // Resolves true once the daemon accepts the interaction, false when the POST
+  // fails; never rejects, so fire-and-forget call sites stay clean.
+  post: (interaction: Interaction) => Promise<boolean>;
   closed: boolean;
   currentRound: number;
 }
