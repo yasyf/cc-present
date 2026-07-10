@@ -1,1 +1,1 @@
-{"v":1,"lamport":2,"ops":[{"kind":"set_criterion_status","id":"6e12d79b026d31f2ec9e3631b3a59b48","status":"met"}]}
+{"v":1,"lamport":3,"ops":[{"kind":"add_comment","body":"Criterion evidence: live smoke — pair wrote bind 0.0.0.0 + 0600 token, QR payload {v,url,token} printed; /api/sessions 200 with titles + RFC3339 updatedAt; Bonjour advertising confirmed via daemon log (_cc-present._tcp @ yBook-Pro.local); no-config daemon verified unchanged (loopback, no token)."}]}
