@@ -31,11 +31,16 @@ jobs:
         run: |
           command -v swiftformat >/dev/null || brew install swiftformat
           command -v swiftlint >/dev/null || brew install swiftlint
+      # Style is advisory, never a gate (see AGENTS.md): the runner's brew-latest
+      # swiftformat/swiftlint enable newer default rules than the pinned toolchain,
+      # so a lint deviation surfaces in the log but must not fail the build.
       - name: Format (lint mode)
         working-directory: ios
+        continue-on-error: true
         run: swiftformat --lint .
       - name: Lint
         working-directory: ios
+        continue-on-error: true
         run: swiftlint --quiet
       - name: Test (CcPresentKit package)
         run: swift test --package-path ios/CcPresentKit
