@@ -70,6 +70,7 @@ public enum Block: Codable, Equatable, Sendable {
     case image(Image)
     case table(Table)
     case progress(Progress)
+    case pack(Pack)
 
     /// Section is a top-level header marker with optional prose.
     public struct Section: Codable, Equatable, Sendable {
@@ -285,6 +286,22 @@ public enum Block: Codable, Equatable, Sendable {
         }
     }
 
+    /// Pack is a plugin-supplied block whose type carries a `<pack>.<name>`
+    /// namespace. The client does not model its fields; `raw` holds the entire
+    /// block object (id and type included) verbatim so a pack-supplied renderer
+    /// receives it byte-faithfully and re-encoding never drops unknown fields.
+    public struct Pack: Codable, Equatable, Sendable {
+        public var id: String
+        public var packType: String
+        public var raw: JSONValue
+
+        public init(id: String, packType: String, raw: JSONValue) {
+            self.id = id
+            self.packType = packType
+            self.raw = raw
+        }
+    }
+
     /// id is the block's globally unique identifier.
     public var id: String {
         switch self {
@@ -299,6 +316,7 @@ public enum Block: Codable, Equatable, Sendable {
         case let .image(block): block.id
         case let .table(block): block.id
         case let .progress(block): block.id
+        case let .pack(block): block.id
         }
     }
 
@@ -316,6 +334,7 @@ public enum Block: Codable, Equatable, Sendable {
         case .image: "image"
         case .table: "table"
         case .progress: "progress"
+        case let .pack(block): block.packType
         }
     }
 
@@ -340,6 +359,11 @@ public enum Block: Codable, Equatable, Sendable {
         case "table": self = try .table(Table(from: decoder))
         case "progress": self = try .progress(Progress(from: decoder))
         default:
+            if type.contains(".") {
+                let id = try container.decode(String.self, forKey: .id)
+                self = try .pack(Pack(id: id, packType: type, raw: JSONValue(from: decoder)))
+                return
+            }
             let id = try container.decodeIfPresent(String.self, forKey: .id) ?? ""
             throw DecodingError.dataCorrupted(
                 DecodingError.Context(
@@ -351,6 +375,12 @@ public enum Block: Codable, Equatable, Sendable {
     }
 
     public func encode(to encoder: Encoder) throws {
+        // A pack block's raw JSON already carries id and type; encode it alone and
+        // return before the discriminator container writes type a second time.
+        if case let .pack(block) = self {
+            try block.raw.encode(to: encoder)
+            return
+        }
         var container = encoder.container(keyedBy: Discriminator.self)
         try container.encode(type, forKey: .type)
         switch self {
@@ -365,6 +395,7 @@ public enum Block: Codable, Equatable, Sendable {
         case let .image(block): try block.encode(to: encoder)
         case let .table(block): try block.encode(to: encoder)
         case let .progress(block): try block.encode(to: encoder)
+        case .pack: break
         }
     }
 }

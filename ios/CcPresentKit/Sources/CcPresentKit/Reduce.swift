@@ -91,6 +91,7 @@ public struct Interactions: Decodable, Equatable, Sendable {
     public var decisions: [String: Decision]
     public var choices: [String: Selection]
     public var inputs: [String: InputValue]
+    public var packs: [String: JSONValue]
     public var feedback: [String: [Feedback]]
     public var replies: [String: [Reply]]
     public var submitted: Submitted
@@ -100,6 +101,7 @@ public struct Interactions: Decodable, Equatable, Sendable {
         decisions: [String: Decision] = [:],
         choices: [String: Selection] = [:],
         inputs: [String: InputValue] = [:],
+        packs: [String: JSONValue] = [:],
         feedback: [String: [Feedback]] = [:],
         replies: [String: [Reply]] = [:],
         submitted: Submitted = Submitted(value: false, revision: 0),
@@ -108,6 +110,7 @@ public struct Interactions: Decodable, Equatable, Sendable {
         self.decisions = decisions
         self.choices = choices
         self.inputs = inputs
+        self.packs = packs
         self.feedback = feedback
         self.replies = replies
         self.submitted = submitted
@@ -115,7 +118,7 @@ public struct Interactions: Decodable, Equatable, Sendable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case decisions, choices, inputs, feedback, replies, submitted, closed
+        case decisions, choices, inputs, packs, feedback, replies, submitted, closed
     }
 
     public init(from decoder: Decoder) throws {
@@ -123,6 +126,7 @@ public struct Interactions: Decodable, Equatable, Sendable {
         decisions = try container.decodeIfPresent([String: Decision].self, forKey: .decisions) ?? [:]
         choices = try container.decodeIfPresent([String: Selection].self, forKey: .choices) ?? [:]
         inputs = try container.decodeIfPresent([String: InputValue].self, forKey: .inputs) ?? [:]
+        packs = try container.decodeIfPresent([String: JSONValue].self, forKey: .packs) ?? [:]
         feedback = try container.decodeIfPresent([String: [Feedback]].self, forKey: .feedback) ?? [:]
         replies = try container.decodeIfPresent([String: [Reply]].self, forKey: .replies) ?? [:]
         submitted = try container.decodeIfPresent(Submitted.self, forKey: .submitted)
@@ -141,6 +145,7 @@ public struct RoundRecord: Decodable, Equatable, Sendable {
     public var decisions: [String: Decision]
     public var choices: [String: Selection]
     public var inputs: [String: InputValue]
+    public var packs: [String: JSONValue]
     public var feedback: [String: [Feedback]]
     public var submittedRevision: Int?
 
@@ -151,6 +156,7 @@ public struct RoundRecord: Decodable, Equatable, Sendable {
         decisions: [String: Decision] = [:],
         choices: [String: Selection] = [:],
         inputs: [String: InputValue] = [:],
+        packs: [String: JSONValue] = [:],
         feedback: [String: [Feedback]] = [:],
         submittedRevision: Int? = nil
     ) {
@@ -160,12 +166,13 @@ public struct RoundRecord: Decodable, Equatable, Sendable {
         self.decisions = decisions
         self.choices = choices
         self.inputs = inputs
+        self.packs = packs
         self.feedback = feedback
         self.submittedRevision = submittedRevision
     }
 
     private enum CodingKeys: String, CodingKey {
-        case number, title, blocks, decisions, choices, inputs, feedback, submittedRevision
+        case number, title, blocks, decisions, choices, inputs, packs, feedback, submittedRevision
     }
 
     public init(from decoder: Decoder) throws {
@@ -176,6 +183,7 @@ public struct RoundRecord: Decodable, Equatable, Sendable {
         decisions = try container.decodeIfPresent([String: Decision].self, forKey: .decisions) ?? [:]
         choices = try container.decodeIfPresent([String: Selection].self, forKey: .choices) ?? [:]
         inputs = try container.decodeIfPresent([String: InputValue].self, forKey: .inputs) ?? [:]
+        packs = try container.decodeIfPresent([String: JSONValue].self, forKey: .packs) ?? [:]
         feedback = try container.decodeIfPresent([String: [Feedback]].self, forKey: .feedback) ?? [:]
         submittedRevision = try container.decodeIfPresent(Int.self, forKey: .submittedRevision)
     }
@@ -295,6 +303,8 @@ private extension BoardState {
             }
         case let .choiceSelected(payload):
             interactions.choices[payload.blockId] = Selection(optionIds: payload.optionIds)
+        case let .packInteraction(payload):
+            interactions.packs[payload.blockId] = payload.payload
         case let .feedbackCreated(payload):
             interactions.feedback[payload.blockId, default: []].append(Feedback(id: payload.id, text: payload.text))
         case let .inputSubmitted(payload):
@@ -357,6 +367,7 @@ private extension BoardState {
             decisions: filterMap(interactions.decisions, ids),
             choices: filterMap(interactions.choices, ids),
             inputs: filterMap(interactions.inputs, ids),
+            packs: filterMap(interactions.packs, ids),
             feedback: filterMap(interactions.feedback, ids),
             submittedRevision: revision
         )

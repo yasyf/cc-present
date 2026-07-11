@@ -35,7 +35,7 @@ public final class BoardStore {
         state.interactions.closed.value
     }
 
-    private let subject: String
+    public let subject: String
     @ObservationIgnored private let transport: any InteractionPoster
     @ObservationIgnored private var serverLog: [Event] = []
     @ObservationIgnored private var pending: [PendingInteraction] = []

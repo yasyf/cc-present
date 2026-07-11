@@ -92,6 +92,14 @@ public struct InputSubmittedPayload: Decodable, Equatable, Sendable {
     public var text: String
 }
 
+/// PackInteractionPayload records a last-write-wins interaction on a pack block.
+/// `payload` is the pack-declared JSON body, held verbatim so a client that does
+/// not model the pack still round-trips it.
+public struct PackInteractionPayload: Decodable, Equatable, Sendable {
+    public var blockId: String
+    public var payload: JSONValue
+}
+
 /// SubmitPayload records a human submit with the submitted revision.
 public struct SubmitPayload: Decodable, Equatable, Sendable {
     public var revision: Int
@@ -110,6 +118,7 @@ public enum EventPayload: Equatable, Sendable {
     case choiceSelected(ChoiceSelectedPayload)
     case feedbackCreated(FeedbackCreatedPayload)
     case inputSubmitted(InputSubmittedPayload)
+    case packInteraction(PackInteractionPayload)
     case submit(SubmitPayload)
     case channelChanged(ChannelChangedPayload)
 }
@@ -147,6 +156,7 @@ public struct Event: Decodable, Equatable, Sendable {
             case "choice.selected": return try .choiceSelected(rawPayload.decode(ChoiceSelectedPayload.self))
             case "feedback.created": return try .feedbackCreated(rawPayload.decode(FeedbackCreatedPayload.self))
             case "input.submitted": return try .inputSubmitted(rawPayload.decode(InputSubmittedPayload.self))
+            case "pack.interaction": return try .packInteraction(rawPayload.decode(PackInteractionPayload.self))
             case "submit": return try .submit(rawPayload.decode(SubmitPayload.self))
             case "channel.changed": return try .channelChanged(rawPayload.decode(ChannelChangedPayload.self))
             default: throw EventError.unknownType(type)
@@ -191,7 +201,7 @@ public struct Event: Decodable, Equatable, Sendable {
 /// JSONValue is a decoded arbitrary JSON value, used to hold an event payload
 /// until it is decoded into its typed struct. It re-encodes losslessly, keeping
 /// integers integral so a revision or seq survives the round to a typed decode.
-enum JSONValue: Codable, Equatable, Sendable {
+public enum JSONValue: Codable, Equatable, Sendable {
     case null
     case bool(Bool)
     case int(Int64)
@@ -200,7 +210,7 @@ enum JSONValue: Codable, Equatable, Sendable {
     case array([JSONValue])
     case object([String: JSONValue])
 
-    init(from decoder: Decoder) throws {
+    public init(from decoder: Decoder) throws {
         let container = try decoder.singleValueContainer()
         if container.decodeNil() {
             self = .null
@@ -223,7 +233,7 @@ enum JSONValue: Codable, Equatable, Sendable {
         }
     }
 
-    func encode(to encoder: Encoder) throws {
+    public func encode(to encoder: Encoder) throws {
         var container = encoder.singleValueContainer()
         switch self {
         case .null: try container.encodeNil()

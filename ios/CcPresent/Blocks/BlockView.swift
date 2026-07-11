@@ -36,6 +36,33 @@ struct BlockView: View {
             TableBlockView(block: table)
         case let .progress(progress):
             ProgressBlockView(block: progress)
+        case let .pack(pack):
+            PackPlaceholderView(pack: pack)
         }
+    }
+}
+
+/// PackPlaceholderView is the native stand-in for a plugin-supplied pack block:
+/// a labeled card naming the pack type and block id. The WKWebView renderer lands
+/// in a later phase; until then a pack block reads as an unresolved placeholder.
+private struct PackPlaceholderView: View {
+    let pack: Block.Pack
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(pack.packType)
+                .font(.footnote.monospaced())
+                .foregroundStyle(BlockPalette.accentInk)
+            Text(pack.id)
+                .font(.footnote)
+                .foregroundStyle(BlockPalette.muted)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(12)
+        .background(BlockPalette.chipBg, in: RoundedRectangle(cornerRadius: 8))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(BlockPalette.line, lineWidth: 1)
+        )
     }
 }
