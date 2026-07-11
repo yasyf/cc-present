@@ -40,6 +40,17 @@ public struct InputValue: Decodable, Equatable, Sendable {
     }
 }
 
+/// PackValue is a human's last-write-wins interaction on a pack block: the payload
+/// exactly as the REST edge validated it. The reducer stays pack-blind — it never
+/// inspects a pack payload's shape.
+public struct PackValue: Codable, Equatable, Sendable {
+    public var payload: JSONValue
+
+    public init(payload: JSONValue) {
+        self.payload = payload
+    }
+}
+
 /// Feedback is one entry in a block's append-only feedback list.
 public struct Feedback: Decodable, Equatable, Sendable {
     public var id: String
@@ -91,7 +102,7 @@ public struct Interactions: Decodable, Equatable, Sendable {
     public var decisions: [String: Decision]
     public var choices: [String: Selection]
     public var inputs: [String: InputValue]
-    public var packs: [String: JSONValue]
+    public var packs: [String: PackValue]
     public var feedback: [String: [Feedback]]
     public var replies: [String: [Reply]]
     public var submitted: Submitted
@@ -101,7 +112,7 @@ public struct Interactions: Decodable, Equatable, Sendable {
         decisions: [String: Decision] = [:],
         choices: [String: Selection] = [:],
         inputs: [String: InputValue] = [:],
-        packs: [String: JSONValue] = [:],
+        packs: [String: PackValue] = [:],
         feedback: [String: [Feedback]] = [:],
         replies: [String: [Reply]] = [:],
         submitted: Submitted = Submitted(value: false, revision: 0),
@@ -126,7 +137,7 @@ public struct Interactions: Decodable, Equatable, Sendable {
         decisions = try container.decodeIfPresent([String: Decision].self, forKey: .decisions) ?? [:]
         choices = try container.decodeIfPresent([String: Selection].self, forKey: .choices) ?? [:]
         inputs = try container.decodeIfPresent([String: InputValue].self, forKey: .inputs) ?? [:]
-        packs = try container.decodeIfPresent([String: JSONValue].self, forKey: .packs) ?? [:]
+        packs = try container.decodeIfPresent([String: PackValue].self, forKey: .packs) ?? [:]
         feedback = try container.decodeIfPresent([String: [Feedback]].self, forKey: .feedback) ?? [:]
         replies = try container.decodeIfPresent([String: [Reply]].self, forKey: .replies) ?? [:]
         submitted = try container.decodeIfPresent(Submitted.self, forKey: .submitted)
@@ -145,7 +156,7 @@ public struct RoundRecord: Decodable, Equatable, Sendable {
     public var decisions: [String: Decision]
     public var choices: [String: Selection]
     public var inputs: [String: InputValue]
-    public var packs: [String: JSONValue]
+    public var packs: [String: PackValue]
     public var feedback: [String: [Feedback]]
     public var submittedRevision: Int?
 
@@ -156,7 +167,7 @@ public struct RoundRecord: Decodable, Equatable, Sendable {
         decisions: [String: Decision] = [:],
         choices: [String: Selection] = [:],
         inputs: [String: InputValue] = [:],
-        packs: [String: JSONValue] = [:],
+        packs: [String: PackValue] = [:],
         feedback: [String: [Feedback]] = [:],
         submittedRevision: Int? = nil
     ) {
@@ -183,7 +194,7 @@ public struct RoundRecord: Decodable, Equatable, Sendable {
         decisions = try container.decodeIfPresent([String: Decision].self, forKey: .decisions) ?? [:]
         choices = try container.decodeIfPresent([String: Selection].self, forKey: .choices) ?? [:]
         inputs = try container.decodeIfPresent([String: InputValue].self, forKey: .inputs) ?? [:]
-        packs = try container.decodeIfPresent([String: JSONValue].self, forKey: .packs) ?? [:]
+        packs = try container.decodeIfPresent([String: PackValue].self, forKey: .packs) ?? [:]
         feedback = try container.decodeIfPresent([String: [Feedback]].self, forKey: .feedback) ?? [:]
         submittedRevision = try container.decodeIfPresent(Int.self, forKey: .submittedRevision)
     }
@@ -304,7 +315,7 @@ private extension BoardState {
         case let .choiceSelected(payload):
             interactions.choices[payload.blockId] = Selection(optionIds: payload.optionIds)
         case let .packInteraction(payload):
-            interactions.packs[payload.blockId] = payload.payload
+            interactions.packs[payload.blockId] = PackValue(payload: payload.payload)
         case let .feedbackCreated(payload):
             interactions.feedback[payload.blockId, default: []].append(Feedback(id: payload.id, text: payload.text))
         case let .inputSubmitted(payload):

@@ -141,12 +141,12 @@ struct PackBlockTests {
         let state = try reduce(events: events)
 
         // Last write wins: the seq-3 value replaces the seq-2 value.
-        #expect(state.interactions.packs["ex-rating"] == .object(["value": .int(5)]))
+        #expect(state.interactions.packs["ex-rating"] == PackValue(payload: .object(["value": .int(5)])))
 
         // The submit closed the dirty round and snapshotted the pack value into history.
         #expect(state.rounds.history.count == 1)
         let round = try #require(state.rounds.history.first)
-        #expect(round.packs["ex-rating"] == .object(["value": .int(5)]))
+        #expect(round.packs["ex-rating"] == PackValue(payload: .object(["value": .int(5)])))
         #expect(round.submittedRevision == 1)
     }
 }
