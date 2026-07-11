@@ -264,3 +264,21 @@ A condensed version of `examples/opener-board.json` — sections as tiers, one c
 ```
 
 The full 26-repo original lives at `examples/opener-board.json` in the repo; both validate with `push --dry-run`.
+
+## Pack blocks
+
+Installed block packs extend the block set beyond the built-ins above. A pack block's `type` is dotted — `<pack>.<block>`, both segments lowercase kebab-case — and the dot is the namespace boundary: built-in types never contain one. Discover what is installed:
+
+```bash
+"${CLAUDE_PLUGIN_ROOT}/bin/cc-present" pack list
+```
+
+Per pack it prints the name and version, the pack directory, the absolute path of the pack's reference fragment, and each block's dotted type with an `(interactive)` marker; `dropped:` lists every skipped candidate with its reason. Read the reference fragment before first use — it documents the pack's fields the way this page documents the built-ins.
+
+A pack block composes like any other leaf, at the top level or inside a card:
+
+```json
+{ "id": "ex-rating", "type": "example.rating", "label": "How useful is this reference pack?", "scale": 5 }
+```
+
+`push --dry-run` validates each pack block against the pack's declared JSON Schema, offline like the rest of the check. An uninstalled dotted type fails with `pack block type "example.rating" is not installed`; a schema violation names the type and the failing property. Every cap and rule above applies to pack blocks unchanged.

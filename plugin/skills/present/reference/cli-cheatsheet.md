@@ -16,6 +16,8 @@ Every command is a thin call to the local daemon, which lazy-starts on first use
 | `"${CLAUDE_PLUGIN_ROOT}/bin/cc-present" status [--session <id> --cwd <dir>]` | Show the daemon version, its HTTP address, and this scope's subject (`open`/`closed`, or `none`). |
 | `"${CLAUDE_PLUGIN_ROOT}/bin/cc-present" stop` | Stop the background daemon (it lazy-respawns on the next command). |
 | `"${CLAUDE_PLUGIN_ROOT}/bin/cc-present" channel-ack --session <id> --cwd <dir>` | Mark this window's channel proven after the first delivered `<channel>` tag, flipping later `start`s to `channel: active`. Run it once when a tag arrives while the Monitor is armed, then stop the Monitor. |
+| `"${CLAUDE_PLUGIN_ROOT}/bin/cc-present" pack list` | List the installed block packs, offline (no daemon). Per pack: name and version, its directory, the absolute path of its reference fragment, and each block's dotted type with an `(interactive)` marker; `dropped:` lists every skipped candidate with its reason. Prints `no packs installed` when none. |
+| `"${CLAUDE_PLUGIN_ROOT}/bin/cc-present" pack lint <dir>` | Validate a pack root fail-loud, offline: strict manifest, `host_api` match, declared files present, every schema compiling, and every declared example validating against its block schema. Prints `ok: <name> <version> (N blocks)`, or the first violation and a non-zero exit. |
 
 `image` blocks whose `src` is a local file path are inlined by `start --doc`, `push`, and `update-block`: the file is read (5 MiB cap), stored content-addressed on the daemon, and the src rewritten to its `asset:<sha256>` ref. `push --dry-run` performs the same read locally, so a missing or oversized image fails the dry run too.
 

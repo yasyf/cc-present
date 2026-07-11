@@ -15,6 +15,7 @@ cc-present/
 │   ├── daemon/            # buildServer: domain ops (start/push/upsert/remove/reply/close) + REST
 │   ├── doc/               # block schema structs + Validate
 │   ├── state/             # event reducer: doc + human interactions (shared JSON fixtures)
+│   ├── packs/             # block-pack discovery, manifest + schema validation, registry
 │   ├── assets/            # content-addressed image store + routes
 │   ├── web/               # go:embed of the built SPA (committed placeholder dist/index.html)
 │   ├── version/           # build version, stamped via -ldflags
@@ -23,12 +24,15 @@ cc-present/
 ├── ios/                   # SwiftUI iOS client — CcPresent.xcodeproj (app + tests) + CcPresentKit SPM package
 ├── plugin/                # Claude Code plugin payload: manifest, hooks, skills/present
 ├── examples/              # sample block documents (opener-board.json)
+│   └── packs/example/     # reference block pack: manifest, schemas, JS bundle, examples
 ├── docs/                  # contract.md — the wire contract (blocks, events, REST) + README assets
 ├── .claude-plugin/        # marketplace.json — this repo is its own plugin marketplace
 ├── .github/               # GitHub Actions workflows
 ├── AGENTS.md              # This file — shared conventions
 └── README.md              # Project overview
 ```
+
+Block packs — plugin-supplied typed blocks — follow the manifest, schema, and serving conventions in `docs/contract.md`; `examples/packs/example/` is the reference pack, and `cc-present pack lint <dir>` validates a pack root.
 
 ## iOS / Swift (ios/)
 

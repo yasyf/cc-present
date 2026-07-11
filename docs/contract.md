@@ -21,8 +21,9 @@ seq 0 reconstructs a fresh tab's state; there is no get-document endpoint.
 Doc = { version: 1, title, intro?, stats?: {label, value}[], submit?: {label, note?}, blocks: Block[] }
 ```
 
-`blocks` is a flat list of blocks. A `section`, a `card`, or any of the nine leaf
-blocks may appear directly in `blocks`; a card nests leaf blocks only.
+`blocks` is a flat list of blocks. A `section`, a `card`, any of the nine built-in
+leaf blocks, or a pack block (see Block packs) may appear directly in `blocks`; a
+card nests leaf blocks only.
 
 ## Block schema
 
@@ -57,8 +58,134 @@ blocks may appear directly in `blocks`; a card nests leaf blocks only.
   `data:…`. A `data:` URI is at most **32 KiB**.
 - The serialized document is at most **1 MiB**.
 
-Unknown block types are rejected at decode time, before `Validate`, with a message
-naming the offending block id.
+`Validate` takes the installed pack registry and checks each pack block's payload
+against its declared schema; an uninstalled dotted type is a violation naming the
+block id.
+
+Type dispatch at decode is lenient about packs and strict about everything else:
+
+- An unknown dot-free type is rejected at decode time, before `Validate`, with a
+  message naming the offending block id.
+- A malformed dotted type — one that does not match `<pack>.<name>` (see Block
+  packs) — is also a decode error naming the block id.
+- A well-formed dotted type always decodes, into an opaque pack block that
+  preserves every field byte for byte, whether or not the pack is installed.
+  Whether the type is actually declared by an installed pack is checked only at
+  the authoring edges (`start`, `push`, `update-block`, `push --dry-run`), never
+  in the reducers — so replay stays total after a pack is uninstalled, and an
+  old log renders instead of poisoning every future reduction.
+
+## Block packs
+
+A block pack is a set of plugin-supplied block types: a TOML manifest, a JSON
+Schema per block, and one prebuilt ES-module bundle the SPA imports at runtime.
+The authoring guide is [packs.md](packs.md); this section is the wire and
+discovery contract.
+
+### Namespacing
+
+A pack block's wire type is `<pack>.<name>`, both halves matching
+`^[a-z][a-z0-9-]*$`. Built-in types never contain a dot, so the dotted namespace
+is reserved for packs permanently. A pack block is a leaf: it may appear at the
+top level or as a card child, and never nests children of its own. The block
+schema a pack declares validates the entire block object — `id`, `type`, and
+every pack-defined field.
+
+### Manifest
+
+`cc-present.toml` at the pack root, decoded strictly: an unknown key is an
+error. Every path field is manifest-relative and must resolve inside the pack
+root.
+
+| Field | Required | Constraint |
+|---|---|---|
+| `host_api` | yes | Must equal the daemon's host API version, currently **1**. |
+| `name` | yes | Matches `^[a-z][a-z0-9-]*$`, at most 32 characters; the `<pack>` half of every block type. |
+| `version` | yes | Non-empty; cache-busts the bundle and styles URLs. |
+| `description` | no | Prose shown in `/api/packs` and `pack list`. |
+| `entry` | yes | The ES-module bundle; must live under `dist/`. |
+| `styles` | no | A stylesheet the SPA injects once per page. |
+| `reference` | no | A Markdown fragment describing the blocks for an authoring agent; `pack list` prints its absolute path. |
+| `blocks.<name>` | one or more | One table per block type; `<name>` matches the same pattern as `name`. |
+| `blocks.<name>.description` | yes | Non-empty prose. |
+| `blocks.<name>.schema` | yes | JSON Schema (Draft 2020-12) for the whole block object. |
+| `blocks.<name>.interaction` | no | JSON Schema for the human interaction payload; its presence marks the block interactive. |
+| `blocks.<name>.examples` | one or more | Example block objects; `pack lint` validates each against the schema. |
+
+Schemas compile with a loader that rejects every external `$ref`, so a schema
+can reach neither the network nor the filesystem.
+
+### Discovery
+
+The daemon scans two tiers of pack roots and re-scans on access after a
+2-second TTL, so installing a pack needs no restart:
+
+- **Dev** — each directory in the host config's `packDirs`
+  (`~/.cc-present/config.json`), in order.
+- **Plugin** — each installed Claude plugin (read from
+  `$CLAUDE_CONFIG_DIR/plugins/installed_plugins.json`, default `~/.claude`)
+  whose `.claude/components/` directory holds a `cc-present.toml`. The
+  components directory is the pack root, so a plugin ships exactly one pack.
+
+Discovery is fail-soft per pack. Any violation drops that pack and records the
+directory and reason in a `dropped` list, visible in `/api/packs` and
+`cc-present pack list`, while every other pack still loads. A manifest error, a
+`host_api` mismatch, a missing declared file, and a schema that fails to
+compile are each such a violation. The HTTP
+response carries only the dropped directory's base name, never its absolute
+path.
+
+Same-name conflicts resolve by tier: a dev pack shadows an installed plugin
+pack (the plugin copy is dropped with a `shadowed by dev dir` reason), and two
+same-name packs in the same tier drop each other — a deliberate mutual drop, so
+neither silently wins. A name listed in the config's `disabledPacks` is dropped
+unconditionally, beating every other rule.
+
+The manifest and every manifest-declared file are capped at **512 KiB**.
+
+### Serving
+
+`GET /packs/{pack}/{file}` serves only files under the pack's `dist/` subtree,
+opened through `os.Root` so no symlink or `..` component can escape the pack
+root. An unknown pack, a path outside `dist/`, or a missing file is a 404,
+never an SPA fallthrough. Responses are `nosniff`, cached immutably, and
+cache-busted by the manifest version (`?v=<version>`); `.js`/`.mjs`, `.css`,
+and `.json`/`.map` files get pinned Content-Types so a bundle always loads as
+an ES module.
+
+`GET /api/packs` is the SPA's boot manifest:
+
+```ts
+PacksResponse = {
+  hostApi: 1,
+  packs: {
+    name, version, description,
+    bundle,                 // "/packs/<name>/dist/…?v=<version>"
+    styles?,                // same URL shape
+    blocks: { type, interactive, schema, interaction? }[]
+  }[],
+  dropped: { dir, reason }[]
+}
+```
+
+`schema` and `interaction` are the raw schema documents, inlined.
+
+### Single-block mode
+
+`/p/<ref>?block=<id>` renders one block full-bleed: the same SSE replay and
+interaction REST as the board, with no board chrome. It is what the iOS client
+loads in a webview per pack block. A block whose enclosing top-level block
+belongs to a closed round renders read-only, folded into the same `closed` flag
+every interactive block honors. When a `ccPresentHeight` WebKit message handler
+is present, the page posts `{type: "height", px}` on every content resize so
+the native host can size the webview.
+
+### Assets
+
+> **Warning:** a pack block field must not carry an `asset:` URI. The garbage
+> collector's reference walk does not see pack-defined fields, so an `asset:`
+> reference inside one is unreferenced to the sweep and its bytes are deleted on
+> the next close. Use `/packs/<name>/dist/…`, `https:`, or `data:` URLs.
 
 ## Event taxonomy
 
@@ -81,6 +208,7 @@ columns below omit that injected field; both reducers tolerate it.
 | human | `choice.selected` | `{blockId, optionIds}` | Last-write-wins per block. |
 | human | `feedback.created` | `{id, blockId, text}` | Append to the block's feedback list. |
 | human | `input.submitted` | `{blockId, text}` | Last-write-wins per block. |
+| human | `pack.interaction` | `{blockId, payload}` | Last-write-wins per block. `payload` is the pack-defined interaction object, stored opaquely — the reducer never inspects its shape. The REST edge validates it against the block's declared interaction schema before appending. |
 | human | `submit` | `{revision}` | Set submitted with the revision. When the round is dirty, additionally snapshot the current round into `rounds.history` with `submittedRevision` set, advance `rounds.current`, and clear the title; a clean submit records only the revision. Does not close the document, so rounds continue. The REST plane rejects a revision the log never produced (below 0 or past the current revision). |
 
 Post-close events are no-ops, not errors, by design. A human click can race an
@@ -107,6 +235,7 @@ interactions = {
   decisions: { [blockId]: {verdict, note?} },     // last-write-wins
   choices:   { [blockId]: {optionIds} },          // last-write-wins
   inputs:    { [blockId]: {text, round} },        // last-write-wins; round-stamped
+  packs:     { [blockId]: {payload} },            // last-write-wins; opaque payload
   feedback:  { [blockId]: {id, text}[] },         // append-only
   replies:   { [blockId]: {id, md}[] },           // append-only
   submitted: {value, revision},
@@ -118,11 +247,11 @@ rounds = {
   blockRounds: { [topLevelBlockId]: number },     // round of the block's last agent touch
   history: RoundRecord[]                          // closed rounds, ascending
 }
-RoundRecord = { number, title?, blocks, decisions, choices, inputs, feedback, submittedRevision? }
+RoundRecord = { number, title?, blocks, decisions, choices, inputs, packs, feedback, submittedRevision? }
 ```
 
 `Reduce` starts from an empty document with `version 1`, no title, and no blocks, so
-a `block.upserted` before any `doc.replaced` appends to it. All five interaction maps
+a `block.upserted` before any `doc.replaced` appends to it. All six interaction maps
 are always present, empty when unused. A fixture's `expected` may omit an empty map,
 and the reducer treats the omission as empty.
 
@@ -148,8 +277,8 @@ closed round, and the REST plane rejects interactions on them (below).
 
 **Snapshots.** Each closed round lands in `history` as a `RoundRecord`: deep
 copies of the blocks stamped with that round, plus the decisions, choices,
-inputs, and feedback filtered to those blocks' ids, including one level of card
-children. `submittedRevision` is set only when a submit closed the round.
+inputs, pack interactions, and feedback filtered to those blocks' ids, including
+one level of card children. `submittedRevision` is set only when a submit closed the round.
 
 **Revision is not round.** The revision counts `doc.replaced` events only;
 `round.started` never bumps it, and a round can span many revisions or none.
@@ -158,13 +287,16 @@ children. `submittedRevision` is set only when a submit closed the round.
 
 | Method | Path | Body | Purpose |
 |---|---|---|---|
-| `POST` | `/api/interactions` | `{subject, nonce, interaction}` | Submit one human interaction. `interaction` is a discriminated union over the human event payloads. The handler validates `blockId` and type against the reduced document, then appends. |
+| `POST` | `/api/interactions` | `{subject, nonce, interaction}` | Submit one human interaction. `interaction` is a discriminated union over the human event payloads. The handler validates `blockId` and type against the reduced document, then appends. The body is capped at **256 KiB**. |
 | `POST` | `/api/assets` | image bytes | Store an image content-addressed; returns its `asset:<sha256>`. A body that does not sniff as an image is rejected with 415. |
 | `GET` | `/assets/{sha}` | none | Fetch a stored asset by its sha256. |
 | `GET` | `/api/sessions` | none | List the open artifacts, most-recently-updated first (see Session listing). |
+| `GET` | `/api/packs` | none | List the installed block packs with inlined schemas, plus the dropped candidates (see Block packs). |
+| `GET` | `/packs/{pack}/{file}` | none | Fetch a pack's prebuilt bundle asset from its `dist/` subtree (see Block packs). |
 
 A block-scoped interaction (`decision.created`, `choice.selected`,
-`feedback.created`, `input.submitted`) whose enclosing top-level block belongs
+`feedback.created`, `input.submitted`, `pack.interaction`) whose enclosing
+top-level block belongs
 to a closed round is rejected with `400 block "<id>" belongs to closed round
 <n>`. `submit` is exempt from the round guard — it is what closes a round.
 
@@ -181,7 +313,8 @@ on a non-loopback bind with no token; it never serves an off-host request
 unauthenticated.
 
 The auth middleware wraps the whole plane: `GET /events`, the REST routes,
-`/assets/{sha}`, and the SPA.
+`/assets/{sha}`, the pack routes (`/api/packs` and `/packs/{pack}/{file}`), and
+the SPA.
 
 - A loopback request always passes, token or no token. The check reads the
   immediate TCP peer (a v4-in-v6 `::ffff:127.0.0.1` counts as loopback), so a

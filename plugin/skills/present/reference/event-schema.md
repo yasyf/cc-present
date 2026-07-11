@@ -10,6 +10,7 @@
 | `choice.selected` | `{"blockId":"opener-choice","optionIds":["punchy"],"type":"choice.selected"}` — `optionIds` is always an array, possibly empty | Last-write-wins per block | Informational until submit. |
 | `feedback.created` | `{"blockId":"cli-approval","id":"9f2c11ab","text":"mention the exit code","type":"feedback.created"}` | Append-only per block; `id` is the entry's stable identity | `reply --block` under it; redraft the card via `update-block` with `"status": "redrafted"` when warranted. |
 | `input.submitted` | `{"blockId":"board-notes","text":"also check the docs site","type":"input.submitted"}` | Last-write-wins per block | Informational until submit. |
+| `pack.interaction` | `{"blockId":"ex-rating","payload":{"value":4},"type":"pack.interaction"}` — `payload` is the pack block's own interaction shape, validated against the pack's interaction schema at the REST edge | Last-write-wins per block; the reducer stores the payload verbatim under `interactions.packs`, never inspecting its shape | Informational until submit; the pack's reference fragment says what the payload means. |
 | `submit` | `{"revision":1,"type":"submit"}` | Marks submitted with the revision; when the round is dirty (some top-level block was agent-touched this round) it also snapshots the round into `rounds.history` (with `submittedRevision`) and advances the round. Never closes the artifact | Run `outcomes`, summarize in chat, apply, then start the next round or `close`. |
 | `channel.changed` | `{"type":"channel.changed","connected":true}` | Presence frame (system origin); skipped by the reducer | Informational — a browser tab connected or dropped. Needs no reply. |
 | `present.closed` | `{"summary":"Both drafts approved.","type":"present.closed"}` — `summary` only when `close --summary` passed one | Terminal (system origin): your own `close` echoing back; every later event is a no-op in the reduction | Nothing — `watch` exits on it, so its Monitor completes on its own. |
@@ -39,6 +40,7 @@ For completeness — these are what your own CLI calls append. The browser reduc
     "decisions": { "cli-approval": { "verdict": "approved" } },
     "choices":   { "opener-choice": { "optionIds": ["punchy"] } },
     "inputs":    { "board-notes": { "text": "also check the docs site", "round": 1 } },
+    "packs":     { "ex-rating": { "payload": { "value": 4 } } },
     "feedback":  { "cli-approval": [ { "id": "9f2c11ab", "text": "mention the exit code" } ] },
     "replies":   { "cli-approval": [ { "id": "4dd66d6b", "md": "Adding it." } ] },
     "submitted": { "value": true, "revision": 1 },
@@ -48,7 +50,7 @@ For completeness — these are what your own CLI calls append. The browser reduc
     "current": 2,
     "blockRounds": { "card-cli": 2, "card-opener": 1 },
     "history": [
-      { "number": 1, "blocks": [], "decisions": {}, "choices": {}, "inputs": {}, "feedback": {}, "submittedRevision": 1 }
+      { "number": 1, "blocks": [], "decisions": {}, "choices": {}, "inputs": {}, "packs": {}, "feedback": {}, "submittedRevision": 1 }
     ]
   }
 }

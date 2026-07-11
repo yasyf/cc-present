@@ -25,6 +25,8 @@ Write the document JSON to a file in your **session scratchpad** and pass the pa
 - A card whose children run past ~2 screens splits into multiple cards.
 - Local image paths in `image` blocks are fine — `push`, `update-block`, and `start --doc` inline them automatically.
 
+**Pack blocks.** When no built-in fits, installed block packs may supply extra types. Run `"${CLAUDE_PLUGIN_ROOT}/bin/cc-present" pack list` to see them: each block prints as a dotted type (`example.rating`), and each pack prints the absolute path of its reference fragment — read that fragment before first use; it documents the pack's fields the way `reference/blocks.md` documents the built-ins. Compose a dotted type like any other block. `push --dry-run` validates pack blocks against their schemas too; an uninstalled dotted type fails the dry run with `pack block type "example.rating" is not installed`.
+
 Validate offline before starting (no daemon needed):
 
 ```bash
@@ -76,6 +78,7 @@ Each event (Monitor line or channel tag) is the event's JSON payload, self-descr
 | `decision.created` | `{blockId, note?, type, verdict}` | `rejected` — redraft: upsert the card with alternates folded in. `approved` — optionally upsert with `"status": "resolved"`. `cleared` — the human withdrew their verdict; nothing to do. |
 | `choice.selected` | `{blockId, optionIds, type}` | Informational until submit. |
 | `input.submitted` | `{blockId, text, type}` | Informational until submit. |
+| `pack.interaction` | `{blockId, payload, type}` | A pack block's interaction; `payload`'s shape is the pack's own — see its reference fragment. Informational until submit. |
 | `submit` | `{revision, type}` | Also closes the current round when you've touched a block this round. Go to step 5. |
 | `channel.changed` | `{type, connected}` | Presence — a browser tab connected or dropped. Informational. |
 | `present.closed` | `{summary?, type}` | Your own `close` echoing back — terminal. `watch` exits on it, completing its Monitor; nothing to do. |

@@ -4,6 +4,39 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- Block packs: plugins teach the board new typed blocks. A pack is a
+  directory with a `cc-present.toml` manifest, a JSON Schema per block (plus
+  an interaction schema when the block is interactive), and a prebuilt JS
+  bundle. The daemon discovers packs from configured dev dirs and installed
+  Claude plugins — dev shadows installed, and a broken or duplicate candidate
+  drops fail-soft with a reason instead of sinking the registry — validates
+  every pack file against a 512 KiB cap inside an `os.Root`, and serves the
+  registry at `GET /api/packs` and each pack's `dist/` files at
+  `GET /packs/{pack}/{file...}`, contained to the pack root.
+- `pack.interaction`, the human event for interactive pack blocks: the REST
+  edge validates its payload against the block's interaction schema under the
+  same 256 KiB body cap as every interaction, and the reducer folds it
+  last-write-wins into `interactions.packs` without inspecting the payload's
+  shape. Closed rounds snapshot pack values like decisions and inputs.
+- `cc-present pack list`, printing the discovered packs, each block's dotted
+  type, the reference fragment path, and the dropped candidates with reasons;
+  and `cc-present pack lint <dir>`, fail-loud validation of a pack root
+  (manifest, schemas, examples) that exits non-zero on the first violation.
+- Single-block render mode: `/p/<subject>?block=<id>` renders one block bare
+  and reports its height through the `ccPresentHeight` WebKit message
+  handler — the embedding surface for native clients.
+- iOS pack rendering: a pack block renders through `PackBlockWebView`, a
+  content-sized WKWebView on the single-block route, so plugin blocks work on
+  the phone with no Swift-side renderer.
+
+### Changed
+- `Doc.Validate` (Go API) now takes a `doc.PackTypes`, so a document carrying
+  dotted pack block types validates against the installed registry;
+  `doc.NoPacks` preserves the packless behavior.
+
 ## [0.5.0] - 2026-07-10
 
 ### Fixed
@@ -156,7 +189,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   marketplace.
 - `examples/opener-board.json`, a complete sample document.
 
-[Unreleased]: https://github.com/yasyf/cc-present/compare/v0.3.0...main
+[Unreleased]: https://github.com/yasyf/cc-present/compare/v0.5.0...main
+[0.5.0]: https://github.com/yasyf/cc-present/compare/v0.4.0...v0.5.0
+[0.4.0]: https://github.com/yasyf/cc-present/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/yasyf/cc-present/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/yasyf/cc-present/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/yasyf/cc-present/compare/v0.1.0...v0.2.0

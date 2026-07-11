@@ -101,4 +101,8 @@ A complete sample document lives in [`examples/opener-board.json`](examples/open
 
 Under the hood, a per-user daemon owns one append-only event log per artifact. The agent writes one lane, the human writes the other, and the page is a pure reduction of the log. A fresh tab replays it over SSE, and an agent redraft never clobbers your verdict.
 
+## Block packs
+
+The block vocabulary isn't closed. A block pack teaches the board new typed blocks — interactive ones included, whose clicks stream back like any built-in block — and a Claude plugin can ship a pack alongside its skills. [docs/packs.md](docs/packs.md) covers authoring, installing, and linting packs.
+
 Per-command flags, the daemon lifecycle, and the channel are all in `cc-present --help`. Licensed under [PolyForm Noncommercial 1.0.0](LICENSE).
