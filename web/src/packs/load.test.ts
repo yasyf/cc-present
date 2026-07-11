@@ -3,6 +3,7 @@ import { loadPacks, resetLoadForTest } from './load';
 import { getInteractivePackTypes, getPackComponent, getPackDefState, resetPacksForTest } from './registry';
 import type { PackComponent } from './registry';
 import type { PacksResponse } from './manifest';
+import { resetTokenForTest } from '../token';
 
 const RatingComponent: PackComponent = () => null;
 
@@ -146,5 +147,46 @@ describe('loadPacks style injection', () => {
     expect(links[0]?.rel).toBe('stylesheet');
     expect(links[0]?.href).toBe('/packs/ex/dist/pack.css?v=0.1.0');
     expect(links[0]?.dataset.packStyle).toBe('/packs/ex/dist/pack.css?v=0.1.0');
+  });
+});
+
+describe('loadPacks token propagation', () => {
+  const links: { rel: string; href: string; dataset: Record<string, string> }[] = [];
+
+  beforeEach(() => {
+    links.length = 0;
+    (globalThis as { document?: unknown }).document = {
+      querySelector: () => null,
+      createElement: () => ({ rel: '', href: '', dataset: {} as Record<string, string> }),
+      head: { appendChild: (el: (typeof links)[number]) => links.push(el) },
+    };
+  });
+
+  afterEach(() => {
+    delete (globalThis as { document?: unknown }).document;
+    delete (globalThis as { window?: unknown }).window;
+    resetTokenForTest();
+  });
+
+  it('threads the page token through the manifest fetch, bundle import, and styles link', async () => {
+    (globalThis as { window?: unknown }).window = { location: { search: '?token=T0' } };
+    resetTokenForTest();
+    const fetchFn = fetchOk(manifest({ styles: '/packs/ex/dist/pack.css?v=0.1.0' }));
+    const importFn = vi.fn<ImportFn>(async () => ({ default: { hostApi: 1, blocks: { rating: RatingComponent } } }));
+    await loadPacks(fetchFn, importFn);
+    expect(fetchFn).toHaveBeenCalledWith('/api/packs?token=T0');
+    expect(importFn).toHaveBeenCalledWith('/packs/ex/dist/pack.js?v=0.1.0&token=T0');
+    expect(links[0]?.href).toBe('/packs/ex/dist/pack.css?v=0.1.0&token=T0');
+    expect(links[0]?.dataset.packStyle).toBe('/packs/ex/dist/pack.css?v=0.1.0&token=T0');
+  });
+
+  it('leaves every request URL byte-identical when no token is present', async () => {
+    resetTokenForTest();
+    const fetchFn = fetchOk(manifest({ styles: '/packs/ex/dist/pack.css?v=0.1.0' }));
+    const importFn = vi.fn<ImportFn>(async () => ({ default: { hostApi: 1, blocks: { rating: RatingComponent } } }));
+    await loadPacks(fetchFn, importFn);
+    expect(fetchFn).toHaveBeenCalledWith('/api/packs');
+    expect(importFn).toHaveBeenCalledWith('/packs/ex/dist/pack.js?v=0.1.0');
+    expect(links[0]?.href).toBe('/packs/ex/dist/pack.css?v=0.1.0');
   });
 });

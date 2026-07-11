@@ -10,6 +10,7 @@
 import { createEventStream } from '@cc-interact/react';
 import { applyEvent } from './reduce';
 import { presentKey, revisionKey } from './api';
+import { withToken } from './token';
 import type { PresentEvent, PresentState, WireFrame } from './events';
 
 // frameToEvent lifts a flat self-describing wire frame into the reducer's
@@ -22,6 +23,9 @@ function frameToEvent(frame: WireFrame): PresentEvent {
 
 export const { EventStreamProvider, useEventStream } = createEventStream<WireFrame, PresentState>({
   queryKey: (subject) => presentKey(subject),
+  // Mirror the library's default `/events?session=<subject>`, then carry the page
+  // token so an off-loopback EventSource authenticates; loopback stays byte-identical.
+  url: (subject) => withToken(`/events?session=${encodeURIComponent(subject)}`),
   reduce: (cache, frame) => applyEvent(cache, frameToEvent(frame)),
   toast: (frame) => {
     // Every toasted type is agent-authored; the browser's own human echoes and

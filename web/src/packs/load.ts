@@ -6,6 +6,7 @@
 import { markFailed, markPacksLoaded, registerPack } from './registry';
 import type { PackComponent } from './registry';
 import type { PackInfo, PacksResponse } from './manifest';
+import { withToken } from '../token';
 
 type FetchFn = typeof fetch;
 type ImportFn = (url: string) => Promise<unknown>;
@@ -43,7 +44,7 @@ async function doLoad(fetchFn: FetchFn, importFn: ImportFn): Promise<void> {
 async function loadManifest(fetchFn: FetchFn): Promise<PackInfo[]> {
   let body: unknown;
   try {
-    const res = await fetchFn('/api/packs');
+    const res = await fetchFn(withToken('/api/packs'));
     if (!res.ok) return [];
     body = await res.json();
   } catch {
@@ -75,7 +76,7 @@ function isPackInfo(def: unknown): def is PackInfo {
 
 async function importPack(def: PackInfo, importFn: ImportFn): Promise<void> {
   try {
-    const mod = (await importFn(def.bundle)) as PackModule;
+    const mod = (await importFn(withToken(def.bundle))) as PackModule;
     const bundle = mod.default;
     if (!bundle || bundle.hostApi !== 1 || !isPlainObject(bundle.blocks)) {
       markFailed(def.name);
@@ -90,7 +91,7 @@ async function importPack(def: PackInfo, importFn: ImportFn): Promise<void> {
       const comp = bundleBlocks[bare];
       if (isComponent(comp)) components[bare] = comp as PackComponent;
     }
-    if (def.styles) injectStyles(def.styles);
+    if (def.styles) injectStyles(withToken(def.styles));
     registerPack(def, components);
   } catch {
     markFailed(def.name);
