@@ -1,1 +1,1 @@
-{"v":1,"lamport":1,"ops":[{"kind":"create_task","nonce":"c2636548dc22a9bb0dd07ae7303a7304","title":"Block packs Phase 6: docs + skill updates","description":"","type":"task","priority":2,"branch":"","parent":"","labels":null},{"kind":"add_criterion","id":"56b9681ae13779570567efd119b8d269","text":"contract.md, docs/packs.md, skill references updated per plan; slop-cop clean on every touched page","script":""}]}
+{"v":1,"lamport":2,"ops":[{"kind":"set_criterion_status","id":"56b9681ae13779570567efd119b8d269","status":"met"}]}
