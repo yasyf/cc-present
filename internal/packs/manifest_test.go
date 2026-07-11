@@ -89,6 +89,9 @@ func TestBuildPackErrors(t *testing.T) {
 		{"entry not under dist", func(f map[string]string) {
 			f["cc-present.toml"] = strings.Replace(validManifest, `entry = "dist/pack.js"`, `entry = "pack.js"`, 1)
 		}, "must be under dist/"},
+		{"styles not under dist", func(f map[string]string) {
+			f["cc-present.toml"] = strings.Replace(validManifest, `styles = "dist/pack.css"`, `styles = "pack.css"`, 1)
+		}, `styles "pack.css" must be under dist/`},
 		{"schema escapes root", func(f map[string]string) {
 			f["cc-present.toml"] = strings.Replace(validManifest, `schema = "schema/callout.json"`, `schema = "../../etc/passwd"`, 1)
 		}, "resolve inside the pack root"},

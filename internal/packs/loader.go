@@ -54,7 +54,7 @@ func (l *Loader) Current() *Registry {
 }
 
 func (l *Loader) scanLocked() {
-	roots := discoverRoots(l.devDirs, l.configDir)
-	l.current = buildRegistry(roots, l.disabled)
+	roots, dropped := discoverRoots(l.devDirs, l.configDir)
+	l.current = buildRegistry(roots, dropped, l.disabled)
 	l.scannedAt = time.Now()
 }

@@ -104,7 +104,7 @@ root.
 | `version` | yes | Non-empty; cache-busts the bundle and styles URLs. |
 | `description` | no | Prose shown in `/api/packs` and `pack list`. |
 | `entry` | yes | The ES-module bundle; must live under `dist/`. |
-| `styles` | no | A stylesheet the SPA injects once per page. |
+| `styles` | no | A stylesheet the SPA injects once per page; must live under `dist/`. |
 | `reference` | no | A Markdown fragment describing the blocks for an authoring agent; `pack list` prints its absolute path. |
 | `blocks.<name>` | one or more | One table per block type; `<name>` matches the same pattern as `name`. |
 | `blocks.<name>.description` | yes | Non-empty prose. |

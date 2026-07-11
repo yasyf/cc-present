@@ -95,6 +95,9 @@ func (m *Manifest) validate() error {
 	if err := optionalContained("styles", m.Styles); err != nil {
 		return err
 	}
+	if m.Styles != "" && !underDist(m.Styles) {
+		return fmt.Errorf("styles %q must be under dist/", m.Styles)
+	}
 	if err := optionalContained("reference", m.Reference); err != nil {
 		return err
 	}

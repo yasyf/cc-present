@@ -7,7 +7,8 @@ import (
 
 func TestDiscoverDisableList(t *testing.T) {
 	devDir := writeTree(t, packFiles("foo"))
-	reg := buildRegistry(discoverRoots([]string{devDir}, t.TempDir()), []string{"foo"})
+	roots, dropped := discoverRoots([]string{devDir}, t.TempDir())
+	reg := buildRegistry(roots, dropped, []string{"foo"})
 	if names := packNames(reg); len(names) != 0 {
 		t.Fatalf("packs = %v, want none", names)
 	}
@@ -22,7 +23,8 @@ func TestDiscoverDevShadowsInstalled(t *testing.T) {
 	configDir := t.TempDir()
 	writeInstalledPlugins(t, configDir, map[string][]string{"foo@mkt": {install}})
 
-	reg := buildRegistry(discoverRoots([]string{devDir}, configDir), nil)
+	roots, dropped := discoverRoots([]string{devDir}, configDir)
+	reg := buildRegistry(roots, dropped, nil)
 	if names := packNames(reg); len(names) != 1 || names[0] != "foo" {
 		t.Fatalf("packs = %v, want [foo]", names)
 	}
@@ -38,7 +40,8 @@ func TestDiscoverDevShadowsInstalled(t *testing.T) {
 func TestDiscoverSameTierDupes(t *testing.T) {
 	dev1 := writeTree(t, packFiles("dup"))
 	dev2 := writeTree(t, packFiles("dup"))
-	reg := buildRegistry(discoverRoots([]string{dev1, dev2}, t.TempDir()), nil)
+	roots, dropped := discoverRoots([]string{dev1, dev2}, t.TempDir())
+	reg := buildRegistry(roots, dropped, nil)
 	if names := packNames(reg); len(names) != 0 {
 		t.Fatalf("packs = %v, want none", names)
 	}
@@ -53,7 +56,8 @@ func TestDiscoverRottedAmongTwo(t *testing.T) {
 	delete(badFiles, "schema/callout.json")
 	bad := writeTree(t, badFiles)
 
-	reg := buildRegistry(discoverRoots([]string{good, bad}, t.TempDir()), nil)
+	roots, dropped := discoverRoots([]string{good, bad}, t.TempDir())
+	reg := buildRegistry(roots, dropped, nil)
 	if names := packNames(reg); len(names) != 1 || names[0] != "good" {
 		t.Fatalf("packs = %v, want [good]", names)
 	}
@@ -67,7 +71,8 @@ func TestDiscoverPluginPack(t *testing.T) {
 	configDir := t.TempDir()
 	writeInstalledPlugins(t, configDir, map[string][]string{"plug@mkt": {install}})
 
-	reg := buildRegistry(discoverRoots(nil, configDir), nil)
+	roots, dropped := discoverRoots(nil, configDir)
+	reg := buildRegistry(roots, dropped, nil)
 	if names := packNames(reg); len(names) != 1 || names[0] != "plug" {
 		t.Fatalf("packs = %v, want [plug]", names)
 	}
@@ -78,15 +83,50 @@ func TestDiscoverPluginWithoutComponentsSkipped(t *testing.T) {
 	configDir := t.TempDir()
 	writeInstalledPlugins(t, configDir, map[string][]string{"empty@mkt": {install}})
 
-	roots := discoverRoots(nil, configDir)
+	roots, _ := discoverRoots(nil, configDir)
 	if len(roots) != 0 {
 		t.Fatalf("roots = %v, want none (silently skipped)", roots)
 	}
 }
 
 func TestDiscoverNoPluginsFile(t *testing.T) {
-	if roots := discoverRoots(nil, t.TempDir()); len(roots) != 0 {
-		t.Fatalf("roots = %v, want none", roots)
+	roots, dropped := discoverRoots(nil, t.TempDir())
+	if len(roots) != 0 || len(dropped) != 0 {
+		t.Fatalf("roots = %v, dropped = %v, want both empty", roots, dropped)
+	}
+}
+
+func TestDiscoverMalformedPluginsFile(t *testing.T) {
+	configDir := t.TempDir()
+	writeTreeInto(t, configDir, map[string]string{
+		filepath.Join("plugins", "installed_plugins.json"): "{not valid json",
+	})
+	path := filepath.Join(configDir, "plugins", "installed_plugins.json")
+
+	roots, dropped := discoverRoots(nil, configDir)
+	reg := buildRegistry(roots, dropped, nil)
+	if names := packNames(reg); len(names) != 0 {
+		t.Fatalf("packs = %v, want none", names)
+	}
+	if !hasDropReason(reg, path, "parse error") {
+		t.Fatalf("dropped = %+v, want parse error naming %s", reg.Dropped, path)
+	}
+}
+
+func TestDiscoverUnsupportedPluginsVersion(t *testing.T) {
+	configDir := t.TempDir()
+	writeTreeInto(t, configDir, map[string]string{
+		filepath.Join("plugins", "installed_plugins.json"): `{"version":3,"plugins":{}}`,
+	})
+	path := filepath.Join(configDir, "plugins", "installed_plugins.json")
+
+	roots, dropped := discoverRoots(nil, configDir)
+	reg := buildRegistry(roots, dropped, nil)
+	if names := packNames(reg); len(names) != 0 {
+		t.Fatalf("packs = %v, want none", names)
+	}
+	if !hasDropReason(reg, path, "version 3 unsupported") {
+		t.Fatalf("dropped = %+v, want version 3 unsupported naming %s", reg.Dropped, path)
 	}
 }
 
@@ -97,7 +137,8 @@ func TestDiscoverDedupeByInstallPath(t *testing.T) {
 		"a@mkt": {install},
 		"b@mkt": {install},
 	})
-	if roots := discoverRoots(nil, configDir); len(roots) != 1 {
+	roots, _ := discoverRoots(nil, configDir)
+	if len(roots) != 1 {
 		t.Fatalf("roots = %d, want 1 (deduped by installPath)", len(roots))
 	}
 }

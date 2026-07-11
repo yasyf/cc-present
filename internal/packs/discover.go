@@ -3,6 +3,7 @@ package packs
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io/fs"
 	"log/slog"
 	"os"
@@ -49,33 +50,34 @@ func ClaudeConfigDir() string {
 
 // discoverRoots lists pack roots: the configured dev dirs in order, then the
 // installed plugins whose components dir holds a manifest, sorted by plugin key.
-func discoverRoots(devDirs []string, configDir string) []packRoot {
+func discoverRoots(devDirs []string, configDir string) ([]packRoot, []DroppedPack) {
 	roots := make([]packRoot, 0, len(devDirs))
 	for _, d := range devDirs {
 		roots = append(roots, packRoot{dir: d, tier: tierDev})
 	}
-	return append(roots, pluginRoots(configDir)...)
+	plugins, dropped := pluginRoots(configDir)
+	return append(roots, plugins...), dropped
 }
 
-func pluginRoots(configDir string) []packRoot {
+func pluginRoots(configDir string) ([]packRoot, []DroppedPack) {
 	path := filepath.Join(configDir, "plugins", "installed_plugins.json")
 	//nolint:gosec // G304: reading the Claude config's installed_plugins.json is discovery's purpose.
 	data, err := os.ReadFile(path)
 	if errors.Is(err, fs.ErrNotExist) {
-		return nil
+		return nil, nil
 	}
 	if err != nil {
 		slog.Warn("read installed plugins", "path", path, "err", err)
-		return nil
+		return nil, nil
 	}
 	var ip installedPlugins
 	if err := json.Unmarshal(data, &ip); err != nil {
 		slog.Warn("parse installed plugins", "path", path, "err", err)
-		return nil
+		return nil, []DroppedPack{{Dir: path, Reason: fmt.Sprintf("installed_plugins.json parse error: %v", err)}}
 	}
 	if ip.Version != 2 {
 		slog.Warn("unsupported installed_plugins.json version", "path", path, "version", ip.Version)
-		return nil
+		return nil, []DroppedPack{{Dir: path, Reason: fmt.Sprintf("installed_plugins.json version %d unsupported (want 2)", ip.Version)}}
 	}
 	keys := make([]string, 0, len(ip.Plugins))
 	for k := range ip.Plugins {
@@ -102,7 +104,7 @@ func pluginRoots(configDir string) []packRoot {
 			roots = append(roots, packRoot{dir: components, tier: tierPlugin})
 		}
 	}
-	return roots
+	return roots, nil
 }
 
 func fileExists(p string) bool {

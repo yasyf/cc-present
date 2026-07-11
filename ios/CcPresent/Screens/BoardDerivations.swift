@@ -94,6 +94,10 @@ func roundTally(_ record: RoundRecord) -> RoundTally {
             if !text.isEmpty {
                 filledInputs += 1
             }
+        case let .pack(pack):
+            if record.packs[pack.id] != nil {
+                picks += 1
+            }
         default:
             break
         }

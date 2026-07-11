@@ -67,3 +67,18 @@ private func card(_ id: String, children: [Block]) -> Block {
 
     #expect(tally == RoundTally(approved: 1, rejected: 1, picks: 1, notes: 3))
 }
+
+@Test func roundTallyCountsInteractedPackBlockAsPick() {
+    let record = RoundRecord(
+        number: 3,
+        blocks: [
+            .pack(Block.Pack(id: "pk1", packType: "ex.rating", raw: .object(["id": .string("pk1"), "type": .string("ex.rating")]))),
+            .pack(Block.Pack(id: "pk2", packType: "ex.rating", raw: .object(["id": .string("pk2"), "type": .string("ex.rating")]))),
+        ],
+        packs: ["pk1": PackValue(payload: .object(["value": .int(5)]))]
+    )
+
+    let tally = roundTally(record)
+
+    #expect(tally == RoundTally(approved: 0, rejected: 0, picks: 1, notes: 0))
+}

@@ -25,7 +25,7 @@ func TestBuildPackSchemaSymlinkEscape(t *testing.T) {
 	}
 
 	// scan: the pack drops with a reason naming the escaping schema path.
-	reg := buildRegistry([]packRoot{{dir: dir, tier: tierDev}}, nil)
+	reg := buildRegistry([]packRoot{{dir: dir, tier: tierDev}}, nil, nil)
 	if names := packNames(reg); len(names) != 0 {
 		t.Fatalf("packs = %v, want none (symlinked schema dropped)", names)
 	}
@@ -41,7 +41,7 @@ func TestBuildPackSchemaSymlinkEscape(t *testing.T) {
 
 func TestRegistryValidateBlock(t *testing.T) {
 	dir := writeTree(t, validFiles())
-	reg := buildRegistry([]packRoot{{dir: dir, tier: tierDev}}, nil)
+	reg := buildRegistry([]packRoot{{dir: dir, tier: tierDev}}, nil, nil)
 	if names := packNames(reg); len(names) != 1 || names[0] != "example" {
 		t.Fatalf("packs = %v, want [example]", names)
 	}
@@ -74,7 +74,7 @@ func TestRegistryValidateBlock(t *testing.T) {
 
 func TestRegistryValidateInteraction(t *testing.T) {
 	dir := writeTree(t, validFiles())
-	reg := buildRegistry([]packRoot{{dir: dir, tier: tierDev}}, nil)
+	reg := buildRegistry([]packRoot{{dir: dir, tier: tierDev}}, nil, nil)
 
 	tests := []struct {
 		name    string
@@ -105,7 +105,7 @@ func TestRegistryValidateInteraction(t *testing.T) {
 
 func TestRegistrySatisfiesPackTypes(t *testing.T) {
 	dir := writeTree(t, validFiles())
-	var pt doc.PackTypes = buildRegistry([]packRoot{{dir: dir, tier: tierDev}}, nil)
+	var pt doc.PackTypes = buildRegistry([]packRoot{{dir: dir, tier: tierDev}}, nil, nil)
 
 	var ok doc.Doc
 	if err := json.Unmarshal([]byte(`{"version":1,"title":"T","blocks":[{"id":"c","type":"example.callout"}]}`), &ok); err != nil {

@@ -120,8 +120,8 @@ type builtPack struct {
 	root packRoot
 }
 
-func buildRegistry(roots []packRoot, disabled []string) *Registry {
-	r := &Registry{byType: map[string]*BlockType{}}
+func buildRegistry(roots []packRoot, dropped []DroppedPack, disabled []string) *Registry {
+	r := &Registry{byType: map[string]*BlockType{}, Dropped: dropped}
 	disabledSet := map[string]bool{}
 	for _, d := range disabled {
 		disabledSet[d] = true
