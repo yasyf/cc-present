@@ -3,7 +3,7 @@
 // document carries only agent-owned display state (card status, progress);
 // human verdicts live in the separate interaction reduction (see events.ts).
 
-export type BlockType =
+export type BuiltinBlockType =
   | 'section'
   | 'card'
   | 'approval'
@@ -152,6 +152,22 @@ export interface Progress {
   state?: ProgressState;
 }
 
+// --- Pack blocks (plugin-supplied leaves) ---
+
+// A pack block's wire type is two dot-separated segments, `<pack>.<name>`.
+// Built-in types never contain a dot, so a dotted type is unambiguously a pack
+// block and narrowing on `type` stays sound across the whole Block union.
+export type PackBlockType = `${string}.${string}`;
+
+// A plugin-supplied leaf block. Its body is opaque to the host: the id and the
+// dotted type are known, every other field is preserved verbatim and rendered by
+// the pack's own bundle. It nests as a card child like any built-in leaf.
+export interface PackBlock {
+  id: string;
+  type: PackBlockType;
+  [key: string]: unknown;
+}
+
 // --- Unions ---
 
 export type StructuralBlock = Section | Card;
@@ -159,13 +175,25 @@ export type InteractiveBlock = Approval | Choice | Input;
 export type ContentBlock = Markdown | Code | Diff | Image | Table | Progress;
 
 // A card nests exactly one level of these leaf blocks; it cannot nest a section
-// or another card.
-export type ChildBlock = InteractiveBlock | ContentBlock;
+// or another card. Pack blocks are leaves and join the child set.
+export type ChildBlock = InteractiveBlock | ContentBlock | PackBlock;
 
-// A block. A section, a card, or any of the nine leaf blocks may appear directly
-// in Doc.blocks; a card nests leaf blocks only. The document body and every
-// block.upserted patch carry one of these.
+// A block. A section, a card, any built-in leaf, or a pack block may appear
+// directly in Doc.blocks; a card nests leaf blocks only. The document body and
+// every block.upserted patch carry one of these.
 export type Block = StructuralBlock | ChildBlock;
+
+// isPackBlock narrows a block to the opaque pack leaf: a dotted type is a pack
+// block, a dot-free built-in type never is.
+export function isPackBlock(block: Block): block is PackBlock {
+  return block.type.includes('.');
+}
+
+// packNameOf is the pack namespace of a pack block type: the segment before the
+// first dot.
+export function packNameOf(type: PackBlockType): string {
+  return type.slice(0, type.indexOf('.'));
+}
 
 export interface Doc {
   version: 1;

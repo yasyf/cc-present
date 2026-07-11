@@ -1,4 +1,5 @@
 import { CollapsedGroup } from '@cc-interact/react';
+import { isPackBlock } from '../schema';
 import type { Interactions, RoundRecord } from '../events';
 import { flatten } from '../decide';
 import { BlockRenderer } from './BlockRenderer';
@@ -11,6 +12,7 @@ export function RoundGroup({ record, interactions }: { record: RoundRecord; inte
     decisions: record.decisions,
     choices: record.choices,
     inputs: record.inputs,
+    packs: record.packs,
     feedback: record.feedback,
     replies: interactions.replies,
     submitted: interactions.submitted,
@@ -20,7 +22,11 @@ export function RoundGroup({ record, interactions }: { record: RoundRecord; inte
   const all = flatten(record.blocks);
   const approved = all.filter((b) => b.type === 'approval' && record.decisions[b.id]?.verdict === 'approved').length;
   const rejected = all.filter((b) => b.type === 'approval' && record.decisions[b.id]?.verdict === 'rejected').length;
-  const picks = all.filter((b) => b.type === 'choice' && (record.choices[b.id]?.optionIds.length ?? 0) > 0).length;
+  const picks = all.filter(
+    (b) =>
+      (b.type === 'choice' && (record.choices[b.id]?.optionIds.length ?? 0) > 0) ||
+      (isPackBlock(b) && record.packs[b.id] !== undefined),
+  ).length;
   const filledInputs = all.filter((b) => b.type === 'input' && (record.inputs[b.id]?.text.trim() ?? '') !== '').length;
   const notes = filledInputs + all.reduce((n, b) => n + (record.feedback[b.id]?.length ?? 0), 0);
 

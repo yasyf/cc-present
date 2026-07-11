@@ -1,4 +1,5 @@
-import type { Block } from '../schema';
+import type { ComponentType } from 'react';
+import { isPackBlock, type Block, type BuiltinBlockType } from '../schema';
 import type { Interactions } from '../events';
 import { Section } from './Section';
 import { Card } from './Card';
@@ -11,39 +12,39 @@ import { DiffView } from './DiffView';
 import { ImageView } from './ImageView';
 import { TableView } from './TableView';
 import { ProgressView } from './ProgressView';
+import { PackBlockView } from './PackBlockView';
 
 export interface BlockProps {
   block: Block;
   interactions: Interactions;
 }
 
-// BlockRenderer dispatches on the block's type. The default arm is never-checked,
-// so a new block type is a compile error until it is handled here.
+type BuiltinRenderer<T extends BuiltinBlockType> = ComponentType<{
+  block: Extract<Block, { type: T }>;
+  interactions: Interactions;
+}>;
+
+// The built-in dispatch table. The mapped type is exhaustive: a new built-in
+// block type is a compile error until it is added here, and an unknown key is
+// rejected. Components that ignore `interactions` still satisfy the entry.
+const BUILTIN: { [T in BuiltinBlockType]: BuiltinRenderer<T> } = {
+  section: Section,
+  card: Card,
+  approval: Approval,
+  choice: Choice,
+  input: Input,
+  markdown: Markdown,
+  code: Code,
+  diff: DiffView,
+  image: ImageView,
+  table: TableView,
+  progress: ProgressView,
+};
+
+// BlockRenderer dispatches on the block's type. Pack blocks route to the pack
+// registry; every built-in resolves through the exhaustive BUILTIN table.
 export function BlockRenderer({ block, interactions }: BlockProps) {
-  switch (block.type) {
-    case 'section':
-      return <Section block={block} />;
-    case 'card':
-      return <Card block={block} interactions={interactions} />;
-    case 'approval':
-      return <Approval block={block} interactions={interactions} />;
-    case 'choice':
-      return <Choice block={block} interactions={interactions} />;
-    case 'input':
-      return <Input block={block} interactions={interactions} />;
-    case 'markdown':
-      return <Markdown block={block} />;
-    case 'code':
-      return <Code block={block} />;
-    case 'diff':
-      return <DiffView block={block} />;
-    case 'image':
-      return <ImageView block={block} />;
-    case 'table':
-      return <TableView block={block} />;
-    case 'progress':
-      return <ProgressView block={block} />;
-    default:
-      return block satisfies never;
-  }
+  if (isPackBlock(block)) return <PackBlockView block={block} interactions={interactions} />;
+  const Renderer = BUILTIN[block.type] as ComponentType<BlockProps>;
+  return <Renderer block={block} interactions={interactions} />;
 }

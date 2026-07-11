@@ -65,6 +65,7 @@ const cases: Case[] = [
         decisions: {},
         choices: {},
         inputs: {},
+        packs: {},
         feedback: {},
         submittedRevision: 3,
       },

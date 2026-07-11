@@ -20,6 +20,7 @@ export default defineConfig({
   server: {
     proxy: {
       '/api': { target: devTarget, changeOrigin: false },
+      '/packs': { target: devTarget, changeOrigin: false },
       '/assets': { target: devTarget, changeOrigin: false },
       '/events': {
         target: devTarget,

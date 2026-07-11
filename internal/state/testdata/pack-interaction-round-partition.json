@@ -1,0 +1,110 @@
+{
+  "name": "pack-interaction-round-partition",
+  "events": [
+    {
+      "origin": "agent",
+      "type": "doc.replaced",
+      "seq": 1,
+      "payload": {
+        "revision": 1,
+        "doc": {
+          "version": 1,
+          "title": "T",
+          "blocks": [
+            {
+              "id": "c1",
+              "type": "card",
+              "title": "Ratings",
+              "children": [{ "id": "k1", "type": "example.rating", "label": "Rate" }]
+            }
+          ]
+        }
+      }
+    },
+    { "origin": "human", "type": "pack.interaction", "seq": 2, "payload": { "blockId": "k1", "payload": { "value": 4 } } },
+    { "origin": "human", "type": "submit", "seq": 3, "payload": { "revision": 1 } },
+    {
+      "origin": "agent",
+      "type": "block.upserted",
+      "seq": 4,
+      "payload": {
+        "after": "c1",
+        "block": {
+          "id": "c2",
+          "type": "card",
+          "title": "Ratings v2",
+          "children": [{ "id": "k2", "type": "example.rating", "label": "Rate again" }]
+        }
+      }
+    },
+    { "origin": "human", "type": "pack.interaction", "seq": 5, "payload": { "blockId": "k2", "payload": { "value": 9 } } },
+    { "origin": "human", "type": "submit", "seq": 6, "payload": { "revision": 2 } }
+  ],
+  "expected": {
+    "doc": {
+      "version": 1,
+      "title": "T",
+      "blocks": [
+        {
+          "id": "c1",
+          "type": "card",
+          "title": "Ratings",
+          "children": [{ "id": "k1", "type": "example.rating", "label": "Rate" }]
+        },
+        {
+          "id": "c2",
+          "type": "card",
+          "title": "Ratings v2",
+          "children": [{ "id": "k2", "type": "example.rating", "label": "Rate again" }]
+        }
+      ]
+    },
+    "interactions": {
+      "packs": {
+        "k1": { "payload": { "value": 4 } },
+        "k2": { "payload": { "value": 9 } }
+      },
+      "submitted": { "value": true, "revision": 2 }
+    },
+    "rounds": {
+      "current": 3,
+      "blockRounds": { "c1": 1, "c2": 2 },
+      "history": [
+        {
+          "number": 1,
+          "blocks": [
+            {
+              "id": "c1",
+              "type": "card",
+              "title": "Ratings",
+              "children": [{ "id": "k1", "type": "example.rating", "label": "Rate" }]
+            }
+          ],
+          "decisions": {},
+          "choices": {},
+          "inputs": {},
+          "packs": { "k1": { "payload": { "value": 4 } } },
+          "feedback": {},
+          "submittedRevision": 1
+        },
+        {
+          "number": 2,
+          "blocks": [
+            {
+              "id": "c2",
+              "type": "card",
+              "title": "Ratings v2",
+              "children": [{ "id": "k2", "type": "example.rating", "label": "Rate again" }]
+            }
+          ],
+          "decisions": {},
+          "choices": {},
+          "inputs": {},
+          "packs": { "k2": { "payload": { "value": 9 } } },
+          "feedback": {},
+          "submittedRevision": 2
+        }
+      ]
+    }
+  }
+}

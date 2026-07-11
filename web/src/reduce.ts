@@ -32,6 +32,7 @@ export function emptyState(): PresentState {
       decisions: {},
       choices: {},
       inputs: {},
+      packs: {},
       feedback: {},
       replies: {},
       submitted: { value: false, revision: 0 },
@@ -122,6 +123,12 @@ export function applyEvent(state: PresentState, ev: PresentEvent): PresentState 
         inputs: { ...state.interactions.inputs, [blockId]: { text, round: inputRound(state, blockId) } },
       });
     }
+    case 'pack.interaction': {
+      const { blockId, payload } = ev.payload;
+      return withInteractions(state, {
+        packs: { ...state.interactions.packs, [blockId]: { payload } },
+      });
+    }
     case 'submit': {
       const { revision } = ev.payload;
       const submitted = withInteractions(state, { submitted: { value: true, revision } });
@@ -183,6 +190,13 @@ function interactionEvent(interaction: Interaction): HumanEvent {
         seq,
         payload: { blockId: interaction.blockId, text: interaction.text },
       };
+    case 'pack.interaction':
+      return {
+        origin: 'human',
+        type: 'pack.interaction',
+        seq,
+        payload: { blockId: interaction.blockId, payload: interaction.payload },
+      };
     case 'submit':
       return { origin: 'human', type: 'submit', seq, payload: { revision: interaction.revision } };
   }
@@ -212,6 +226,7 @@ function closeRound(state: PresentState, revision: number | undefined): PresentS
     decisions: filterMap(state.interactions.decisions, ids),
     choices: filterMap(state.interactions.choices, ids),
     inputs: filterMap(state.interactions.inputs, ids),
+    packs: filterMap(state.interactions.packs, ids),
     feedback: filterFeedback(state.interactions.feedback, ids),
   };
   if (state.rounds.currentTitle) record.title = state.rounds.currentTitle;
@@ -224,12 +239,11 @@ function closeRound(state: PresentState, revision: number | undefined): PresentS
   return { ...state, rounds };
 }
 
-// inputRound resolves the round an input value belongs to: the round of its
-// enclosing top-level block (the block itself when top-level, else the card one
-// level up that contains it), mirroring idsOf's one-level child resolution. An
-// id with no block in the doc (an orphaned interaction) falls back to the current
-// round so the reduction stays total.
-function inputRound(state: PresentState, id: string): number {
+// topLevelRound resolves the round of the top-level block enclosing `id`: the
+// block itself when top-level, else the card one level up that contains it,
+// mirroring idsOf's one-level child resolution. undefined when no block in the
+// doc owns the id.
+export function topLevelRound(state: PresentState, id: string): number | undefined {
   const { blockRounds, current } = state.rounds;
   for (const b of state.doc.blocks) {
     if (b.id === id) return blockRounds[id] ?? current;
@@ -239,7 +253,13 @@ function inputRound(state: PresentState, id: string): number {
       }
     }
   }
-  return current;
+  return undefined;
+}
+
+// inputRound is the round an input value belongs to; an orphaned interaction with
+// no block in the doc falls back to the current round so the reduction stays total.
+function inputRound(state: PresentState, id: string): number {
+  return topLevelRound(state, id) ?? state.rounds.current;
 }
 
 // idsOf collects the ids of a block slice plus one level of card children,

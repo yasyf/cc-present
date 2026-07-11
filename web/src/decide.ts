@@ -3,14 +3,47 @@
 // is a plain function over blocks + the reduced interactions so it can be tested
 // without a DOM (see decide.test.ts).
 
-import type { Block } from './schema';
+import { isPackBlock } from './schema';
+import type { Block, BuiltinBlockType } from './schema';
 import type { Interactions, Verdict } from './events';
 
 export interface SubmitItem {
   id: string;
-  kind: 'approval' | 'choice';
+  kind: 'approval' | 'choice' | 'pack';
   decided: boolean;
 }
+
+// BUILTIN_DECIDABLE marks which built-in types join the cursor ring; inputs ride
+// it for focus. BUILTIN_TALLIED maps each built-in to its submit-tally kind (null
+// = not tallied). Both `satisfies` an exhaustive record so a new built-in forces
+// a classification.
+const BUILTIN_DECIDABLE = {
+  section: false,
+  card: false,
+  approval: true,
+  choice: true,
+  input: true,
+  markdown: false,
+  code: false,
+  diff: false,
+  image: false,
+  table: false,
+  progress: false,
+} satisfies Record<BuiltinBlockType, boolean>;
+
+const BUILTIN_TALLIED = {
+  section: null,
+  card: null,
+  approval: 'approval',
+  choice: 'choice',
+  input: null,
+  markdown: null,
+  code: null,
+  diff: null,
+  image: null,
+  table: null,
+  progress: null,
+} satisfies Record<BuiltinBlockType, SubmitItem['kind'] | null>;
 
 // flatten yields every top-level block plus every card child, so a tally or the
 // cursor ring spans interactive blocks wherever they nest one level deep.
@@ -23,19 +56,22 @@ export function flatten(blocks: Block[]): Block[] {
   return out;
 }
 
-// decidableIds is the cursor ring: every approval, choice, and input in document
-// order, card children inlined. Inputs join the ring so `f` can focus them even
-// though they never count toward the submit tally.
-export function decidableIds(blocks: Block[]): string[] {
+// decidableIds is the cursor ring: every approval, choice, input, and interactive
+// pack block in document order, card children inlined. Inputs and packs join the
+// ring so `f` can focus them; interactive pack types come from the registry
+// (never PresentState), passed in as packInteractive.
+export function decidableIds(blocks: Block[], packInteractive: ReadonlySet<string>): string[] {
   return flatten(blocks)
-    .filter((b) => b.type === 'approval' || b.type === 'choice' || b.type === 'input')
+    .filter((b) => (isPackBlock(b) ? packInteractive.has(b.type) : BUILTIN_DECIDABLE[b.type]))
     .map((b) => b.id);
 }
 
 // isDecided mirrors the SubmitBar tally for one block: an approval with any
-// verdict (reduce.ts deletes cleared decisions, so presence is decidedness) or a
-// choice with at least one selected option. Every other block is never decided.
+// verdict (reduce.ts deletes cleared decisions, so presence is decidedness), a
+// choice with at least one selected option, or a pack block with a stored
+// interaction. Every other block is never decided.
 export function isDecided(block: Block, interactions: Interactions): boolean {
+  if (isPackBlock(block)) return interactions.packs[block.id] !== undefined;
   switch (block.type) {
     case 'approval':
       return interactions.decisions[block.id] !== undefined;
@@ -46,14 +82,24 @@ export function isDecided(block: Block, interactions: Interactions): boolean {
   }
 }
 
-// submitItems is the tally set — approvals and choices in document order with
-// their decided state — driving both the count and the SubmitBar progress dots.
-export function submitItems(blocks: Block[], interactions: Interactions): SubmitItem[] {
+// submitItems is the tally set — approvals, choices, and interactive pack blocks
+// in document order with their decided state — driving both the count and the
+// SubmitBar progress dots.
+export function submitItems(
+  blocks: Block[],
+  interactions: Interactions,
+  packInteractive: ReadonlySet<string>,
+): SubmitItem[] {
   const out: SubmitItem[] = [];
   for (const block of flatten(blocks)) {
-    if (block.type === 'approval' || block.type === 'choice') {
-      out.push({ id: block.id, kind: block.type, decided: isDecided(block, interactions) });
+    if (isPackBlock(block)) {
+      if (packInteractive.has(block.type)) {
+        out.push({ id: block.id, kind: 'pack', decided: isDecided(block, interactions) });
+      }
+      continue;
     }
+    const kind = BUILTIN_TALLIED[block.type];
+    if (kind) out.push({ id: block.id, kind, decided: isDecided(block, interactions) });
   }
   return out;
 }

@@ -1436,3 +1436,52 @@ kbd {
   background: var(--mono-bg);
   color: var(--ink);
 }
+
+/* --- Pack blocks --- */
+
+.pack-block {
+  display: block;
+}
+
+/* The placeholder for a pack block that cannot render: unknown pack, still
+   loading, failed to load, missing export, or crashed. */
+.pack-placeholder {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--mono-bg);
+  color: var(--muted);
+}
+.pack-placeholder-type {
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  letter-spacing: var(--track-caps);
+  text-transform: uppercase;
+  color: var(--ink);
+}
+.pack-placeholder-id {
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  color: var(--muted);
+}
+.pack-placeholder-reason {
+  margin-left: auto;
+  font-size: var(--text-sm);
+}
+
+/* --- Single-block mode ---
+   Renders one block full-bleed for embedding (iOS WKWebView). No max-width
+   column or round spine; the body sheds its board chrome. */
+body[data-single] {
+  background: transparent;
+}
+.single-block {
+  padding: var(--space-4);
+}
+.single-block .block-row {
+  margin: 0;
+}

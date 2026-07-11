@@ -1,0 +1,108 @@
+// The single-block view (contract #7): one block full-bleed at
+// /p/<ref>?block=<id>, same SSE + interaction REST, no board chrome. It is what
+// the iOS client loads in a WKWebView per pack block; a ResizeObserver reports
+// the content height to the native host so the webview sizes to its content.
+
+import { useEffect, useMemo, useRef } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { ToastStack } from '@cc-interact/react';
+import { useEventStream } from '../stream';
+import { presentKey, queryClient, usePostInteraction } from '../api';
+import { emptyState, topLevelRound } from '../reduce';
+import { flatten } from '../decide';
+import { KeyboardProvider } from '../keyboard';
+import { PresentContext } from '../present';
+import type { PresentApi } from '../present';
+import type { PresentState } from '../events';
+import { interactionErrorText } from '../interactionError';
+import { BlockRenderer } from './BlockRenderer';
+import { ClosedBanner } from './ClosedBanner';
+
+interface HeightHandler {
+  postMessage: (message: unknown) => void;
+}
+
+declare global {
+  interface Window {
+    webkit?: { messageHandlers?: { ccPresentHeight?: HeightHandler } };
+  }
+}
+
+export function SingleBlockView({ subject, blockId }: { subject: string; blockId: string }) {
+  const stream = useEventStream();
+  const { data: state } = useQuery<PresentState>({
+    queryKey: presentKey(subject),
+    queryFn: () => queryClient.getQueryData<PresentState>(presentKey(subject)) ?? emptyState(),
+    initialData: emptyState,
+    staleTime: Infinity,
+    gcTime: Infinity,
+  });
+
+  const mutation = usePostInteraction(subject, (_err, interaction) =>
+    stream.notify({ kind: 'error', text: interactionErrorText(interaction) }),
+  );
+
+  const block = flatten(state.doc.blocks).find((b) => b.id === blockId);
+  const round = topLevelRound(state, blockId);
+  const realClosed = state.interactions.closed.value;
+  // A stale-round block is read-only: fold that into `closed`, which every
+  // interactive block already honors, without touching the ClosedBanner.
+  const closed = realClosed || (round !== undefined && round !== state.rounds.current);
+  const currentRound = state.rounds.current;
+
+  const api = useMemo<PresentApi>(
+    () => ({
+      post: (interaction) => mutation.mutateAsync(interaction).then(() => true, () => false),
+      closed,
+      currentRound,
+    }),
+    [mutation, closed, currentRound],
+  );
+
+  const rootRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    document.body.dataset.single = '';
+    return () => {
+      delete document.body.dataset.single;
+    };
+  }, []);
+  useEffect(() => {
+    const el = rootRef.current;
+    const handler = window.webkit?.messageHandlers?.ccPresentHeight;
+    if (!el || !handler) return;
+    const report = () => handler.postMessage({ type: 'height', px: Math.ceil(el.getBoundingClientRect().height) });
+    report();
+    const observer = new ResizeObserver(report);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  const content = block ? (
+    <BlockRenderer block={block} interactions={state.interactions} />
+  ) : stream.caughtUp ? (
+    <div className="empty-state">
+      No block <code>{blockId}</code>
+    </div>
+  ) : (
+    <div className="skeleton" aria-hidden>
+      <div className="skeleton-card" />
+    </div>
+  );
+
+  return (
+    <PresentContext.Provider value={api}>
+      <KeyboardProvider
+        blocks={block ? [block] : []}
+        interactions={state.interactions}
+        closed={closed}
+        round={currentRound}
+      >
+        <div className="single-block" ref={rootRef}>
+          {realClosed && <ClosedBanner summary={state.interactions.closed.summary} />}
+          {content}
+        </div>
+        <ToastStack notifications={stream.notifications} onDismiss={stream.dismiss} />
+      </KeyboardProvider>
+    </PresentContext.Provider>
+  );
+}

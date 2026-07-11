@@ -1,0 +1,31 @@
+{
+  "name": "pack-interaction-lww",
+  "events": [
+    {
+      "origin": "agent",
+      "type": "doc.replaced",
+      "seq": 1,
+      "payload": {
+        "revision": 1,
+        "doc": {
+          "version": 1,
+          "title": "T",
+          "blocks": [{ "id": "k1", "type": "example.rating", "label": "Rate" }]
+        }
+      }
+    },
+    { "origin": "human", "type": "pack.interaction", "seq": 2, "payload": { "blockId": "k1", "payload": { "value": 3 } } },
+    { "origin": "human", "type": "pack.interaction", "seq": 3, "payload": { "blockId": "k1", "payload": { "value": 5 } } }
+  ],
+  "expected": {
+    "doc": {
+      "version": 1,
+      "title": "T",
+      "blocks": [{ "id": "k1", "type": "example.rating", "label": "Rate" }]
+    },
+    "interactions": {
+      "packs": { "k1": { "payload": { "value": 5 } } }
+    },
+    "rounds": { "current": 1, "blockRounds": { "k1": 1 }, "history": [] }
+  }
+}

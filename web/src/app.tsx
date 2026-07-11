@@ -13,7 +13,8 @@ import { boardPhase } from './lifecycle';
 import { KeyboardProvider } from './keyboard';
 import { PresentContext } from './present';
 import type { PresentApi } from './present';
-import type { Interaction, PresentState } from './events';
+import type { PresentState } from './events';
+import { interactionErrorText } from './interactionError';
 import { BlockRenderer } from './components/BlockRenderer';
 import { RoundGroup } from './components/RoundGroup';
 import { DocHeader } from './components/DocHeader';
@@ -21,25 +22,11 @@ import { SubmitBar } from './components/SubmitBar';
 import { WaitingPanel } from './components/WaitingPanel';
 import { BoardSkeleton } from './components/BoardSkeleton';
 import { ClosedBanner } from './components/ClosedBanner';
+import { SingleBlockView } from './components/SingleBlockView';
 
 function subjectFromPath(): string | null {
   const match = /^\/p\/(.+)$/.exec(window.location.pathname);
   return match && match[1] ? decodeURIComponent(match[1]) : null;
-}
-
-function interactionErrorText(interaction: Interaction): string {
-  switch (interaction.type) {
-    case 'decision.created':
-      return 'Could not record your verdict. Check your connection and try again.';
-    case 'choice.selected':
-      return 'Could not record your choice. Check your connection and try again.';
-    case 'feedback.created':
-      return 'Could not send your feedback. Check your connection and try again.';
-    case 'input.submitted':
-      return 'Could not save your input. Check your connection and try again.';
-    case 'submit':
-      return 'Could not submit. Check your connection and try again.';
-  }
 }
 
 export function App() {
@@ -51,10 +38,15 @@ export function App() {
       </div>
     );
   }
+  const blockId = new URLSearchParams(window.location.search).get('block');
   return (
     <SubjectProvider value={{ subject, scope: undefined }}>
       <EventStreamProvider subject={subject}>
-        <PresentView subject={subject} />
+        {blockId ? (
+          <SingleBlockView subject={subject} blockId={blockId} />
+        ) : (
+          <PresentView subject={subject} />
+        )}
       </EventStreamProvider>
     </SubjectProvider>
   );

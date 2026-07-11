@@ -7,6 +7,7 @@ import { revisionKey } from '../api';
 import { undecidedKey } from '../submit';
 import { submitItems } from '../decide';
 import { useKeyboardApi } from '../keyboard';
+import { useInteractivePackTypes } from '../packs/registry';
 
 export interface SubmitBarProps {
   // The current round's live blocks; the decided/total tally spans only these.
@@ -20,6 +21,7 @@ export interface SubmitBarProps {
 export function SubmitBar({ blocks, doc, interactions, subject, hasHistory }: SubmitBarProps) {
   const { post, currentRound } = usePresent();
   const kbd = useKeyboardApi();
+  const packInteractive = useInteractivePackTypes();
   const { data: revision } = useQuery<number>({
     queryKey: revisionKey(subject),
     queryFn: () => 0,
@@ -33,7 +35,7 @@ export function SubmitBar({ blocks, doc, interactions, subject, hasHistory }: Su
   // the bar with the echo.
   const [inFlight, setInFlight] = useState(false);
 
-  const items = submitItems(blocks, interactions);
+  const items = submitItems(blocks, interactions, packInteractive);
   const total = items.length;
   const decided = items.filter((i) => i.decided).length;
   const undecidedApprovalIds = items.filter((i) => i.kind === 'approval' && !i.decided).map((i) => i.id);

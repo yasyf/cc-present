@@ -66,6 +66,14 @@ export interface InputSubmittedPayload {
   text: string;
 }
 
+// pack.interaction is the one generic pack human event. The payload is opaque to
+// the host — the REST edge validated it against the pack-declared schema — so the
+// reducer stores it verbatim and never inspects its shape.
+export interface PackInteractionPayload {
+  blockId: string;
+  payload: unknown;
+}
+
 export interface SubmitPayload {
   revision: number;
 }
@@ -94,6 +102,7 @@ export type PresentEvent =
   | { origin: 'human'; type: 'choice.selected'; seq: number; payload: ChoiceSelectedPayload }
   | { origin: 'human'; type: 'feedback.created'; seq: number; payload: FeedbackCreatedPayload }
   | { origin: 'human'; type: 'input.submitted'; seq: number; payload: InputSubmittedPayload }
+  | { origin: 'human'; type: 'pack.interaction'; seq: number; payload: PackInteractionPayload }
   | { origin: 'human'; type: 'submit'; seq: number; payload: SubmitPayload }
   | { origin: 'system'; type: 'channel.changed'; seq: number; payload: ChannelChangedPayload };
 
@@ -122,6 +131,7 @@ export type WireFrame =
   | ({ type: 'choice.selected' } & ChoiceSelectedPayload)
   | ({ type: 'feedback.created' } & FeedbackCreatedPayload)
   | ({ type: 'input.submitted' } & InputSubmittedPayload)
+  | ({ type: 'pack.interaction' } & PackInteractionPayload)
   | ({ type: 'submit' } & SubmitPayload)
   | ChannelChangedPayload;
 
@@ -137,6 +147,7 @@ export type Interaction =
   | ({ type: 'choice.selected' } & ChoiceSelectedPayload)
   | ({ type: 'feedback.created' } & FeedbackCreatedPayload)
   | ({ type: 'input.submitted' } & InputSubmittedPayload)
+  | ({ type: 'pack.interaction' } & PackInteractionPayload)
   | ({ type: 'submit' } & SubmitPayload);
 
 // --- Interaction cache (mirrors internal/state.State) ---
@@ -155,6 +166,13 @@ export interface InputValue {
   // The round its enclosing top-level block was in when the entry was committed,
   // stamped by the reducer.
   round: number;
+}
+
+// PackValue is a human's last-write-wins interaction on a pack block: the payload
+// exactly as the REST edge validated it. The reducer stays pack-blind — it never
+// inspects a pack payload's shape.
+export interface PackValue {
+  payload: unknown;
 }
 
 export interface Feedback {
@@ -181,6 +199,7 @@ export interface Interactions {
   decisions: Record<string, Decision>;
   choices: Record<string, Selection>;
   inputs: Record<string, InputValue>;
+  packs: Record<string, PackValue>;
   feedback: Record<string, Feedback[]>;
   replies: Record<string, Reply[]>;
   submitted: Submitted;
@@ -197,6 +216,7 @@ export interface RoundRecord {
   decisions: Record<string, Decision>;
   choices: Record<string, Selection>;
   inputs: Record<string, InputValue>;
+  packs: Record<string, PackValue>;
   feedback: Record<string, Feedback[]>;
   submittedRevision?: number;
 }

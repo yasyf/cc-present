@@ -12,10 +12,11 @@ import { decidableIds, nextUndecided, step, submitItems } from './decide';
 import { interpretKey } from './keymap';
 import type { KeyDescriptor } from './keymap';
 import { HelpOverlay } from './components/HelpOverlay';
+import { useInteractivePackTypes } from './packs/registry';
 import type { Block } from './schema';
 import type { Interactions } from './events';
 
-export type DecidableKind = 'approval' | 'choice' | 'input';
+export type DecidableKind = 'approval' | 'choice' | 'input' | 'pack';
 
 export interface DecidableSpec {
   kind: DecidableKind;
@@ -114,12 +115,13 @@ export function KeyboardProvider({ blocks, interactions, closed, round, children
   const registry = useRef(new Map<string, DecidableHandle>()).current;
   const submitFnRef = useRef<(() => void) | null>(null);
 
-  const ring = useMemo(() => decidableIds(blocks), [blocks]);
+  const packInteractive = useInteractivePackTypes();
+  const ring = useMemo(() => decidableIds(blocks, packInteractive), [blocks, packInteractive]);
   const undecided = useMemo(() => {
     const set = new Set<string>();
-    for (const item of submitItems(blocks, interactions)) if (!item.decided) set.add(item.id);
+    for (const item of submitItems(blocks, interactions, packInteractive)) if (!item.decided) set.add(item.id);
     return set;
-  }, [blocks, interactions]);
+  }, [blocks, interactions, packInteractive]);
   const effectiveCursor = cursorId !== null && ring.includes(cursorId) ? cursorId : null;
 
   const ringRef = useRef(ring);
@@ -229,7 +231,7 @@ export function KeyboardProvider({ blocks, interactions, closed, round, children
           }
           break;
         case 'engage':
-          if (handle && (handle.kind === 'approval' || handle.kind === 'input')) {
+          if (handle && (handle.kind === 'approval' || handle.kind === 'input' || handle.kind === 'pack')) {
             e.preventDefault();
             handle.specRef.current.engage?.();
           }

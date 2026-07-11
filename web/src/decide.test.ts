@@ -33,6 +33,7 @@ const emptyInteractions = (): Interactions => ({
   decisions: {},
   choices: {},
   inputs: {},
+  packs: {},
   feedback: {},
   replies: {},
   submitted: { value: false, revision: 0 },
@@ -46,6 +47,8 @@ describe('flatten', () => {
   });
 });
 
+const pack = (id: string, type = 'ex.rating'): Block => ({ id, type } as Block);
+
 describe('decidableIds', () => {
   it('rings approvals, choices, and inputs in document order, skipping content', () => {
     const blocks = [
@@ -54,7 +57,12 @@ describe('decidableIds', () => {
       card('c1', [choice('ch1'), input('in1'), markdown('m2')]),
       input('in2'),
     ];
-    expect(decidableIds(blocks)).toEqual(['a1', 'ch1', 'in1', 'in2']);
+    expect(decidableIds(blocks, new Set())).toEqual(['a1', 'ch1', 'in1', 'in2']);
+  });
+
+  it('rings only the pack types flagged interactive by the registry', () => {
+    const blocks = [approval('a1'), pack('r1', 'ex.rating'), pack('c1', 'ex.callout')];
+    expect(decidableIds(blocks, new Set(['ex.rating']))).toEqual(['a1', 'r1']);
   });
 });
 
@@ -64,6 +72,7 @@ describe('isDecided', () => {
     ...base,
     decisions: { a1: { verdict: 'approved' } },
     choices: { ch1: { optionIds: ['ch1o1'] }, ch2: { optionIds: [] } },
+    packs: { r1: { payload: { value: 4 } } },
   };
   const cases: { name: string; block: Block; interactions: Interactions; expected: boolean }[] = [
     { name: 'approval with a verdict is decided', block: approval('a1'), interactions: decided, expected: true },
@@ -71,6 +80,8 @@ describe('isDecided', () => {
     { name: 'choice with a selection is decided', block: choice('ch1'), interactions: decided, expected: true },
     { name: 'choice with an empty selection is undecided', block: choice('ch2'), interactions: decided, expected: false },
     { name: 'input is never decided', block: input('in1'), interactions: decided, expected: false },
+    { name: 'pack with a stored interaction is decided', block: pack('r1'), interactions: decided, expected: true },
+    { name: 'pack with no interaction is undecided', block: pack('r2'), interactions: decided, expected: false },
   ];
   for (const c of cases) {
     it(c.name, () => {
@@ -87,10 +98,19 @@ describe('submitItems', () => {
       decisions: { a1: { verdict: 'rejected' } },
       choices: { ch1: { optionIds: ['ch1o1'] } },
     };
-    expect(submitItems(blocks, interactions)).toEqual([
+    expect(submitItems(blocks, interactions, new Set())).toEqual([
       { id: 'a1', kind: 'approval', decided: true },
       { id: 'ch1', kind: 'choice', decided: true },
       { id: 'a2', kind: 'approval', decided: false },
+    ]);
+  });
+
+  it('tallies interactive pack blocks, decided when a pack interaction is stored', () => {
+    const blocks = [approval('a1'), pack('r1', 'ex.rating'), pack('c1', 'ex.callout')];
+    const interactions: Interactions = { ...emptyInteractions(), packs: { r1: { payload: { value: 4 } } } };
+    expect(submitItems(blocks, interactions, new Set(['ex.rating']))).toEqual([
+      { id: 'a1', kind: 'approval', decided: false },
+      { id: 'r1', kind: 'pack', decided: true },
     ]);
   });
 });
