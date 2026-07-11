@@ -7,22 +7,30 @@ Claude plugin wants to present. The wire and discovery facts — manifest fields
 namespacing, conflict rules, serving — live in
 [the contract](contract.md#block-packs); the steps below are the authoring path.
 
-## Copy the reference pack
+## Scaffold from the reference pack
 
-Start from `examples/packs/example/` in the cc-present repo, a working pack
-with one content block (`example.callout`) and one interactive block
-(`example.rating`):
+`pack init` copies the embedded reference pack — a working pack with one
+content block and one interactive block — into a new directory and renames it,
+so the scaffold below ships `my-pack.callout` and `my-pack.rating`:
 
 ```sh
-cp -r cc-present/examples/packs/example my-pack
+cc-present pack init --name my-pack my-pack
 cd my-pack && bun install
 ```
 
-The layout:
+`--name` defaults to the target directory's basename, and the command refuses
+a non-empty directory. Working inside the cc-present repo, `cp -r
+examples/packs/example my-pack` yields the same source files, unrenamed —
+along with any local `node_modules/`, `dist/`, and `bun.lock` the copy drags in,
+which is why `pack init` is the better start even in-repo.
+
+The layout — 19 files, including a generated `.gitignore` covering
+`node_modules/`:
 
 ```
 my-pack/
 ├── cc-present.toml      # the manifest
+├── .gitignore           # node_modules/ only — dist/ ships committed
 ├── schema/              # one JSON Schema per block, plus interaction schemas
 ├── examples/            # one example block object per block
 ├── src/
@@ -142,6 +150,8 @@ next to each installed pack.
 
 - [The contract § Block packs](contract.md#block-packs) — manifest fields,
   discovery and conflict rules, the `/api/packs` shape, single-block mode
-- `examples/packs/example/` — the reference pack these steps copy
+- `examples/packs/example/` — the reference pack `pack init` scaffolds from
 - `cc-present pack list` — the installed packs, their block types, and the
   dropped candidates with reasons
+- The cc-present plugin ships a `cc-present:author-pack` skill that walks an
+  agent through this page's workflow

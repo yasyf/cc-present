@@ -23,7 +23,7 @@ cc-present/
 │   └── log/               # slog setup
 ├── web/                   # Vite + React SPA (block renderer), builds into internal/web/dist
 ├── ios/                   # SwiftUI iOS client — CcPresent.xcodeproj (app + tests) + CcPresentKit SPM package
-├── plugin/                # Claude Code plugin payload: manifest, hooks, skills/present
+├── plugin/                # Claude Code plugin payload: manifest, hooks, skills/{present,author-pack}
 ├── examples/              # sample block documents (opener-board.json)
 │   └── packs/example/     # reference block pack: manifest, schemas, JS bundle, examples
 ├── docs/                  # contract.md — the wire contract (blocks, events, REST) + README assets

@@ -47,7 +47,7 @@ Driving with an agent? Paste this:
 /plugin install cc-present@cc-present
 ```
 
-The plugin auto-installs the binary and wires the loop. It adds an MCP channel that delivers clicks into the session as `<channel source="cc-present">` tags, a SessionStart hook, and the `/cc-present:present` skill that drives compose, watch, reply, and outcomes.
+The plugin auto-installs the binary and wires the loop. It adds an MCP channel that delivers clicks into the session as `<channel source="cc-present">` tags, a SessionStart hook, the `/cc-present:present` skill that drives compose, watch, reply, and outcomes, and the `/cc-present:author-pack` skill that authors block packs.
 
 ## Pair your phone
 

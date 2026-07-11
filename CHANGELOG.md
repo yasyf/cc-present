@@ -31,6 +31,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - iOS pack rendering: a pack block renders through `PackBlockWebView`, a
   content-sized WKWebView on the single-block route, so plugin blocks work on
   the phone with no Swift-side renderer.
+- `cc-present pack init [--name <n>] <dir>`, scaffolding a new block pack
+  from a go:embedded copy of the reference pack: 19 files renamed to the pack
+  name, a generated `.gitignore`, a printed build-and-lint checklist, and a
+  refusal to write into a non-empty directory.
+- The `author-pack` plugin skill, walking an agent through the pack-authoring
+  workflow end to end — scaffold, manifest and schemas, components against
+  the host API, build and lint, register, and document — with reference pages
+  for the manifest, the host API, and troubleshooting.
 
 ### Changed
 - `Doc.Validate` (Go API) now takes a `doc.PackTypes`, so a document carrying

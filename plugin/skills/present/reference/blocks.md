@@ -281,4 +281,4 @@ A pack block composes like any other leaf, at the top level or inside a card:
 { "id": "ex-rating", "type": "example.rating", "label": "How useful is this reference pack?", "scale": 5 }
 ```
 
-`push --dry-run` validates each pack block against the pack's declared JSON Schema, offline like the rest of the check. An uninstalled dotted type fails with `pack block type "example.rating" is not installed`; a schema violation names the type and the failing property. Every cap and rule above applies to pack blocks unchanged.
+`push --dry-run` validates each pack block against the pack's declared JSON Schema, offline like the rest of the check. An uninstalled dotted type fails with `pack block type "example.rating" is not installed`; a schema violation names the type and the failing property. Every cap and rule above applies to pack blocks unchanged. Authoring a new pack is the `cc-present:author-pack` skill's job.
