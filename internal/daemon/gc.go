@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/yasyf/cc-present/internal/assets"
@@ -38,7 +37,9 @@ func gcAssets(ctx context.Context, db *sql.DB, ast *assets.Store) error {
 			return fmt.Errorf("reduce subject %s: %w", id, err)
 		}
 		for _, b := range st.Doc.Blocks {
-			collectAssetRefs(b, keep)
+			for _, sha := range doc.AssetRefs(b) {
+				keep[sha] = true
+			}
 		}
 	}
 	if _, err := ast.Sweep(keep, assetGrace); err != nil {
@@ -69,20 +70,4 @@ func openSubjectIDs(ctx context.Context, db *sql.DB) ([]string, error) {
 		return nil, fmt.Errorf("iterate subjects: %w", err)
 	}
 	return ids, nil
-}
-
-// collectAssetRefs adds the sha of every asset:<sha256> image src in b to keep,
-// recursing one level into a card's children — the two places an image block may
-// appear, mirroring inlineImages.
-func collectAssetRefs(b doc.Block, keep map[string]bool) {
-	switch blk := b.(type) {
-	case *doc.Image:
-		if sha, ok := strings.CutPrefix(blk.Src, "asset:"); ok {
-			keep[sha] = true
-		}
-	case *doc.Card:
-		for _, child := range blk.Children {
-			collectAssetRefs(child, keep)
-		}
-	}
 }

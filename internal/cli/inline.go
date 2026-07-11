@@ -53,7 +53,8 @@ func httpUploader(port int) uploader {
 			return "", err
 		}
 		resp, err := http.Post(
-			fmt.Sprintf("http://127.0.0.1:%d/api/assets", port), "application/octet-stream", bytes.NewReader(b))
+			fmt.Sprintf("http://127.0.0.1:%d/api/assets", port), "application/octet-stream", bytes.NewReader(b),
+		)
 		if err != nil {
 			return "", err
 		}
@@ -87,19 +88,13 @@ func localUploader(path string) (string, error) {
 // and stored through up before the document is validated or appended.
 func inlineImages(blocks []doc.Block, up uploader) error {
 	for _, b := range blocks {
-		switch blk := b.(type) {
-		case *doc.Image:
-			if isLocalSrc(blk.Src) {
-				ref, err := up(blk.Src)
-				if err != nil {
-					return err
-				}
-				blk.Src = ref
+		if err := doc.RewriteAssetSrcs(b, func(src string) (string, error) {
+			if !isLocalSrc(src) {
+				return src, nil
 			}
-		case *doc.Card:
-			if err := inlineImages(blk.Children, up); err != nil {
-				return err
-			}
+			return up(src)
+		}); err != nil {
+			return err
 		}
 	}
 	return nil

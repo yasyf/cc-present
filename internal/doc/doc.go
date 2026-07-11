@@ -271,32 +271,11 @@ func DecodeBlock(data json.RawMessage) (Block, error) {
 	if err := json.Unmarshal(data, &head); err != nil {
 		return nil, fmt.Errorf("read block type: %w", err)
 	}
-	switch head.Type {
-	case "section":
-		return decodeInto(data, &Section{})
-	case "card":
-		return decodeInto(data, &Card{})
-	case "approval":
-		return decodeInto(data, &Approval{})
-	case "choice":
-		return decodeInto(data, &Choice{})
-	case "input":
-		return decodeInto(data, &Input{})
-	case "markdown":
-		return decodeInto(data, &Markdown{})
-	case "code":
-		return decodeInto(data, &Code{})
-	case "diff":
-		return decodeInto(data, &Diff{})
-	case "image":
-		return decodeInto(data, &Image{})
-	case "table":
-		return decodeInto(data, &Table{})
-	case "progress":
-		return decodeInto(data, &Progress{})
-	default:
+	sp, ok := registry[head.Type]
+	if !ok {
 		return nil, fmt.Errorf("block %q: unknown type %q", head.ID, head.Type)
 	}
+	return sp.decode(data)
 }
 
 func decodeInto[T Block](data json.RawMessage, dst T) (Block, error) {
@@ -323,17 +302,14 @@ func (d *Doc) Validate() error {
 		if err := registerID(seen, b.BlockID()); err != nil {
 			return err
 		}
-		switch blk := b.(type) {
-		case *Section:
-			if err := validateSection(blk); err != nil {
+		if err := registry[b.BlockType()].validate(b); err != nil {
+			return err
+		}
+		for _, child := range Children(b) {
+			if err := registerID(seen, child.BlockID()); err != nil {
 				return err
 			}
-		case *Card:
-			if err := validateCard(seen, blk); err != nil {
-				return err
-			}
-		default:
-			if err := validateLeaf(b); err != nil {
+			if err := validateChild(b, child); err != nil {
 				return err
 			}
 		}
@@ -366,7 +342,7 @@ func validateSection(s *Section) error {
 	return nil
 }
 
-func validateCard(seen map[string]bool, c *Card) error {
+func validateCard(c *Card) error {
 	if strings.Contains(c.Summary, "\n") {
 		return fmt.Errorf("card %q: summary must be a single line", c.ID)
 	}
@@ -378,56 +354,38 @@ func validateCard(seen map[string]bool, c *Card) error {
 			return fmt.Errorf("card %q: invalid chip tone %q", c.ID, chip.Tone)
 		}
 	}
-	for _, child := range c.Children {
-		if err := registerID(seen, child.BlockID()); err != nil {
-			return err
-		}
-		if err := validateChild(c.ID, child); err != nil {
-			return err
-		}
+	return nil
+}
+
+func validateChild(parent, child Block) error {
+	sp := registry[child.BlockType()]
+	if sp.topOnly {
+		return fmt.Errorf("card %q: child %q may not be a %s (cards allow exactly one nesting level)", parent.BlockID(), child.BlockID(), child.BlockType())
+	}
+	return sp.validate(child)
+}
+
+func validateApproval(*Approval) error { return nil }
+
+func validateInput(i *Input) error {
+	if i.Label == "" {
+		return fmt.Errorf("input %q: label must not be empty", i.ID)
 	}
 	return nil
 }
 
-func validateChild(cardID string, child Block) error {
-	switch child.(type) {
-	case *Section, *Card:
-		return fmt.Errorf("card %q: child %q may not be a %s (cards allow exactly one nesting level)", cardID, child.BlockID(), child.BlockType())
+func validateMarkdown(m *Markdown) error {
+	if m.Md == "" {
+		return fmt.Errorf("markdown %q: md must not be empty", m.ID)
 	}
-	return validateLeaf(child)
+	return nil
 }
 
-func validateLeaf(b Block) error {
-	switch lb := b.(type) {
-	case *Approval:
-		return nil
-	case *Choice:
-		return validateChoice(lb)
-	case *Input:
-		if lb.Label == "" {
-			return fmt.Errorf("input %q: label must not be empty", lb.ID)
-		}
-		return nil
-	case *Markdown:
-		if lb.Md == "" {
-			return fmt.Errorf("markdown %q: md must not be empty", lb.ID)
-		}
-		return nil
-	case *Code:
-		return validateCode(lb)
-	case *Diff:
-		if lb.Diff == "" {
-			return fmt.Errorf("diff %q: diff must not be empty", lb.ID)
-		}
-		return nil
-	case *Image:
-		return validateImage(lb)
-	case *Table:
-		return validateTable(lb)
-	case *Progress:
-		return validateProgress(lb)
+func validateDiff(d *Diff) error {
+	if d.Diff == "" {
+		return fmt.Errorf("diff %q: diff must not be empty", d.ID)
 	}
-	panic(fmt.Sprintf("unreachable: unhandled block type %q", b.BlockType()))
+	return nil
 }
 
 func validateChoice(c *Choice) error {

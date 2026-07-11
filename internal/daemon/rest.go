@@ -279,11 +279,9 @@ func findBlock(d *doc.Doc, id string) (doc.Block, string, bool) {
 		if b.BlockID() == id {
 			return b, b.BlockID(), true
 		}
-		if card, ok := b.(*doc.Card); ok {
-			for _, child := range card.Children {
-				if child.BlockID() == id {
-					return child, card.BlockID(), true
-				}
+		for _, child := range doc.Children(b) {
+			if child.BlockID() == id {
+				return child, b.BlockID(), true
 			}
 		}
 	}

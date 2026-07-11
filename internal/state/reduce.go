@@ -383,11 +383,9 @@ func (s *State) inputRound(id string) int {
 		if b.BlockID() == id {
 			return s.stampedRound(id)
 		}
-		if card, ok := b.(*doc.Card); ok {
-			for _, child := range card.Children {
-				if child.BlockID() == id {
-					return s.stampedRound(b.BlockID())
-				}
+		for _, child := range doc.Children(b) {
+			if child.BlockID() == id {
+				return s.stampedRound(b.BlockID())
 			}
 		}
 	}
@@ -407,10 +405,8 @@ func idsOf(blocks []doc.Block) map[string]bool {
 	ids := map[string]bool{}
 	for _, b := range blocks {
 		ids[b.BlockID()] = true
-		if card, ok := b.(*doc.Card); ok {
-			for _, child := range card.Children {
-				ids[child.BlockID()] = true
-			}
+		for _, child := range doc.Children(b) {
+			ids[child.BlockID()] = true
 		}
 	}
 	return ids
