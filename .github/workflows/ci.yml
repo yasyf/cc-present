@@ -36,6 +36,13 @@ jobs:
           bun run typecheck
           bunx vitest run
           bunx vite build
+      - name: Build example pack
+        run: |
+          cd examples/packs/example
+          bun install
+          bun run typecheck
+          bun run build
+          bun run smoke
       - name: Guard embedded dist size
         run: |
           bytes=$(tar -c internal/web/dist | gzip -9 | wc -c | tr -d ' ')
@@ -57,6 +64,8 @@ jobs:
         run: go test -race ./...
       - name: Build
         run: go build ./...
+      - name: Lint example pack
+        run: go run ./cmd/cc-present pack lint examples/packs/example
 
   lint:
     runs-on: ubuntu-latest

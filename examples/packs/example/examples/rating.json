@@ -1,0 +1,6 @@
+{
+  "id": "ex-rating",
+  "type": "example.rating",
+  "label": "How useful is this reference pack?",
+  "scale": 5
+}

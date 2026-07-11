@@ -1,0 +1,17 @@
+host_api = 1
+name = "example"
+version = "0.1.0"
+description = "Reference block pack: a toned callout and an interactive rating."
+entry = "dist/pack.js"
+reference = "reference/blocks.md"
+
+[blocks.callout]
+description = "A toned admonition (info / warn / success) that renders Markdown."
+schema = "schema/callout.json"
+examples = ["examples/callout.json"]
+
+[blocks.rating]
+description = "An interactive N-point rating; the human's pick streams back."
+schema = "schema/rating.json"
+interaction = "schema/rating.interaction.json"
+examples = ["examples/rating.json"]

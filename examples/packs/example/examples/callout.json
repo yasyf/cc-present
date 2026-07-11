@@ -1,0 +1,6 @@
+{
+  "id": "ex-callout",
+  "type": "example.callout",
+  "tone": "success",
+  "md": "Pack blocks ship as **data** — a TOML manifest and JSON Schemas — with a prebuilt ESM bundle of React components."
+}

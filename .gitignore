@@ -30,6 +30,11 @@ coverage.txt
 # Web (npm/bun)
 web/node_modules/
 
+# Example pack (bun) — deps, lockfile, and bundle are rebuilt by CI
+examples/packs/example/node_modules/
+examples/packs/example/dist/
+examples/packs/example/bun.lock
+
 # Embedded SPA build output — rebuilt by the web build; keep only the committed
 # placeholder so a clean tree compiles with no web toolchain.
 internal/web/dist/*

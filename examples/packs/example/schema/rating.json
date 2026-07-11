@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "example.rating",
+  "type": "object",
+  "required": ["id", "type", "label"],
+  "additionalProperties": false,
+  "properties": {
+    "id": { "type": "string", "minLength": 1 },
+    "type": { "const": "example.rating" },
+    "label": { "type": "string", "minLength": 1 },
+    "scale": { "type": "integer", "minimum": 2, "maximum": 10, "default": 5 }
+  }
+}
