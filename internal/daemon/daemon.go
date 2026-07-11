@@ -21,6 +21,7 @@ import (
 
 	"github.com/yasyf/cc-present/internal/assets"
 	"github.com/yasyf/cc-present/internal/doc"
+	"github.com/yasyf/cc-present/internal/packs"
 	"github.com/yasyf/cc-present/internal/state"
 )
 
@@ -45,9 +46,10 @@ var slugStrip = regexp.MustCompile(`[^a-z0-9]+`)
 
 // BuildServer composes the cc-present daemon: presence via channel.Connectivity,
 // no edit gate, raw-cwd scope. bind is the HTTP plane's bind address (empty =
-// loopback), token the optional LAN bearer token. It registers the artifact ops
-// and mounts the REST plane, returning a Server the caller Serves.
-func BuildServer(p paths.Paths, version, bind, token string) (*ccd.Server, error) {
+// loopback), token the optional LAN bearer token, loader the pack registry the
+// authoring handlers and REST plane validate against. It registers the artifact
+// ops and mounts the REST plane, returning a Server the caller Serves.
+func BuildServer(p paths.Paths, version, bind, token string, loader *packs.Loader) (*ccd.Server, error) {
 	c := channel.Connectivity{}
 	s, err := ccd.New(ccd.Config{
 		AppName:        appName,
@@ -75,23 +77,23 @@ func BuildServer(p paths.Paths, version, bind, token string) (*ccd.Server, error
 	if err != nil {
 		return nil, err
 	}
-	s.Register(OpStart, handleStart)
-	s.Register(OpPush, handlePush)
-	s.Register(OpUpsertBlock, handleUpsertBlock)
+	s.Register(OpStart, func(hc ccd.HandlerCtx) ccd.Reply { return handleStart(hc, loader.Current()) })
+	s.Register(OpPush, func(hc ccd.HandlerCtx) ccd.Reply { return handlePush(hc, loader.Current()) })
+	s.Register(OpUpsertBlock, func(hc ccd.HandlerCtx) ccd.Reply { return handleUpsertBlock(hc, loader.Current()) })
 	s.Register(OpRemoveBlock, handleRemoveBlock)
 	s.Register(OpReply, handleReply)
 	s.Register(OpRound, handleRound)
 	s.Register(OpClose, func(hc ccd.HandlerCtx) ccd.Reply { return handleClose(hc, ast) })
 	s.Register(OpOutcomes, handleOutcomes)
-	mountREST(s, ast)
+	mountREST(s, ast, loader)
 	return s, nil
 }
 
 // Serve builds the daemon and runs it until ctx is cancelled. bind is the HTTP
 // plane's bind address (empty = loopback) and token the optional LAN bearer
-// token; the caller reads both from the host config.
-func Serve(ctx context.Context, p paths.Paths, version, bind, token string) error {
-	s, err := BuildServer(p, version, bind, token)
+// token; the caller reads both from the host config and supplies the pack loader.
+func Serve(ctx context.Context, p paths.Paths, version, bind, token string, loader *packs.Loader) error {
+	s, err := BuildServer(p, version, bind, token, loader)
 	if err != nil {
 		return err
 	}
@@ -102,7 +104,7 @@ func Serve(ctx context.Context, p paths.Paths, version, bind, token string) erro
 // appending an initial doc.replaced, and reports the URL and channel state. A
 // prior close is terminal, so a resume that would land on a closed subject is
 // forced fresh instead.
-func handleStart(hc ccd.HandlerCtx) ccd.Reply {
+func handleStart(hc ccd.HandlerCtx, pt doc.PackTypes) ccd.Reply {
 	b := decodeBody(hc.Env.Body)
 	var d *doc.Doc
 	if len(b.Doc) > 0 {
@@ -110,7 +112,7 @@ func handleStart(hc ccd.HandlerCtx) ccd.Reply {
 		if err := json.Unmarshal(b.Doc, d); err != nil {
 			return errReply("decode doc: " + err.Error())
 		}
-		if err := d.Validate(); err != nil {
+		if err := d.Validate(pt); err != nil {
 			return errReply(err.Error())
 		}
 	}
@@ -151,13 +153,13 @@ func handleStart(hc ccd.HandlerCtx) ccd.Reply {
 
 // handlePush validates the document, then replaces it with an incremented
 // revision. A closed artifact rejects the push.
-func handlePush(hc ccd.HandlerCtx) ccd.Reply {
+func handlePush(hc ccd.HandlerCtx, pt doc.PackTypes) ccd.Reply {
 	b := decodeBody(hc.Env.Body)
 	d := &doc.Doc{}
 	if err := json.Unmarshal(b.Doc, d); err != nil {
 		return errReply("decode doc: " + err.Error())
 	}
-	if err := d.Validate(); err != nil {
+	if err := d.Validate(pt); err != nil {
 		return errReply(err.Error())
 	}
 	sub, err := resolveOpen(hc)
@@ -180,13 +182,13 @@ func handlePush(hc ccd.HandlerCtx) ccd.Reply {
 // handleUpsertBlock inserts or replaces a single top-level block. An unknown
 // block type or a block that fails per-type validation is rejected; a closed
 // artifact rejects the upsert.
-func handleUpsertBlock(hc ccd.HandlerCtx) ccd.Reply {
+func handleUpsertBlock(hc ccd.HandlerCtx, pt doc.PackTypes) ccd.Reply {
 	b := decodeBody(hc.Env.Body)
 	blk, err := doc.DecodeBlock(b.Block)
 	if err != nil {
 		return errReply(err.Error())
 	}
-	if err := validateBlock(blk); err != nil {
+	if err := validateBlock(blk, pt); err != nil {
 		return errReply(err.Error())
 	}
 	sub, err := resolveOpen(hc)
@@ -375,10 +377,10 @@ func channelState(act *ccd.Activity, subjectID, scope string, pid int) string {
 }
 
 // validateBlock validates a single block by folding it into a minimal document,
-// reusing the per-type field, choice-option, and card-nesting rules.
-func validateBlock(b doc.Block) error {
+// reusing the per-type field, choice-option, card-nesting, and pack-schema rules.
+func validateBlock(b doc.Block, pt doc.PackTypes) error {
 	d := &doc.Doc{Version: 1, Title: "block", Blocks: []doc.Block{b}}
-	return d.Validate()
+	return d.Validate(pt)
 }
 
 func artifactURL(port int, slug string) string {

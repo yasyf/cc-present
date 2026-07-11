@@ -265,11 +265,22 @@ func (bl *BlockList) UnmarshalJSON(data []byte) error {
 }
 
 // DecodeBlock decodes a single block from its JSON, dispatching on the type tag.
-// An unknown type is an error naming the offending block id.
+// A well-formed dotted type decodes to *PackBlock unconditionally; a malformed
+// dotted type and an unknown dot-free type are each an error naming the block id.
 func DecodeBlock(data json.RawMessage) (Block, error) {
 	var head base
 	if err := json.Unmarshal(data, &head); err != nil {
 		return nil, fmt.Errorf("read block type: %w", err)
+	}
+	if strings.Contains(head.Type, ".") {
+		if !packTypePattern.MatchString(head.Type) {
+			return nil, fmt.Errorf("block %q: malformed pack type %q", head.ID, head.Type)
+		}
+		pb := &PackBlock{}
+		if err := json.Unmarshal(data, pb); err != nil {
+			return nil, fmt.Errorf("decode pack block %q: %w", head.ID, err)
+		}
+		return pb, nil
 	}
 	sp, ok := registry[head.Type]
 	if !ok {
@@ -289,8 +300,9 @@ func decodeInto[T Block](data json.RawMessage, dst T) (Block, error) {
 // be 1, the title non-empty, every block id globally unique, cards nesting
 // exactly one level of leaf blocks (a card may not contain a section or another
 // card), per-type required fields present, the serialized doc within
-// MaxDocBytes, and image data URIs within MaxDataURIBytes.
-func (d *Doc) Validate() error {
+// MaxDocBytes, and image data URIs within MaxDataURIBytes. Pack blocks are
+// leaf-only and validated against pt.
+func (d *Doc) Validate(pt PackTypes) error {
 	if d.Version != 1 {
 		return fmt.Errorf("doc version must be 1, got %d", d.Version)
 	}
@@ -302,14 +314,14 @@ func (d *Doc) Validate() error {
 		if err := registerID(seen, b.BlockID()); err != nil {
 			return err
 		}
-		if err := registry[b.BlockType()].validate(b); err != nil {
+		if err := validateBlock(b, pt); err != nil {
 			return err
 		}
 		for _, child := range Children(b) {
 			if err := registerID(seen, child.BlockID()); err != nil {
 				return err
 			}
-			if err := validateChild(b, child); err != nil {
+			if err := validateChild(b, child, pt); err != nil {
 				return err
 			}
 		}
@@ -357,7 +369,19 @@ func validateCard(c *Card) error {
 	return nil
 }
 
-func validateChild(parent, child Block) error {
+// validateBlock validates a block against its own rules: a pack block against pt,
+// any built-in against its registered validator.
+func validateBlock(b Block, pt PackTypes) error {
+	if pb, ok := b.(*PackBlock); ok {
+		return pt.ValidateBlock(pb.Type, pb.PayloadJSON())
+	}
+	return registry[b.BlockType()].validate(b)
+}
+
+func validateChild(parent, child Block, pt PackTypes) error {
+	if pb, ok := child.(*PackBlock); ok {
+		return pt.ValidateBlock(pb.Type, pb.PayloadJSON())
+	}
 	sp := registry[child.BlockType()]
 	if sp.topOnly {
 		return fmt.Errorf("card %q: child %q may not be a %s (cards allow exactly one nesting level)", parent.BlockID(), child.BlockID(), child.BlockType())

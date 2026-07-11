@@ -43,6 +43,13 @@ type InputValue struct {
 	Round int    `json:"round"`
 }
 
+// PackValue is a human's last-write-wins interaction on a pack block: the
+// payload bytes exactly as the REST edge validated them. The reducer stays
+// pack-blind — it never inspects a pack payload's shape.
+type PackValue struct {
+	Payload json.RawMessage `json:"payload"`
+}
+
 // Feedback is one entry in a block's append-only feedback list.
 type Feedback struct {
 	ID   string `json:"id"`
@@ -74,6 +81,7 @@ type Interactions struct {
 	Decisions map[string]Decision   `json:"decisions"`
 	Choices   map[string]Selection  `json:"choices"`
 	Inputs    map[string]InputValue `json:"inputs"`
+	Packs     map[string]PackValue  `json:"packs"`
 	Feedback  map[string][]Feedback `json:"feedback"`
 	Replies   map[string][]Reply    `json:"replies"`
 	Submitted Submitted             `json:"submitted"`
@@ -90,6 +98,7 @@ type RoundRecord struct {
 	Decisions         map[string]Decision   `json:"decisions"`
 	Choices           map[string]Selection  `json:"choices"`
 	Inputs            map[string]InputValue `json:"inputs"`
+	Packs             map[string]PackValue  `json:"packs"`
 	Feedback          map[string][]Feedback `json:"feedback"`
 	SubmittedRevision *int                  `json:"submittedRevision,omitempty"`
 }
@@ -127,6 +136,7 @@ func Reduce(events []Event) (State, error) {
 			Decisions: map[string]Decision{},
 			Choices:   map[string]Selection{},
 			Inputs:    map[string]InputValue{},
+			Packs:     map[string]PackValue{},
 			Feedback:  map[string][]Feedback{},
 			Replies:   map[string][]Reply{},
 		},
@@ -263,6 +273,16 @@ func (s *State) apply(ev Event) error {
 		}
 		s.Interactions.Inputs[p.BlockID] = InputValue{Text: p.Text, Round: s.inputRound(p.BlockID)}
 		return nil
+	case "pack.interaction":
+		var p struct {
+			BlockID string          `json:"blockId"`
+			Payload json.RawMessage `json:"payload"`
+		}
+		if err := json.Unmarshal(ev.Payload, &p); err != nil {
+			return err
+		}
+		s.Interactions.Packs[p.BlockID] = PackValue{Payload: p.Payload}
+		return nil
 	case "submit":
 		var p struct {
 			Revision int `json:"revision"`
@@ -368,6 +388,7 @@ func (s *State) closeRound(revision *int) (RoundRecord, error) {
 		Decisions:         filterMap(s.Interactions.Decisions, ids),
 		Choices:           filterMap(s.Interactions.Choices, ids),
 		Inputs:            filterMap(s.Interactions.Inputs, ids),
+		Packs:             filterMap(s.Interactions.Packs, ids),
 		Feedback:          filterFeedback(s.Interactions.Feedback, ids),
 		SubmittedRevision: revision,
 	}, nil

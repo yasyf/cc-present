@@ -110,7 +110,7 @@ func TestDryRunFlow(t *testing.T) {
 	if err := inlineImages(dd.Blocks, localUploader); err != nil {
 		t.Fatalf("inline: %v", err)
 	}
-	if err := dd.Validate(); err != nil {
+	if err := dd.Validate(doc.NoPacks); err != nil {
 		t.Fatalf("validate after inline: %v", err)
 	}
 
@@ -118,7 +118,7 @@ func TestDryRunFlow(t *testing.T) {
 	if err := json.Unmarshal([]byte(`{"version":1,"title":"T","blocks":[{"id":"p1","type":"progress","label":"x","value":9,"max":2}]}`), invalid); err != nil {
 		t.Fatalf("decode invalid: %v", err)
 	}
-	if err := invalid.Validate(); err == nil {
+	if err := invalid.Validate(doc.NoPacks); err == nil {
 		t.Fatal("invalid doc validated, want error")
 	}
 }

@@ -18,6 +18,12 @@ type Config struct {
 	// Bind is the HTTP plane's bind address. Empty means 127.0.0.1 (loopback
 	// only); "0.0.0.0" exposes the plane to the LAN.
 	Bind string `json:"bind,omitempty"`
+	// PackDirs are dev pack roots, each a directory containing cc-present.toml,
+	// scanned for block packs alongside installed plugins.
+	PackDirs []string `json:"packDirs,omitempty"`
+	// DisabledPacks names packs (by manifest name) to drop unconditionally,
+	// beating every discovery and conflict rule.
+	DisabledPacks []string `json:"disabledPacks,omitempty"`
 }
 
 // ConfigPath is the host config file (~/.cc-present/config.json).

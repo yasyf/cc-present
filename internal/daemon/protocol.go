@@ -38,6 +38,7 @@ const (
 	EventChoiceSelected  = "choice.selected"
 	EventFeedbackCreated = "feedback.created"
 	EventInputSubmitted  = "input.submitted"
+	EventPackInteraction = "pack.interaction"
 	EventSubmit          = "submit"
 )
 

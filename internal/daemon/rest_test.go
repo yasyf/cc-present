@@ -15,6 +15,7 @@ import (
 	ccstore "github.com/yasyf/cc-interact/store"
 
 	"github.com/yasyf/cc-present/internal/assets"
+	"github.com/yasyf/cc-present/internal/packs"
 )
 
 const seedDoc = `{"version":1,"title":"T","blocks":[
@@ -31,6 +32,18 @@ type restHarness struct {
 }
 
 func newRestHarness(t *testing.T) *restHarness {
+	return newRestHarnessWith(t, seedDoc, emptyPackLoader(t))
+}
+
+// emptyPackLoader is a loader over no dev dirs with an isolated Claude config dir,
+// so a test never scans the developer's real installed plugins.
+func emptyPackLoader(t *testing.T) *packs.Loader {
+	t.Helper()
+	t.Setenv("CLAUDE_CONFIG_DIR", t.TempDir())
+	return packs.NewLoader(nil, nil)
+}
+
+func newRestHarnessWith(t *testing.T, docJSON string, loader *packs.Loader) *restHarness {
 	t.Helper()
 	cc, err := ccstore.Open(t.TempDir()+"/t.db", nil)
 	if err != nil {
@@ -53,6 +66,7 @@ func newRestHarness(t *testing.T) *restHarness {
 			return id, err == nil, err
 		},
 		assets: ast,
+		packs:  loader,
 		static: http.NotFoundHandler(),
 	}
 	subs := ccstore.NewSubjectStore(cc.DB())
@@ -62,7 +76,7 @@ func newRestHarness(t *testing.T) *restHarness {
 	}
 	if _, err := cc.AppendEvent(context.Background(), &ccevent.Event{
 		SubjectID: sub.ID, Origin: ccevent.OriginAgent, Type: EventDocReplaced,
-		Payload: docReplacedPayload(json.RawMessage(seedDoc), 1),
+		Payload: docReplacedPayload(json.RawMessage(docJSON), 1),
 	}); err != nil {
 		t.Fatalf("seed doc: %v", err)
 	}
@@ -112,6 +126,24 @@ func TestInteractionValidation(t *testing.T) {
 				t.Fatalf("body = %q, want %q", w.Body.String(), tt.wantErr)
 			}
 		})
+	}
+}
+
+func TestInteractionTooLarge(t *testing.T) {
+	h := newRestHarness(t)
+	body := `{"subject":"board--abcd0000","nonce":"big","interaction":{"type":"input.submitted","blockId":"in1","text":"` +
+		strings.Repeat("a", maxInteractionBytes) + `"}}`
+	w := h.post(t, body)
+	if w.Code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("status = %d, want 413 (body %q)", w.Code, w.Body.String())
+	}
+	// The log is untouched: only the seed doc.replaced remains, no interaction.
+	all, err := h.cc.EventsSince(context.Background(), h.id, 0, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(all) != 1 {
+		t.Fatalf("events = %d, want 1 (oversized interaction not persisted)", len(all))
 	}
 }
 

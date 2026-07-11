@@ -12,8 +12,10 @@ import (
 
 	"github.com/yasyf/cc-interact/cmd"
 
+	"github.com/yasyf/cc-present/internal/app"
 	ccdaemon "github.com/yasyf/cc-present/internal/daemon"
 	"github.com/yasyf/cc-present/internal/doc"
+	"github.com/yasyf/cc-present/internal/packs"
 )
 
 const noArtifact = "no cc-present artifact for this scope; run `cc-present start` first"
@@ -125,7 +127,11 @@ func newPushCmd(d cmd.Deps) *cobra.Command {
 					_, _ = fmt.Fprintln(c.OutOrStdout(), err)
 					os.Exit(1)
 				}
-				if err := dd.Validate(); err != nil {
+				cfg, err := app.ReadConfig()
+				if err != nil {
+					return err
+				}
+				if err := dd.Validate(packs.Load(cfg.PackDirs, cfg.DisabledPacks)); err != nil {
 					_, _ = fmt.Fprintln(c.OutOrStdout(), err)
 					os.Exit(1)
 				}

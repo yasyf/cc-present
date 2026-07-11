@@ -13,6 +13,7 @@ import (
 	"github.com/yasyf/cc-interact/paths"
 
 	ccdaemon "github.com/yasyf/cc-present/internal/daemon"
+	"github.com/yasyf/cc-present/internal/packs"
 	"github.com/yasyf/cc-present/internal/procs"
 	"github.com/yasyf/cc-present/internal/version"
 )
@@ -31,7 +32,7 @@ const (
 // expect and that silence is normal.
 const channelInstructions = `This MCP server is the cc-present channel: a live web artifact whose every human click streams back to you. Activity reaches you as <channel source="cc-present" type="..."> tags whose inner JSON has a "type" field naming the event.
 
-A channel.changed tag marks a connection-presence change, and a present.closed tag echoes the artifact's own close once you end it; both are lifecycle signals that carry no task and need no reply. Human interactions arrive as decision.created (approve/reject/clear on an approval block), choice.selected (a pick on a choice block), feedback.created (free-text feedback under an approval), input.submitted (an input field's value), and submit (the human pressed Submit for a revision). Handle each per the cc-present skill: reply under feedback and redraft blocks with update-block, and on submit run outcomes, apply, then start another round or close.
+A channel.changed tag marks a connection-presence change, and a present.closed tag echoes the artifact's own close once you end it; both are lifecycle signals that carry no task and need no reply. Human interactions arrive as decision.created (approve/reject/clear on an approval block), choice.selected (a pick on a choice block), feedback.created (free-text feedback under an approval), input.submitted (an input field's value), pack.interaction (a pack block's declared interaction payload), and submit (the human pressed Submit for a revision). Handle each per the cc-present skill: reply under feedback and redraft blocks with update-block, and on submit run outcomes, apply, then start another round or close.
 
 The channel never speaks unsolicited: outside a cc-present run it is silent, and silence needs nothing from you.`
 
@@ -73,7 +74,8 @@ func serve(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	return ccdaemon.Serve(ctx, Paths(), version.String(), cfg.Bind, token)
+	loader := packs.NewLoader(cfg.PackDirs, cfg.DisabledPacks)
+	return ccdaemon.Serve(ctx, Paths(), version.String(), cfg.Bind, token, loader)
 }
 
 // channelTools advertises zero domain tools: the cc-present channel is a pure

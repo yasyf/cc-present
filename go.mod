@@ -5,6 +5,8 @@ go 1.26.5
 require (
 	github.com/grandcat/zeroconf v1.0.0
 	github.com/mdp/qrterminal/v3 v3.2.1
+	github.com/pelletier/go-toml/v2 v2.4.3
+	github.com/santhosh-tekuri/jsonschema/v6 v6.0.2
 	github.com/shirou/gopsutil/v4 v4.26.5
 	github.com/spf13/cobra v1.10.2
 	github.com/yasyf/cc-interact v0.6.0
@@ -31,6 +33,7 @@ require (
 	golang.org/x/net v0.57.0 // indirect
 	golang.org/x/sys v0.47.0 // indirect
 	golang.org/x/term v0.45.0 // indirect
+	golang.org/x/text v0.40.0 // indirect
 	modernc.org/libc v1.72.3 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.11.0 // indirect

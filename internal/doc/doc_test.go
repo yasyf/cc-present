@@ -14,7 +14,7 @@ func parse(data string) (*doc.Doc, error) {
 	if err := json.Unmarshal([]byte(data), &d); err != nil {
 		return nil, err
 	}
-	return &d, d.Validate()
+	return &d, d.Validate(doc.NoPacks)
 }
 
 func card(id, children string) string {
@@ -145,7 +145,7 @@ func TestRoundTrip(t *testing.T) {
 	if err := json.Unmarshal(out, &reparsed); err != nil {
 		t.Fatalf("re-unmarshal: %v", err)
 	}
-	if err := reparsed.Validate(); err != nil {
+	if err := reparsed.Validate(doc.NoPacks); err != nil {
 		t.Fatalf("validate re-parsed: %v", err)
 	}
 	if got := len(reparsed.Blocks); got != 2 {

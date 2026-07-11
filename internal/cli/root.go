@@ -44,6 +44,7 @@ func NewRootCmd() *cobra.Command {
 		newOutcomesCmd(d),
 		newCloseCmd(d),
 		newPairCmd(d),
+		newPackCmd(),
 	)
 	return root
 }

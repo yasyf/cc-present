@@ -95,6 +95,59 @@ func TestReduceErrors(t *testing.T) {
 	}
 }
 
+// TestReducePackInteraction covers the pack.interaction reducer case with inline
+// events; the language-neutral testdata fixtures for it land in Phase 3 lockstep
+// with the TypeScript reducer.
+func TestReducePackInteraction(t *testing.T) {
+	const packDoc = `{"doc":{"version":1,"title":"T","blocks":[{"id":"r1","type":"example.rating","value":3}]},"revision":1}`
+
+	t.Run("last write wins per block", func(t *testing.T) {
+		st, err := state.Reduce([]state.Event{
+			{Origin: "agent", Type: "doc.replaced", Seq: 1, Payload: []byte(packDoc)},
+			{Origin: "human", Type: "pack.interaction", Seq: 2, Payload: []byte(`{"blockId":"r1","payload":{"value":3}}`)},
+			{Origin: "human", Type: "pack.interaction", Seq: 3, Payload: []byte(`{"blockId":"r1","payload":{"value":5}}`)},
+		})
+		if err != nil {
+			t.Fatalf("Reduce: %v", err)
+		}
+		if got := packValue(t, st.Interactions.Packs["r1"]); got != 5 {
+			t.Fatalf("packs[r1].value = %d, want 5 (last write wins)", got)
+		}
+	})
+
+	t.Run("snapshot into the closed round on submit", func(t *testing.T) {
+		st, err := state.Reduce([]state.Event{
+			{Origin: "agent", Type: "doc.replaced", Seq: 1, Payload: []byte(packDoc)},
+			{Origin: "human", Type: "pack.interaction", Seq: 2, Payload: []byte(`{"blockId":"r1","payload":{"value":4}}`)},
+			{Origin: "human", Type: "submit", Seq: 3, Payload: []byte(`{"revision":1}`)},
+		})
+		if err != nil {
+			t.Fatalf("Reduce: %v", err)
+		}
+		if len(st.Rounds.History) != 1 {
+			t.Fatalf("history = %d rounds, want 1", len(st.Rounds.History))
+		}
+		if got := packValue(t, st.Rounds.History[0].Packs["r1"]); got != 4 {
+			t.Fatalf("round packs[r1].value = %d, want 4", got)
+		}
+		// The live interaction persists past the snapshot, mirroring choices/decisions.
+		if got := packValue(t, st.Interactions.Packs["r1"]); got != 4 {
+			t.Fatalf("live packs[r1].value = %d, want 4", got)
+		}
+	})
+}
+
+func packValue(t *testing.T, v state.PackValue) int {
+	t.Helper()
+	var p struct {
+		Value int `json:"value"`
+	}
+	if err := json.Unmarshal(v.Payload, &p); err != nil {
+		t.Fatalf("decode pack payload %q: %v", v.Payload, err)
+	}
+	return p.Value
+}
+
 func initMaps(s *state.State) {
 	if s.Interactions.Decisions == nil {
 		s.Interactions.Decisions = map[string]state.Decision{}
@@ -104,6 +157,9 @@ func initMaps(s *state.State) {
 	}
 	if s.Interactions.Inputs == nil {
 		s.Interactions.Inputs = map[string]state.InputValue{}
+	}
+	if s.Interactions.Packs == nil {
+		s.Interactions.Packs = map[string]state.PackValue{}
 	}
 	if s.Interactions.Feedback == nil {
 		s.Interactions.Feedback = map[string][]state.Feedback{}
@@ -122,6 +178,11 @@ func initMaps(s *state.State) {
 	}
 	if s.Rounds.History == nil {
 		s.Rounds.History = []state.RoundRecord{}
+	}
+	for i := range s.Rounds.History {
+		if s.Rounds.History[i].Packs == nil {
+			s.Rounds.History[i].Packs = map[string]state.PackValue{}
+		}
 	}
 }
 

@@ -13,6 +13,7 @@ import (
 	"github.com/yasyf/cc-interact/subject"
 
 	"github.com/yasyf/cc-present/internal/assets"
+	"github.com/yasyf/cc-present/internal/doc"
 	"github.com/yasyf/cc-present/internal/state"
 )
 
@@ -82,7 +83,7 @@ const approvalDoc = `{"version":1,"title":"Board","blocks":[{"id":"a1","type":"a
 func TestStart(t *testing.T) {
 	t.Run("fresh start reports url and inactive channel", func(t *testing.T) {
 		h := newHarness(t)
-		reply := handleStart(h.hc(body{Title: "My Board"}))
+		reply := handleStart(h.hc(body{Title: "My Board"}), doc.NoPacks)
 		if !reply.OK {
 			t.Fatalf("start not ok: %s", reply.Error)
 		}
@@ -106,7 +107,7 @@ func TestStart(t *testing.T) {
 
 	t.Run("start with a doc appends revision 1", func(t *testing.T) {
 		h := newHarness(t)
-		reply := handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}))
+		reply := handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks)
 		if !reply.OK {
 			t.Fatalf("start not ok: %s", reply.Error)
 		}
@@ -121,11 +122,11 @@ func TestStart(t *testing.T) {
 
 	t.Run("start after close creates a fresh subject", func(t *testing.T) {
 		h := newHarness(t)
-		first := handleStart(h.hc(body{Title: "One"}))
+		first := handleStart(h.hc(body{Title: "One"}), doc.NoPacks)
 		if reply := handleClose(h.hc(body{}), h.assets); !reply.OK {
 			t.Fatalf("close not ok: %s", reply.Error)
 		}
-		second := handleStart(h.hc(body{Title: "One"}))
+		second := handleStart(h.hc(body{Title: "One"}), doc.NoPacks)
 		if !second.OK {
 			t.Fatalf("second start not ok: %s", second.Error)
 		}
@@ -138,7 +139,7 @@ func TestStart(t *testing.T) {
 func TestPush(t *testing.T) {
 	t.Run("push increments revision", func(t *testing.T) {
 		h := newHarness(t)
-		start := handleStart(h.hc(body{Title: "T"}))
+		start := handleStart(h.hc(body{Title: "T"}), doc.NoPacks)
 		if rev := pushRev(t, h, approvalDoc); rev != 1 {
 			t.Fatalf("first push revision = %d, want 1", rev)
 		}
@@ -152,7 +153,7 @@ func TestPush(t *testing.T) {
 
 	t.Run("push without a subject is rejected", func(t *testing.T) {
 		h := newHarness(t)
-		reply := handlePush(h.hc(body{Doc: json.RawMessage(approvalDoc)}))
+		reply := handlePush(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks)
 		if reply.OK || !strings.Contains(reply.Error, "no cc-present artifact") {
 			t.Fatalf("push without subject: ok=%v err=%q", reply.OK, reply.Error)
 		}
@@ -160,9 +161,9 @@ func TestPush(t *testing.T) {
 
 	t.Run("push to a closed artifact is rejected", func(t *testing.T) {
 		h := newHarness(t)
-		handleStart(h.hc(body{Title: "T"}))
+		handleStart(h.hc(body{Title: "T"}), doc.NoPacks)
 		handleClose(h.hc(body{}), h.assets)
-		reply := handlePush(h.hc(body{Doc: json.RawMessage(approvalDoc)}))
+		reply := handlePush(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks)
 		if reply.OK || !strings.Contains(reply.Error, "closed") {
 			t.Fatalf("push when closed: ok=%v err=%q", reply.OK, reply.Error)
 		}
@@ -170,8 +171,8 @@ func TestPush(t *testing.T) {
 
 	t.Run("push rejects an invalid document", func(t *testing.T) {
 		h := newHarness(t)
-		handleStart(h.hc(body{Title: "T"}))
-		reply := handlePush(h.hc(body{Doc: json.RawMessage(`{"version":1,"title":"","blocks":[]}`)}))
+		handleStart(h.hc(body{Title: "T"}), doc.NoPacks)
+		reply := handlePush(h.hc(body{Doc: json.RawMessage(`{"version":1,"title":"","blocks":[]}`)}), doc.NoPacks)
 		if reply.OK || !strings.Contains(reply.Error, "title") {
 			t.Fatalf("push invalid doc: ok=%v err=%q", reply.OK, reply.Error)
 		}
@@ -191,8 +192,8 @@ func TestUpsertBlock(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			h := newHarness(t)
-			start := handleStart(h.hc(body{Title: "T"}))
-			reply := handleUpsertBlock(h.hc(body{Block: json.RawMessage(tt.block)}))
+			start := handleStart(h.hc(body{Title: "T"}), doc.NoPacks)
+			reply := handleUpsertBlock(h.hc(body{Block: json.RawMessage(tt.block)}), doc.NoPacks)
 			if tt.wantErr == "" {
 				if !reply.OK {
 					t.Fatalf("upsert not ok: %s", reply.Error)
@@ -209,9 +210,52 @@ func TestUpsertBlock(t *testing.T) {
 	}
 }
 
+func TestUpsertBlockPack(t *testing.T) {
+	reg := packLoader(t, writePackTree(t)).Current()
+	tests := []struct {
+		name    string
+		block   string
+		wantErr string
+	}{
+		{"declared pack block", `{"id":"c1","type":"example.callout","tone":"warn"}`, ""},
+		{"undeclared dotted type", `{"id":"g1","type":"ghost.thing"}`, "not installed"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := newHarness(t)
+			handleStart(h.hc(body{Title: "T"}), reg)
+			reply := handleUpsertBlock(h.hc(body{Block: json.RawMessage(tt.block)}), reg)
+			if tt.wantErr == "" {
+				if !reply.OK {
+					t.Fatalf("upsert not ok: %s", reply.Error)
+				}
+				return
+			}
+			if reply.OK || !strings.Contains(reply.Error, tt.wantErr) {
+				t.Fatalf("upsert %s: ok=%v err=%q, want %q", tt.name, reply.OK, reply.Error, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestPushPack(t *testing.T) {
+	reg := packLoader(t, writePackTree(t)).Current()
+	h := newHarness(t)
+	handleStart(h.hc(body{Title: "T"}), reg)
+	declared := `{"version":1,"title":"T","blocks":[{"id":"c1","type":"example.callout","tone":"warn"}]}`
+	if reply := handlePush(h.hc(body{Doc: json.RawMessage(declared)}), reg); !reply.OK {
+		t.Fatalf("push declared pack block: %s", reply.Error)
+	}
+	undeclared := `{"version":1,"title":"T","blocks":[{"id":"g1","type":"ghost.thing"}]}`
+	reply := handlePush(h.hc(body{Doc: json.RawMessage(undeclared)}), reg)
+	if reply.OK || !strings.Contains(reply.Error, "not installed") {
+		t.Fatalf("push undeclared dotted type: ok=%v err=%q, want 'not installed'", reply.OK, reply.Error)
+	}
+}
+
 func TestClose(t *testing.T) {
 	h := newHarness(t)
-	start := handleStart(h.hc(body{Title: "T"}))
+	start := handleStart(h.hc(body{Title: "T"}), doc.NoPacks)
 	if reply := handleClose(h.hc(body{Summary: "done"}), h.assets); !reply.OK {
 		t.Fatalf("close not ok: %s", reply.Error)
 	}
@@ -232,7 +276,7 @@ func TestClose(t *testing.T) {
 
 func TestReply(t *testing.T) {
 	h := newHarness(t)
-	start := handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}))
+	start := handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks)
 	if reply := handleReply(h.hc(body{BlockID: "a1", Md: "answered"})); !reply.OK {
 		t.Fatalf("reply not ok: %s", reply.Error)
 	}
@@ -260,7 +304,7 @@ func TestRound(t *testing.T) {
 		{
 			name: "advance on a dirty round",
 			setup: func(t *testing.T, h *harness) {
-				if r := handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)})); !r.OK {
+				if r := handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks); !r.OK {
 					t.Fatalf("start not ok: %s", r.Error)
 				}
 			},
@@ -269,7 +313,7 @@ func TestRound(t *testing.T) {
 		{
 			name: "title-only on a clean round after submit",
 			setup: func(t *testing.T, h *harness) {
-				start := handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}))
+				start := handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks)
 				// A submit on the dirty round closes it and advances to round 2; the
 				// live block keeps its round-1 stamp, so round 2 is clean.
 				if _, err := h.cc.AppendEvent(context.Background(), &ccevent.Event{
@@ -285,7 +329,7 @@ func TestRound(t *testing.T) {
 		{
 			name: "rejected on a closed artifact",
 			setup: func(_ *testing.T, h *harness) {
-				handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}))
+				handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks)
 				handleClose(h.hc(body{}), h.assets)
 			},
 			wantErr: "closed",
@@ -318,7 +362,7 @@ func TestRound(t *testing.T) {
 
 func TestOutcomes(t *testing.T) {
 	h := newHarness(t)
-	start := handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}))
+	start := handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks)
 	// A human decision lands directly on the log, as the REST plane would append it.
 	if _, err := h.cc.AppendEvent(context.Background(), &ccevent.Event{
 		SubjectID: start.SubjectID, Origin: ccevent.OriginHuman, Type: EventDecisionCreated,
@@ -348,7 +392,7 @@ func TestOutcomes(t *testing.T) {
 
 func pushRev(t *testing.T, h *harness, docJSON string) int {
 	t.Helper()
-	reply := handlePush(h.hc(body{Doc: json.RawMessage(docJSON)}))
+	reply := handlePush(h.hc(body{Doc: json.RawMessage(docJSON)}), doc.NoPacks)
 	if !reply.OK {
 		t.Fatalf("push not ok: %s", reply.Error)
 	}

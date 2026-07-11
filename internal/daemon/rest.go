@@ -15,11 +15,16 @@ import (
 
 	"github.com/yasyf/cc-present/internal/assets"
 	"github.com/yasyf/cc-present/internal/doc"
+	"github.com/yasyf/cc-present/internal/packs"
 	"github.com/yasyf/cc-present/internal/state"
 	"github.com/yasyf/cc-present/internal/web"
 )
 
 var validVerdict = map[string]bool{"approved": true, "rejected": true, "cleared": true}
+
+// maxInteractionBytes caps the POST /api/interactions body so an oversized
+// payload can't be decoded into memory or persisted to the event log.
+const maxInteractionBytes = 256 << 10
 
 // restServer holds the REST plane's shared state: the event-log connection, the
 // Append chokepoint, the subject resolver, the asset store, and the SPA handler
@@ -29,6 +34,7 @@ type restServer struct {
 	append  ccd.AppendFunc
 	resolve func(ctx context.Context, ref string) (string, bool, error)
 	assets  *assets.Store
+	packs   *packs.Loader
 	static  http.Handler
 }
 
@@ -43,25 +49,28 @@ type interactionReq struct {
 // interaction is the discriminated union over the human event payloads. Type is
 // the event type; each handler reads only the fields its type uses.
 type interaction struct {
-	Type      string   `json:"type"`
-	BlockID   string   `json:"blockId"`
-	Verdict   string   `json:"verdict"`
-	Note      string   `json:"note"`
-	OptionIDs []string `json:"optionIds"`
-	Text      string   `json:"text"`
-	ID        string   `json:"id"`
-	Revision  int      `json:"revision"`
+	Type      string          `json:"type"`
+	BlockID   string          `json:"blockId"`
+	Verdict   string          `json:"verdict"`
+	Note      string          `json:"note"`
+	OptionIDs []string        `json:"optionIds"`
+	Text      string          `json:"text"`
+	ID        string          `json:"id"`
+	Revision  int             `json:"revision"`
+	Payload   json.RawMessage `json:"payload"`
 }
 
 // mountREST registers the human-interaction endpoint, the content-addressed
-// asset store, and the SPA static handler on the daemon's mux. Go's pattern mux
-// gives the more specific /api and /assets routes precedence over the catch-all.
-func mountREST(s *ccd.Server, ast *assets.Store) {
+// asset store, the pack registry and bundle routes, and the SPA static handler
+// on the daemon's mux. Go's pattern mux gives the more specific /api, /assets,
+// and /packs routes precedence over the catch-all.
+func mountREST(s *ccd.Server, ast *assets.Store, loader *packs.Loader) {
 	rs := &restServer{
 		db:      s.DB(),
 		append:  s.Append,
 		resolve: s.ResolveSubject,
 		assets:  ast,
+		packs:   loader,
 		static:  sse.StaticHandler(web.Dist()),
 	}
 	mux := s.Mux()
@@ -69,6 +78,8 @@ func mountREST(s *ccd.Server, ast *assets.Store) {
 	mux.HandleFunc("POST /api/interactions", rs.handleInteractions)
 	mux.HandleFunc("POST /api/assets", rs.handlePutAsset)
 	mux.HandleFunc("GET /assets/{sha}", rs.handleGetAsset)
+	mux.HandleFunc("GET /api/packs", rs.handlePacks)
+	mux.HandleFunc("GET /packs/{pack}/{file...}", rs.handlePackFile)
 	mux.Handle("/", rs.static)
 }
 
@@ -76,8 +87,14 @@ func mountREST(s *ccd.Server, ast *assets.Store) {
 // the interaction against the reduced document, then appends it under the human
 // origin with a retry-idempotent dedup key.
 func (rs *restServer) handleInteractions(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, maxInteractionBytes)
 	var req interactionReq
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		var maxErr *http.MaxBytesError
+		if errors.As(err, &maxErr) {
+			http.Error(w, fmt.Sprintf("interaction exceeds %d bytes", maxInteractionBytes), http.StatusRequestEntityTooLarge)
+			return
+		}
 		http.Error(w, "bad request: "+err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -114,7 +131,7 @@ func (rs *restServer) handleInteractions(w http.ResponseWriter, r *http.Request)
 			revision++
 		}
 	}
-	payload, err := validateInteraction(&st, revision, &req.Interaction)
+	payload, err := validateInteraction(&st, revision, &req.Interaction, rs.packs.Current())
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -138,8 +155,9 @@ func (rs *restServer) handleInteractions(w http.ResponseWriter, r *http.Request)
 // block-scoped interaction on a block from a round already closed, and a
 // submit naming a revision the log never produced (revision is the count of
 // doc.replaced events; 0 is a document never replaced). Submit is exempt from
-// the round guard: it is what closes a round.
-func validateInteraction(st *state.State, revision int, it *interaction) (json.RawMessage, error) {
+// the round guard: it is what closes a round. A pack.interaction validates its
+// payload against the block's declared interaction schema in reg.
+func validateInteraction(st *state.State, revision int, it *interaction, reg *packs.Registry) (json.RawMessage, error) {
 	switch it.Type {
 	case EventSubmit:
 		if it.Revision < 0 || it.Revision > revision {
@@ -218,6 +236,21 @@ func validateInteraction(st *state.State, revision int, it *interaction) (json.R
 			return nil, err
 		}
 		return mustJSON(map[string]string{"blockId": it.BlockID, "text": it.Text}), nil
+	case EventPackInteraction:
+		pb, topID, err := requirePackBlock(st, it.BlockID)
+		if err != nil {
+			return nil, err
+		}
+		if err := requireCurrentRound(st, it.BlockID, topID); err != nil {
+			return nil, err
+		}
+		if err := reg.ValidateInteraction(pb.Type, it.Payload); err != nil {
+			return nil, err
+		}
+		return mustJSON(struct {
+			BlockID string          `json:"blockId"`
+			Payload json.RawMessage `json:"payload"`
+		}{it.BlockID, it.Payload}), nil
 	default:
 		return nil, fmt.Errorf("unknown interaction type %q", it.Type)
 	}
@@ -257,6 +290,18 @@ func requireInput(st *state.State, id string) (*doc.Input, string, error) {
 		return nil, "", fmt.Errorf("block %q is a %s, not an input", id, b.BlockType())
 	}
 	return in, topID, nil
+}
+
+func requirePackBlock(st *state.State, id string) (*doc.PackBlock, string, error) {
+	b, topID, ok := findBlock(st.Doc, id)
+	if !ok {
+		return nil, "", fmt.Errorf("unknown block %q", id)
+	}
+	pb, ok := b.(*doc.PackBlock)
+	if !ok {
+		return nil, "", fmt.Errorf("block %q is a %s, not a pack block", id, b.BlockType())
+	}
+	return pb, topID, nil
 }
 
 // requireCurrentRound rejects an interaction on a block whose enclosing
