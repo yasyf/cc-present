@@ -10,13 +10,14 @@ struct BlockView: View {
     let block: Block
     let store: BoardStore
     var client: APIClient?
+    var packContext: PackContext?
 
     var body: some View {
         switch block {
         case let .section(section):
             SectionView(block: section)
         case let .card(card):
-            CardView(block: card, store: store, client: client)
+            CardView(block: card, store: store, client: client, packContext: packContext)
         case let .approval(approval):
             ApprovalBlockView(block: approval, store: store)
         case let .choice(choice):
@@ -37,14 +38,18 @@ struct BlockView: View {
         case let .progress(progress):
             ProgressBlockView(block: progress)
         case let .pack(pack):
-            PackPlaceholderView(pack: pack)
+            if let packContext {
+                PackBlockWebView(block: pack, context: packContext)
+            } else {
+                PackPlaceholderView(pack: pack)
+            }
         }
     }
 }
 
-/// PackPlaceholderView is the native stand-in for a plugin-supplied pack block:
-/// a labeled card naming the pack type and block id. The WKWebView renderer lands
-/// in a later phase; until then a pack block reads as an unresolved placeholder.
+/// PackPlaceholderView is the native stand-in for a plugin-supplied pack block when
+/// no PackContext is available (e.g. a preview): a labeled card naming the pack type
+/// and block id. On a live board BlockView renders the block through PackBlockWebView.
 private struct PackPlaceholderView: View {
     let pack: Block.Pack
 

@@ -10,6 +10,7 @@ struct CardView: View {
     let block: Block.Card
     let store: BoardStore
     var client: APIClient?
+    var packContext: PackContext?
 
     private var flagged: Bool {
         block.flagged == true
@@ -32,7 +33,7 @@ struct CardView: View {
                 }
                 VStack(alignment: .leading, spacing: 16) {
                     ForEach(block.children, id: \.id) { child in
-                        BlockView(block: child, store: store, client: client)
+                        BlockView(block: child, store: store, client: client, packContext: packContext)
                     }
                 }
             }

@@ -31,6 +31,10 @@ struct BoardScreen: View {
         store.state
     }
 
+    private var packContext: PackContext {
+        PackContext(baseURL: machine.baseURL, token: bearerToken, subject: store.subject)
+    }
+
     private var currentBlocks: [Block] {
         state.doc.blocks.filter { state.rounds.blockRounds[$0.id] == state.rounds.current }
     }
@@ -77,13 +81,13 @@ struct BoardScreen: View {
                     ClosedBannerView(summary: state.interactions.closed.summary)
                 }
                 ForEach(state.rounds.history, id: \.number) { record in
-                    RoundGroupView(record: record, client: client)
+                    RoundGroupView(record: record, client: client, packContext: packContext)
                 }
                 if !currentBlocks.isEmpty, hasHistory || !state.rounds.currentTitle.isEmpty {
                     currentRoundHeader
                 }
                 ForEach(currentBlocks, id: \.id) { block in
-                    BlockView(block: block, store: store, client: client)
+                    BlockView(block: block, store: store, client: client, packContext: packContext)
                 }
                 if isWaiting {
                     WaitingPanelView(round: state.rounds.current, lastRound: state.rounds.history.last)

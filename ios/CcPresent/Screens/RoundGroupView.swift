@@ -14,13 +14,15 @@ import SwiftUI
 struct RoundGroupView: View {
     let record: RoundRecord
     var client: APIClient?
+    var packContext: PackContext?
 
     @State private var store: BoardStore
     @State private var expanded = false
 
-    init(record: RoundRecord, client: APIClient? = nil) {
+    init(record: RoundRecord, client: APIClient? = nil, packContext: PackContext? = nil) {
         self.record = record
         self.client = client
+        self.packContext = packContext
         _store = State(initialValue: RoundGroupView.seed(record))
     }
 
@@ -32,7 +34,7 @@ struct RoundGroupView: View {
         DisclosureGroup(isExpanded: $expanded) {
             VStack(alignment: .leading, spacing: 16) {
                 ForEach(record.blocks, id: \.id) { block in
-                    BlockView(block: block, store: store, client: client)
+                    BlockView(block: block, store: store, client: client, packContext: packContext)
                 }
             }
             .padding(.top, 12)
