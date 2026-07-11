@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -10,6 +11,7 @@ import (
 	"github.com/yasyf/cc-interact/cmd"
 
 	"github.com/yasyf/cc-present/internal/app"
+	"github.com/yasyf/cc-present/internal/packs"
 )
 
 func writePackFiles(t *testing.T, dir string, files map[string]string) {
@@ -153,6 +155,173 @@ func TestPackList(t *testing.T) {
 	if !strings.Contains(s, filepath.Join(good, "reference", "blocks.md")) {
 		t.Fatalf("list output missing reference path:\n%s", s)
 	}
+}
+
+func runPackInit(t *testing.T, args []string) (string, error) {
+	t.Helper()
+	c := newPackInitCmd()
+	var out bytes.Buffer
+	c.SetOut(&out)
+	c.SetErr(&out)
+	c.SetArgs(args)
+	err := c.Execute()
+	return out.String(), err
+}
+
+func readScaffoldFile(t *testing.T, path string) []byte {
+	t.Helper()
+	//nolint:gosec // G304: reading a file the test just scaffolded under t.TempDir().
+	b, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return b
+}
+
+func TestPackInit(t *testing.T) {
+	t.Run("happy path renames pack", func(t *testing.T) {
+		dir := filepath.Join(t.TempDir(), "scratch")
+		out, err := runPackInit(t, []string{"--name", "demo", dir})
+		if err != nil {
+			t.Fatalf("pack init: %v", err)
+		}
+		if !strings.Contains(out, `scaffolded pack "demo"`) {
+			t.Fatalf("out = %q, want scaffolded summary", out)
+		}
+
+		m, err := packs.ParseManifest(dir)
+		if err != nil {
+			t.Fatalf("re-parse manifest: %v", err)
+		}
+		if m.Name != "demo" {
+			t.Fatalf("manifest name = %q, want demo", m.Name)
+		}
+
+		callout := readScaffoldFile(t, filepath.Join(dir, "schema", "callout.json"))
+		if !bytes.Contains(callout, []byte("demo.callout")) {
+			t.Fatalf("callout schema missing demo.callout:\n%s", callout)
+		}
+
+		err = filepath.WalkDir(dir, func(p string, d fs.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+			if d.IsDir() {
+				return nil
+			}
+			//nolint:gosec // G304: reading a file the test just scaffolded under t.TempDir().
+			b, err := os.ReadFile(p)
+			if err != nil {
+				return err
+			}
+			if bytes.Contains(b, []byte("example.")) {
+				t.Errorf("%s still contains example.", p)
+			}
+			return nil
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		exCallout := readScaffoldFile(t, filepath.Join(dir, "examples", "callout.json"))
+		if !bytes.Contains(exCallout, []byte(`"demo.callout"`)) {
+			t.Fatalf("example callout missing renamed type:\n%s", exCallout)
+		}
+
+		gitignore := readScaffoldFile(t, filepath.Join(dir, ".gitignore"))
+		if !bytes.Contains(gitignore, []byte("node_modules/")) {
+			t.Fatalf(".gitignore missing node_modules/:\n%s", gitignore)
+		}
+		if bytes.Contains(gitignore, []byte("dist/")) {
+			t.Fatalf(".gitignore must not ignore dist/:\n%s", gitignore)
+		}
+
+		pkg := readScaffoldFile(t, filepath.Join(dir, "package.json"))
+		if !bytes.Contains(pkg, []byte("@cc-present/demo-pack")) {
+			t.Fatalf("package.json missing @cc-present/demo-pack:\n%s", pkg)
+		}
+	})
+
+	t.Run("default name from dir basename", func(t *testing.T) {
+		dir := filepath.Join(t.TempDir(), "mypack")
+		if _, err := runPackInit(t, []string{dir}); err != nil {
+			t.Fatalf("pack init: %v", err)
+		}
+		m, err := packs.ParseManifest(dir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if m.Name != "mypack" {
+			t.Fatalf("manifest name = %q, want mypack", m.Name)
+		}
+	})
+
+	t.Run("lint passes on stubbed scaffold", func(t *testing.T) {
+		dir := filepath.Join(t.TempDir(), "linted")
+		if _, err := runPackInit(t, []string{"--name", "linted", dir}); err != nil {
+			t.Fatalf("pack init: %v", err)
+		}
+		if err := os.MkdirAll(filepath.Join(dir, "dist"), 0o750); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, "dist", "pack.js"), []byte("export default {}"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		p, err := packs.Lint(dir)
+		if err != nil {
+			t.Fatalf("lint scaffold: %v", err)
+		}
+		if p.Name != "linted" {
+			t.Fatalf("lint name = %q, want linted", p.Name)
+		}
+		if len(p.Blocks) != 2 {
+			t.Fatalf("lint blocks = %d, want 2", len(p.Blocks))
+		}
+	})
+
+	t.Run("bad name rejected", func(t *testing.T) {
+		dir := filepath.Join(t.TempDir(), "x")
+		_, err := runPackInit(t, []string{"--name", "Bad", dir})
+		if err == nil || !strings.Contains(err.Error(), "must match") {
+			t.Fatalf("err = %v, want 'must match'", err)
+		}
+	})
+
+	t.Run("name too long rejected", func(t *testing.T) {
+		dir := filepath.Join(t.TempDir(), "x")
+		_, err := runPackInit(t, []string{"--name", strings.Repeat("a", 33), dir})
+		if err == nil || !strings.Contains(err.Error(), "exceeds") {
+			t.Fatalf("err = %v, want 'exceeds'", err)
+		}
+	})
+
+	t.Run("non-empty dir refused", func(t *testing.T) {
+		dir := t.TempDir()
+		stray := filepath.Join(dir, "keep.txt")
+		if err := os.WriteFile(stray, []byte("stay"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		_, err := runPackInit(t, []string{"--name", "demo", dir})
+		if err == nil || !strings.Contains(err.Error(), "not empty") {
+			t.Fatalf("err = %v, want 'not empty'", err)
+		}
+		//nolint:gosec // G304: reading the stray file under t.TempDir() to prove it's untouched.
+		b, err := os.ReadFile(stray)
+		if err != nil || string(b) != "stay" {
+			t.Fatalf("stray file altered: %q, %v", b, err)
+		}
+		if _, err := os.Stat(filepath.Join(dir, "cc-present.toml")); !os.IsNotExist(err) {
+			t.Fatalf("scaffold wrote into non-empty dir: %v", err)
+		}
+	})
+
+	t.Run("invalid derived name instructs --name", func(t *testing.T) {
+		dir := filepath.Join(t.TempDir(), "Bad_Name")
+		_, err := runPackInit(t, []string{dir})
+		if err == nil || !strings.Contains(err.Error(), "--name") {
+			t.Fatalf("err = %v, want '--name'", err)
+		}
+	})
 }
 
 func TestPushDryRunPackBlock(t *testing.T) {

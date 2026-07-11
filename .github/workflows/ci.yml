@@ -66,6 +66,16 @@ jobs:
         run: go build ./...
       - name: Lint example pack
         run: go run ./cmd/cc-present pack lint examples/packs/example
+      # Prove `pack init` scaffolds a build-correct pack verbatim: scaffold into
+      # RUNNER_TEMP (present on both runners), build/smoke it, then lint it. go
+      # run stays at the repo root (bun set up earlier); the bun steps run in a
+      # subshell so go run keeps its module context.
+      - name: Scaffold pack (pack init)
+        run: |
+          pack_dir="$RUNNER_TEMP/ci-pack"
+          go run ./cmd/cc-present pack init --name ci-smoke "$pack_dir"
+          ( cd "$pack_dir" && bun install && bun run build && bun run smoke )
+          go run ./cmd/cc-present pack lint "$pack_dir"
 
   lint:
     runs-on: ubuntu-latest

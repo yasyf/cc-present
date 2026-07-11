@@ -74,14 +74,8 @@ func ParseManifest(root string) (*Manifest, error) {
 }
 
 func (m *Manifest) validate() error {
-	if m.Name == "" {
-		return fmt.Errorf("name must not be empty")
-	}
-	if !packNamePattern.MatchString(m.Name) {
-		return fmt.Errorf("name %q must match %s", m.Name, packNamePattern)
-	}
-	if len(m.Name) > maxPackNameLen {
-		return fmt.Errorf("name %q exceeds %d characters", m.Name, maxPackNameLen)
+	if err := ValidateName(m.Name); err != nil {
+		return err
 	}
 	if m.Version == "" {
 		return fmt.Errorf("version must not be empty")
