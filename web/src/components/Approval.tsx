@@ -5,8 +5,7 @@ import type { Interactions } from '../events';
 import { usePresent } from '../present';
 import { verdictToggle } from '../decide';
 import { useDecidable } from '../keyboard';
-import { renderMarkdown } from '../markdown';
-import { Clamped } from './Clamped';
+import { ReplyItem } from './ReplyThread';
 
 export function Approval({ block, interactions }: { block: ApprovalBlock; interactions: Interactions }) {
   const { post, closed } = usePresent();
@@ -140,10 +139,7 @@ export function Approval({ block, interactions }: { block: ApprovalBlock; intera
             </div>
           ))}
           {replies.map((r) => (
-            <div key={r.id} className="thread-item reply-item">
-              <span className="thread-who">agent</span>
-              <Clamped html={renderMarkdown(r.md)} lines={4} className="thread-text prose" />
-            </div>
+            <ReplyItem key={r.id} reply={r} />
           ))}
         </div>
       )}

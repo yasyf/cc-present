@@ -15,6 +15,21 @@ func flatten(_ blocks: [Block]) -> [Block] {
     return out
 }
 
+/// showsNativeReplyThread reports whether BlockView renders a native agent reply
+/// thread beneath a block. Approval owns its integrated thread, and a pack block's
+/// thread renders inside its WKWebView (the web SingleBlockView), so native
+/// rendering would double it; every other block type shows the native thread. The
+/// switch is exhaustive with no default arm, so a new block type must classify
+/// itself. Mirrors web/src/components/BlockRenderer.tsx.
+func showsNativeReplyThread(_ block: Block) -> Bool {
+    switch block {
+    case .approval, .pack:
+        false
+    case .section, .card, .choice, .input, .markdown, .code, .diff, .image, .table, .progress:
+        true
+    }
+}
+
 /// SubmitItem is one entry of the submit tally: an approval or choice with its
 /// decided state. Inputs never count toward the tally.
 struct SubmitItem: Equatable {

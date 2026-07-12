@@ -13,6 +13,7 @@ import { ImageView } from './ImageView';
 import { TableView } from './TableView';
 import { ProgressView } from './ProgressView';
 import { PackBlockView } from './PackBlockView';
+import { ReplyThread } from './ReplyThread';
 
 export interface BlockProps {
   block: Block;
@@ -41,9 +42,21 @@ const BUILTIN: { [T in BuiltinBlockType]: BuiltinRenderer<T> } = {
   progress: ProgressView,
 };
 
-// BlockRenderer dispatches on the block's type. Pack blocks route to the pack
-// registry; every built-in resolves through the exhaustive BUILTIN table.
+// BlockRenderer dispatches on the block's type, then threads the agent's replies
+// beneath it. Approval renders its replies inline, so it is returned bare; every
+// other block — built-in or pack — gets the shared ReplyThread.
 export function BlockRenderer({ block, interactions }: BlockProps) {
+  const inner = renderInner(block, interactions);
+  if (block.type === 'approval') return inner;
+  return (
+    <>
+      {inner}
+      <ReplyThread replies={interactions.replies[block.id] ?? []} />
+    </>
+  );
+}
+
+function renderInner(block: Block, interactions: Interactions) {
   if (isPackBlock(block)) return <PackBlockView block={block} interactions={interactions} />;
   const Renderer = BUILTIN[block.type] as ComponentType<BlockProps>;
   return <Renderer block={block} interactions={interactions} />;

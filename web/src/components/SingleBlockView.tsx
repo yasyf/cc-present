@@ -14,6 +14,7 @@ import { KeyboardProvider } from '../keyboard';
 import { PresentContext } from '../present';
 import type { PresentApi } from '../present';
 import type { PresentState } from '../events';
+import type { Block } from '../schema';
 import { interactionErrorText } from '../interactionError';
 import { BlockRenderer } from './BlockRenderer';
 import { ClosedBanner } from './ClosedBanner';
@@ -26,6 +27,20 @@ declare global {
   interface Window {
     webkit?: { messageHandlers?: { ccPresentHeight?: HeightHandler } };
   }
+}
+
+// A block id absent from the live doc may still belong to a closed round: the
+// iOS client loads this view for a historical pack block whose id a later
+// doc.replaced dropped, and its agent replies must still render somewhere. Fall
+// back to the frozen blocks of closed rounds, newest first.
+function findBlock(state: PresentState, blockId: string): Block | undefined {
+  const live = flatten(state.doc.blocks).find((b) => b.id === blockId);
+  if (live) return live;
+  for (let i = state.rounds.history.length - 1; i >= 0; i--) {
+    const frozen = flatten(state.rounds.history[i]!.blocks).find((b) => b.id === blockId);
+    if (frozen) return frozen;
+  }
+  return undefined;
 }
 
 export function SingleBlockView({ subject, blockId }: { subject: string; blockId: string }) {
@@ -42,7 +57,7 @@ export function SingleBlockView({ subject, blockId }: { subject: string; blockId
     stream.notify({ kind: 'error', text: interactionErrorText(interaction) }),
   );
 
-  const block = flatten(state.doc.blocks).find((b) => b.id === blockId);
+  const block = findBlock(state, blockId);
   const round = topLevelRound(state, blockId);
   const realClosed = state.interactions.closed.value;
   // A stale-round block is read-only: fold that into `closed`, which every

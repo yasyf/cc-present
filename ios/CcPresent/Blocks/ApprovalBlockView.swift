@@ -14,6 +14,7 @@ struct ApprovalBlockView: View {
     @State private var composing = false
     @State private var draft = ""
     @FocusState private var composerFocused: Bool
+    @Environment(\.blockReplies) private var blockReplies
 
     private var verdict: Verdict? {
         store.state.interactions.decisions[block.id].flatMap { Verdict(rawValue: $0.verdict) }
@@ -24,7 +25,7 @@ struct ApprovalBlockView: View {
     }
 
     private var replies: [Reply] {
-        store.state.interactions.replies[block.id] ?? []
+        blockReplies[block.id] ?? []
     }
 
     private var allowFeedback: Bool {

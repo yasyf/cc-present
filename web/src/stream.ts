@@ -35,7 +35,7 @@ export const { EventStreamProvider, useEventStream } = createEventStream<WireFra
       case 'block.upserted':
         return { kind: 'info', text: 'A block was updated' };
       case 'reply.created':
-        return { kind: 'info', text: 'The agent replied to your feedback' };
+        return { kind: 'info', text: 'The agent replied' };
       default:
         return null;
     }

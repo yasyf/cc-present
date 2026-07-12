@@ -1,0 +1,32 @@
+{
+  "name": "reply-to-input",
+  "events": [
+    {
+      "origin": "agent",
+      "type": "doc.replaced",
+      "seq": 1,
+      "payload": {
+        "revision": 1,
+        "doc": {
+          "version": 1,
+          "title": "T",
+          "blocks": [{ "id": "in1", "type": "input", "label": "Name" }]
+        }
+      }
+    },
+    { "origin": "agent", "type": "reply.created", "seq": 2, "payload": { "id": "r1", "blockId": "in1", "md": "got it" } }
+  ],
+  "expected": {
+    "doc": {
+      "version": 1,
+      "title": "T",
+      "blocks": [{ "id": "in1", "type": "input", "label": "Name" }]
+    },
+    "interactions": {
+      "replies": {
+        "in1": [{ "id": "r1", "md": "got it" }]
+      }
+    },
+    "rounds": { "current": 1, "blockRounds": { "in1": 1 }, "history": [] }
+  }
+}

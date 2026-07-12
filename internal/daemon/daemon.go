@@ -224,8 +224,10 @@ func handleRemoveBlock(hc ccd.HandlerCtx) ccd.Reply {
 	return okReply(result{})
 }
 
-// handleReply appends an agent reply to a block's thread. A closed artifact
-// rejects the reply.
+// handleReply appends an agent reply to a block's thread. A reply naming a block
+// absent from the current document is rejected, as is a reply to a closed
+// artifact. There is deliberately no round check: replying to a block whose
+// round has already closed is a supported flow.
 func handleReply(hc ccd.HandlerCtx) ccd.Reply {
 	b := decodeBody(hc.Env.Body)
 	if b.BlockID == "" {
@@ -237,6 +239,17 @@ func handleReply(hc ccd.HandlerCtx) ccd.Reply {
 	sub, err := resolveOpen(hc)
 	if err != nil {
 		return errReply(err.Error())
+	}
+	events, err := loadEvents(hc.Ctx, hc.DB, sub.ID)
+	if err != nil {
+		return errReply(err.Error())
+	}
+	st, err := state.Reduce(events)
+	if err != nil {
+		return errReply(err.Error())
+	}
+	if _, _, ok := findBlock(st.Doc, b.BlockID); !ok {
+		return errReply(fmt.Sprintf("unknown block %q", b.BlockID))
 	}
 	id := b.ID
 	if id == "" {

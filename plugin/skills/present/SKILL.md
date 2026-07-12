@@ -83,7 +83,7 @@ Each event (Monitor line or channel tag) is the event's JSON payload, self-descr
 | `channel.changed` | `{type, connected}` | Presence — a browser tab connected or dropped. Informational. |
 | `present.closed` | `{summary?, type}` | Your own `close` echoing back — terminal. `watch` exits on it, completing its Monitor; nothing to do. |
 
-To reply — it renders under the block in realtime:
+To reply — it renders under the block in realtime, on any block type (approvals, inputs, tables, pack blocks alike); an unknown block id is rejected:
 
 ```bash
 "${CLAUDE_PLUGIN_ROOT}/bin/cc-present" reply --block <blockId> --body "Good catch — redrafting now."

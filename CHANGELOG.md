@@ -6,6 +6,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-07-12
+
+### Fixed
+- Agent replies render under every block type in the web and iOS clients;
+  previously only approval blocks showed their thread.
+- The daemon rejects a reply naming a block id absent from the current
+  document instead of silently accepting it.
+- `cc-present reply` prints a `replied: <blockId>` confirmation on success.
+
+## [0.6.0] - 2026-07-11
+
 ### Added
 - Block packs: plugins teach the board new typed blocks. A pack is a
   directory with a `cc-present.toml` manifest, a JSON Schema per block (plus
@@ -197,7 +208,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   marketplace.
 - `examples/opener-board.json`, a complete sample document.
 
-[Unreleased]: https://github.com/yasyf/cc-present/compare/v0.5.0...main
+[Unreleased]: https://github.com/yasyf/cc-present/compare/v0.6.1...main
+[0.6.1]: https://github.com/yasyf/cc-present/compare/v0.6.0...v0.6.1
+[0.6.0]: https://github.com/yasyf/cc-present/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/yasyf/cc-present/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/yasyf/cc-present/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/yasyf/cc-present/compare/v0.2.1...v0.3.0

@@ -82,3 +82,45 @@ private func card(_ id: String, children: [Block]) -> Block {
 
     #expect(tally == RoundTally(approved: 0, rejected: 0, picks: 1, notes: 0))
 }
+
+private struct ReplyThreadCase {
+    let name: String
+    let block: Block
+    let shows: Bool
+}
+
+private let replyThreadCases: [ReplyThreadCase] = [
+    ReplyThreadCase(name: "section", block: .section(Block.Section(id: "s", title: "Header")), shows: true),
+    ReplyThreadCase(name: "card", block: .card(Block.Card(id: "c", children: [])), shows: true),
+    ReplyThreadCase(name: "approval", block: .approval(Block.Approval(id: "ap")), shows: false),
+    ReplyThreadCase(
+        name: "choice",
+        block: .choice(Block.Choice(id: "ch", options: [Block.Option(id: "o1", label: "A")])),
+        shows: true
+    ),
+    ReplyThreadCase(name: "input", block: .input(Block.Input(id: "in", label: "Note")), shows: true),
+    ReplyThreadCase(name: "markdown", block: .markdown(Block.Markdown(id: "md", md: "hi")), shows: true),
+    ReplyThreadCase(name: "code", block: .code(Block.Code(id: "cd", lang: "swift", code: "let x = 1")), shows: true),
+    ReplyThreadCase(name: "diff", block: .diff(Block.Diff(id: "df", diff: "@@ -1 +1 @@")), shows: true),
+    ReplyThreadCase(name: "image", block: .image(Block.Image(id: "im", src: "https://example.com/a.png", alt: "alt")), shows: true),
+    ReplyThreadCase(
+        name: "table",
+        block: .table(Block.Table(id: "tb", columns: [Block.Column(key: "k", label: "K")], rows: [])),
+        shows: true
+    ),
+    ReplyThreadCase(
+        name: "progress",
+        block: .progress(Block.Progress(id: "pg", label: "Build", value: 1, max: 2)),
+        shows: true
+    ),
+    ReplyThreadCase(
+        name: "pack",
+        block: .pack(Block.Pack(id: "pk", packType: "ex.rating", raw: .object(["id": .string("pk"), "type": .string("ex.rating")]))),
+        shows: false
+    ),
+]
+
+@Test("showsNativeReplyThread hides the thread only for approval and pack", arguments: replyThreadCases)
+private func showsNativeReplyThreadHidesOnlyApprovalAndPack(_ testCase: ReplyThreadCase) {
+    #expect(showsNativeReplyThread(testCase.block) == testCase.shows, "case: \(testCase.name)")
+}

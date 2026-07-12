@@ -1,9 +1,13 @@
 import CcPresentKit
 import SwiftUI
 
-/// BlockView dispatches a Block to its renderer. The switch is exhaustive with no
-/// default arm, so a new block type is a compile error until it is handled here —
-/// the native mirror of web/src/components/BlockRenderer.tsx. The `store` drives the
+/// BlockView dispatches a Block to its renderer and splices the block's agent reply
+/// thread beneath it — the native mirror of web/src/components/BlockRenderer.tsx.
+/// The `blockContent` switch is exhaustive with no default arm, so a new block type
+/// is a compile error until it is handled there. The reply thread reads
+/// `blockReplies` from the environment and renders for every block whose
+/// `showsNativeReplyThread` is true (all but approval, which owns its integrated
+/// thread, and pack, which threads inside its WKWebView). The `store` drives the
 /// interactive blocks (approval, choice, input, and a card's interactive children);
 /// `client` authorizes asset image loads.
 struct BlockView: View {
@@ -12,7 +16,21 @@ struct BlockView: View {
     var client: APIClient?
     var packContext: PackContext?
 
+    @Environment(\.blockReplies) private var blockReplies
+
     var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            blockContent
+            let thread = blockReplies[block.id] ?? []
+            if showsNativeReplyThread(block), !thread.isEmpty {
+                FeedbackThreadView(feedback: [], replies: thread)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    @ViewBuilder
+    private var blockContent: some View {
         switch block {
         case let .section(section):
             SectionView(block: section)
@@ -45,6 +63,13 @@ struct BlockView: View {
             }
         }
     }
+}
+
+extension EnvironmentValues {
+    /// blockReplies is the live agent reply thread per block id, injected once at the
+    /// board root so every BlockView — live or history — splices in the same replies.
+    /// The native mirror of the web SingleBlockView reply thread.
+    @Entry var blockReplies: [String: [Reply]] = [:]
 }
 
 /// PackPlaceholderView is the native stand-in for a plugin-supplied pack block when

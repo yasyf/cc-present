@@ -96,6 +96,7 @@ struct BoardScreen: View {
             .padding()
             .frame(maxWidth: .infinity, alignment: .leading)
         }
+        .environment(\.blockReplies, state.interactions.replies)
     }
 
     @ViewBuilder

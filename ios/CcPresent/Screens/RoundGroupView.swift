@@ -87,8 +87,9 @@ struct RoundGroupView: View {
 
     /// seed builds the read-only store backing a history round by replaying the
     /// record's frozen interactions through the optimistic engine. Replies are not
-    /// part of a RoundRecord and cannot be seeded through the public surface, so a
-    /// late agent reply does not thread back into history here.
+    /// part of a RoundRecord and are never seeded here; a late agent reply threads
+    /// back into a history block through the blockReplies environment BoardScreen
+    /// injects at the board root, live-spliced beneath the frozen block.
     @MainActor
     private static func seed(_ record: RoundRecord) -> BoardStore {
         let store = BoardStore(subject: "history", transport: ReadOnlyPoster())

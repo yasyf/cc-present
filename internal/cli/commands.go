@@ -255,7 +255,11 @@ func newReplyCmd(d cmd.Deps) *cobra.Command {
 			if err := d.EnsureCurrent(ctx); err != nil {
 				return err
 			}
-			return client(d).Reply(ctx, sessionOr(session), mustCwd(cwd), d.ClaudePID(), block, bodyMd)
+			if err := client(d).Reply(ctx, sessionOr(session), mustCwd(cwd), d.ClaudePID(), block, bodyMd); err != nil {
+				return err
+			}
+			_, _ = fmt.Fprintf(c.OutOrStdout(), "replied: %s\n", block)
+			return nil
 		},
 	}
 	c.Flags().StringVar(&block, "block", "", "block id to reply under")

@@ -101,6 +101,11 @@ private struct ClampedMarkdown: View {
                 .buttonStyle(.plain)
                 .font(.system(size: 12, weight: .semibold, design: .monospaced))
                 .foregroundStyle(BlockPalette.accentInk)
+                // Expansion is a read-only affordance, so it stays live inside a
+                // history round's `.disabled(true)` subtree. `.disabled(false)` can't
+                // undo that — SwiftUI ANDs nested disabled states — so write the
+                // isEnabled environment key directly to override the ancestor.
+                .environment(\.isEnabled, true)
             }
         }
         .onChange(of: markdown) { _, _ in

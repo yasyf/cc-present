@@ -80,6 +80,10 @@ func (h *harness) eventsOfType(t *testing.T, subjectID, typ string) []ccevent.Ev
 
 const approvalDoc = `{"version":1,"title":"Board","blocks":[{"id":"a1","type":"approval"}]}`
 
+// cardDoc nests an input inside a card and keeps a non-interactive markdown at
+// the top level, so a reply can target a card child and a leaf block alike.
+const cardDoc = `{"version":1,"title":"Board","blocks":[{"id":"c1","type":"card","children":[{"id":"in1","type":"input","label":"Name"}]},{"id":"m1","type":"markdown","md":"note"}]}`
+
 func TestStart(t *testing.T) {
 	t.Run("fresh start reports url and inactive channel", func(t *testing.T) {
 		h := newHarness(t)
@@ -275,21 +279,55 @@ func TestClose(t *testing.T) {
 }
 
 func TestReply(t *testing.T) {
-	h := newHarness(t)
-	start := handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks)
-	if reply := handleReply(h.hc(body{BlockID: "a1", Md: "answered"})); !reply.OK {
-		t.Fatalf("reply not ok: %s", reply.Error)
+	tests := []struct {
+		name    string
+		doc     string // seeds start; empty starts a subject with no document
+		blockID string
+		md      string
+		wantErr string
+	}{
+		{name: "top-level approval", doc: approvalDoc, blockID: "a1", md: "answered"},
+		{name: "card child input", doc: cardDoc, blockID: "in1", md: "noted"},
+		{name: "non-interactive markdown", doc: cardDoc, blockID: "m1", md: "fyi"},
+		{name: "unknown block", doc: approvalDoc, blockID: "nope", md: "x", wantErr: `unknown block "nope"`},
+		{name: "reply before any doc", doc: "", blockID: "a1", md: "x", wantErr: `unknown block "a1"`},
 	}
-	got := h.eventsOfType(t, start.SubjectID, EventReplyCreated)
-	if len(got) != 1 {
-		t.Fatalf("got %d reply.created, want 1", len(got))
-	}
-	var p struct{ BlockID, Md string }
-	if err := json.Unmarshal(got[0].Payload, &p); err != nil {
-		t.Fatalf("decode reply payload: %v", err)
-	}
-	if p.BlockID != "a1" || p.Md != "answered" {
-		t.Fatalf("reply payload = %+v", p)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := newHarness(t)
+			seed := body{Title: "T"}
+			if tt.doc != "" {
+				seed = body{Doc: json.RawMessage(tt.doc)}
+			}
+			start := handleStart(h.hc(seed), doc.NoPacks)
+			if !start.OK {
+				t.Fatalf("start not ok: %s", start.Error)
+			}
+			reply := handleReply(h.hc(body{BlockID: tt.blockID, Md: tt.md}))
+			got := h.eventsOfType(t, start.SubjectID, EventReplyCreated)
+			if tt.wantErr != "" {
+				if reply.OK || !strings.Contains(reply.Error, tt.wantErr) {
+					t.Fatalf("reply %s: ok=%v err=%q, want %q", tt.name, reply.OK, reply.Error, tt.wantErr)
+				}
+				if len(got) != 0 {
+					t.Fatalf("rejected reply appended %d reply.created, want 0", len(got))
+				}
+				return
+			}
+			if !reply.OK {
+				t.Fatalf("reply not ok: %s", reply.Error)
+			}
+			if len(got) != 1 {
+				t.Fatalf("got %d reply.created, want 1", len(got))
+			}
+			var p struct{ BlockID, Md string }
+			if err := json.Unmarshal(got[0].Payload, &p); err != nil {
+				t.Fatalf("decode reply payload: %v", err)
+			}
+			if p.BlockID != tt.blockID || p.Md != tt.md {
+				t.Fatalf("reply payload = %+v, want blockId=%q md=%q", p, tt.blockID, tt.md)
+			}
+		})
 	}
 }
 
