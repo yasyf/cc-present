@@ -1,6 +1,9 @@
 [packs.cc-notes]
 source = "github:yasyf/cc-notes@latest"
 
+[packs.cc-present]
+source = "github:yasyf/cc-present@latest"
+
 [packs.fixes]
 
 [packs.general]

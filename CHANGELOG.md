@@ -6,6 +6,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-07-13
+
+### Added
+- Bundled capt-hook guard pack: blocks the built-in `Artifact` tool and steers
+  presentation to a cc-present live board (attached at session start while the
+  plugin is enabled; pinnable as `github:yasyf/cc-present@latest`).
+
 ## [0.6.1] - 2026-07-12
 
 ### Fixed
@@ -208,7 +215,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   marketplace.
 - `examples/opener-board.json`, a complete sample document.
 
-[Unreleased]: https://github.com/yasyf/cc-present/compare/v0.6.1...main
+[Unreleased]: https://github.com/yasyf/cc-present/compare/v0.7.0...main
+[0.7.0]: https://github.com/yasyf/cc-present/compare/v0.6.1...v0.7.0
 [0.6.1]: https://github.com/yasyf/cc-present/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/yasyf/cc-present/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/yasyf/cc-present/compare/v0.4.0...v0.5.0
