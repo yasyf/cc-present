@@ -34,12 +34,23 @@ interface DecidableHandle {
   specRef: RefObject<DecidableSpec>;
 }
 
+// StepNav is the focus deck's navigation, registered while the deck is mounted so
+// the keyboard's move / next / dot-jump route to steps instead of the ring.
+export interface StepNav {
+  move: (delta: 1 | -1) => void;
+  next: () => void;
+  jump: (id: string) => void;
+}
+
 export interface KeyboardApi {
   register: (handle: DecidableHandle) => void;
   unregister: (handle: DecidableHandle) => void;
   registerSubmit: (fn: (() => void) | null) => void;
+  registerStepNav: (nav: StepNav | null) => void;
+  setCursor: (id: string | null) => void;
   jumpTo: (id: string) => void;
   jumpNextUndecided: () => void;
+  announce: (msg: string) => void;
 }
 
 const ApiContext = createContext<KeyboardApi | null>(null);
@@ -105,15 +116,19 @@ export interface KeyboardProviderProps {
   interactions: Interactions;
   closed: boolean;
   round: number;
+  onViewToggle?: () => void;
   children: ReactNode;
 }
 
-export function KeyboardProvider({ blocks, interactions, closed, round, children }: KeyboardProviderProps) {
+export function KeyboardProvider({ blocks, interactions, closed, round, onViewToggle, children }: KeyboardProviderProps) {
   const [cursorId, setCursorId] = useState<string | null>(null);
   const [helpOpen, setHelpOpen] = useState(false);
   const [liveMsg, setLiveMsg] = useState('');
   const registry = useRef(new Map<string, DecidableHandle>()).current;
   const submitFnRef = useRef<(() => void) | null>(null);
+  const stepNavRef = useRef<StepNav | null>(null);
+  const viewToggleRef = useRef(onViewToggle);
+  viewToggleRef.current = onViewToggle;
 
   const packInteractive = useInteractivePackTypes();
   const ring = useMemo(() => decidableIds(blocks, packInteractive), [blocks, packInteractive]);
@@ -150,6 +165,10 @@ export function KeyboardProvider({ blocks, interactions, closed, round, children
   const registerSubmit = useCallback((fn: (() => void) | null) => {
     submitFnRef.current = fn;
   }, []);
+  const registerStepNav = useCallback((nav: StepNav | null) => {
+    stepNavRef.current = nav;
+  }, []);
+  const setCursor = useCallback((id: string | null) => setCursorId(id), []);
 
   const announce = useCallback((msg: string) => setLiveMsg(msg), []);
   const scrollToId = useCallback(
@@ -158,8 +177,15 @@ export function KeyboardProvider({ blocks, interactions, closed, round, children
     },
     [registry],
   );
+  // Focus mode registers a StepNav: a jump then targets the step owning the id
+  // (its anchor or any nested decidable) via setStep, never a scroll or a registry
+  // lookup against the unmounted off-step blocks.
   const jumpTo = useCallback(
     (id: string) => {
+      if (stepNavRef.current) {
+        stepNavRef.current.jump(id);
+        return;
+      }
       setCursorId(id);
       scrollToId(id, 'center');
       announce(`Item ${ringRef.current.indexOf(id) + 1} of ${ringRef.current.length}`);
@@ -167,6 +193,10 @@ export function KeyboardProvider({ blocks, interactions, closed, round, children
     [announce, scrollToId],
   );
   const jumpNextUndecided = useCallback(() => {
+    if (stepNavRef.current) {
+      stepNavRef.current.next();
+      return;
+    }
     const target = nextUndecided(ringRef.current, undecidedRef.current, cursorRef.current);
     if (!target) {
       announce('All items decided');
@@ -206,7 +236,8 @@ export function KeyboardProvider({ blocks, interactions, closed, round, children
       switch (action.kind) {
         case 'move':
           e.preventDefault();
-          moveCursor(action.delta);
+          if (stepNavRef.current) stepNavRef.current.move(action.delta);
+          else moveCursor(action.delta);
           break;
         case 'next-undecided':
           e.preventDefault();
@@ -246,6 +277,10 @@ export function KeyboardProvider({ blocks, interactions, closed, round, children
             submitFnRef.current();
           }
           break;
+        case 'view-toggle':
+          e.preventDefault();
+          viewToggleRef.current?.();
+          break;
         case 'help-toggle':
           e.preventDefault();
           setHelpOpen((v) => !v);
@@ -277,8 +312,8 @@ export function KeyboardProvider({ blocks, interactions, closed, round, children
   }, [registry, moveCursor, jumpNextUndecided]);
 
   const api = useMemo<KeyboardApi>(
-    () => ({ register, unregister, registerSubmit, jumpTo, jumpNextUndecided }),
-    [register, unregister, registerSubmit, jumpTo, jumpNextUndecided],
+    () => ({ register, unregister, registerSubmit, registerStepNav, setCursor, jumpTo, jumpNextUndecided, announce }),
+    [register, unregister, registerSubmit, registerStepNav, setCursor, jumpTo, jumpNextUndecided, announce],
   );
 
   return (

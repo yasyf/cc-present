@@ -20,6 +20,7 @@ export type KbdAction =
   | { kind: 'choose'; option: number }
   | { kind: 'engage' }
   | { kind: 'submit' }
+  | { kind: 'view-toggle' }
   | { kind: 'help-toggle' }
   | { kind: 'escape' };
 
@@ -37,24 +38,30 @@ export const KEYMAP: KeymapRow[] = [
   { keys: ['1', '…', '9'], context: 'On a choice', action: 'Toggle option 1–9' },
   { keys: ['f'], context: 'On an approval or field', action: 'Add feedback / focus the field' },
   { keys: ['⌘/Ctrl', '⏎'], context: 'Anywhere', action: 'Submit the round (confirm when items are undecided); while writing feedback, sends the note instead' },
+  { keys: ['v'], context: 'Anywhere', action: 'Toggle focus / board view' },
   { keys: ['?'], context: 'Anywhere', action: 'Toggle this help' },
   { keys: ['Esc'], context: 'Anywhere', action: 'Close help, else leave the field' },
 ];
 
-// interpretKey resolves one keydown. mod+Enter submits from anywhere (text fields
-// included) but its auto-repeat is dropped so a held chord cannot blow through an
-// armed confirm; every other binding bails on a modifier. `?` and Esc survive a
-// closed board; nothing else does. A text field swallows all but mod+Enter and Esc.
-export function interpretKey(d: KeyDescriptor, typing: boolean, closed: boolean): KbdAction | null {
-  if ((d.meta || d.ctrl) && d.key === 'Enter') {
-    return d.repeat ? null : { kind: 'submit' };
-  }
-  if (d.meta || d.ctrl || d.alt) return null;
+// TOGGLE_SUPPRESSED lists the actions a re-press oscillates; a held key must not
+// auto-repeat them. Movement, escape, and submit stay repeatable and stay out.
+const TOGGLE_SUPPRESSED = new Set<KbdAction['kind']>([
+  'verdict',
+  'clear',
+  'choose',
+  'engage',
+  'view-toggle',
+  'help-toggle',
+]);
 
+// resolveKey is the raw grammar (auto-repeat ignored): Esc survives a text field,
+// `?`/`v` survive a closed board, and a field swallows the rest.
+function resolveKey(d: KeyDescriptor, typing: boolean, closed: boolean): KbdAction | null {
   if (d.key === 'Escape') return { kind: 'escape' };
   if (typing) return null;
 
   if (d.key === '?') return { kind: 'help-toggle' };
+  if (d.key === 'v') return { kind: 'view-toggle' };
   if (closed) return null;
 
   switch (d.key) {
@@ -77,4 +84,18 @@ export function interpretKey(d: KeyDescriptor, typing: boolean, closed: boolean)
   }
   if (/^[1-9]$/.test(d.key)) return { kind: 'choose', option: Number(d.key) };
   return null;
+}
+
+// interpretKey resolves one keydown: mod+Enter submits (its repeat dropped so a
+// held chord can't blow through an armed confirm), a modifier otherwise bails, and
+// one guard drops the repeat of every toggle-semantics action so a held key can't
+// oscillate a decision or overlay; movement and Esc stay repeatable.
+export function interpretKey(d: KeyDescriptor, typing: boolean, closed: boolean): KbdAction | null {
+  if ((d.meta || d.ctrl) && d.key === 'Enter') {
+    return d.repeat ? null : { kind: 'submit' };
+  }
+  if (d.meta || d.ctrl || d.alt) return null;
+
+  const action = resolveKey(d, typing, closed);
+  return action && d.repeat && TOGGLE_SUPPRESSED.has(action.kind) ? null : action;
 }

@@ -37,6 +37,21 @@ const cases: Case[] = [
   { name: 'held mod+Enter (repeat) is dropped', key: key({ key: 'Enter', meta: true, repeat: true }), typing: false, closed: false, expected: null },
   { name: 'mod+Enter submits while typing', key: key({ key: 'Enter', ctrl: true }), typing: true, closed: false, expected: { kind: 'submit' } },
   { name: 'held mod+Enter while typing is dropped', key: key({ key: 'Enter', meta: true, repeat: true }), typing: true, closed: false, expected: null },
+  { name: 'v toggles the view', key: key({ key: 'v' }), typing: false, closed: false, expected: { kind: 'view-toggle' } },
+  { name: 'held v (repeat) is dropped', key: key({ key: 'v', repeat: true }), typing: false, closed: false, expected: null },
+  { name: 'held v (repeat) is dropped on a closed board', key: key({ key: 'v', repeat: true }), typing: false, closed: true, expected: null },
+  { name: 'held a (repeat) is dropped', key: key({ key: 'a', repeat: true }), typing: false, closed: false, expected: null },
+  { name: 'held r (repeat) is dropped', key: key({ key: 'r', repeat: true }), typing: false, closed: false, expected: null },
+  { name: 'held c (repeat) is dropped', key: key({ key: 'c', repeat: true }), typing: false, closed: false, expected: null },
+  { name: 'held f (repeat) is dropped', key: key({ key: 'f', repeat: true }), typing: false, closed: false, expected: null },
+  { name: 'held 3 (repeat) is dropped', key: key({ key: '3', repeat: true }), typing: false, closed: false, expected: null },
+  { name: 'held ? (repeat) is dropped', key: key({ key: '?', shift: true, repeat: true }), typing: false, closed: false, expected: null },
+  { name: 'held j (repeat) still moves', key: key({ key: 'j', repeat: true }), typing: false, closed: false, expected: { kind: 'move', delta: 1 } },
+  { name: 'held n (repeat) still jumps to next undecided', key: key({ key: 'n', repeat: true }), typing: false, closed: false, expected: { kind: 'next-undecided' } },
+  { name: 'held Escape (repeat) still escapes', key: key({ key: 'Escape', repeat: true }), typing: false, closed: false, expected: { kind: 'escape' } },
+  { name: 'v survives a closed board', key: key({ key: 'v' }), typing: false, closed: true, expected: { kind: 'view-toggle' } },
+  { name: 'typing swallows v', key: key({ key: 'v' }), typing: true, closed: false, expected: null },
+  { name: 'meta+v is unbound', key: key({ key: 'v', meta: true }), typing: false, closed: false, expected: null },
   { name: '? toggles help', key: key({ key: '?', shift: true }), typing: false, closed: false, expected: { kind: 'help-toggle' } },
   { name: 'Escape escapes', key: key({ key: 'Escape' }), typing: false, closed: false, expected: { kind: 'escape' } },
   { name: 'typing swallows a letter', key: key({ key: 'a' }), typing: true, closed: false, expected: null },
@@ -66,5 +81,10 @@ describe('KEYMAP', () => {
   it('documents that mod+Enter sends the note while writing feedback', () => {
     const row = KEYMAP.find((r) => r.keys.includes('⏎'));
     expect(row?.action).toMatch(/feedback/i);
+  });
+
+  it('documents the view toggle so the help overlay renders it', () => {
+    const row = KEYMAP.find((r) => r.keys.includes('v'));
+    expect(row?.action).toMatch(/view/i);
   });
 });
