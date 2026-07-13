@@ -90,6 +90,9 @@ jobs:
         uses: golangci/golangci-lint-action@v9
         with:
           version: latest
+      - uses: astral-sh/setup-uv@v8.2.0
+      - name: Lint capt-hook pack
+        run: uvx capt-hook pack lint plugin
 
   vuln:
     runs-on: ubuntu-latest

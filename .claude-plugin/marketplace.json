@@ -1,5 +1,6 @@
 {
   "name": "cc-present",
+  "allowCrossMarketplaceDependenciesOn": ["captain-hook"],
   "owner": {
     "name": "Yasyf Mohamedali",
     "email": "yasyfm@gmail.com"
