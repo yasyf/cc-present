@@ -120,6 +120,7 @@ struct BoardScreen: View {
                 } else {
                     ForEach(currentBlocks, id: \.id) { block in
                         BlockView(block: block, store: store, client: client, packContext: packContext)
+                            .environment(\.receiptReceded, blockDecided(block, state.interactions, packInteractive))
                     }
                 }
                 if isWaiting {

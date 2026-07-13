@@ -122,40 +122,6 @@ private struct MarkdownHeightKey: PreferenceKey {
     }
 }
 
-/// BlockPalette maps the domain.css `light-dark()` tokens the block renderers share
-/// onto theme-aware SwiftUI colors, so native blocks match the web renderer.
-enum BlockPalette {
-    static let ink = Color(hexLight: 0x23262F, hexDark: 0xE8ECE9)
-    static let monoBg = Color(hexLight: 0xF1EDE6, hexDark: 0x0C110F)
-    static let chipBg = Color(hexLight: 0xEFEADF, hexDark: 0x1C231F)
-    static let line = Color(hexLight: 0xE3DED4, hexDark: 0x26302C)
-    static let borderStrong = Color(hexLight: 0xCDC7BA, hexDark: 0x3A453F)
-    static let muted = Color(hexLight: 0x5F6672, hexDark: 0x94A09B)
-    static let was = Color(hexLight: 0x9AA1AB, hexDark: 0x6C737E)
-    static let approve = Color(hexLight: 0x1C7C40, hexDark: 0x58C07A)
-    static let reject = Color(hexLight: 0xB3382C, hexDark: 0xE57B6D)
-    static let accentInk = Color(hexLight: 0x0C6A77, hexDark: 0x4FD6C4)
-}
-
-extension Color {
-    init(hexLight: UInt32, hexDark: UInt32) {
-        self.init(uiColor: UIColor { traits in
-            UIColor(rgb: traits.userInterfaceStyle == .dark ? hexDark : hexLight)
-        })
-    }
-}
-
-private extension UIColor {
-    convenience init(rgb: UInt32) {
-        self.init(
-            red: Double((rgb >> 16) & 0xFF) / 255,
-            green: Double((rgb >> 8) & 0xFF) / 255,
-            blue: Double(rgb & 0xFF) / 255,
-            alpha: 1
-        )
-    }
-}
-
 #Preview("Markdown styles") {
     ScrollView {
         VStack(alignment: .leading, spacing: 24) {

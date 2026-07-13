@@ -30,6 +30,7 @@ struct ChoiceBlockView: View {
                     .font(.body)
                     .fontWeight(.medium)
                     .foregroundStyle(BlockPalette.ink)
+                    .receiptContent()
             }
 
             VStack(alignment: .leading, spacing: 8) {

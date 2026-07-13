@@ -44,6 +44,7 @@ struct ApprovalBlockView: View {
                     .font(.body)
                     .foregroundStyle(BlockPalette.ink)
                     .frame(maxWidth: .infinity, alignment: .leading)
+                    .receiptContent()
             }
 
             verdictPair
@@ -55,6 +56,7 @@ struct ApprovalBlockView: View {
             if !feedback.isEmpty || !replies.isEmpty {
                 Divider().overlay(BlockPalette.line)
                 FeedbackThreadView(feedback: feedback, replies: replies)
+                    .receiptContent()
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -93,7 +95,7 @@ struct ApprovalBlockView: View {
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 11)
-            .foregroundStyle(active ? Self.activeInk : color)
+            .foregroundStyle(active ? BlockPalette.accentFg : color)
             .background(active ? color : Color.clear)
             .clipShape(RoundedRectangle(cornerRadius: 8))
             .overlay(
@@ -162,10 +164,6 @@ struct ApprovalBlockView: View {
         draft = ""
         composing = false
     }
-
-    /// activeInk is the label color on a filled verdict button: near-white in light
-    /// mode, near-black in dark, so text stays legible on the tint in both.
-    private static let activeInk = Color(hexLight: 0xFFFFFF, hexDark: 0x0C110F)
 }
 
 // MARK: - Preview

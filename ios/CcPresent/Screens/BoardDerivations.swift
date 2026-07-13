@@ -85,6 +85,16 @@ func isDecided(_ block: Block, _ interactions: Interactions) -> Bool {
     }
 }
 
+/// blockDecided reports whether a board row has receded to a receipt: it holds at
+/// least one decidable and every one is decided (a fully-decided card counts, an
+/// undecidable row never does). It drives the BoardScreen receipt dimming — the
+/// native mirror of web/src/decide.ts `blockDecided`, the BoardBlocks
+/// `data-decided` signal.
+func blockDecided(_ block: Block, _ interactions: Interactions, _ packInteractive: Set<String>) -> Bool {
+    let items = submitItems([block], interactions, packInteractive)
+    return !items.isEmpty && items.allSatisfy(\.decided)
+}
+
 /// RoundTally is the header summary a closed round shows: how many approvals were
 /// approved or rejected, how many choices were picked, and the note count (filled
 /// inputs plus feedback entries). Mirrors web/src/components/RoundGroup.tsx.

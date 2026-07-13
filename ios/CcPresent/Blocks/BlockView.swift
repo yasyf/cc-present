@@ -70,6 +70,34 @@ extension EnvironmentValues {
     /// board root so every BlockView — live or history — splices in the same replies.
     /// The native mirror of the web SingleBlockView reply thread.
     @Entry var blockReplies: [String: [Reply]] = [:]
+
+    /// receiptReceded marks a decided current-round board row: its descriptive
+    /// content recedes to a receipt while controls and verdicts stay full-strength.
+    /// BoardScreen sets it per top-level row via `blockDecided`, and descriptive
+    /// subviews opt in through `receiptContent()` — controls never do, so they hold.
+    /// Inherited into a decided card, so a nested prompt recedes too. Mirrors the web
+    /// `.block-row[data-decided]` treatment (web/src/styles/shell.css).
+    @Entry var receiptReceded: Bool = false
+}
+
+extension View {
+    /// receiptContent dims this descriptive subview to the receipt floor once its
+    /// board row is decided (`receiptReceded`). Interactive controls never call it, so
+    /// they stay at full strength. The 0.7 floor keeps ink above 4.5:1, matching the
+    /// web receipt dim.
+    func receiptContent() -> some View {
+        modifier(ReceiptContent())
+    }
+}
+
+private struct ReceiptContent: ViewModifier {
+    @Environment(\.receiptReceded) private var receded
+
+    func body(content: Content) -> some View {
+        content
+            .opacity(receded ? 0.7 : 1)
+            .animation(.easeOut(duration: 0.15), value: receded)
+    }
 }
 
 /// PackPlaceholderView is the native stand-in for a plugin-supplied pack block when

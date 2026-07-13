@@ -74,6 +74,105 @@ private func pack(_ id: String, _ type: String) -> Block {
     #expect(isDecided(block, Interactions(packs: ["pk": PackValue(payload: .object(["value": .int(5)]))])) == true)
 }
 
+private struct BlockDecidedCase {
+    let name: String
+    let block: Block
+    let interactions: Interactions
+    let packInteractive: Set<String>
+    let decided: Bool
+}
+
+private let blockDecidedCases: [BlockDecidedCase] = [
+    BlockDecidedCase(
+        name: "undecided approval",
+        block: .approval(Block.Approval(id: "ap")),
+        interactions: Interactions(),
+        packInteractive: [],
+        decided: false
+    ),
+    BlockDecidedCase(
+        name: "decided approval",
+        block: .approval(Block.Approval(id: "ap")),
+        interactions: Interactions(decisions: ["ap": Decision(verdict: "approved")]),
+        packInteractive: [],
+        decided: true
+    ),
+    BlockDecidedCase(
+        name: "empty choice selection",
+        block: .choice(Block.Choice(id: "ch", options: [Block.Option(id: "o1", label: "A")])),
+        interactions: Interactions(choices: ["ch": Selection(optionIds: [])]),
+        packInteractive: [],
+        decided: false
+    ),
+    BlockDecidedCase(
+        name: "picked choice",
+        block: .choice(Block.Choice(id: "ch", options: [Block.Option(id: "o1", label: "A")])),
+        interactions: Interactions(choices: ["ch": Selection(optionIds: ["o1"])]),
+        packInteractive: [],
+        decided: true
+    ),
+    BlockDecidedCase(
+        name: "markdown never decides",
+        block: .markdown(Block.Markdown(id: "md", md: "note")),
+        interactions: Interactions(),
+        packInteractive: [],
+        decided: false
+    ),
+    BlockDecidedCase(
+        name: "card with every decidable decided",
+        block: card("card", children: [
+            .approval(Block.Approval(id: "ap")),
+            .choice(Block.Choice(id: "ch", options: [Block.Option(id: "o1", label: "A")])),
+            .markdown(Block.Markdown(id: "md", md: "note")),
+        ]),
+        interactions: Interactions(
+            decisions: ["ap": Decision(verdict: "approved")],
+            choices: ["ch": Selection(optionIds: ["o1"])]
+        ),
+        packInteractive: [],
+        decided: true
+    ),
+    BlockDecidedCase(
+        name: "card with one decidable outstanding",
+        block: card("card", children: [
+            .approval(Block.Approval(id: "ap")),
+            .choice(Block.Choice(id: "ch", options: [Block.Option(id: "o1", label: "A")])),
+        ]),
+        interactions: Interactions(decisions: ["ap": Decision(verdict: "approved")]),
+        packInteractive: [],
+        decided: false
+    ),
+    BlockDecidedCase(
+        name: "card with no decidables",
+        block: card("card", children: [.markdown(Block.Markdown(id: "md", md: "note"))]),
+        interactions: Interactions(),
+        packInteractive: [],
+        decided: false
+    ),
+    BlockDecidedCase(
+        name: "interactive pack decided",
+        block: pack("pk", "ex.rating"),
+        interactions: Interactions(packs: ["pk": PackValue(payload: .object(["value": .int(4)]))]),
+        packInteractive: ["ex.rating"],
+        decided: true
+    ),
+    BlockDecidedCase(
+        name: "static pack never decides",
+        block: pack("pk", "ex.rating"),
+        interactions: Interactions(packs: ["pk": PackValue(payload: .object(["value": .int(4)]))]),
+        packInteractive: [],
+        decided: false
+    ),
+]
+
+@Test("blockDecided receipts a row only when it holds decidables and all are decided", arguments: blockDecidedCases)
+private func blockDecidedReceiptsFullyDecidedRows(_ testCase: BlockDecidedCase) {
+    #expect(
+        blockDecided(testCase.block, testCase.interactions, testCase.packInteractive) == testCase.decided,
+        "case: \(testCase.name)"
+    )
+}
+
 @Test func roundTallyCountsVerdictsPicksAndNotes() {
     let record = RoundRecord(
         number: 2,

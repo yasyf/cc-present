@@ -27,6 +27,7 @@ struct CardView: View {
                     MarkdownText(summary)
                         .font(.subheadline)
                         .foregroundStyle(BlockPalette.muted)
+                        .receiptContent()
                 }
                 if flagged {
                     flagCallout
