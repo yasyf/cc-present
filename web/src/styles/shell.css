@@ -1,0 +1,741 @@
+/* Shell: the board chrome around the blocks — layout column, masthead,
+   connection status, stats, pinned section headers, the round history and
+   spine, the submit bar, waiting/skeleton states, help, and single-block mode. */
+
+/* --- Layout --- */
+
+.main {
+  max-width: var(--content-width);
+  margin: 0 auto;
+  width: 100%;
+  padding-inline: var(--page-pad);
+}
+
+.empty-state {
+  padding: var(--space-8);
+  color: var(--muted);
+  text-align: center;
+}
+.empty-state code {
+  background: var(--mono-bg);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+}
+
+.blocks {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-7);
+  counter-reset: doc-section;
+}
+.block-row {
+  will-change: transform;
+}
+
+/* Decided rows recede to a receipt: once every decidable in a board row is
+   decided (data-decided, set by BoardBlocks) its descriptive content dims while
+   the card title, left state rail (the card border), rotated verdict stamp
+   (.approval::after), and every still-enabled control (verdict buttons, feedback
+   composer, choice options) stay full-strength. Opacity can't lift a descendant,
+   so the dim targets only content children — prompts, summaries, threads, and the
+   card body's prose/code — never a decidable container. The 0.7 floor keeps
+   normal ink above 4.5:1 against the paper ground. Hover or focus restores it. */
+.block-row[data-decided] {
+  --receipt-dim: 0.7;
+}
+.block-row[data-decided]:hover,
+.block-row[data-decided]:focus-within {
+  --receipt-dim: 1;
+}
+.block-row[data-decided] .approval > .approval-prompt,
+.block-row[data-decided] .approval > .thread,
+.block-row[data-decided] .choice > .choice-prompt,
+.block-row[data-decided] .card-summary,
+.block-row[data-decided] .card-body > :not(.approval):not(.choice):not(.card) {
+  opacity: var(--receipt-dim);
+  transition: opacity var(--dur-1) var(--ease-out);
+}
+
+/* --- Document header (stamp masthead) --- */
+
+.doc-header {
+  max-width: var(--content-width);
+  margin: 0 auto;
+  width: 100%;
+  padding: var(--space-5) var(--page-pad) var(--space-4);
+  border-bottom: 2px solid var(--ink);
+}
+.doc-header::before {
+  content: 'CC-PRESENT';
+  display: block;
+  font-size: var(--text-2xs);
+  color: var(--accent-ink);
+  margin-bottom: var(--space-2);
+}
+.doc-header-top {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-4);
+  justify-content: space-between;
+}
+.doc-title {
+  font-family: var(--font-prose);
+  font-size: clamp(1.75rem, 1.3rem + 2.5vw, 2.75rem);
+  font-weight: 700;
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+  margin: 0;
+  text-wrap: balance;
+}
+.doc-conn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: none;
+}
+.peer,
+.conn {
+  font-size: var(--text-2xs);
+  color: var(--muted);
+  border-radius: var(--radius-sm);
+  padding: 0;
+}
+.peer::before,
+.conn::before {
+  content: '[ ';
+}
+.peer::after,
+.conn::after {
+  content: ' ]';
+}
+.peer-on {
+  color: var(--approve);
+}
+.conn-on {
+  color: var(--accent-ink);
+}
+.conn-off {
+  color: var(--pending);
+}
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--line);
+  background: none;
+  padding: 2px 5px;
+  border-radius: var(--radius-sm);
+  color: var(--muted);
+  line-height: 0;
+}
+.theme-toggle:hover:not(:disabled) {
+  color: var(--ink);
+  background: var(--mono-bg);
+  border-color: var(--border-strong);
+}
+.doc-intro {
+  color: var(--muted);
+  font-size: var(--text-md);
+  max-width: 64ch;
+  margin: var(--space-3) 0 0;
+  line-height: var(--leading-normal);
+}
+
+/* Stats as a bordered data strip: stamp labels over mono tabular values. */
+.stats {
+  display: flex;
+  flex-wrap: wrap;
+  margin-top: var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--card);
+}
+.stat {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: var(--space-3) var(--space-4);
+  border-right: 1px solid var(--line);
+  color: var(--muted);
+  font-size: var(--text-2xs);
+}
+.stat:last-child {
+  border-right: none;
+}
+.stat b {
+  font-family: var(--font-mono);
+  font-size: var(--text-md);
+  font-weight: 600;
+  color: var(--ink);
+  letter-spacing: 0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- Sections --- */
+
+/* A section pins to the top of the board as a compact tier marker — the mono
+   "Section NN" label over the mono/uppercase title. It sits below the submit
+   bar's z-index so a pinned header never covers it. */
+.doc-section {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  margin-top: var(--space-2);
+  padding: var(--space-2) 0;
+  background: var(--paper);
+  border-bottom: 1px solid var(--line);
+  counter-increment: doc-section;
+}
+.doc-section::before {
+  content: 'Section ' counter(doc-section, decimal-leading-zero);
+  display: block;
+  font-size: var(--text-2xs);
+  font-weight: 500;
+  color: var(--accent-ink);
+  margin-bottom: var(--space-1);
+}
+.section-title {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  margin: 0 0 var(--space-1);
+  color: var(--ink);
+}
+.section-md {
+  color: var(--muted);
+  font-size: var(--text-base);
+  max-width: 72ch;
+  line-height: var(--leading-normal);
+}
+.section-md p {
+  margin: 0;
+}
+
+/* --- Submit bar (solid, 2px accent top rule, stamp readout) --- */
+
+.submit-bar {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  margin-top: var(--space-4);
+  background: var(--surface);
+  border-top: 2px solid var(--accent-fill);
+  box-shadow: var(--shadow-up);
+}
+.submit-status {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  font-size: var(--text-2xs);
+  color: var(--muted);
+}
+.submit-round {
+  font-weight: 600;
+  font-size: var(--text-2xs);
+  color: var(--accent-ink);
+  font-variant-numeric: tabular-nums;
+}
+.submit-round::after {
+  content: ' ·';
+  color: var(--muted);
+  margin-left: var(--space-2);
+}
+/* Tally reads pending (gold) until every item is decided, then approve (green). */
+.submit-count {
+  border: none;
+  background: none;
+  padding: 0;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  color: var(--pending);
+  font-size: var(--text-2xs);
+}
+.submit-count:hover:not(:disabled) {
+  background: none;
+  text-decoration: underline;
+}
+.submit-done {
+  color: var(--approve);
+}
+.submit-btn {
+  padding: var(--space-2) var(--space-6);
+  font-weight: 700;
+  font-size: var(--text-2xs);
+  color: var(--accent-fg);
+  background: var(--accent-fill);
+  border: none;
+  border-radius: var(--radius-md);
+}
+.submit-btn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent-fill) 88%, #000);
+}
+
+/* --- Closed banner --- */
+
+.closed-banner {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  background: var(--mono-bg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  padding: var(--space-4) var(--space-5);
+}
+.closed-badge {
+  align-self: flex-start;
+  font-size: var(--text-2xs);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--accent-fill);
+  color: var(--accent-fg);
+}
+
+/* --- Rounds: collapsed history reads as a one-line entry pinned to the spine --- */
+
+.round-group {
+  will-change: transform;
+}
+.round-group .cc-group {
+  background: transparent;
+  border: none;
+  border-radius: 0;
+}
+.round-group .cc-group-header {
+  padding: var(--space-2) 0;
+  color: var(--muted);
+  border-bottom: 1px solid var(--line);
+}
+.round-group .cc-group-header:hover:not(:disabled) {
+  color: var(--ink);
+  background: none;
+}
+.cc-group-caret {
+  color: var(--muted);
+  font-size: var(--text-2xs);
+}
+.round-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex: 1;
+  min-width: 0;
+}
+.round-title {
+  font-size: var(--text-2xs);
+  font-weight: 600;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.round-summary {
+  display: flex;
+  gap: var(--space-1);
+  flex-wrap: wrap;
+  margin-left: auto;
+}
+.round-chip {
+  font-size: var(--text-2xs);
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--line);
+  color: var(--muted);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.round-current-header {
+  font-size: var(--text-sm);
+  font-weight: 650;
+  color: var(--accent-ink);
+  padding-top: var(--space-3);
+  font-variant-numeric: tabular-nums;
+}
+/* A frozen round reads as one uniformly muted surface at the disabled-option
+   opacity, rather than compounding the group dim with each control's own. */
+.cc-group-readonly .cc-group-body {
+  opacity: 0.55;
+}
+.cc-group-readonly button:disabled,
+.cc-group-readonly .option[aria-disabled='true'] {
+  opacity: 1;
+  cursor: default;
+}
+
+/* --- Round spine (Direction B signature) ---
+   app.tsx wraps .blocks in .spine and marks the round anchors with
+   .spine-node + data-node (and .spine-current on the live round). The current
+   segment's accent line is drawn tall and clipped by the spine; `overflow: clip`
+   (with a margin) bounds it WITHOUT clipping the keyboard cursor ring's glow the
+   way `overflow: hidden` would, and without adding page scroll height the way an
+   unclipped 9999px child would. */
+.spine {
+  position: relative;
+  padding-left: var(--space-7);
+  overflow: clip;
+  overflow-clip-margin: 20px;
+}
+.spine::before {
+  content: '';
+  position: absolute;
+  left: 1.15rem;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--line);
+}
+.spine-node {
+  position: relative;
+}
+.spine-node::before {
+  content: attr(data-node);
+  position: absolute;
+  left: -2.1rem;
+  top: 0;
+  width: 1.5rem;
+  height: 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  font-weight: 600;
+  color: var(--muted);
+  background: var(--paper);
+  border: 2px solid var(--line);
+  border-radius: var(--radius-sm);
+  font-variant-numeric: tabular-nums;
+}
+/* Current segment: accent node + accent timeline running downward from it. */
+.spine-current::before {
+  color: var(--accent-ink);
+  border-color: var(--accent-fill);
+  animation: node-pulse var(--dur-3) var(--ease-out) 1;
+}
+.spine-current::after {
+  content: '';
+  position: absolute;
+  left: -1.35rem;
+  top: 1.5rem;
+  width: 2px;
+  height: 9999px;
+  background: var(--accent-fill);
+}
+@keyframes node-pulse {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent-fill) 55%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 12px color-mix(in srgb, var(--accent-fill) 0%, transparent);
+  }
+}
+
+/* --- FLIP transition on top-level block reorders --- */
+
+.cc-flip {
+  transition: transform 0.28s var(--ease-out);
+}
+.cc-flip-moved {
+  animation: cc-flip-highlight 0.9s ease;
+}
+@keyframes cc-flip-highlight {
+  0% {
+    background: color-mix(in srgb, var(--accent-fill) 16%, transparent);
+  }
+  100% {
+    background: transparent;
+  }
+}
+
+/* --- Lifecycle: waiting, skeleton, armed confirm, pending feedback ---
+   Landed after the mockup was drawn; styled in the Blue Pencil voice (stamp
+   structural text, hairline / dashed rules, squared corners, the palette). */
+
+.waiting-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-7) var(--space-4);
+  margin-top: var(--space-4);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-md);
+  color: var(--muted);
+  text-align: center;
+}
+.waiting-title {
+  font-family: var(--font-stamp);
+  font-size: var(--text-md);
+  font-weight: 700;
+  color: var(--ink);
+}
+.waiting-sub {
+  font-family: var(--font-stamp);
+  font-size: var(--text-sm);
+  color: var(--muted);
+}
+.waiting-dots {
+  display: flex;
+  gap: var(--space-1);
+}
+.waiting-dots span {
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background: var(--accent-fill);
+  animation: waiting-pulse 1.2s ease-in-out infinite;
+}
+.waiting-dots span:nth-child(2) {
+  animation-delay: 0.2s;
+}
+.waiting-dots span:nth-child(3) {
+  animation-delay: 0.4s;
+}
+@keyframes waiting-pulse {
+  0%,
+  100% {
+    opacity: 0.3;
+    transform: scale(0.8);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding-top: var(--space-2);
+}
+.skeleton-header {
+  height: 1.5rem;
+  width: 40%;
+  border-radius: var(--radius-sm);
+}
+.skeleton-card {
+  height: 5rem;
+  border-radius: var(--radius-sm);
+}
+.skeleton-header,
+.skeleton-card {
+  background: linear-gradient(
+    90deg,
+    var(--mono-bg) 25%,
+    color-mix(in srgb, var(--line) 60%, var(--mono-bg)) 37%,
+    var(--mono-bg) 63%
+  );
+  background-size: 400% 100%;
+  animation: skeleton-shimmer 1.4s ease infinite;
+}
+@keyframes skeleton-shimmer {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: 0 0;
+  }
+}
+
+.submit-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.submit-warn {
+  font-family: var(--font-stamp);
+  text-transform: uppercase;
+  letter-spacing: var(--track-caps);
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  color: var(--reject);
+}
+.submit-btn.confirm,
+.submit-btn.confirm:hover:not(:disabled) {
+  background: var(--reject);
+  border-color: transparent;
+  color: var(--accent-fg);
+}
+
+.submit-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+.dot {
+  width: 10px;
+  height: 10px;
+  padding: 0;
+  border: 1.5px solid var(--border-strong);
+  border-radius: var(--radius-pill);
+  background: transparent;
+}
+.dot.on {
+  background: var(--accent-fill);
+  border-color: var(--accent-fill);
+}
+.dot:hover:not(:disabled) {
+  border-color: var(--accent-fill);
+  background: color-mix(in srgb, var(--accent-fill) 35%, transparent);
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+.help-dialog {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface-raised);
+  color: var(--ink);
+  padding: var(--space-5);
+  max-width: 34rem;
+  width: calc(100vw - var(--space-6));
+  box-shadow: var(--shadow-3);
+}
+.help-dialog::backdrop {
+  background: rgb(0 0 0 / 45%);
+  backdrop-filter: blur(2px);
+}
+.help-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-4);
+}
+.help-title {
+  margin: 0;
+  font-family: var(--font-prose);
+  font-size: var(--text-md);
+  font-weight: 650;
+}
+.help-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.help-table td {
+  padding: var(--space-2) var(--space-3) var(--space-2) 0;
+  vertical-align: top;
+  border-top: 1px solid color-mix(in srgb, var(--line) 60%, transparent);
+  font-size: var(--text-sm);
+}
+.help-table tr:first-child td {
+  border-top: none;
+}
+.help-keys {
+  white-space: nowrap;
+}
+.help-ctx {
+  color: var(--muted);
+}
+kbd {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  line-height: 1;
+  padding: var(--space-1) var(--space-2);
+  margin-right: var(--space-1);
+  border: 1px solid var(--border-strong);
+  border-bottom-width: 2px;
+  border-radius: var(--radius-sm);
+  background: var(--mono-bg);
+  color: var(--ink);
+}
+
+/* --- Single-block mode ---
+   Renders one block full-bleed for embedding (iOS WKWebView). No max-width
+   column or round spine; the body sheds its board chrome. */
+body[data-single] {
+  background: transparent;
+}
+.single-block {
+  padding: var(--space-4);
+}
+.single-block .block-row {
+  margin: 0;
+}
+
+/* --- Responsive: the two breakpoints of record (--bp-rail 720, --bp-compact 440).
+   The page gutter already went fluid in tokens.css; here the board chrome reflows —
+   the masthead cluster wraps, the stats strip drops to two columns, the margin rail
+   folds toward the content, and the header touch targets grow to the 44px floor. --- */
+
+@media (max-width: 720px) {
+  /* The connection/view/theme cluster wraps below the title instead of crowding it,
+     and its own chips wrap rather than overflow a narrow width. */
+  .doc-header-top {
+    flex-wrap: wrap;
+    row-gap: var(--space-2);
+  }
+  .doc-conn {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  /* Stats strip → two-column grid. Separators redraw as a right rule on the left
+     column and a top rule on every row past the first; the container's own border
+     and overflow:hidden frame the block, so an odd trailing cell reads as clean
+     card ground. */
+  .stats {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+  .stat {
+    border-top: 1px solid var(--line);
+  }
+  .stat:nth-child(2n) {
+    border-right: none;
+  }
+  .stat:nth-child(-n + 2) {
+    border-top: none;
+  }
+
+  /* Theme toggle and the collapsed-round caret rows reach the 44px touch floor. */
+  .theme-toggle {
+    min-width: 44px;
+    min-height: 44px;
+  }
+  .cc-group-header {
+    min-height: 44px;
+  }
+
+  /* The round-history margin rail folds inward: a narrower reserved gutter with the
+     spine line, numbered nodes, and live pencil timeline pulled in to match. */
+  .spine {
+    padding-left: var(--space-6);
+  }
+  .spine::before {
+    left: 0.9rem;
+  }
+  .spine-node::before {
+    left: -1.85rem;
+  }
+  .spine-current::after {
+    left: -1.1rem;
+  }
+}
+
+@media (max-width: 440px) {
+  /* The sign-off strip tightens its paddings and is allowed to wrap so the tally
+     and the submit action never overflow a phone width. */
+  .submit-bar {
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+  }
+  .submit-dots {
+    flex-wrap: wrap;
+  }
+}

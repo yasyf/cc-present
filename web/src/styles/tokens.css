@@ -1,0 +1,175 @@
+/* Blue Pencil tokens: the raw palette, the frozen alias contract (ui.tokens),
+   squared radii, the three type voices, motion tokens, and the reduced-motion
+   contract. Loaded first — every other sheet resolves against these vars. */
+
+:root {
+  /* ── Blue Pencil raw palette — light "bond paper" / dark "graphite ground".
+     The agent typesets in ink; every human trace is drawn in pencil blue or
+     stamped in verdict ink. All pairs resolve per-theme via light-dark(). ── */
+  --paper: light-dark(#fbfbf9, #171a21);
+  --ink: light-dark(#1f2430, #e7eaf1);
+  --graphite: light-dark(#5c6472, #98a0af);
+  --pencil: light-dark(#3d56c5, #91a3f2);
+  --approve: light-dark(#1e7b4f, #5bc489);
+  --reject: light-dark(#bf3b2f, #ee8273);
+  --hold: light-dark(#8f6400, #dca847);
+
+  /* Retained raw names, now derived from the Blue Pencil layer so existing
+     library rules re-ink for free. Surfaces and hairlines mix ink into paper. */
+  --muted: var(--graphite);
+  --pending: var(--hold);
+  --accent-fill: var(--pencil);
+  --accent-ink: var(--pencil);
+  --card: light-dark(#ffffff, #1e222b);
+  --line: color-mix(in srgb, var(--ink) 14%, var(--paper));
+  --mono-bg: light-dark(#f1f1ef, #12141a);
+  --reject-bg: color-mix(in srgb, var(--reject) 12%, var(--paper));
+  --pending-bg: color-mix(in srgb, var(--hold) 15%, var(--paper));
+  --chip-bg: color-mix(in srgb, var(--ink) 6%, var(--paper));
+  --was: color-mix(in srgb, var(--graphite) 85%, var(--paper));
+
+  /* ── Alias layer — PUBLIC CONTRACT (ui.tokens). These names are frozen; only
+     the raw values they point at may churn. Remapped onto Blue Pencil. ── */
+  --bg: var(--paper);
+  --bg-soft: var(--mono-bg);
+  --border: var(--line);
+  --border-strong: color-mix(in srgb, var(--ink) 28%, var(--paper));
+  --text: var(--ink);
+  --dim: var(--muted);
+  --accent: var(--accent-fill);
+  --accent-fg: light-dark(#ffffff, #14161c);
+  --surface: var(--card);
+  --surface-raised: var(--card);
+  --focus-ring: color-mix(in srgb, var(--pencil) 50%, transparent);
+  --danger: var(--reject);
+  --warn: var(--pending);
+  --ok: var(--approve);
+
+  /* Squared radii — domain override; base.css scale untouched. */
+  --radius-sm: 2px;
+  --radius-md: 4px;
+  --radius-lg: 6px;
+  --radius-pill: 2px;
+
+  /* Three type voices: system-ui prose (agent body), the condensed stamp face
+     (structural chrome + human stamps), and mono (code / diffs / numerals). */
+  --font-prose: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+  --font-stamp: 'Barlow Condensed', 'Arial Narrow', sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', 'SFMono-Regular', Menlo, Consolas, monospace;
+  --track-caps: 0.1em;
+
+  /* Motion tokens: four durations and the "drawn stroke" easing for pencil
+     marks. --dur-1..3 restate base.css's values; --dur-4 and --ease-draw are new. */
+  --dur-1: 120ms;
+  --dur-2: 200ms;
+  --dur-3: 320ms;
+  --dur-4: 480ms;
+  --ease-draw: cubic-bezier(0.65, 0, 0.35, 1);
+
+  /* Breakpoints of record — documentation tokens (a @media query can't read a
+     var()). The margin rail folds at --bp-rail; the type ramp tightens below
+     --bp-compact. The responsive @media rules cite these values. */
+  --bp-rail: 720px;
+  --bp-compact: 440px;
+
+  /* The page gutter. Fixed 1rem at the desktop measure; the --bp-rail rule below
+     retunes it to a fluid clamp so a phone breathes without the content touching
+     the edge. Both the masthead and the main column read it so they stay aligned. */
+  --page-pad: var(--space-4);
+
+  /* Softer upward elevation for the sticky submit bar than base's --shadow-up. */
+  --shadow-up: 0 -8px 22px rgb(0 0 0 / 10%), 0 -2px 6px rgb(0 0 0 / 6%);
+
+  font-family: var(--font-prose);
+  color-scheme: light dark;
+}
+
+:root[data-theme='light'] {
+  color-scheme: light;
+}
+:root[data-theme='dark'] {
+  color-scheme: dark;
+}
+
+/* Below the rail breakpoint the fixed gutter goes fluid: it never drops under
+   1rem (so content clears the edge on a 360px phone) and never exceeds 2.5rem. */
+@media (max-width: 720px) {
+  :root {
+    --page-pad: clamp(1rem, 4vw, 2.5rem);
+  }
+}
+
+/* ── Type recast ──
+   The agent typesets quietly in system-ui prose; structural chrome speaks in the
+   condensed stamp face. Mono is reserved for code, diffs, gutters, and numerals.
+   Uppercase + tracking survives only on the smallest wayfinding: eyebrows, tags,
+   badges, and stamped verdicts. Selectors that hard-set their own font-family
+   (thread-who, table th, the focus labels, …) are recast in their own sheet. */
+
+/* Structural chrome in the stamp voice, mixed-case. */
+.section-title,
+.round-title,
+.round-current-header,
+.submit-round,
+.submit-count,
+.submit-done,
+.submit-btn,
+.verdict,
+.code-title,
+.diff-title,
+.cc-group-header {
+  font-family: var(--font-stamp);
+  text-transform: none;
+  letter-spacing: 0;
+  font-feature-settings: normal;
+}
+
+/* Tiny wayfinding — eyebrows, chip tags, badges, stat labels — stay uppercase
+   and tracked, but drawn in the stamp face rather than the typewriter. */
+.doc-header::before,
+.doc-section::before,
+.peer,
+.conn,
+.chip,
+.round-chip,
+.closed-badge,
+.stat,
+.option-hint {
+  font-family: var(--font-stamp);
+  text-transform: uppercase;
+  letter-spacing: var(--track-caps);
+  font-feature-settings: normal;
+}
+
+/* Status pills carry a lowercase enum ("open"); render it as a stamped word. */
+.status {
+  font-family: var(--font-stamp);
+  text-transform: capitalize;
+  letter-spacing: 0.02em;
+  font-feature-settings: normal;
+}
+
+/* ── Reduced-motion contract ──
+   base.css already freezes every animation and transition globally with
+   !important; this states the domain intent on top of it: drawn marks and
+   verdict stamps skip their stroke and transform motion and settle in a single
+   sub-80ms opacity fade (needing !important to beat base's blanket freeze).
+   The focus deck's plain-CSS progress motion is already held to its final frame
+   by base; framer-motion's inline/WAAPI motion is degraded separately by
+   <MotionConfig reducedMotion="user">. */
+@media (prefers-reduced-motion: reduce) {
+  .mark,
+  .approval:has(.verdict-approve.active)::after,
+  .approval:has(.verdict-reject.active)::after {
+    animation: mark-fade 80ms var(--ease-out) !important;
+    transition: opacity 80ms var(--ease-out) !important;
+  }
+}
+@keyframes mark-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}

@@ -1,0 +1,723 @@
+/* Blocks: the eleven builtin block renderers plus their shared parts — cards
+   and state rails, agent prose, approval, feedback threads, choice, input,
+   code, diff, table, progress, image, clamp, and pack placeholders. */
+
+/* --- Cards → flat hairline rows on bg with a 3px state rail (no float) --- */
+
+.card {
+  --rail: var(--line);
+  background: transparent;
+  border: none;
+  border-left: 3px solid var(--rail);
+  border-radius: 0;
+  box-shadow: none;
+  padding: var(--space-1) 0 var(--space-1) var(--space-4);
+}
+/* State encoding via :has() — cascade order sets precedence:
+   neutral → accent-undecided → flagged-reject → decided approve/reject (win). */
+.card:has(.verdict) {
+  --rail: var(--accent-fill);
+}
+.card.flagged {
+  --rail: var(--reject);
+}
+.card:has(.verdict-approve.active) {
+  --rail: var(--approve);
+}
+.card:has(.verdict-reject.active) {
+  --rail: var(--reject);
+}
+.card-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-2);
+}
+.card-title {
+  font-family: var(--font-prose);
+  font-size: var(--text-lg);
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+.card-summary {
+  font-size: var(--text-sm);
+  color: var(--muted);
+  line-height: var(--leading-normal);
+  max-width: 72ch;
+  margin-bottom: var(--space-3);
+}
+.card-head + .card-body {
+  margin-top: var(--space-2);
+}
+.card-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.status {
+  font-size: var(--text-2xs);
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--line);
+  color: var(--muted);
+}
+.status-open {
+  color: var(--accent-ink);
+  border-color: color-mix(in srgb, var(--accent-fill) 45%, transparent);
+}
+.status-resolved {
+  color: var(--approve);
+  border-color: color-mix(in srgb, var(--approve) 45%, transparent);
+}
+.status-redrafted {
+  color: var(--accent-ink);
+  border-color: color-mix(in srgb, var(--accent-fill) 45%, transparent);
+}
+.chips {
+  display: flex;
+  gap: var(--space-1);
+  flex-wrap: wrap;
+  margin-left: auto;
+}
+.chip {
+  font-size: var(--text-2xs);
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--chip-bg);
+  color: var(--muted);
+  border: 1px solid var(--line);
+  white-space: nowrap;
+}
+.chip-demo {
+  color: var(--accent-ink);
+}
+.chip-flag {
+  background: var(--reject-bg);
+  color: var(--reject);
+  border-color: color-mix(in srgb, var(--reject) 40%, transparent);
+  font-weight: 600;
+}
+.flag-callout {
+  background: var(--reject-bg);
+  border-left: 3px solid var(--reject);
+  color: var(--reject);
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-sm);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  margin-bottom: var(--space-3);
+}
+
+/* --- Prose / markdown --- */
+
+.prose {
+  line-height: var(--leading-normal);
+  font-family: var(--font-prose);
+}
+.prose :first-child {
+  margin-top: 0;
+}
+.prose :last-child {
+  margin-bottom: 0;
+}
+.prose code {
+  background: var(--mono-bg);
+  padding: var(--space-1);
+  border-radius: var(--radius-sm);
+  font-size: 0.85em;
+  font-family: var(--font-mono);
+}
+.prose a {
+  color: var(--accent-ink);
+}
+/* Top-level prose keeps a comfortable reading measure. */
+.blocks > .block-row > .clamped .markdown-block,
+.blocks > .block-row > .markdown-block {
+  max-width: 72ch;
+}
+/* Agent markdown inside a card must never shout over the card title. */
+.card .prose h1 {
+  font-size: var(--text-base);
+  font-weight: 650;
+  margin: var(--space-3) 0 var(--space-1);
+}
+.card .prose h2 {
+  font-size: var(--text-sm);
+  font-weight: 650;
+  margin: var(--space-3) 0 var(--space-1);
+}
+.card .prose h3 {
+  font-family: var(--font-stamp);
+  font-size: var(--text-xs);
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  margin: var(--space-3) 0 var(--space-1);
+}
+.markdown-block.struck,
+.prose.struck {
+  color: var(--was);
+  font-size: var(--text-base);
+}
+.markdown-block.struck * {
+  text-decoration: line-through;
+  text-decoration-color: color-mix(in srgb, var(--was) 55%, transparent);
+}
+
+/* --- Approval --- */
+
+.approval {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.approval-prompt {
+  margin: 0;
+  font-family: var(--font-prose);
+  font-weight: 550;
+  font-size: var(--text-base);
+}
+.verdict-pair {
+  display: inline-flex;
+  gap: var(--space-1);
+  padding: var(--space-1);
+  background: var(--mono-bg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  width: fit-content;
+}
+.verdict {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--muted);
+  padding: var(--space-1) var(--space-3);
+  min-height: 2rem;
+  font-size: var(--text-2xs);
+  font-weight: 600;
+}
+.verdict-glyph {
+  font-size: var(--text-xs);
+  line-height: 1;
+}
+.verdict:hover:not(:disabled):not(.active) {
+  background: var(--card);
+  border-color: var(--line);
+  color: var(--ink);
+}
+.verdict-approve:hover:not(:disabled):not(.active) {
+  color: var(--approve);
+}
+.verdict-reject:hover:not(:disabled):not(.active) {
+  color: var(--reject);
+}
+.verdict-approve.active {
+  background: var(--approve);
+  border-color: transparent;
+  color: var(--accent-fg);
+}
+.verdict-reject.active {
+  background: var(--reject);
+  border-color: transparent;
+  color: var(--accent-fg);
+}
+
+.feedback-affordance {
+  display: flex;
+}
+.link-btn {
+  border: none;
+  background: none;
+  color: var(--accent-ink);
+  padding: 0;
+  font-family: var(--font-stamp);
+  text-transform: uppercase;
+  letter-spacing: var(--track-caps);
+  font-size: var(--text-2xs);
+}
+.link-btn:hover:not(:disabled) {
+  background: none;
+  border-color: transparent;
+  text-decoration: underline;
+}
+.feedback-editor {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.feedback-editor textarea {
+  width: 100%;
+  resize: vertical;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--card);
+  color: var(--ink);
+  padding: var(--space-2);
+  font: inherit;
+}
+.feedback-actions {
+  display: flex;
+  gap: var(--space-2);
+}
+
+/* Threads: human feedback stays plain against the rail; agent replies read as
+ * distinct accent-tinted bubbles. */
+.thread {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  border-left: 2px solid var(--line);
+  padding-left: var(--space-3);
+  margin-top: var(--space-1);
+}
+.thread-item {
+  display: flex;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+}
+.thread-who {
+  flex: none;
+  font-family: var(--font-stamp);
+  font-size: var(--text-2xs);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  padding-top: 2px;
+  width: 3rem;
+}
+.thread-text {
+  font-family: var(--font-prose);
+  line-height: var(--leading-normal);
+}
+.reply-item .thread-who {
+  color: var(--accent-ink);
+}
+.reply-item .clamped {
+  flex: 1;
+  min-width: 0;
+  background: color-mix(in srgb, var(--accent-fill) 7%, var(--mono-bg));
+  border-left: 2px solid color-mix(in srgb, var(--accent-fill) 55%, transparent);
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+  padding: var(--space-2) var(--space-3);
+}
+
+/* --- Choice --- */
+
+.choice {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.choice-prompt {
+  margin: 0;
+  font-family: var(--font-prose);
+  font-weight: 550;
+  font-size: var(--text-base);
+}
+.options {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.option {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: var(--space-3);
+  align-items: start;
+  text-align: left;
+  border: 1px solid var(--line);
+  background: var(--card);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+  cursor: pointer;
+  transition: border-color var(--dur-1) var(--ease-out), background var(--dur-1) var(--ease-out);
+}
+.option:hover:not([aria-disabled='true']) {
+  border-color: var(--border-strong);
+  background: color-mix(in srgb, var(--mono-bg) 45%, var(--card));
+}
+.option:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
+}
+.option.selected {
+  border-color: var(--accent-fill);
+  background: color-mix(in srgb, var(--accent-fill) 8%, var(--card));
+}
+.option[aria-disabled='true'] {
+  opacity: 0.55;
+  cursor: default;
+}
+.option-indicator {
+  width: var(--text-base);
+  height: var(--text-base);
+  margin-top: 2px;
+  border: 1.5px solid var(--border-strong);
+  background: var(--card);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-color var(--dur-1) var(--ease-out), background var(--dur-1) var(--ease-out);
+}
+.option[role='radio'] .option-indicator {
+  border-radius: var(--radius-pill);
+}
+.option[role='checkbox'] .option-indicator {
+  border-radius: var(--radius-sm);
+}
+.option.selected .option-indicator {
+  border-color: var(--accent-fill);
+}
+.option[role='radio'].selected .option-indicator::after {
+  content: '';
+  width: 40%;
+  height: 40%;
+  border-radius: var(--radius-pill);
+  background: var(--accent-fill);
+}
+.option[role='checkbox'].selected .option-indicator {
+  background: var(--accent-fill);
+}
+.option[role='checkbox'].selected .option-indicator::after {
+  content: '';
+  width: 30%;
+  height: 55%;
+  margin-top: -12%;
+  border-right: 2px solid var(--accent-fg);
+  border-bottom: 2px solid var(--accent-fg);
+  transform: rotate(45deg);
+}
+.option-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+.option-label {
+  font-family: var(--font-prose);
+  font-size: var(--text-base);
+  font-weight: 600;
+  line-height: var(--leading-tight);
+}
+.option-hint {
+  font-size: var(--text-2xs);
+  color: var(--muted);
+}
+.option-md {
+  color: var(--muted);
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+}
+
+/* --- Input --- */
+
+.input-block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+.input-label {
+  font-size: var(--text-sm);
+  color: var(--muted);
+}
+.input-block input,
+.input-block textarea {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--card);
+  color: var(--ink);
+  padding: var(--space-2);
+  font: inherit;
+  resize: vertical;
+}
+.input-last-round {
+  font-size: var(--text-xs);
+  font-style: italic;
+  color: var(--was);
+}
+
+/* --- Code (nested panel) --- */
+
+.code-block {
+  margin: 0;
+}
+.code-title {
+  font-size: var(--text-2xs);
+  color: var(--muted);
+  margin-bottom: var(--space-1);
+}
+.code-plain,
+.shiki-wrap .shiki {
+  background: var(--mono-bg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-4);
+  overflow-x: auto;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  margin: 0;
+}
+.code-plain {
+  white-space: pre;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .shiki,
+  :root:not([data-theme='light']) .shiki span {
+    color: var(--shiki-dark) !important;
+    background-color: var(--shiki-dark-bg) !important;
+  }
+}
+:root[data-theme='dark'] .shiki,
+:root[data-theme='dark'] .shiki span {
+  color: var(--shiki-dark) !important;
+  background-color: var(--shiki-dark-bg) !important;
+}
+
+/* --- Diff --- */
+
+.diff-block {
+  margin: 0;
+}
+.diff-title {
+  font-size: var(--text-2xs);
+  color: var(--muted);
+  margin-bottom: var(--space-1);
+}
+.diff-table {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  overflow-x: auto;
+}
+.diff-row {
+  display: grid;
+  grid-template-columns: 3ch 3ch 2ch 1fr;
+  align-items: baseline;
+}
+.diff-gutter {
+  text-align: right;
+  padding: 0 var(--space-2);
+  color: var(--was);
+  user-select: none;
+  font-size: var(--text-2xs);
+}
+.diff-mark {
+  text-align: center;
+  user-select: none;
+  color: var(--muted);
+}
+.diff-text {
+  white-space: pre-wrap;
+  word-break: break-word;
+  padding-right: var(--space-2);
+}
+.diff-hunk-head {
+  background: var(--mono-bg);
+  color: var(--muted);
+}
+.diff-add {
+  background: color-mix(in srgb, var(--approve) 14%, transparent);
+}
+.diff-add .diff-mark {
+  color: var(--approve);
+}
+.diff-del {
+  background: color-mix(in srgb, var(--reject) 14%, transparent);
+}
+.diff-del .diff-mark {
+  color: var(--reject);
+}
+
+/* --- Table --- */
+
+.table-block {
+  overflow-x: auto;
+}
+.table-block table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: var(--text-sm);
+}
+.table-block th,
+.table-block td {
+  border: none;
+  border-bottom: 1px solid var(--line);
+  padding: var(--space-2) var(--space-3);
+}
+.table-block th {
+  background: transparent;
+  border-bottom: 1px solid var(--border-strong);
+  font-family: var(--font-stamp);
+  font-size: var(--text-2xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+.table-block tbody tr:last-child td {
+  border-bottom: none;
+}
+.table-block tbody tr:hover td {
+  background: color-mix(in srgb, var(--mono-bg) 55%, transparent);
+}
+
+/* --- Progress --- */
+
+.progress-block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+.progress-head {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--text-sm);
+  color: var(--muted);
+}
+.progress-count {
+  font-variant-numeric: tabular-nums;
+}
+.progress-block .progress-track {
+  width: 100%;
+  height: 0.4rem;
+}
+.progress-state-done .progress-fill {
+  background: var(--approve);
+}
+.progress-state-error .progress-fill {
+  background: var(--reject);
+}
+.progress-state-active .progress-fill {
+  background: var(--accent-fill);
+}
+
+/* --- Image --- */
+
+.image-block {
+  margin: 0;
+}
+.image-block img {
+  max-width: 100%;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--line);
+  display: block;
+}
+.image-caption {
+  font-size: var(--text-sm);
+  color: var(--muted);
+  margin-top: var(--space-1);
+}
+
+/* --- Clamped (expand/collapse for long text) --- */
+
+.clamped {
+  min-width: 0;
+}
+.clamped-content.is-clamped {
+  display: -webkit-box;
+  -webkit-line-clamp: var(--clamp-lines);
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.clamped-content.is-faded {
+  -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 65%, transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 0%, #000 65%, transparent 100%);
+}
+.clamp-toggle {
+  margin-top: var(--space-1);
+}
+
+.thread-item.pending {
+  opacity: 0.6;
+}
+.thread-status {
+  font-family: var(--font-stamp);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: var(--text-2xs);
+  color: var(--muted);
+}
+
+/* --- Pack blocks --- */
+
+.pack-block {
+  display: block;
+}
+
+/* The placeholder for a pack block that cannot render: unknown pack, still
+   loading, failed to load, missing export, or crashed. */
+.pack-placeholder {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--mono-bg);
+  color: var(--muted);
+}
+.pack-placeholder-type {
+  font-family: var(--font-stamp);
+  font-size: var(--text-2xs);
+  letter-spacing: var(--track-caps);
+  text-transform: uppercase;
+  color: var(--ink);
+}
+.pack-placeholder-id {
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  color: var(--muted);
+}
+.pack-placeholder-reason {
+  margin-left: auto;
+  font-size: var(--text-sm);
+}
+
+/* --- Responsive: block controls at the two breakpoints of record. At --bp-rail
+   every human control clears the 44px touch floor; at --bp-compact the verdict pair
+   spreads to a full-width two-up grid and the structural type ramp steps down. --- */
+
+@media (max-width: 720px) {
+  /* Verdict buttons, choice rows, and the clamp toggle all reach the touch floor.
+     The clamp toggle centers its label within the taller hit area. */
+  .verdict {
+    min-height: 44px;
+  }
+  .option {
+    min-height: 44px;
+  }
+  .clamp-toggle {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+  }
+}
+
+@media (max-width: 440px) {
+  /* The approval verdict pair spreads to a full-width two-column grid so each
+     verdict is a broad thumb target; the labels center within their columns. */
+  .verdict-pair {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    width: 100%;
+  }
+  .verdict {
+    justify-content: center;
+  }
+
+  /* Type ramp steps down: the masthead is already fluid and body prose holds, so
+     only the structural card title tightens at the narrowest width. */
+  .card-title {
+    font-size: var(--text-md);
+  }
+}

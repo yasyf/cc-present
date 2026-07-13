@@ -1,0 +1,78 @@
+/* Marks: the human traces the agent never draws — verdict stamps, the keyboard
+   cursor ring, and the review-layer focus rings. If it is a drawn mark, it
+   lives here. The <Mark> component's full styling lands in a later phase. */
+
+/* Rotated verdict stamps for decided approvals — pure :has()::after. Inked in
+   the stamp face at 700; the verdict colors resolve to the Blue Pencil stamp
+   inks (--approve / --reject) for free. */
+.approval:has(.verdict-approve.active)::after,
+.approval:has(.verdict-reject.active)::after {
+  position: absolute;
+  top: -0.35rem;
+  right: 0.35rem;
+  font-family: var(--font-stamp);
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  padding: 0.22rem 0.55rem;
+  border: 2px solid;
+  border-radius: var(--radius-sm);
+  transform: rotate(-3deg);
+  transform-origin: center;
+  background: color-mix(in srgb, var(--card) 82%, transparent);
+  animation: stamp-in var(--dur-3) var(--ease-out);
+  pointer-events: none;
+}
+.approval:has(.verdict-approve.active)::after {
+  content: 'APPROVED';
+  color: var(--approve);
+  border-color: var(--approve);
+}
+.approval:has(.verdict-reject.active)::after {
+  content: 'REJECTED';
+  color: var(--reject);
+  border-color: var(--reject);
+}
+@keyframes stamp-in {
+  from {
+    transform: rotate(-3deg) scale(1.6);
+    opacity: 0;
+  }
+  to {
+    transform: rotate(-3deg) scale(1);
+    opacity: 1;
+  }
+}
+
+/* The cursor ring persists on the block the cursor rests on; the arrival pulse
+   is a one-shot outer glow that replays each time the attribute re-lands, so it
+   doubles as the jump highlight. */
+[data-kbd-cursor] {
+  border-radius: var(--radius-sm);
+  box-shadow: 0 0 0 2px var(--accent-fill);
+  animation: kbd-arrive var(--dur-3) var(--ease-out);
+}
+@keyframes kbd-arrive {
+  0% {
+    box-shadow:
+      0 0 0 2px var(--accent-fill),
+      0 0 0 8px color-mix(in srgb, var(--accent-fill) 30%, transparent);
+  }
+  100% {
+    box-shadow:
+      0 0 0 2px var(--accent-fill),
+      0 0 0 8px color-mix(in srgb, var(--accent-fill) 0%, transparent);
+  }
+}
+
+/* base.css lands a global :focus-visible ring; re-state it on the review-layer
+   controls (now pencil via --focus-ring) so each keeps a consistent 2px offset. */
+.verdict:focus-visible,
+.link-btn:focus-visible,
+.dot:focus-visible,
+.submit-count:focus-visible,
+.submit-btn:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}

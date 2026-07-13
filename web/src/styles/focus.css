@@ -1,0 +1,314 @@
+/* Focus mode: the one-decision-at-a-time deck — view toggle, progress header
+   and dot rail, the peek/card stage, swipe overlays, prev/next nav, and the
+   deck-end review summary. */
+
+/* ── focus mode ──
+   One decision at a time: a deck of cards with a peek behind, a dot-rail
+   progress header, and a review summary at the end. Blue Pencil voice throughout
+   — stamp-face structural labels, squared corners, verdict-colored state. Deck
+   motion is plain CSS here; framer-motion swipe/fly-off lands in P3. */
+
+.view-toggle {
+  display: inline-flex;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+.view-seg {
+  font-family: var(--font-stamp);
+  text-transform: uppercase;
+  letter-spacing: var(--track-caps);
+  font-size: var(--text-2xs);
+  font-weight: 600;
+  padding: 2px var(--space-2);
+  border: none;
+  background: none;
+  color: var(--muted);
+}
+.view-seg + .view-seg {
+  border-left: 1px solid var(--line);
+}
+.view-seg:hover:not(.on) {
+  color: var(--ink);
+  background: var(--mono-bg);
+}
+.view-seg.on {
+  background: var(--accent-fill);
+  color: var(--accent-fg);
+}
+
+.focus-history {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+}
+
+.focus-deck {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+/* Progress header: stamp counter + tier, then a tap-to-jump dot rail. */
+.focus-progress {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.focus-progress-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+}
+.focus-step-count {
+  font-family: var(--font-stamp);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--accent-ink);
+  font-variant-numeric: tabular-nums;
+}
+.focus-step-tier {
+  font-family: var(--font-stamp);
+  font-size: var(--text-sm);
+  color: var(--muted);
+}
+.focus-dots {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+.focus-dot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px;
+  border: none;
+  background: transparent;
+}
+.focus-dot::before {
+  content: '';
+  display: block;
+  width: 12px;
+  height: 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  transition:
+    background var(--dur-2) var(--ease-out),
+    border-color var(--dur-2) var(--ease-out);
+}
+.focus-dot.undecided::before {
+  border-color: var(--pending);
+}
+.focus-dot.decided::before {
+  background: var(--accent-fill);
+  border-color: var(--accent-fill);
+}
+.focus-dot.approved::before {
+  background: var(--approve);
+  border-color: var(--approve);
+}
+.focus-dot.rejected::before {
+  background: var(--reject);
+  border-color: var(--reject);
+}
+.focus-dot.current::before {
+  outline: 2px solid var(--accent-fill);
+  outline-offset: 2px;
+}
+.focus-bar {
+  height: 4px;
+  background: var(--mono-bg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+}
+.focus-bar-fill {
+  height: 100%;
+  background: var(--accent-fill);
+  transition: width var(--dur-2) var(--ease-out);
+}
+
+/* Stage: the current card, with the next one peeking behind it. */
+.focus-stage {
+  position: relative;
+}
+.focus-peek {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  transform: scale(0.96) translateY(10px);
+  opacity: 0.5;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--card);
+  padding: var(--space-5);
+  overflow: hidden;
+}
+.focus-peek-title {
+  font-family: var(--font-prose);
+  font-size: var(--text-md);
+  font-weight: 650;
+  color: var(--muted);
+}
+/* The card is an AnimatePresence child: framer owns its enter/exit/drag motion
+   (and the draggable card's touch-action), so no CSS keyframe here. */
+.focus-card {
+  position: relative;
+  z-index: 1;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--card);
+  padding: var(--space-5);
+}
+.focus-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  /* Cap tall cards and scroll internally so the peek behind stays visible. */
+  max-height: 62vh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+/* Rotated swipe affordances — the stamp aesthetic, revealed as the card is dragged
+   (opacity is driven inline by the drag position). */
+.swipe-label {
+  position: absolute;
+  top: var(--space-4);
+  z-index: 2;
+  font-family: var(--font-stamp);
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  font-size: var(--text-sm);
+  font-weight: 700;
+  padding: 0.22rem 0.6rem;
+  border: 2px solid;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--card) 82%, transparent);
+  pointer-events: none;
+}
+.swipe-label.approve {
+  left: var(--space-4);
+  color: var(--approve);
+  border-color: var(--approve);
+  transform: rotate(-12deg);
+}
+.swipe-label.reject {
+  right: var(--space-4);
+  color: var(--reject);
+  border-color: var(--reject);
+  transform: rotate(12deg);
+}
+.focus-tier {
+  font-family: var(--font-stamp);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--accent-ink);
+  margin-bottom: var(--space-2);
+}
+
+/* Prev / next controls: real buttons so a click commits a focused input. */
+.focus-nav {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+.focus-nav-btn {
+  font-family: var(--font-stamp);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  padding: var(--space-2) var(--space-5);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--card);
+  color: var(--ink);
+}
+.focus-nav-btn:hover:not(:disabled) {
+  border-color: var(--border-strong);
+  background: var(--mono-bg);
+}
+.focus-nav-btn.primary {
+  background: var(--accent-fill);
+  border-color: transparent;
+  color: var(--accent-fg);
+}
+.focus-nav-btn.primary:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent-fill) 88%, #000);
+}
+.focus-nav-btn:disabled {
+  opacity: 0.5;
+}
+
+/* Deck-end review: one receipt per step, undecided items jump back. */
+.focus-summary {
+  position: relative;
+  z-index: 1;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--card);
+  padding: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.focus-summary-head {
+  font-family: var(--font-stamp);
+  font-size: var(--text-md);
+  font-weight: 700;
+  color: var(--accent-ink);
+}
+.focus-receipts {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.focus-receipt {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--line);
+  border-left: 3px solid var(--line);
+  padding-left: var(--space-3);
+}
+.focus-receipt.undecided {
+  border-left-color: var(--pending);
+}
+.focus-receipt.approved,
+.focus-receipt.decided {
+  border-left-color: var(--approve);
+}
+.focus-receipt.rejected {
+  border-left-color: var(--reject);
+}
+.focus-receipt-title {
+  font-family: var(--font-prose);
+  font-size: var(--text-sm);
+  font-weight: 550;
+}
+.focus-receipt-state {
+  margin-left: auto;
+  font-family: var(--font-stamp);
+  text-transform: uppercase;
+  letter-spacing: var(--track-caps);
+  font-size: var(--text-2xs);
+  color: var(--muted);
+}
+
+/* --- Responsive: at --bp-compact the deck's prev/next controls become
+   thumb-reachable — the nav gains bottom breathing room off the screen edge, its
+   buttons clear the 44px touch floor, and the jump dots grow their hit area. --- */
+@media (max-width: 440px) {
+  .focus-nav {
+    padding-bottom: var(--space-4);
+  }
+  .focus-nav-btn {
+    min-height: 44px;
+  }
+  .focus-dot {
+    padding: 8px;
+  }
+}
