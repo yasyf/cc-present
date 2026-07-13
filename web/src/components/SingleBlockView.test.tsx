@@ -8,6 +8,7 @@ import { EventStreamProvider } from '../stream';
 import { presentKey, queryClient } from '../api';
 import { reduce } from '../reduce';
 import { SingleBlockView } from './SingleBlockView';
+import { packToast, setPackToastSink } from '../packs/toasts';
 import type { PresentEvent, PresentState } from '../events';
 import type { Doc, Markdown } from '../schema';
 
@@ -59,6 +60,7 @@ afterEach(() => {
   act(() => root.unmount());
   container.remove();
   queryClient.clear();
+  setPackToastSink(null);
 });
 
 function render(subject: string, blockId: string, state: PresentState): void {
@@ -102,5 +104,19 @@ describe('SingleBlockView closed-round fallback', () => {
     expect(container.textContent).toContain('live block');
     expect(container.textContent).not.toContain('No block');
     expect(container.textContent).not.toContain('historical block');
+  });
+});
+
+describe('SingleBlockView pack toasts', () => {
+  it('registers the toast sink and flows the stack inside the measured root', () => {
+    render('s', 'l1', historyState());
+    act(() => packToast({ kind: 'info', text: 'draft saved' }));
+
+    const stack = container.querySelector('.single-block .toast-stack');
+    expect(stack).not.toBeNull();
+    expect(stack?.textContent).toContain('draft saved');
+    // The stack is a child of the ResizeObserver'd root, never a sibling escaping it.
+    const escaped = container.querySelector('.single-block')?.contains(container.querySelector('.toast-stack'));
+    expect(escaped).toBe(true);
   });
 });

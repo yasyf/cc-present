@@ -8,12 +8,21 @@ import type { ComponentType } from 'react';
 import type { PackBlock } from '../schema';
 import type { PackInfo } from './manifest';
 
+// PackBlockContext decomposes the block's lifecycle for a pack component: the
+// board is closed, the block's round is over, and the current round number.
+export interface PackBlockContext {
+  closed: boolean;
+  roundOver: boolean;
+  round: number;
+}
+
 // PackComponentProps is the contract every pack leaf component is called with.
 export interface PackComponentProps {
   block: PackBlock;
   value: unknown;
   submit: (payload: unknown) => void;
   disabled: boolean;
+  context: PackBlockContext;
 }
 
 export type PackComponent = ComponentType<PackComponentProps>;

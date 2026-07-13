@@ -3,7 +3,7 @@
 // crashing component and retries when the agent redrafts the block, and a labeled
 // placeholder for every not-yet-renderable state.
 
-import { Component, useCallback, useRef } from 'react';
+import { Component, useCallback, useMemo, useRef } from 'react';
 import type { ReactNode } from 'react';
 import { useGroupReadOnly } from '@cc-interact/react';
 import type { PackBlock } from '../schema';
@@ -11,7 +11,8 @@ import type { Interactions } from '../events';
 import { usePresent } from '../present';
 import { useDecidable } from '../keyboard';
 import { usePackComponent, usePackDef, useInteractivePackTypes } from '../packs/registry';
-import type { PackDefState } from '../packs/registry';
+import type { PackBlockContext, PackDefState } from '../packs/registry';
+import { PackBlockIdContext } from '../packs/state';
 
 const FOCUSABLE =
   'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
@@ -74,10 +75,14 @@ class PackBoundary extends Component<BoundaryProps, BoundaryState> {
 }
 
 export function PackBlockView({ block, interactions }: { block: PackBlock; interactions: Interactions }) {
-  const { post, closed } = usePresent();
+  const { post, closed, currentRound } = usePresent();
   const readOnly = useGroupReadOnly();
   const interactive = useInteractivePackTypes().has(block.type);
   const disabled = closed || readOnly || !interactive;
+  const context = useMemo<PackBlockContext>(
+    () => ({ closed, roundOver: readOnly, round: currentRound }),
+    [closed, readOnly, currentRound],
+  );
 
   const PackComponent = usePackComponent(block.type);
   const defState = usePackDef(block.type);
@@ -106,7 +111,7 @@ export function PackBlockView({ block, interactions }: { block: PackBlock; inter
 
   const inner = PackComponent ? (
     <PackBoundary resetKey={block} fallback={<UnknownBlock block={block} reason="crashed while rendering" />}>
-      <PackComponent block={block} value={value} submit={submit} disabled={disabled} />
+      <PackComponent block={block} value={value} submit={submit} disabled={disabled} context={context} />
     </PackBoundary>
   ) : (
     <UnknownBlock block={block} reason={reasonFor(defState)} />
@@ -114,7 +119,7 @@ export function PackBlockView({ block, interactions }: { block: PackBlock; inter
 
   return (
     <div className="pack-block" ref={setRef} data-kbd-cursor={cursor || undefined}>
-      {inner}
+      <PackBlockIdContext.Provider value={block.id}>{inner}</PackBlockIdContext.Provider>
     </div>
   );
 }

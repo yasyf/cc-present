@@ -10,6 +10,7 @@ import { KeyboardProvider } from '../keyboard';
 import { PackBlockView } from './PackBlockView';
 import { markPacksLoaded, registerPack, resetPacksForTest } from '../packs/registry';
 import type { PackComponent, PackComponentProps } from '../packs/registry';
+import { resetPackStateForTest, usePackState } from '../packs/state';
 import type { PackBlock } from '../schema';
 import type { Interactions } from '../events';
 import type { PackInfo } from '../packs/manifest';
@@ -63,6 +64,7 @@ let root: Root;
 
 beforeEach(() => {
   resetPacksForTest();
+  resetPackStateForTest();
   container = document.createElement('div');
   document.body.appendChild(container);
   root = createRoot(container);
@@ -122,6 +124,46 @@ describe('PackBlockView component render', () => {
     markPacksLoaded();
     render(<Board blocks={[packBlock('r1', 'ex.rating')]} interactions={emptyInteractions()} present={api()} />);
     expect(container.querySelector('button')?.disabled).toBe(true);
+  });
+});
+
+describe('PackBlockView v2 host surface', () => {
+  const Ctx: PackComponent = ({ context }: PackComponentProps) => (
+    <span>
+      round={context.round} closed={String(context.closed)} over={String(context.roundOver)}
+    </span>
+  );
+
+  it('passes the decomposed lifecycle context to the pack component', () => {
+    registerPack(def('ex', [{ type: 'ex.ctx', interactive: true }]), { ctx: Ctx });
+    markPacksLoaded();
+    render(
+      <Board
+        blocks={[packBlock('c1', 'ex.ctx')]}
+        interactions={emptyInteractions()}
+        present={api({ closed: true, currentRound: 4 })}
+      />,
+    );
+    expect(container.textContent).toContain('round=4');
+    expect(container.textContent).toContain('closed=true');
+    expect(container.textContent).toContain('over=false');
+  });
+
+  it('scopes usePackState to the block so a pack keeps its own draft', () => {
+    const Draft: PackComponent = () => {
+      const [n, setN] = usePackState('n', 0);
+      return (
+        <button type="button" onClick={() => setN(n + 1)}>
+          draft={n}
+        </button>
+      );
+    };
+    registerPack(def('ex', [{ type: 'ex.draft', interactive: true }]), { draft: Draft });
+    markPacksLoaded();
+    render(<Board blocks={[packBlock('d1', 'ex.draft')]} interactions={emptyInteractions()} present={api()} />);
+    expect(container.textContent).toContain('draft=0');
+    act(() => container.querySelector('button')?.click());
+    expect(container.textContent).toContain('draft=1');
   });
 });
 

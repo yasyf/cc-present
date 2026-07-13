@@ -12,6 +12,7 @@ import { emptyState, topLevelRound } from '../reduce';
 import { flatten } from '../decide';
 import { KeyboardProvider } from '../keyboard';
 import { PresentContext } from '../present';
+import { setPackToastSink } from '../packs/toasts';
 import type { PresentApi } from '../present';
 import type { PresentState } from '../events';
 import type { Block } from '../schema';
@@ -74,6 +75,8 @@ export function SingleBlockView({ subject, blockId }: { subject: string; blockId
     [mutation, closed, currentRound],
   );
 
+  useEffect(() => setPackToastSink(stream.notify), [stream.notify]);
+
   const rootRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     document.body.dataset.single = '';
@@ -115,8 +118,8 @@ export function SingleBlockView({ subject, blockId }: { subject: string; blockId
         <div className="single-block" ref={rootRef}>
           {realClosed && <ClosedBanner summary={state.interactions.closed.summary} />}
           {content}
+          <ToastStack notifications={stream.notifications} onDismiss={stream.dismiss} />
         </div>
-        <ToastStack notifications={stream.notifications} onDismiss={stream.dismiss} />
       </KeyboardProvider>
     </PresentContext.Provider>
   );

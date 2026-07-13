@@ -1,16 +1,19 @@
-// The window.CcPresent host surface (contract hostApi 1). Packs build with
-// react/react/jsx-runtime aliased to shims that re-export from this global, so a
-// pack bundle shares the host's single React instance instead of bundling its
-// own. installHost publishes it once, before any pack bundle imports.
+// The window.CcPresent host surface (contract hostApi 2): packs share the host's
+// single React instance via aliased shims. installHost publishes it before imports.
 
 import * as React from 'react';
 import * as jsxRuntime from 'react/jsx-runtime';
 import { createPortal } from 'react-dom';
 import { Clamped } from '../components/Clamped';
 import { renderInlineMarkdown, renderMarkdown } from '../markdown';
+import { tokens } from './tokens';
+import type { ThemeTokens } from './tokens';
+import { packToast } from './toasts';
+import type { PackToast } from './toasts';
+import { usePackState } from './state';
 
 export interface CcPresentHost {
-  hostApi: 1;
+  hostApi: 2;
   React: typeof React;
   jsxRuntime: typeof jsxRuntime;
   reactDom: { createPortal: typeof createPortal };
@@ -18,6 +21,9 @@ export interface CcPresentHost {
     Clamped: typeof Clamped;
     renderMarkdown: typeof renderMarkdown;
     renderInlineMarkdown: typeof renderInlineMarkdown;
+    tokens: ThemeTokens;
+    toast: (toast: PackToast) => void;
+    usePackState: typeof usePackState;
   };
 }
 
@@ -32,10 +38,10 @@ declare global {
 export function installHost(): void {
   if (window.CcPresent) return;
   window.CcPresent = {
-    hostApi: 1,
+    hostApi: 2,
     React,
     jsxRuntime,
     reactDom: { createPortal },
-    ui: { Clamped, renderMarkdown, renderInlineMarkdown },
+    ui: { Clamped, renderMarkdown, renderInlineMarkdown, tokens, toast: packToast, usePackState },
   };
 }

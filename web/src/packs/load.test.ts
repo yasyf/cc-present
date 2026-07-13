@@ -67,10 +67,18 @@ describe('loadPacks', () => {
     warn.mockRestore();
   });
 
-  it('a manifest hostApi mismatch registers nothing and resolves dotted types to unknown', async () => {
+  it('a manifest at the host api ceiling loads its packs', async () => {
+    const importFn = vi.fn<ImportFn>(async () => ({ default: { hostApi: 2, blocks: { rating: RatingComponent } } }));
+    await loadPacks(fetchJson({ ...manifest(), hostApi: 2 }), importFn);
+    expect(importFn).toHaveBeenCalled();
+    expect(getPackDefState('ex.rating')).toBe('ready');
+    expect(getPackComponent('ex.rating')).toBe(RatingComponent);
+  });
+
+  it('a manifest above the host api ceiling registers nothing and resolves dotted types to unknown', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const importFn = vi.fn<ImportFn>();
-    await loadPacks(fetchJson({ ...manifest(), hostApi: 2 }), importFn);
+    await loadPacks(fetchJson({ ...manifest(), hostApi: 3 }), importFn);
     expect(importFn).not.toHaveBeenCalled();
     expect(getPackDefState('ex.rating')).toBe('unknown');
     expect(warn).toHaveBeenCalledTimes(1);
@@ -85,8 +93,15 @@ describe('loadPacks', () => {
     expect(getInteractivePackTypes().has('ex.rating')).toBe(false);
   });
 
-  it('a hostApi mismatch marks the pack failed', async () => {
+  it('a bundle at the host api ceiling loads', async () => {
     const importFn: ImportFn = async () => ({ default: { hostApi: 2, blocks: { rating: RatingComponent } } });
+    await loadPacks(fetchOk(manifest()), importFn);
+    expect(getPackDefState('ex.rating')).toBe('ready');
+    expect(getPackComponent('ex.rating')).toBe(RatingComponent);
+  });
+
+  it('a bundle above the host api ceiling marks the pack failed', async () => {
+    const importFn: ImportFn = async () => ({ default: { hostApi: 3, blocks: { rating: RatingComponent } } });
     await loadPacks(fetchOk(manifest()), importFn);
     expect(getPackDefState('ex.rating')).toBe('failed');
     expect(getPackComponent('ex.rating')).toBeUndefined();

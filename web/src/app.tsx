@@ -3,10 +3,11 @@
 // block renders off that one cache. Interactions flow through usePostInteraction
 // and the FLIP hook animates top-level reorders on block.upserted.
 
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { AppShell, ToastStack, useFlip } from '@cc-interact/react';
 import { EventStreamProvider, useEventStream } from './stream';
+import { setPackToastSink } from './packs/toasts';
 import { SubjectProvider, presentKey, queryClient, usePostInteraction } from './api';
 import { emptyState } from './reduce';
 import { boardPhase } from './lifecycle';
@@ -59,6 +60,7 @@ export function App() {
 
 function PresentView({ subject }: { subject: string }) {
   const stream = useEventStream();
+  useEffect(() => setPackToastSink(stream.notify), [stream.notify]);
   const { data: state } = useQuery<PresentState>({
     queryKey: presentKey(subject),
     // No get-document endpoint exists; the cache is built by the SSE replay. A

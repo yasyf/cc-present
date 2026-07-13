@@ -15,6 +15,14 @@ interface PackModule {
   default?: { hostApi?: unknown; blocks?: Record<string, unknown> };
 }
 
+// HOST_API is the highest pack host API this SPA implements; a manifest or bundle
+// declaring any floor it meets (1 <= host_api <= HOST_API) loads.
+const HOST_API = 2;
+
+function hostApiSupported(v: unknown): boolean {
+  return typeof v === 'number' && v >= 1 && v <= HOST_API;
+}
+
 let loadPromise: Promise<void> | null = null;
 
 // loadPacks fetches the manifest and imports every bundle, once per page. The
@@ -61,7 +69,7 @@ async function loadManifest(fetchFn: FetchFn): Promise<PackInfo[]> {
 // isPacksResponse gates the whole manifest before any pack registers, so a
 // contract-violating body registers nothing rather than a partial set.
 function isPacksResponse(body: unknown): body is PacksResponse {
-  return isPlainObject(body) && body.hostApi === 1 && Array.isArray(body.packs) && body.packs.every(isPackInfo);
+  return isPlainObject(body) && hostApiSupported(body.hostApi) && Array.isArray(body.packs) && body.packs.every(isPackInfo);
 }
 
 function isPackInfo(def: unknown): def is PackInfo {
@@ -78,7 +86,7 @@ async function importPack(def: PackInfo, importFn: ImportFn): Promise<void> {
   try {
     const mod = (await importFn(withToken(def.bundle))) as PackModule;
     const bundle = mod.default;
-    if (!bundle || bundle.hostApi !== 1 || !isPlainObject(bundle.blocks)) {
+    if (!bundle || !hostApiSupported(bundle.hostApi) || !isPlainObject(bundle.blocks)) {
       markFailed(def.name);
       return;
     }
