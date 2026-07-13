@@ -13,6 +13,24 @@ import { presentKey, revisionKey } from './api';
 import { withToken } from './token';
 import type { PresentEvent, PresentState, WireFrame } from './events';
 
+// TOAST_TEXT is the toast copy per wire type; null for frames that never toast
+// (human echoes, channel presence). `satisfies` keeps it exhaustive.
+export const TOAST_TEXT = {
+  'doc.replaced': 'The board was redrafted',
+  'block.upserted': 'A block was updated',
+  'block.removed': 'A block was removed',
+  'reply.created': 'The agent replied',
+  'round.started': 'A new round started',
+  'present.closed': 'The session closed',
+  'decision.created': null,
+  'choice.selected': null,
+  'feedback.created': null,
+  'input.submitted': null,
+  'pack.interaction': null,
+  submit: null,
+  'channel.changed': null,
+} satisfies Record<WireFrame['type'], string | null>;
+
 // frameToEvent lifts a flat self-describing wire frame into the reducer's
 // PresentEvent envelope. applyEvent reads only `type` and `payload`, and the flat
 // frame carries the payload fields at top level, so the frame is its own payload;
@@ -28,17 +46,8 @@ export const { EventStreamProvider, useEventStream } = createEventStream<WireFra
   url: (subject) => withToken(`/events?session=${encodeURIComponent(subject)}`),
   reduce: (cache, frame) => applyEvent(cache, frameToEvent(frame)),
   toast: (frame) => {
-    // Every toasted type is agent-authored; the browser's own human echoes and
-    // the system lifecycle frames fall through to null. Origin is not on the
-    // wire, so the type discriminant alone gates the toast.
-    switch (frame.type) {
-      case 'block.upserted':
-        return { kind: 'info', text: 'A block was updated' };
-      case 'reply.created':
-        return { kind: 'info', text: 'The agent replied' };
-      default:
-        return null;
-    }
+    const text = TOAST_TEXT[frame.type];
+    return text === null ? null : { kind: 'info', text };
   },
   // The pre-marker fallback: a threshold above every seq means no replayed frame
   // clears it, so the whole from-zero replay (and any Last-Event-ID resume) stays

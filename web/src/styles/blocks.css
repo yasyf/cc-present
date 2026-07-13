@@ -905,18 +905,24 @@
   display: block;
 }
 
-/* The placeholder for a pack block that cannot render: unknown pack, still
-   loading, failed to load, missing export, or crashed. */
+/* The pack-block placeholder ladder has three distinct looks: loading shimmers
+   under a dashed frame, unknown/not-exported reads neutral with type + id tags,
+   and a failed load or render crash tints the frame with the reject stamp ink. */
 .pack-placeholder {
   display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
+  flex-direction: column;
   gap: var(--space-2);
   padding: var(--space-3) var(--space-4);
   border: 1px dashed var(--border-strong);
   border-radius: var(--radius-md);
   background: var(--mono-bg);
   color: var(--muted);
+}
+.pack-placeholder-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2);
 }
 .pack-placeholder-type {
   font-family: var(--font-stamp);
@@ -933,6 +939,44 @@
 .pack-placeholder-reason {
   margin-left: auto;
   font-size: var(--text-sm);
+}
+
+/* Loading: shimmer bars under the head; base.css freezes them flat under reduced motion. */
+.pack-placeholder-bars {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.pack-placeholder-bars span {
+  height: 0.6rem;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(
+    90deg,
+    var(--mono-bg) 25%,
+    color-mix(in srgb, var(--line) 60%, var(--mono-bg)) 37%,
+    var(--mono-bg) 63%
+  );
+  background-size: 400% 100%;
+  animation: skeleton-shimmer 1.4s ease infinite;
+}
+.pack-placeholder-bars span:nth-child(1) {
+  width: 80%;
+}
+.pack-placeholder-bars span:nth-child(3) {
+  width: 55%;
+}
+
+/* Failed / crashed: the dashed frame tints toward the reject stamp ink. */
+.pack-placeholder-failed {
+  border-color: var(--reject);
+  background: var(--reject-bg);
+}
+.pack-placeholder-failed .pack-placeholder-reason {
+  color: var(--reject);
+}
+.pack-placeholder-hint {
+  font-size: var(--text-2xs);
+  color: var(--muted);
 }
 
 /* --- Responsive: block controls at the two breakpoints of record. At --bp-rail

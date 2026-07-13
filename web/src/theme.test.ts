@@ -1,16 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { nextMode, resolveMode, type ThemeMode } from './theme';
-
-describe('nextMode', () => {
-  const cases: [ThemeMode, ThemeMode][] = [
-    ['system', 'light'],
-    ['light', 'dark'],
-    ['dark', 'system'],
-  ];
-  it.each(cases)('cycles %s -> %s', (from, to) => {
-    expect(nextMode(from)).toBe(to);
-  });
-});
+import { resolveMode } from './theme';
 
 describe('resolveMode', () => {
   it('follows the system preference when mode is system', () => {

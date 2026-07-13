@@ -19,9 +19,9 @@ describe('langFromPath', () => {
     ['README.md', 'markdown'],
     ['run.sh', 'bash'],
     ['query.sql', 'sql'],
+    ['Model.swift', 'swift'],
+    ['Config.toml', 'toml'],
     // extensions outside the curated allowlist resolve to null
-    ['Model.swift', null],
-    ['Config.toml', null],
     ['archive.tar.gz', null],
     // no extension / dotfiles / device paths
     ['Makefile', null],

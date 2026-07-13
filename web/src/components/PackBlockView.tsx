@@ -21,6 +21,8 @@ function focusFirstFocusable(root: HTMLElement | null): void {
   root?.querySelector<HTMLElement>(FOCUSABLE)?.focus();
 }
 
+type PlaceholderVariant = 'loading' | 'unknown' | 'failed';
+
 function reasonFor(state: PackDefState): string {
   switch (state) {
     case 'unknown':
@@ -34,12 +36,46 @@ function reasonFor(state: PackDefState): string {
   }
 }
 
-function UnknownBlock({ block, reason }: { block: PackBlock; reason: string }) {
+// variantFor collapses the def ladder into the three placeholder looks: loading
+// shimmers, unknown/not-exported reads neutral, failed stamps rejected.
+function variantFor(state: PackDefState): PlaceholderVariant {
+  switch (state) {
+    case 'loading':
+      return 'loading';
+    case 'failed':
+      return 'failed';
+    case 'unknown':
+    case 'ready':
+      return 'unknown';
+  }
+}
+
+function PackPlaceholder({
+  block,
+  reason,
+  variant,
+}: {
+  block: PackBlock;
+  reason: string;
+  variant: PlaceholderVariant;
+}) {
   return (
-    <div className="pack-placeholder" role="note">
-      <span className="pack-placeholder-type">{block.type}</span>
-      <span className="pack-placeholder-id">{block.id}</span>
-      <span className="pack-placeholder-reason">{reason}</span>
+    <div className={`pack-placeholder pack-placeholder-${variant}`} role="note">
+      <div className="pack-placeholder-head">
+        <span className="pack-placeholder-type">{block.type}</span>
+        <span className="pack-placeholder-id">{block.id}</span>
+        <span className="pack-placeholder-reason">{reason}</span>
+      </div>
+      {variant === 'loading' && (
+        <div className="pack-placeholder-bars" aria-hidden>
+          <span />
+          <span />
+          <span />
+        </div>
+      )}
+      {variant === 'failed' && (
+        <div className="pack-placeholder-hint">retries when the agent redrafts the block</div>
+      )}
     </div>
   );
 }
@@ -110,11 +146,14 @@ export function PackBlockView({ block, interactions }: { block: PackBlock; inter
   );
 
   const inner = PackComponent ? (
-    <PackBoundary resetKey={block} fallback={<UnknownBlock block={block} reason="crashed while rendering" />}>
+    <PackBoundary
+      resetKey={block}
+      fallback={<PackPlaceholder block={block} reason="crashed while rendering" variant="failed" />}
+    >
       <PackComponent block={block} value={value} submit={submit} disabled={disabled} context={context} />
     </PackBoundary>
   ) : (
-    <UnknownBlock block={block} reason={reasonFor(defState)} />
+    <PackPlaceholder block={block} reason={reasonFor(defState)} variant={variantFor(defState)} />
   );
 
   return (

@@ -25,24 +25,27 @@ export type KbdAction =
   | { kind: 'help-toggle' }
   | { kind: 'escape' };
 
+export type KeymapSection = 'Navigate' | 'Decide' | 'Respond' | 'View';
+
 export interface KeymapRow {
+  section: KeymapSection;
   keys: string[];
   context: string;
   action: string;
 }
 
 export const KEYMAP: KeymapRow[] = [
-  { keys: ['j', '↓', 'k', '↑'], context: 'Browsing', action: 'Move to the next / previous item' },
-  { keys: ['n'], context: 'Browsing', action: 'Jump to the next undecided item' },
-  { keys: ['a', 'r'], context: 'On an approval', action: 'Approve / reject (press again to clear)' },
-  { keys: ['c'], context: 'On an approval', action: 'Clear the verdict' },
-  { keys: ['1', '…', '9'], context: 'On a choice', action: 'Toggle option 1–9' },
-  { keys: ['f'], context: 'On an approval or field', action: 'Add feedback / focus the field' },
-  { keys: ['⌘/Ctrl', '⏎'], context: 'Anywhere', action: 'Submit the round (confirm when items are undecided); while writing feedback, sends the note instead' },
-  { keys: ['v'], context: 'Anywhere', action: 'Toggle focus / board view' },
-  { keys: ['e'], context: 'Anywhere', action: 'Expand / collapse all clamped content' },
-  { keys: ['?'], context: 'Anywhere', action: 'Toggle this help' },
-  { keys: ['Esc'], context: 'Anywhere', action: 'Close help, else leave the field' },
+  { section: 'Navigate', keys: ['j', '↓', 'k', '↑'], context: 'Browsing', action: 'Move to the next / previous item' },
+  { section: 'Navigate', keys: ['n'], context: 'Browsing', action: 'Jump to the next undecided item' },
+  { section: 'Decide', keys: ['a', 'r'], context: 'On an approval', action: 'Approve / reject (press again to clear)' },
+  { section: 'Decide', keys: ['c'], context: 'On an approval', action: 'Clear the verdict' },
+  { section: 'Decide', keys: ['1', '…', '9'], context: 'On a choice', action: 'Toggle option 1–9' },
+  { section: 'Respond', keys: ['f'], context: 'On an approval or field', action: 'Add feedback / focus the field' },
+  { section: 'Respond', keys: ['⌘/Ctrl', '⏎'], context: 'Anywhere', action: 'Submit the round (confirm when items are undecided); while writing feedback, sends the note instead' },
+  { section: 'View', keys: ['v'], context: 'Anywhere', action: 'Toggle focus / board view' },
+  { section: 'View', keys: ['e'], context: 'Anywhere', action: 'Expand / collapse all clamped content' },
+  { section: 'View', keys: ['?'], context: 'Anywhere', action: 'Toggle this help' },
+  { section: 'View', keys: ['Esc'], context: 'Anywhere', action: 'Close help, else leave the field' },
 ];
 
 // TOGGLE_SUPPRESSED lists the actions a re-press oscillates; a held key must not

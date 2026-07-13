@@ -1,7 +1,7 @@
 import type { RoundRecord } from '../events';
 
-// WaitingPanel fills the gap between rounds; the subline recalls how the last
-// round closed, or notes a fresh board.
+// WaitingPanel fills the gap between rounds as a crop-marked frame; the subline
+// recalls how the last round closed, or notes a fresh board.
 export function WaitingPanel({ round, lastRound }: { round: number; lastRound: RoundRecord | undefined }) {
   const subline = !lastRound
     ? 'Waiting for the agent to add content'
@@ -10,13 +10,13 @@ export function WaitingPanel({ round, lastRound }: { round: number; lastRound: R
       : `Round ${lastRound.number} wrapped up`;
 
   return (
-    <div className="waiting-panel">
+    <div className="waiting-panel crop-frame">
       <div className="waiting-dots" aria-hidden>
         <span />
         <span />
         <span />
       </div>
-      <div className="waiting-title">Waiting for round {round}</div>
+      <div className="waiting-title">Round {round} — at the agent's desk</div>
       <div className="waiting-sub">{subline}</div>
     </div>
   );

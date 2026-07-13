@@ -19,6 +19,8 @@ import markdown from '@shikijs/langs/markdown';
 import python from '@shikijs/langs/python';
 import rust from '@shikijs/langs/rust';
 import sql from '@shikijs/langs/sql';
+import swift from '@shikijs/langs/swift';
+import toml from '@shikijs/langs/toml';
 import tsx from '@shikijs/langs/tsx';
 import typescript from '@shikijs/langs/typescript';
 import yaml from '@shikijs/langs/yaml';
@@ -36,6 +38,8 @@ export const CODE_LANGS = [
   'html',
   'css',
   'sql',
+  'swift',
+  'toml',
   'diff',
   'markdown',
 ] as const;
@@ -92,6 +96,8 @@ export function getHighlighter(): Promise<HighlighterCore> {
         html,
         css,
         sql,
+        swift,
+        toml,
         diff,
         markdown,
       ],

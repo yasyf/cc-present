@@ -12,15 +12,36 @@
 }
 
 .empty-state {
-  padding: var(--space-8);
-  color: var(--muted);
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-6);
+}
+.empty-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-7) var(--space-8);
+  max-width: 32rem;
   text-align: center;
 }
-.empty-state code {
-  background: var(--mono-bg);
-  padding: var(--space-1) var(--space-2);
-  border-radius: var(--radius-sm);
+.empty-lead {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--text-md);
+  line-height: var(--leading-normal);
+  text-wrap: balance;
+}
+.empty-snippet {
   font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--ink);
+  background: var(--mono-bg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2) var(--space-4);
 }
 
 .blocks {
@@ -66,12 +87,14 @@
   padding: var(--space-5) var(--page-pad) var(--space-4);
   border-bottom: 2px solid var(--ink);
 }
-.doc-header::before {
-  content: 'CC-PRESENT';
-  display: block;
+.doc-eyebrow {
+  margin: 0 0 var(--space-2);
+  font-family: var(--font-stamp);
+  text-transform: uppercase;
+  letter-spacing: var(--track-caps);
   font-size: var(--text-2xs);
+  font-weight: 700;
   color: var(--accent-ink);
-  margin-bottom: var(--space-2);
 }
 .doc-header-top {
   display: flex;
@@ -454,15 +477,35 @@
    Landed after the mockup was drawn; styled in the Blue Pencil voice (stamp
    structural text, hairline / dashed rules, squared corners, the palette). */
 
+/* Crop marks: four corner registration marks — the typesetter's frame, drawn in
+   graphite ink (production chrome, never a human's pencil). One element, eight
+   gradient segments. The waiting and empty states are the only permitted uses. */
+.crop-frame {
+  position: relative;
+  --crop-len: 14px;
+  --crop-w: 1.5px;
+  --crop-ink: var(--border-strong);
+  background-image:
+    linear-gradient(var(--crop-ink), var(--crop-ink)), linear-gradient(var(--crop-ink), var(--crop-ink)),
+    linear-gradient(var(--crop-ink), var(--crop-ink)), linear-gradient(var(--crop-ink), var(--crop-ink)),
+    linear-gradient(var(--crop-ink), var(--crop-ink)), linear-gradient(var(--crop-ink), var(--crop-ink)),
+    linear-gradient(var(--crop-ink), var(--crop-ink)), linear-gradient(var(--crop-ink), var(--crop-ink));
+  background-repeat: no-repeat;
+  background-size:
+    var(--crop-len) var(--crop-w), var(--crop-w) var(--crop-len), var(--crop-len) var(--crop-w),
+    var(--crop-w) var(--crop-len), var(--crop-len) var(--crop-w), var(--crop-w) var(--crop-len),
+    var(--crop-len) var(--crop-w), var(--crop-w) var(--crop-len);
+  background-position:
+    top left, top left, top right, top right, bottom left, bottom left, bottom right, bottom right;
+}
+
 .waiting-panel {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: var(--space-3);
-  padding: var(--space-7) var(--space-4);
+  padding: var(--space-7) var(--space-6);
   margin-top: var(--space-4);
-  border: 1px dashed var(--border-strong);
-  border-radius: var(--radius-md);
   color: var(--muted);
   text-align: center;
 }
@@ -471,6 +514,7 @@
   font-size: var(--text-md);
   font-weight: 700;
   color: var(--ink);
+  letter-spacing: 0.01em;
 }
 .waiting-sub {
   font-family: var(--font-stamp);
@@ -506,23 +550,71 @@
   }
 }
 
+/* Anatomical skeleton: the masthead, stats strip, and three cards each stand in
+   for their real counterparts (state rail + title + body lines + verdict pair),
+   so the pre-caught-up board has the shape live content will settle into. Every
+   stub shares one shimmer; base.css freezes it to a flat tint under reduced motion. */
 .skeleton {
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
+  gap: var(--space-5);
   padding-top: var(--space-2);
 }
-.skeleton-header {
-  height: 1.5rem;
-  width: 40%;
-  border-radius: var(--radius-sm);
+.skeleton-masthead {
+  height: 2rem;
+  width: 45%;
+}
+.skeleton-stats {
+  height: 2.75rem;
+  width: 100%;
 }
 .skeleton-card {
-  height: 5rem;
-  border-radius: var(--radius-sm);
+  display: flex;
+  gap: var(--space-4);
+  padding: var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--card);
 }
-.skeleton-header,
-.skeleton-card {
+.skeleton-rail {
+  flex: none;
+  width: 3px;
+  align-self: stretch;
+}
+.skeleton-card-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.skeleton-title {
+  height: 1.1rem;
+  width: 55%;
+}
+.skeleton-line {
+  height: 0.7rem;
+  width: 100%;
+}
+.skeleton-line-short {
+  width: 68%;
+}
+.skeleton-verdicts {
+  display: flex;
+  gap: var(--space-2);
+  margin-top: var(--space-1);
+}
+.skeleton-verdict {
+  height: 1.6rem;
+  width: 5.5rem;
+}
+.skeleton-masthead,
+.skeleton-stats,
+.skeleton-rail,
+.skeleton-title,
+.skeleton-line,
+.skeleton-verdict {
+  border-radius: var(--radius-sm);
   background: linear-gradient(
     90deg,
     var(--mono-bg) 25%,

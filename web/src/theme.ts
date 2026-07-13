@@ -6,10 +6,6 @@ export type ThemeMode = 'system' | 'light' | 'dark';
 const STORAGE_KEY = 'cc-present:theme';
 const DARK_QUERY = '(prefers-color-scheme: dark)';
 
-export function nextMode(mode: ThemeMode): ThemeMode {
-  return mode === 'system' ? 'light' : mode === 'light' ? 'dark' : 'system';
-}
-
 export function resolveMode(mode: ThemeMode, systemDark: boolean): 'light' | 'dark' {
   if (mode !== 'system') return mode;
   return systemDark ? 'dark' : 'light';
@@ -23,7 +19,7 @@ function readStored(): ThemeMode {
 export interface Theme {
   mode: ThemeMode;
   resolved: 'light' | 'dark';
-  cycle: () => void;
+  set: (mode: ThemeMode) => void;
 }
 
 export function useTheme(): Theme {
@@ -48,7 +44,7 @@ export function useTheme(): Theme {
     }
   }, [mode]);
 
-  const cycle = useCallback(() => setMode(nextMode), []);
+  const set = useCallback((next: ThemeMode) => setMode(next), []);
 
-  return { mode, resolved: resolveMode(mode, systemDark), cycle };
+  return { mode, resolved: resolveMode(mode, systemDark), set };
 }

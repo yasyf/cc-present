@@ -41,7 +41,10 @@ export function App() {
   if (!subject) {
     return (
       <div className="empty-state">
-        Open a presentation link: <code>/p/&lt;ref&gt;</code>
+        <div className="empty-card crop-frame">
+          <p className="empty-lead">No board here yet — start one from your agent session:</p>
+          <code className="empty-snippet">cc-present start</code>
+        </div>
       </div>
     );
   }
@@ -190,6 +193,7 @@ function PresentView({ subject }: { subject: string }) {
           header={
             <DocHeader
               doc={state.doc}
+              round={currentRound}
               connected={stream.connected}
               peerPresent={stream.peerPresent}
               mode={mode}

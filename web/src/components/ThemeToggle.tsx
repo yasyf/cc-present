@@ -35,12 +35,30 @@ function ThemeIcon({ mode }: { mode: ThemeMode }) {
   );
 }
 
+const THEME_MODES: ThemeMode[] = ['system', 'light', 'dark'];
+const THEME_LABELS: Record<ThemeMode, string> = {
+  system: 'Auto theme',
+  light: 'Light theme',
+  dark: 'Dark theme',
+};
+
 export function ThemeToggle() {
-  const { mode, cycle } = useTheme();
-  const label = `Theme: ${mode}`;
+  const { mode, set } = useTheme();
   return (
-    <button type="button" className="theme-toggle" onClick={cycle} aria-label={label} title={label}>
-      <ThemeIcon mode={mode} />
-    </button>
+    <span className="theme-toggle" role="group" aria-label="color theme">
+      {THEME_MODES.map((m) => (
+        <button
+          key={m}
+          type="button"
+          className={`theme-seg${mode === m ? ' on' : ''}`}
+          aria-pressed={mode === m}
+          aria-label={THEME_LABELS[m]}
+          title={THEME_LABELS[m]}
+          onClick={() => set(m)}
+        >
+          <ThemeIcon mode={m} />
+        </button>
+      ))}
+    </span>
   );
 }

@@ -1,5 +1,7 @@
 import { useEffect, useRef } from 'react';
-import { KEYMAP } from '../keymap';
+import { KEYMAP, type KeymapSection } from '../keymap';
+
+const SECTIONS: KeymapSection[] = ['Navigate', 'Decide', 'Respond', 'View'];
 
 // HelpOverlay is a native modal dialog listing the keymap straight from KEYMAP,
 // so the shortcuts and their documentation can never drift. showModal drives the
@@ -24,19 +26,26 @@ export function HelpOverlay({ open, onClose }: { open: boolean; onClose: () => v
         </button>
       </div>
       <table className="help-table">
-        <tbody>
-          {KEYMAP.map((row) => (
-            <tr key={row.action}>
-              <td className="help-keys">
-                {row.keys.map((k) => (
-                  <kbd key={k}>{k}</kbd>
-                ))}
-              </td>
-              <td className="help-ctx">{row.context}</td>
-              <td className="help-action">{row.action}</td>
+        {SECTIONS.map((section) => (
+          <tbody key={section}>
+            <tr>
+              <th className="help-section" colSpan={3}>
+                {section}
+              </th>
             </tr>
-          ))}
-        </tbody>
+            {KEYMAP.filter((row) => row.section === section).map((row) => (
+              <tr key={row.action}>
+                <td className="help-keys">
+                  {row.keys.map((k) => (
+                    <kbd key={k}>{k}</kbd>
+                  ))}
+                </td>
+                <td className="help-ctx">{row.context}</td>
+                <td className="help-action">{row.action}</td>
+              </tr>
+            ))}
+          </tbody>
+        ))}
       </table>
     </dialog>
   );
