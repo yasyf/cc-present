@@ -106,9 +106,6 @@ description = "d"
 entry = "dist/pack.js"
 `
 		}, "declares no blocks"},
-		{"wrong host_api", func(f map[string]string) {
-			f["cc-present.toml"] = strings.Replace(validManifest, "host_api = 1", "host_api = 2", 1)
-		}, "host_api 2, want 1"},
 		{"entry file missing", func(f map[string]string) {
 			delete(f, "dist/pack.js")
 		}, "entry"},
@@ -136,6 +133,38 @@ entry = "dist/pack.js"
 			f := validFiles()
 			tt.mutate(f)
 			_, err := buildPack(writeTree(t, f))
+			if err == nil {
+				t.Fatalf("buildPack() = nil, want error containing %q", tt.wantErr)
+			}
+			if !strings.Contains(err.Error(), tt.wantErr) {
+				t.Fatalf("err = %q, want substring %q", err.Error(), tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestBuildPackHostAPI(t *testing.T) {
+	tests := []struct {
+		name    string
+		hostAPI string
+		wantErr string
+	}{
+		{"floor loads", "host_api = 1", ""},
+		{"current loads", "host_api = 2", ""},
+		{"above ceiling dropped", "host_api = 3", "host_api 3, want 1..2"},
+		{"below floor dropped", "host_api = 0", "host_api 0, want 1..2"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := validFiles()
+			f["cc-present.toml"] = strings.Replace(validManifest, "host_api = 1", tt.hostAPI, 1)
+			_, err := buildPack(writeTree(t, f))
+			if tt.wantErr == "" {
+				if err != nil {
+					t.Fatalf("buildPack() = %v, want nil", err)
+				}
+				return
+			}
 			if err == nil {
 				t.Fatalf("buildPack() = nil, want error containing %q", tt.wantErr)
 			}
