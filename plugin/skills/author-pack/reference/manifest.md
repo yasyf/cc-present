@@ -6,7 +6,7 @@ The manifest is `cc-present.toml` at the pack root, decoded strictly — an unkn
 
 | Field | Required | Constraint |
 |---|---|---|
-| `host_api` | yes | Must equal the daemon's host API version, currently **1**. |
+| `host_api` | yes | The minimum host API the pack requires — a floor. The daemon (host API **2**) loads any pack in `1..2`; a higher floor drops it at discovery. |
 | `name` | yes | Matches `^[a-z][a-z0-9-]*$`, at most 32 characters; the `<pack>` half of every block type. |
 | `version` | yes | Non-empty; cache-busts the bundle and styles URLs. |
 | `description` | no | Prose shown in `/api/packs` and `pack list`. |
@@ -45,7 +45,7 @@ Then the file-level checks:
 
 | Violation | Exact string |
 |---|---|
-| Wrong `host_api` | `host_api 2, want 1` |
+| `host_api` outside `1..2` | `host_api 3, want 1..2` |
 | Bundle not built | `entry "dist/pack.js" not found` |
 | Declared styles missing | `styles "dist/pack.css" not found` |
 | Declared reference missing | `reference "reference/blocks.md" not found` |

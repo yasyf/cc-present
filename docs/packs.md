@@ -10,8 +10,9 @@ namespacing, conflict rules, serving — live in
 ## Scaffold from the reference pack
 
 `pack init` copies the embedded reference pack — a working pack with one
-content block and one interactive block — into a new directory and renames it,
-so the scaffold below ships `my-pack.callout` and `my-pack.rating`:
+content block and two interactive blocks — into a new directory and renames
+it, so the scaffold below ships `my-pack.callout`, `my-pack.rating`, and
+`my-pack.survey`:
 
 ```sh
 cc-present pack init --name my-pack my-pack
@@ -24,7 +25,7 @@ examples/packs/example my-pack` yields the same source files, unrenamed —
 along with any local `node_modules/`, `dist/`, and `bun.lock` the copy drags in,
 which is why `pack init` is the better start even in-repo.
 
-The layout — 19 files, including a generated `.gitignore` covering
+The layout — 23 files, including a generated `.gitignore` covering
 `node_modules/`:
 
 ```
@@ -34,7 +35,7 @@ my-pack/
 ├── schema/              # one JSON Schema per block, plus interaction schemas
 ├── examples/            # one example block object per block
 ├── src/
-│   ├── pack.tsx         # bundle entry: default export { hostApi: 1, blocks }
+│   ├── pack.tsx         # bundle entry: default export { hostApi: 2, blocks }
 │   ├── host/            # react shims + window.CcPresent typings — copy verbatim
 │   └── *.tsx            # your components
 ├── reference/blocks.md  # what an authoring agent reads to compose your blocks
@@ -48,6 +49,12 @@ In `cc-present.toml`, set `name` (the `<pack>` half of every block type),
 `version`, and one `[blocks.<name>]` table per block, each pointing at its
 schema, an optional interaction schema, and at least one example. The
 field-by-field rules are in [the manifest table](contract.md#manifest).
+
+`host_api` is a floor, not an equality: it declares the minimum host API your
+pack requires, and the daemon loads any pack whose floor it meets. A pack
+declaring `host_api = 1` loads unchanged on today's version-2 daemon; declare
+`2` only when you use the hostApi 2 helpers below, since a floor above the
+daemon's version drops the pack at discovery with a visible reason.
 
 ## Write the schemas and components
 
@@ -78,18 +85,39 @@ export. This is `src/pack.tsx` from the reference pack:
 ```tsx
 import { Callout } from './Callout';
 import { Rating } from './Rating';
+import { Survey } from './Survey';
 
 export default {
-  hostApi: 1,
-  blocks: { callout: Callout, rating: Rating },
+  hostApi: 2,
+  blocks: { callout: Callout, rating: Rating, survey: Survey },
 };
 ```
 
 The host qualifies those bare names with your manifest's pack name and calls
-each component with `{block, value, submit, disabled}`: `block` is the block
-object, `value` is the human's last-committed interaction payload (or
-undefined), `submit` posts a new payload, and `disabled` means render
-read-only — the artifact is closed or the block's round is over.
+each component with `{block, value, submit, disabled, context}`: `block` is
+the block object, `value` is the human's last-committed interaction payload
+(or undefined), `submit` posts a new payload, `disabled` means render
+read-only, and `context` decomposes why — `{closed, roundOver, round}`.
+
+The host also hands packs three UI helpers on `window.CcPresent.ui`, wrapped
+by the scaffold's `src/host/present.ts`: `tokens()` returns the frozen map of
+theme-variable references (`t.text`, `t.surface`, `t.accent`, …) so inline
+styles match light and dark boards; `toast({kind, text})` raises a shell toast
+at commit moments; and `usePackState(key, initial)` holds per-tab draft state
+scoped to the block — it survives focus-mode navigation and agent re-upserts,
+dies on reload, and never touches the event log.
+
+A block with several controls submits one merged payload against one object
+interaction schema — each control spreads the prior value and overwrites the
+fields it owns:
+
+```tsx
+submit({ ...((value as Record<string, unknown>) ?? {}), summary });
+```
+
+The scaffolded survey block is the worked reference for all of this: drafts in
+`usePackState`, a toast on submit, a round footer from `context`, styling from
+`tokens()`, and the merge idiom across its two steps.
 
 > **Warning:** never bundle React. The vite config aliases `react` and
 > `react/jsx-runtime` to the `src/host/` shims, which re-export the host's
@@ -114,7 +142,7 @@ every declared example must validate against its block schema. A clean lint
 prints one line:
 
 ```
-ok: example 0.1.0 (2 blocks)
+ok: my-pack 0.2.0 (3 blocks)
 ```
 
 ## Iterate against a live daemon

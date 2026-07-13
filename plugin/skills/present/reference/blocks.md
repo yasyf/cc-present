@@ -174,7 +174,7 @@ Every leaf type (`approval` through `progress`) works both at the top level and 
 
 ## Validation
 
-`push --dry-run FILE` runs the full check offline and prints the first violation, naming the offending block id — an unknown type, a duplicate id, a missing required field (`input.label`, `markdown.md`, `code.lang`/`code.code`, `image.src`/`image.alt`, `progress.label`), a `progress` with `max <= 0` or `value` outside `[0, max]`, an over-cap image, or a document past 1 MiB.
+`push --dry-run FILE` runs the full check offline and prints every violation at once, one per line, each naming its offending block id — an unknown type, a duplicate id, a missing required field (`input.label`, `markdown.md`, `code.lang`/`code.code`, `image.src`/`image.alt`, `progress.label`), a `progress` with `max <= 0` or `value` outside `[0, max]`, an over-cap image, or a document past 1 MiB. Compose the whole document, validate once, fix everything in a single pass. A file that isn't valid JSON fails earlier, with the line and column of the offending byte.
 
 ## Worked document: an opener approval board
 
@@ -277,6 +277,100 @@ A condensed version of `examples/opener-board.json` — sections as tiers, one c
 ```
 
 The full 26-repo original lives at `examples/opener-board.json` in the repo; both validate with `push --dry-run`.
+
+## Board templates
+
+The dominant board shape: a section groups cards, and each card carries the before struck out, the after, alternates as a choice, an optional code sample, and the approval that decides it. Focus mode turns exactly this into one step per card. Start from one of these skeletons and swap in your content — each validates with `push --dry-run` as-is.
+
+**Single-decision redraft** — the minimal shape, one card:
+
+```json
+{
+  "version": 1,
+  "title": "Opener redraft",
+  "submit": { "label": "Send verdicts", "note": "Approved wording ships as-is." },
+  "blocks": [
+    { "id": "sec-redrafts", "type": "section", "title": "Redrafts" },
+    {
+      "id": "card-opener",
+      "type": "card",
+      "title": "README opener",
+      "status": "redrafted",
+      "children": [
+        { "id": "opener-was", "type": "markdown", "struck": true, "md": "A tool for checking prose." },
+        { "id": "opener-new", "type": "markdown", "md": "**Never ship 'delve' again.**" },
+        { "id": "opener-alts", "type": "choice", "prompt": "My pick is selected. Prefer an alternate?", "options": [
+          { "id": "pick", "label": "Never ship 'delve' again.", "hint": "my pick — shortest, boldest" },
+          { "id": "alt-a", "label": "Catch the AI accent before it lands.", "hint": "softer, names the mechanism" }
+        ]},
+        { "id": "opener-approval", "type": "approval", "prompt": "Approve this opener?" }
+      ]
+    }
+  ]
+}
+```
+
+**Change with a code sample** — the same card, the code block carrying the exact edit:
+
+```json
+{
+  "version": 1,
+  "title": "Config change",
+  "submit": { "label": "Approve change", "note": "Approving lands the edit on main." },
+  "blocks": [
+    { "id": "sec-changes", "type": "section", "title": "Proposed changes" },
+    {
+      "id": "card-timeout",
+      "type": "card",
+      "title": "Raise the request timeout",
+      "summary": "30s trips on cold starts; 60s clears every observed case.",
+      "children": [
+        { "id": "timeout-was", "type": "markdown", "struck": true, "md": "`timeout: 30s` — trips on cold starts." },
+        { "id": "timeout-new", "type": "markdown", "md": "Raise to **60s**; the p99 cold start is 41s." },
+        { "id": "timeout-code", "type": "code", "lang": "yaml", "title": "config/server.yaml", "code": "server:\n  timeout: 60s" },
+        { "id": "timeout-approval", "type": "approval", "prompt": "Ship this change?" }
+      ]
+    }
+  ]
+}
+```
+
+**Tiered multi-card review** — the shape scaled up: the urgent tier first (deck order is doc order), a routine tier after, a trailing input as the catch-all:
+
+```json
+{
+  "version": 1,
+  "title": "Release review",
+  "stats": [ { "label": "changes", "value": "2" }, { "label": "flagged", "value": "1" } ],
+  "submit": { "label": "Approve release", "note": "Approving tags v2.1 and publishes the notes." },
+  "blocks": [
+    { "id": "sec-flagged", "type": "section", "title": "Flagged — decide first" },
+    {
+      "id": "card-breaking",
+      "type": "card",
+      "title": "Breaking: config key rename",
+      "flagged": true,
+      "chips": [ { "label": "breaking", "tone": "flag" } ],
+      "children": [
+        { "id": "breaking-was", "type": "markdown", "struck": true, "md": "`packDirs` (camelCase) in `config.json`." },
+        { "id": "breaking-new", "type": "markdown", "md": "Rename to `pack_dirs`; the old key errors with a migration hint." },
+        { "id": "breaking-approval", "type": "approval", "prompt": "Accept the breaking rename?" }
+      ]
+    },
+    { "id": "sec-routine", "type": "section", "title": "Routine" },
+    {
+      "id": "card-notes",
+      "type": "card",
+      "title": "Release notes",
+      "children": [
+        { "id": "notes-new", "type": "markdown", "md": "**v2.1** — offline validation, `--no-doc` drains, line/col JSON errors." },
+        { "id": "notes-approval", "type": "approval", "prompt": "Ship these notes?" }
+      ]
+    },
+    { "id": "board-notes", "type": "input", "label": "Anything the release missed?", "multiline": true }
+  ]
+}
+```
 
 ## Pack blocks
 

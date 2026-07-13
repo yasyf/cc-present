@@ -46,7 +46,7 @@ toggle overrides it.
 
 ### Validation
 
-`Doc.Validate` returns the first violation, naming the offending block id (or the envelope field, for document-level checks):
+`Doc.Validate` reports every violation at once, joined one per line, each naming the offending block id (or the envelope field, for document-level checks):
 
 - `version` must be 1; `title` must be non-empty.
 - `presentation`, when set, is one of `focus` or `board`.
@@ -103,7 +103,7 @@ root.
 
 | Field | Required | Constraint |
 |---|---|---|
-| `host_api` | yes | Must equal the daemon's host API version, currently **1**. |
+| `host_api` | yes | The minimum host API the pack requires — a floor, not an equality. The daemon (host API **2**) loads any pack in `1..2`; a floor above the daemon's version drops the pack at discovery with `host_api <n>, want 1..2`. |
 | `name` | yes | Matches `^[a-z][a-z0-9-]*$`, at most 32 characters; the `<pack>` half of every block type. |
 | `version` | yes | Non-empty; cache-busts the bundle and styles URLs. |
 | `description` | no | Prose shown in `/api/packs` and `pack list`. |
@@ -134,7 +134,7 @@ The daemon scans two tiers of pack roots and re-scans on access after a
 Discovery is fail-soft per pack. Any violation drops that pack and records the
 directory and reason in a `dropped` list, visible in `/api/packs` and
 `cc-present pack list`, while every other pack still loads. A manifest error, a
-`host_api` mismatch, a missing declared file, and a schema that fails to
+`host_api` outside `1..2`, a missing declared file, and a schema that fails to
 compile are each such a violation. The HTTP
 response carries only the dropped directory's base name, never its absolute
 path.
@@ -161,7 +161,7 @@ an ES module.
 
 ```ts
 PacksResponse = {
-  hostApi: 1,
+  hostApi: 2,
   packs: {
     name, version, description,
     bundle,                 // "/packs/<name>/dist/…?v=<version>"
@@ -172,7 +172,9 @@ PacksResponse = {
 }
 ```
 
-`schema` and `interaction` are the raw schema documents, inlined.
+`schema` and `interaction` are the raw schema documents, inlined. `hostApi`
+echoes the daemon's host API version — the ceiling every manifest's `host_api`
+floor is checked against.
 
 ### Single-block mode
 
@@ -183,6 +185,56 @@ belongs to a closed round renders read-only, folded into the same `closed` flag
 every interactive block honors. When a `ccPresentHeight` WebKit message handler
 is present, the page posts `{type: "height", px}` on every content resize so
 the native host can size the webview.
+
+Toasts raised in this mode (`ui.toast`, connection notices) render in-flow
+inside `.single-block`; the webview frame is block-height and unscrollable, so
+a fixed overlay would clip. A toast's appearance and dismissal each move the
+reported height; that resize is the report working.
+
+### Theme tokens
+
+The SPA's palette lives in `web/src/styles/tokens.css` as CSS custom
+properties, layered raw-then-alias. The **alias names are the public
+contract**: packs consume them through `ui.tokens` on `window.CcPresent` as
+`var()` reference strings, never resolved colors, so pack styles re-ink under
+theme flips; the iOS client's `BlockPalette` resyncs mechanically from the
+tables below. The raw palette is free to churn between releases. The alias
+names are frozen.
+
+The raw palette ("Blue Pencil"):
+
+| Name | Light | Dark |
+|---|---|---|
+| `--paper` | `#FBFBF9` | `#171A21` |
+| `--ink` | `#1F2430` | `#E7EAF1` |
+| `--graphite` | `#5C6472` | `#98A0AF` |
+| `--pencil` | `#3D56C5` | `#91A3F2` |
+| `--approve` | `#1E7B4F` | `#5BC489` |
+| `--reject` | `#BF3B2F` | `#EE8273` |
+| `--hold` | `#8F6400` | `#DCA847` |
+
+The alias contract, with `color-mix()` expressions resolved to sRGB hex:
+
+| Alias | Source | Light | Dark |
+|---|---|---|---|
+| `--bg` | paper | `#FBFBF9` | `#171A21` |
+| `--bg-soft` | mono surface | `#F1F1EF` | `#12141A` |
+| `--surface` | card | `#FFFFFF` | `#1E222B` |
+| `--surface-raised` | card | `#FFFFFF` | `#1E222B` |
+| `--text` | ink | `#1F2430` | `#E7EAF1` |
+| `--dim` | graphite | `#5C6472` | `#98A0AF` |
+| `--border` | ink 14% over paper | `#DCDDDD` | `#34373E` |
+| `--border-strong` | ink 28% over paper | `#BDBFC1` | `#51545B` |
+| `--accent` | pencil | `#3D56C5` | `#91A3F2` |
+| `--accent-fg` | fixed | `#FFFFFF` | `#14161C` |
+| `--ok` | approve | `#1E7B4F` | `#5BC489` |
+| `--warn` | hold | `#8F6400` | `#DCA847` |
+| `--danger` | reject | `#BF3B2F` | `#EE8273` |
+| `--focus-ring` | pencil at 50% alpha | `#3D56C580` | `#91A3F280` |
+
+The non-color aliases: `--radius-sm`/`--radius-md`/`--radius-lg` are 2px / 4px
+/ 6px; `--font-prose` is the system-ui stack, `--font-mono` the ui-monospace
+stack; `--track-caps` is 0.1em.
 
 ### Assets
 

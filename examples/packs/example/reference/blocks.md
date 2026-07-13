@@ -1,6 +1,6 @@
 # example pack blocks
 
-Two block types under the `example` pack. Reference them by dotted wire type
+Three block types under the `example` pack. Reference them by dotted wire type
 inside any `Doc.blocks` array or a card's `children`.
 
 ## example.callout

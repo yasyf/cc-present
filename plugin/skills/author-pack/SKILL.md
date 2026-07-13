@@ -15,7 +15,7 @@ The binary is `"${CLAUDE_PLUGIN_ROOT}/bin/cc-present"` — always invoke it by t
 "${CLAUDE_PLUGIN_ROOT}/bin/cc-present" pack init --name <pack> <dir>
 ```
 
-Offline, no daemon. `--name` defaults to the target directory's basename, and the command refuses a non-empty directory. It writes 19 files: a working pack with one content block (`<pack>.callout`) and one interactive block (`<pack>.rating`), renamed to your pack throughout, plus a `.gitignore` that ignores only `node_modules/` — never `dist/`, which a shipped pack commits.
+Offline, no daemon. `--name` defaults to the target directory's basename, and the command refuses a non-empty directory. It writes 23 files: a working pack with one content block (`<pack>.callout`) and two interactive blocks (`<pack>.rating`, plus the two-step `<pack>.survey` wizard that exercises the hostApi 2 helpers), renamed to your pack throughout, plus a `.gitignore` that ignores only `node_modules/` — never `dist/`, which a shipped pack commits.
 
 The name must match `^[a-z][a-z0-9-]*$` and run at most 32 characters. It becomes the `<pack>.` half of every block type; built-in types never contain a dot, so the dotted namespace belongs to packs permanently.
 
@@ -25,7 +25,7 @@ my-pack/
 ├── schema/              # one JSON Schema per block, plus interaction schemas
 ├── examples/            # one example block object per block
 ├── src/
-│   ├── pack.tsx         # bundle entry: default export { hostApi: 1, blocks }
+│   ├── pack.tsx         # bundle entry: default export { hostApi: 2, blocks }
 │   ├── host/            # react shims + window.CcPresent typings — keep verbatim
 │   └── *.tsx            # your components
 ├── reference/blocks.md  # what a consuming agent reads to compose your blocks
@@ -62,18 +62,20 @@ Components import `react` normally; the vite config aliases `react` and `react/j
 
 ```tsx
 export default {
-  hostApi: 1,
-  blocks: { callout: Callout, rating: Rating },
+  hostApi: 2,
+  blocks: { callout: Callout, rating: Rating, survey: Survey },
 };
 ```
 
-The host qualifies those bare names with your manifest's pack name and calls each component with `{block, value, submit, disabled}`. The full host surface, the prop semantics, and the interaction wire: `reference/host-api.md`. The rules that matter most:
+The host qualifies those bare names with your manifest's pack name and calls each component with `{block, value, submit, disabled, context}`. The full host surface, the prop semantics, and the interaction wire: `reference/host-api.md`. The rules that matter most:
 
-- Render read-only when `disabled` — the artifact is closed or the block's round is over.
-- Theme with the host's CSS custom properties — `var(--text)`, `var(--surface)`, `var(--accent)`, `var(--border)`, `var(--muted)`, `var(--radius-md)`, `var(--font-mono)` — so the block matches light and dark boards.
+- Render read-only when `disabled` — the artifact is closed or the block's round is over; `context` (`{closed, roundOver, round}`) says which.
+- Theme with `ui.tokens`, the host's frozen map of theme-variable references, via the scaffold's `src/host/present.ts` wrappers (`tokens().text`, `tokens().surface`, `tokens().accent`, …), so the block matches light and dark boards. The token names are the contract; never hand-write a raw palette variable.
 - Never put an `asset:` URI in a pack field: the garbage collector's reference walk can't see pack-defined fields, so the bytes get deleted. Use `/packs/<pack>/dist/…`, `https:`, or `data:` URLs.
 - Blocks also render full-bleed in single-block mode (the iOS webview) — don't assume board chrome around you.
 - In focus mode an interactive block is its own step, your component the card's body — the host reserves no gestures over it: `reference/host-api.md` § Focus mode.
+
+hostApi 2 adds three interactivity helpers, all wrapped by `src/host/present.ts`: `toast({kind, text})` raises a shell toast at commit moments; `usePackState(key, initial)` holds per-tab draft state that survives focus-deck navigation and agent re-upserts (it dies on reload and never enters the event log); and the `context` prop above decomposes `disabled`. A multi-control block declares one object interaction schema and each control submits the merged payload — `submit({...(value ?? {}), field})`. The scaffolded survey block exercises all of it. The manifest's `host_api` is the floor you require. Declare `1` when you use none of this, `2` when you do: `reference/host-api.md` § Versioning.
 
 ## 4. Build and check
 
@@ -114,7 +116,7 @@ The user asks: "add a severity picker for our triage boards."
 ```
 
 ```
-scaffolded pack "triage" into triage (19 files)
+scaffolded pack "triage" into triage (23 files)
 
 next steps:
   cd triage
@@ -133,14 +135,14 @@ Rework the scaffolded `rating` block into `severity`:
 - `cc-present.toml` — retitle `[blocks.rating]` to `[blocks.severity]`, point `schema`, `interaction`, and `examples` at the moved files, reword `description`.
 - `schema/severity.json` — `"const": "triage.severity"` (and the `title`); the same `type` in `examples/severity.json`.
 - `src/pack.tsx` — `blocks: { callout: Callout, severity: Rating }`; the bare key is what the host qualifies to `triage.severity`.
-- `scripts/smoke.ts` — the asserted block names become `['callout', 'severity']`.
+- `scripts/smoke.ts` — the asserted block names become `['callout', 'severity', 'survey']`.
 - `reference/blocks.md` — retitle the `triage.rating` section to `triage.severity` and describe the payload.
 
 Build, check, register:
 
 ```bash
 cd triage && bun install && bun run typecheck && bun run build && bun run smoke
-"${CLAUDE_PLUGIN_ROOT}/bin/cc-present" pack lint .        # → ok: triage 0.1.0 (2 blocks)
+"${CLAUDE_PLUGIN_ROOT}/bin/cc-present" pack lint .        # → ok: triage 0.2.0 (3 blocks)
 ```
 
 Add `"/work/triage"` to `packDirs` in `~/.cc-present/config.json`; within 2 seconds:
@@ -150,12 +152,13 @@ Add `"/work/triage"` to `packDirs` in `~/.cc-present/config.json`; within 2 seco
 ```
 
 ```
-triage 0.1.0
+triage 0.2.0
   dir: /work/triage
   reference: /work/triage/reference/blocks.md
   blocks:
     triage.callout
     triage.severity (interactive)
+    triage.survey (interactive)
 ```
 
 Prove it composes — write a document using the new type and dry-run it:

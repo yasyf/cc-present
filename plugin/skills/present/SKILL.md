@@ -35,7 +35,7 @@ Validate offline before starting (no daemon needed):
 "${CLAUDE_PLUGIN_ROOT}/bin/cc-present" push --dry-run "$DOC"
 ```
 
-`ok` on stdout means valid; otherwise the first error prints, naming the offending block id.
+`ok` on stdout means valid; otherwise **every** violation prints at once, one per line, each naming its offending block id — compose, validate once, fix all in a single pass. A malformed JSON file fails with the line and column of the offending byte.
 
 ## 2. Start the artifact and give the user the URL
 
@@ -52,6 +52,8 @@ channel: active|pending|inactive
 ```
 
 **Show the URL to the user verbatim** and tell them to open it, click through the board, and press Submit when done. By default `start` resumes this window's open artifact (across `/clear` and resume); `--new` forces a fresh one, and a previously closed artifact forces fresh automatically. To seed later instead, run `start --title "..."` now and `push "$DOC"` when the document is ready.
+
+To preview a visually heavy board yourself — many images, diffs, or pack blocks — screenshot the live URL with the agent-browser skill and read the result. There is no CLI preview verb; the running artifact is the preview.
 
 ## 3. Wire up event delivery — then keep working
 
@@ -104,10 +106,10 @@ To redraft, write the revised block JSON to the scratchpad and upsert it:
 A submit on a board you've touched this round also closes the round: those blocks collapse into a read-only "Round N" group in the browser, and the next round opens on the same URL. A submit on an untouched board records only the revision. Either way, drain the outcomes:
 
 ```bash
-"${CLAUDE_PLUGIN_ROOT}/bin/cc-present" outcomes --session "$CLAUDE_CODE_SESSION_ID" --cwd "$PWD"
+"${CLAUDE_PLUGIN_ROOT}/bin/cc-present" outcomes --no-doc --session "$CLAUDE_CODE_SESSION_ID" --cwd "$PWD"
 ```
 
-This prints the reduced state: the current document plus every human interaction keyed by block id — `decisions`, `choices`, `inputs`, `feedback`, your `replies`, the `submitted` marker, and `rounds` (the closed-round history). Then:
+This prints every human interaction keyed by block id — `decisions`, `choices`, `inputs`, `feedback`, your `replies`, the `submitted` marker, and `rounds` (the closed-round history). `--no-doc` omits the reduced document: you authored it, so re-printing it every drain only burns context. Drop the flag on the rare drain where you need the current document too. Then:
 
 1. **Summarize the verdicts, picks, and feedback in chat** so the user sees what you took away.
 2. **Apply them to the underlying task** — the artifact is the approval surface, not the deliverable.
