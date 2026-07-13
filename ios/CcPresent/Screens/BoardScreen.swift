@@ -14,6 +14,7 @@ struct BoardScreen: View {
     let subject: String
 
     @State private var store: BoardStore
+    @State private var viewOverride: ViewMode?
     private let client: APIClient
     private let bearerToken: String?
 
@@ -25,6 +26,7 @@ struct BoardScreen: View {
         self.client = client
         bearerToken = token
         _store = State(initialValue: BoardStore(subject: subject, transport: client))
+        _viewOverride = State(initialValue: loadViewOverride(subject: subject))
     }
 
     private var state: BoardState {
@@ -37,6 +39,14 @@ struct BoardScreen: View {
 
     private var currentBlocks: [Block] {
         state.doc.blocks.filter { state.rounds.blockRounds[$0.id] == state.rounds.current }
+    }
+
+    private var deckSteps: [FocusStep] {
+        focusSteps(currentBlocks, presentPackTypes(currentBlocks))
+    }
+
+    private var mode: ViewMode {
+        resolveViewMode(presentation: state.doc.presentation, override: viewOverride, steps: deckSteps)
     }
 
     private var hasHistory: Bool {
@@ -55,6 +65,9 @@ struct BoardScreen: View {
         content
             .navigationTitle(subject)
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) { viewToggle }
+            }
             .safeAreaInset(edge: .top, spacing: 0) { connectionBanner }
             .safeAreaInset(edge: .bottom, spacing: 0) { submitBar }
             .task {
@@ -86,8 +99,12 @@ struct BoardScreen: View {
                 if !currentBlocks.isEmpty, hasHistory || !state.rounds.currentTitle.isEmpty {
                     currentRoundHeader
                 }
-                ForEach(currentBlocks, id: \.id) { block in
-                    BlockView(block: block, store: store, client: client, packContext: packContext)
+                if mode == .focus, !currentBlocks.isEmpty {
+                    FocusDeckView(steps: deckSteps, store: store, client: client, packContext: packContext)
+                } else {
+                    ForEach(currentBlocks, id: \.id) { block in
+                        BlockView(block: block, store: store, client: client, packContext: packContext)
+                    }
                 }
                 if isWaiting {
                     WaitingPanelView(round: state.rounds.current, lastRound: state.rounds.history.last)
@@ -145,6 +162,20 @@ struct BoardScreen: View {
             title += " · \(state.rounds.currentTitle)"
         }
         return title
+    }
+
+    @ViewBuilder
+    private var viewToggle: some View {
+        if !currentBlocks.isEmpty {
+            Button {
+                let next: ViewMode = mode == .focus ? .board : .focus
+                viewOverride = next
+                saveViewOverride(subject: subject, mode: next)
+            } label: {
+                Image(systemName: mode == .focus ? "list.bullet.rectangle" : "square.stack")
+            }
+            .accessibilityLabel(mode == .focus ? "Switch to board view" : "Switch to focus view")
+        }
     }
 
     @ViewBuilder

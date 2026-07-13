@@ -49,6 +49,7 @@ export function FocusDeck({ steps, interactions, round, closed }: FocusDeckProps
   const deckRef = useRef<HTMLDivElement>(null);
   const pendingCursorRef = useRef<string | null>(null);
   const prevDecidedRef = useRef<{ id: string; decided: boolean } | null>(null);
+  const timerRef = useRef<{ id: ReturnType<typeof setTimeout>; stepId: string } | null>(null);
   const [currentId, setCurrentId] = useState<string>(() => steps[0]?.id ?? DECK_END);
 
   const total = steps.length;
@@ -126,27 +127,44 @@ export function FocusDeck({ steps, interactions, round, closed }: FocusDeckProps
   }, [api, primaryId]);
 
   useEffect(() => {
-    if (closed || !currentStep) {
-      prevDecidedRef.current = null;
-      return;
-    }
-    const primary = currentStep.primary;
-    if (!primary || primary.type !== 'approval' || currentStep.decidables.length !== 1) {
-      prevDecidedRef.current = null;
-      return;
-    }
-    const decided = isDecided(primary, interactions);
+    const lone =
+      !closed && currentStep && currentStep.primary?.type === 'approval' && currentStep.decidables.length === 1
+        ? currentStep.primary
+        : undefined;
+    const stepId = currentStep?.id;
+    const decided = lone ? isDecided(lone, interactions) : false;
     const prev = prevDecidedRef.current;
-    prevDecidedRef.current = { id: currentStep.id, decided };
-    // Only an undecided→decided transition while this step is current arms the
-    // timer; arriving on (or revisiting) an already-decided approval is stable.
-    if (!prev || prev.id !== currentStep.id || prev.decided || !decided) return;
-    const timer = setTimeout(() => {
-      if (deckRef.current?.querySelector('[data-composing]')) return;
-      go(indexRef.current + 1);
-    }, AUTO_ADVANCE_MS);
-    return () => clearTimeout(timer);
+    prevDecidedRef.current = lone ? { id: stepId!, decided } : null;
+
+    // An armed timer survives a redundant echo re-render (the optimistic patch and
+    // the SSE echo both bump interactions within 450ms); cancel it only when the
+    // step changes or the verdict reverts to undecided. Unmount and an open
+    // composer are handled by the unmount effect and the fire-time guard.
+    const armed = timerRef.current;
+    if (armed && (armed.stepId !== stepId || !decided)) {
+      clearTimeout(armed.id);
+      timerRef.current = null;
+    }
+    // Arm 450ms after an undecided→decided transition while this lone approval is
+    // current — never on arrival, revisit, or the echo.
+    if (lone && decided && prev && prev.id === stepId && !prev.decided && !timerRef.current) {
+      timerRef.current = {
+        stepId: stepId!,
+        id: setTimeout(() => {
+          timerRef.current = null;
+          if (deckRef.current?.querySelector('[data-composing]')) return;
+          go(indexRef.current + 1);
+        }, AUTO_ADVANCE_MS),
+      };
+    }
   }, [closed, currentStep, interactions, go]);
+
+  useEffect(
+    () => () => {
+      if (timerRef.current) clearTimeout(timerRef.current.id);
+    },
+    [],
+  );
 
   const prevIndexRef = useRef(index);
   useEffect(() => {

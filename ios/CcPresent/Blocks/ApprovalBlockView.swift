@@ -15,6 +15,7 @@ struct ApprovalBlockView: View {
     @State private var draft = ""
     @FocusState private var composerFocused: Bool
     @Environment(\.blockReplies) private var blockReplies
+    @Environment(\.focusComposer) private var focusComposer
 
     private var verdict: Verdict? {
         store.state.interactions.decisions[block.id].flatMap { Verdict(rawValue: $0.verdict) }
@@ -61,6 +62,10 @@ struct ApprovalBlockView: View {
             if now {
                 composerFocused = true
             }
+            focusComposer?.set(block.id, composing: now)
+        }
+        .onDisappear {
+            focusComposer?.set(block.id, composing: false)
         }
     }
 

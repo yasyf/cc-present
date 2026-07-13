@@ -17,15 +17,14 @@ const RAIL_MAX = 10;
 // to a segmented bar past RAIL_MAX steps.
 export function FocusProgress({ steps, index, interactions, packInteractive, onJump }: FocusProgressProps) {
   const total = steps.length;
+  const onSummary = index >= total;
   const shown = Math.min(index + 1, total);
   const tier = index < total ? steps[index]!.tier : undefined;
 
   return (
     <div className="focus-progress">
       <div className="focus-progress-head">
-        <span className="focus-step-count">
-          Step {shown} / {total}
-        </span>
+        <span className="focus-step-count">{onSummary ? 'Review' : `Step ${shown} / ${total}`}</span>
         {tier && <span className="focus-step-tier">{tier}</span>}
       </div>
       {total <= RAIL_MAX ? (

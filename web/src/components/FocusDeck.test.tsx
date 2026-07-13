@@ -160,6 +160,7 @@ describe('FocusDeck navigation', () => {
     render({ blocks: [approval('a1', 'Ship one')], interactions: empty() });
     clickNext();
     expect(container.querySelector('.focus-card')).toBeNull();
+    expect(container.querySelector('.focus-step-count')?.textContent).toBe('Review');
     expect(container.querySelector('.focus-summary-head')?.textContent).toBe('Review');
     expect(container.querySelector('.focus-receipt-title')?.textContent).toBe('Ship one');
   });
@@ -195,6 +196,17 @@ describe('FocusDeck auto-advance', () => {
   it('advances an approval 450ms after its verdict lands', () => {
     vi.useFakeTimers();
     render({ blocks: three, interactions: empty() });
+    render({ blocks: three, interactions: withVerdict('a1', 'approved') });
+    act(() => vi.advanceTimersByTime(AUTO_ADVANCE_MS));
+    expect(currentPrompt()).toBe('Ship two');
+  });
+
+  it('survives the echo re-render and still advances', () => {
+    vi.useFakeTimers();
+    render({ blocks: three, interactions: empty() });
+    // The optimistic patch arms the timer; the SSE echo re-renders with a fresh
+    // interactions object carrying the same verdict before 450ms elapses.
+    render({ blocks: three, interactions: withVerdict('a1', 'approved') });
     render({ blocks: three, interactions: withVerdict('a1', 'approved') });
     act(() => vi.advanceTimersByTime(AUTO_ADVANCE_MS));
     expect(currentPrompt()).toBe('Ship two');
