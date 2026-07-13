@@ -46,3 +46,34 @@ An N-point rating. The human picks a value; the pick streams back as a
 
 The interaction payload is `{"value": <n>}`, where `n` is the chosen point, `1`
 through `scale`.
+
+## example.survey
+
+A two-step wizard built on the hostApi 2 surface. `ui.usePackState` holds the
+step index and per-step drafts, which survive remounts and board↔focus
+navigation. `ui.tokens` styles every element, and the last step raises a
+`ui.toast` and submits one merged payload.
+
+| Field | Type | Required | Notes |
+|-------|------|----------|-------|
+| `id` | string | yes | Unique block id. |
+| `type` | `"example.survey"` | yes | The dotted wire type. |
+| `title` | string | yes | Heading shown above the wizard. |
+| `steps` | array of 2 | yes | Each step is `{ "prompt": string, "placeholder"?: string }`. |
+
+```json
+{
+  "id": "pulse",
+  "type": "example.survey",
+  "title": "Quick pulse check",
+  "steps": [
+    { "prompt": "In one line, how did this go?", "placeholder": "Summary" },
+    { "prompt": "Anything to expand on?", "placeholder": "Detail (optional)" }
+  ]
+}
+```
+
+The interaction payload is one merged object with optional `summary` and `detail`
+strings. The component submits `{...(value ?? {}), summary, detail}`. In this
+merge idiom, each control spreads the prior value and overwrites the fields it
+owns, so one interaction schema backs a multi-control block.

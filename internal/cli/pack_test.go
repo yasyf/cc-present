@@ -274,8 +274,8 @@ func TestPackInit(t *testing.T) {
 		if p.Name != "linted" {
 			t.Fatalf("lint name = %q, want linted", p.Name)
 		}
-		if len(p.Blocks) != 2 {
-			t.Fatalf("lint blocks = %d, want 2", len(p.Blocks))
+		if len(p.Blocks) != 3 {
+			t.Fatalf("lint blocks = %d, want 3", len(p.Blocks))
 		}
 	})
 

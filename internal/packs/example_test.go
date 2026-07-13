@@ -28,14 +28,17 @@ func TestLintExamplePack(t *testing.T) {
 	for _, bt := range p.Blocks {
 		byName[bt.Name] = bt
 	}
-	if byName["callout"] == nil || byName["rating"] == nil {
-		t.Fatalf("blocks = %v, want callout and rating", blockNames(p))
+	if byName["callout"] == nil || byName["rating"] == nil || byName["survey"] == nil {
+		t.Fatalf("blocks = %v, want callout, rating, and survey", blockNames(p))
 	}
 	if byName["callout"].Interactive() {
 		t.Errorf("callout should be content-only, got interactive")
 	}
 	if !byName["rating"].Interactive() {
 		t.Errorf("rating should be interactive")
+	}
+	if !byName["survey"].Interactive() {
+		t.Errorf("survey should be interactive")
 	}
 }
 

@@ -1,7 +1,9 @@
 import { useCallback } from 'react';
+import { tokens } from './host/present';
 import type { PackComponentProps } from './host/present';
 
 export function Rating({ block, value, submit, disabled }: PackComponentProps) {
+  const t = tokens();
   const label = block.label as string;
   const scale = (block.scale as number | undefined) ?? 5;
   const current = (value as { value?: number } | null | undefined)?.value;
@@ -11,11 +13,11 @@ export function Rating({ block, value, submit, disabled }: PackComponentProps) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
       <div
         style={{
-          fontFamily: 'var(--font-mono)',
+          fontFamily: t.fontMono,
           textTransform: 'uppercase',
-          letterSpacing: '0.1em',
+          letterSpacing: t.trackCaps,
           fontSize: '0.7rem',
-          color: 'var(--muted)',
+          color: t.dim,
         }}
       >
         {label}
@@ -34,11 +36,11 @@ export function Rating({ block, value, submit, disabled }: PackComponentProps) {
                 minWidth: '2.5rem',
                 padding: '0.5rem 0.25rem',
                 cursor: disabled ? 'not-allowed' : 'pointer',
-                borderRadius: 'var(--radius-md)',
-                border: `1px solid ${selected ? 'var(--accent)' : 'var(--border)'}`,
-                background: selected ? 'var(--accent)' : 'var(--surface)',
-                color: selected ? 'var(--accent-fg)' : 'var(--text)',
-                fontFamily: 'var(--font-mono)',
+                borderRadius: t.radiusMd,
+                border: `1px solid ${selected ? t.accent : t.border}`,
+                background: selected ? t.accent : t.surface,
+                color: selected ? t.accentFg : t.text,
+                fontFamily: t.fontMono,
                 fontSize: '0.85rem',
                 opacity: disabled ? 0.55 : 1,
               }}

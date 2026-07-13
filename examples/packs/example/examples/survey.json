@@ -1,0 +1,9 @@
+{
+  "id": "ex-survey",
+  "type": "example.survey",
+  "title": "Quick pulse check",
+  "steps": [
+    { "prompt": "In one line, how did this go?", "placeholder": "Summary" },
+    { "prompt": "Anything to expand on?", "placeholder": "Detail (optional)" }
+  ]
+}

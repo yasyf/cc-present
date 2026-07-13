@@ -14,13 +14,17 @@ import "embed"
 //go:embed packs/example/schema/callout.json
 //go:embed packs/example/schema/rating.json
 //go:embed packs/example/schema/rating.interaction.json
+//go:embed packs/example/schema/survey.json
+//go:embed packs/example/schema/survey.interaction.json
 //go:embed packs/example/examples/callout.json
 //go:embed packs/example/examples/rating.json
+//go:embed packs/example/examples/survey.json
 //go:embed packs/example/reference/blocks.md
 //go:embed packs/example/scripts/smoke.ts
 //go:embed packs/example/src/pack.tsx
 //go:embed packs/example/src/Callout.tsx
 //go:embed packs/example/src/Rating.tsx
+//go:embed packs/example/src/Survey.tsx
 //go:embed packs/example/src/host/global.d.ts
 //go:embed packs/example/src/host/jsx-runtime.ts
 //go:embed packs/example/src/host/present.ts

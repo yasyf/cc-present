@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "example.survey",
+  "type": "object",
+  "required": ["id", "type", "title", "steps"],
+  "additionalProperties": false,
+  "properties": {
+    "id": { "type": "string", "minLength": 1 },
+    "type": { "const": "example.survey" },
+    "title": { "type": "string", "minLength": 1 },
+    "steps": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "items": {
+        "type": "object",
+        "required": ["prompt"],
+        "additionalProperties": false,
+        "properties": {
+          "prompt": { "type": "string", "minLength": 1 },
+          "placeholder": { "type": "string" }
+        }
+      }
+    }
+  }
+}
