@@ -1,1 +1,1 @@
-{"v":1,"lamport":3,"ops":[{"kind":"add_comment","body":"Verified: full ios/ tree (CcPresent app + CcPresentKit SPM package) and .github/workflows/testflight-ios.yml exist; shipped 2026-07-10 per memory record cc-present-ios-client. Closing as done."}]}
+{"v":1,"lamport":4,"ops":[{"kind":"set_criterion_status","id":"717a49eca8f8ea4779831480750df90c","status":"met"}]}
