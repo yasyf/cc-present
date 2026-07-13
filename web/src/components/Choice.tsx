@@ -5,6 +5,7 @@ import { usePresent } from '../present';
 import { choiceToggle } from '../decide';
 import { useDecidable } from '../keyboard';
 import { renderInlineMarkdown } from '../markdown';
+import { Mark } from './Mark';
 import { Clamped } from './Clamped';
 
 export function Choice({ block, interactions }: { block: ChoiceBlock; interactions: Interactions }) {
@@ -31,7 +32,7 @@ export function Choice({ block, interactions }: { block: ChoiceBlock; interactio
     <div className="choice" ref={ref} data-kbd-cursor={cursor || undefined}>
       {block.prompt && <p className="choice-prompt">{block.prompt}</p>}
       <div className="options" role={multi ? 'group' : 'radiogroup'}>
-        {block.options.map((option) => {
+        {block.options.map((option, i) => {
           const on = selected.includes(option.id);
           return (
             <div
@@ -52,7 +53,14 @@ export function Choice({ block, interactions }: { block: ChoiceBlock; interactio
                 }
               }}
             >
-              <span className="option-indicator" aria-hidden />
+              {cursor && i < 9 && (
+                <kbd className="option-index" aria-hidden>
+                  {i + 1}
+                </kbd>
+              )}
+              <span className="option-indicator" aria-hidden>
+                {on && <Mark kind={multi ? 'check' : 'ring'} />}
+              </span>
               <span className="option-body">
                 <span className="option-label">{option.label}</span>
                 {option.hint && (

@@ -56,6 +56,8 @@ export function FocusDeck({ steps, interactions, round, closed }: FocusDeckProps
   // The direction AnimatePresence flies the outgoing card: a verdict sends it fully
   // off toward its sign, plain navigation slides it toward the move.
   const [exitCustom, setExitCustom] = useState<ExitCustom>({ dir: 1, kind: 'nav' });
+  // True while the 450ms auto-advance is armed — drives the Next control's cue.
+  const [advancing, setAdvancing] = useState(false);
 
   const total = steps.length;
   const lastIndexRef = useRef(0);
@@ -121,6 +123,15 @@ export function FocusDeck({ steps, interactions, round, closed }: FocusDeckProps
     go(list.length);
   }, [go]);
 
+  // Any stray input in the deck retracts an armed auto-advance; a no-op otherwise.
+  const cancelAdvance = useCallback(() => {
+    if (timerRef.current) {
+      clearTimeout(timerRef.current.id);
+      timerRef.current = null;
+    }
+    setAdvancing(false);
+  }, []);
+
   // Keep the stored anchor and the last-known position in sync with the rendered
   // index so a subsequent recompute clamps to the right neighbourhood.
   useEffect(() => {
@@ -158,6 +169,7 @@ export function FocusDeck({ steps, interactions, round, closed }: FocusDeckProps
     if (armed && (armed.stepId !== stepId || !decided)) {
       clearTimeout(armed.id);
       timerRef.current = null;
+      setAdvancing(false);
     }
     // Arm 450ms after an undecided→decided transition while this lone approval is
     // current — never on arrival, revisit, or the echo. The fly-off direction is
@@ -165,10 +177,13 @@ export function FocusDeck({ steps, interactions, round, closed }: FocusDeckProps
     // the window), so a swipe, a/r, and the buttons all exit alike.
     if (lone && decided && prev && prev.id === stepId && !prev.decided && !timerRef.current) {
       const loneId = lone.id;
+      setAdvancing(true);
+      api.announce('Advancing to the next step');
       timerRef.current = {
         stepId: stepId!,
         id: setTimeout(() => {
           timerRef.current = null;
+          setAdvancing(false);
           if (deckRef.current?.querySelector('.focus-card:not([data-exiting]) [data-composing]')) return;
           const dir: 1 | -1 = interactionsRef.current.decisions[loneId]?.verdict === 'rejected' ? -1 : 1;
           setExitCustom({ dir, kind: 'verdict' });
@@ -176,7 +191,7 @@ export function FocusDeck({ steps, interactions, round, closed }: FocusDeckProps
         }, AUTO_ADVANCE_MS),
       };
     }
-  }, [closed, currentStep, interactions, go]);
+  }, [api, closed, currentStep, interactions, go]);
 
   useEffect(
     () => () => {
@@ -213,7 +228,12 @@ export function FocusDeck({ steps, interactions, round, closed }: FocusDeckProps
   return (
     <LazyMotion features={domMax} strict>
       <MotionConfig reducedMotion="user">
-        <div className="focus-deck" ref={deckRef}>
+        <div
+          className="focus-deck"
+          ref={deckRef}
+          onKeyDownCapture={cancelAdvance}
+          onPointerDownCapture={cancelAdvance}
+        >
           <FocusProgress
             steps={steps}
             index={index}
@@ -237,7 +257,13 @@ export function FocusDeck({ steps, interactions, round, closed }: FocusDeckProps
               )}
             </AnimatePresence>
           </div>
-          <FocusNav index={index} total={total} onPrev={() => move(-1)} onNext={() => move(1)} />
+          <FocusNav
+            index={index}
+            total={total}
+            advancing={advancing}
+            onPrev={() => move(-1)}
+            onNext={() => move(1)}
+          />
         </div>
       </MotionConfig>
     </LazyMotion>

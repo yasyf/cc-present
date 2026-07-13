@@ -1,9 +1,10 @@
-import { useCallback, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useGroupReadOnly } from '@cc-interact/react';
 import type { Input as InputBlock } from '../schema';
 import type { Interactions } from '../events';
 import { usePresent } from '../present';
 import { useDecidable } from '../keyboard';
+import { Mark } from './Mark';
 
 export function Input({ block, interactions }: { block: InputBlock; interactions: Interactions }) {
   const { post, closed, currentRound } = usePresent();
@@ -12,6 +13,14 @@ export function Input({ block, interactions }: { block: InputBlock; interactions
   const attachField = useCallback((el: HTMLElement | null) => {
     fieldRef.current = el;
   }, []);
+  // A commit stamps a drawn tick and sweeps a pencil underline for ~1.2s; the
+  // timestamp keys the marks so a second commit replays them. Zero = at rest.
+  const [committedAt, setCommittedAt] = useState(0);
+  useEffect(() => {
+    if (committedAt === 0) return;
+    const t = setTimeout(() => setCommittedAt(0), 1200);
+    return () => clearTimeout(t);
+  }, [committedAt]);
   const { ref, cursor } = useDecidable(block.id, {
     kind: 'input',
     disabled: closed || readOnly,
@@ -29,13 +38,24 @@ export function Input({ block, interactions }: { block: InputBlock; interactions
   function save(value: string) {
     if (value === committed) return;
     post({ type: 'input.submitted', blockId: block.id, text: value });
+    setCommittedAt(Date.now());
   }
+
+  const committing = committedAt !== 0;
 
   return (
     <label className="input-block" ref={ref} data-kbd-cursor={cursor || undefined}>
-      <span className="input-label">{block.label}</span>
+      <span className="input-label">
+        {block.label}
+        {committing && <Mark key={committedAt} kind="check" className="input-tick" />}
+      </span>
       {!readOnly && v && v.round < currentRound && (
-        <div className="input-last-round">last round: {v.text}</div>
+        <div className="input-last-round">
+          <span className="input-last-round-caret" aria-hidden>
+            ↳
+          </span>
+          <span className="input-last-round-text">{v.text}</span>
+        </div>
       )}
       {block.multiline ? (
         <textarea
@@ -63,6 +83,7 @@ export function Input({ block, interactions }: { block: InputBlock; interactions
           }}
         />
       )}
+      {committing && <span key={committedAt} className="input-sweep" aria-hidden />}
     </label>
   );
 }

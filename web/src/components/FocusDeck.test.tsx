@@ -267,6 +267,48 @@ describe('FocusDeck auto-advance', () => {
   });
 });
 
+describe('FocusDeck advance cue', () => {
+  const liveCard = (): Element => container.querySelector('.focus-card:not([data-exiting])')!;
+
+  it('shows the cue while the timer is armed and clears it on advance', () => {
+    vi.useFakeTimers();
+    render({ blocks: three, interactions: empty() });
+    render({ blocks: three, interactions: withVerdict('a1', 'approved') });
+    expect(container.querySelector('.focus-nav-btn.advancing')).not.toBeNull();
+    act(() => vi.advanceTimersByTime(AUTO_ADVANCE_MS));
+    expect(currentPrompt()).toBe('Ship two');
+    expect(container.querySelector('.focus-nav-btn.advancing')).toBeNull();
+  });
+
+  it('cancels the auto-advance on a keydown inside the deck', () => {
+    vi.useFakeTimers();
+    render({ blocks: three, interactions: empty() });
+    render({ blocks: three, interactions: withVerdict('a1', 'approved') });
+    act(() => liveCard().dispatchEvent(new KeyboardEvent('keydown', { key: 'x', bubbles: true })));
+    expect(container.querySelector('.focus-nav-btn.advancing')).toBeNull();
+    act(() => vi.advanceTimersByTime(AUTO_ADVANCE_MS));
+    expect(currentPrompt()).toBe('Ship one');
+  });
+
+  it('cancels the auto-advance on a pointerdown inside the deck', () => {
+    vi.useFakeTimers();
+    render({ blocks: three, interactions: empty() });
+    render({ blocks: three, interactions: withVerdict('a1', 'approved') });
+    act(() => liveCard().dispatchEvent(new Event('pointerdown', { bubbles: true })));
+    expect(container.querySelector('.focus-nav-btn.advancing')).toBeNull();
+    act(() => vi.advanceTimersByTime(AUTO_ADVANCE_MS));
+    expect(currentPrompt()).toBe('Ship one');
+  });
+
+  it('renders a static standing note for the reduced-motion path', () => {
+    vi.useFakeTimers();
+    render({ blocks: three, interactions: empty() });
+    render({ blocks: three, interactions: withVerdict('a1', 'approved') });
+    expect(container.querySelector('.focus-advance-text')?.textContent).toBe('next in a moment');
+    act(() => vi.advanceTimersByTime(AUTO_ADVANCE_MS));
+  });
+});
+
 describe('FocusDeck next-undecided wrapping', () => {
   it('wraps to an earlier undecided step rather than landing on Review', () => {
     render({ blocks: three, interactions: withVerdicts({ a2: 'approved', a3: 'approved' }) });
@@ -316,8 +358,8 @@ describe('FocusDeck nested-decidable jump', () => {
     // The cursor enters on the step's primary (the approval).
     expect(container.querySelector('.approval[data-kbd-cursor]')).not.toBeNull();
     expect(container.querySelector('.choice[data-kbd-cursor]')).toBeNull();
-    // The SubmitBar dots map to [c1a, c1c]; tapping the second jumps to the nested choice.
-    const dots = container.querySelectorAll('.submit-dots .dot');
+    // The SubmitBar tally maps to [c1a, c1c]; tapping the second jumps to the nested choice.
+    const dots = container.querySelectorAll('.tally-strip .tally-seg');
     expect(dots.length).toBe(2);
     act(() => (dots[1] as HTMLButtonElement).click());
     expect(container.querySelector('.choice[data-kbd-cursor]')).not.toBeNull();

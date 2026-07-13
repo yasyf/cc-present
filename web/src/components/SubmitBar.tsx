@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import type { CSSProperties } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import type { Block, Doc } from '../schema';
 import type { Interactions } from '../events';
@@ -6,6 +7,7 @@ import { usePresent } from '../present';
 import { revisionKey } from '../api';
 import { undecidedKey } from '../submit';
 import { submitItems } from '../decide';
+import type { SubmitItem } from '../decide';
 import { useKeyboardApi } from '../keyboard';
 import { useInteractivePackTypes } from '../packs/registry';
 
@@ -38,6 +40,16 @@ export function SubmitBar({ blocks, doc, interactions, subject, hasHistory }: Su
   const items = submitItems(blocks, interactions, packInteractive);
   const total = items.length;
   const decided = items.filter((i) => i.decided).length;
+  const complete = total > 0 && decided === total;
+  // A tally segment's ink: an approval carries its verdict color, any other
+  // decided item the pencil, and an undecided one the hollow-hold state.
+  const segState = (item: SubmitItem): string => {
+    if (!item.decided) return 'undecided';
+    if (item.kind === 'approval') {
+      return interactions.decisions[item.id]?.verdict === 'rejected' ? 'rejected' : 'approved';
+    }
+    return 'decided';
+  };
   const undecidedApprovalIds = items.filter((i) => i.kind === 'approval' && !i.decided).map((i) => i.id);
   const undecidedApprovals = undecidedApprovalIds.length;
   const armedKey = undecidedKey(undecidedApprovalIds);
@@ -90,12 +102,17 @@ export function SubmitBar({ blocks, doc, interactions, subject, hasHistory }: Su
       <div className="submit-status">
         {hasHistory && <span className="submit-round">Round {currentRound}</span>}
         {total > 0 && (
-          <div className="submit-dots" role="group" aria-label="review progress">
+          <div
+            className={`tally-strip${complete ? ' tally-complete' : ''}`}
+            role="group"
+            aria-label="review progress"
+          >
             {items.map((item, i) => (
               <button
                 key={item.id}
                 type="button"
-                className={`dot${item.decided ? ' on' : ''}`}
+                style={{ '--i': i } as CSSProperties}
+                className={`tally-seg tally-${segState(item)}`}
                 aria-label={`Item ${i + 1} of ${total}, ${item.decided ? 'decided' : 'undecided'} — jump`}
                 onClick={() => kbd.jumpTo(item.id)}
               />
@@ -104,7 +121,7 @@ export function SubmitBar({ blocks, doc, interactions, subject, hasHistory }: Su
         )}
         <button
           type="button"
-          className={`submit-count${total > 0 && decided === total ? ' submit-done' : ''}`}
+          className={`submit-count${complete ? ' submit-done' : ''}`}
           onClick={() => kbd.jumpNextUndecided()}
         >
           {decided}/{total} decided
@@ -124,7 +141,7 @@ export function SubmitBar({ blocks, doc, interactions, subject, hasHistory }: Su
         )}
         <button
           type="button"
-          className={`primary submit-btn${confirming ? ' confirm' : ''}`}
+          className={`primary submit-btn${confirming ? ' confirm' : ''}${complete && !confirming ? ' submit-ready' : ''}`}
           disabled={inFlight}
           onClick={submit}
         >

@@ -1,6 +1,39 @@
-/* Marks: the human traces the agent never draws — verdict stamps, the keyboard
-   cursor ring, and the review-layer focus rings. If it is a drawn mark, it
-   lives here. The <Mark> component's full styling lands in a later phase. */
+/* Marks: the human traces the agent never draws — the drawn <Mark> family,
+   verdict stamps, the keyboard cursor ring, and the review-layer focus rings.
+   If it is a drawn mark, it lives here. */
+
+/* The <Mark> SVG family: each stroke is pathLength-1 normalized and rests at
+   dashoffset 0 (fully drawn) so base.css's reduced-motion freeze lands it drawn;
+   the draw plays from a hidden dashoffset toward that resting frame. The root
+   .mark also carries the reduced-motion fade contract stated in tokens.css. */
+.mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--pencil);
+  line-height: 0;
+}
+.mark svg {
+  width: 1em;
+  height: 1em;
+  display: block;
+  overflow: visible;
+}
+.mark-stroke {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 0;
+  animation: mark-draw var(--dur-2) var(--ease-draw);
+}
+@keyframes mark-draw {
+  from {
+    stroke-dashoffset: 1;
+  }
+}
 
 /* Rotated verdict stamps for decided approvals — pure :has()::after. Inked in
    the stamp face at 700; the verdict colors resolve to the Blue Pencil stamp
@@ -21,7 +54,9 @@
   transform: rotate(-3deg);
   transform-origin: center;
   background: color-mix(in srgb, var(--card) 82%, transparent);
-  animation: stamp-in var(--dur-3) var(--ease-out);
+  /* Beat two: the stamp scales in only after the verdict Mark has drawn (--dur-2);
+     backwards fill holds it hidden through the delay so it never pre-flashes. */
+  animation: stamp-in var(--dur-3) var(--ease-out) var(--dur-2) backwards;
   pointer-events: none;
 }
 .approval:has(.verdict-approve.active)::after {
@@ -70,7 +105,7 @@
    controls (now pencil via --focus-ring) so each keeps a consistent 2px offset. */
 .verdict:focus-visible,
 .link-btn:focus-visible,
-.dot:focus-visible,
+.tally-seg:focus-visible,
 .submit-count:focus-visible,
 .submit-btn:focus-visible {
   outline: 2px solid var(--focus-ring);

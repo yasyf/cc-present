@@ -205,6 +205,11 @@
   font-size: var(--text-xs);
   line-height: 1;
 }
+/* On the active verdict the glyph becomes a drawn Mark inked in the button's own
+   stamp foreground (white on the filled approve/reject face). */
+.verdict-glyph .mark {
+  color: inherit;
+}
 .verdict:hover:not(:disabled):not(.active) {
   background: var(--card);
   border-color: var(--line);
@@ -325,6 +330,7 @@
   gap: var(--space-2);
 }
 .option {
+  position: relative;
   display: grid;
   grid-template-columns: auto 1fr;
   column-gap: var(--space-3);
@@ -336,6 +342,17 @@
   padding: var(--space-3);
   cursor: pointer;
   transition: border-color var(--dur-1) var(--ease-out), background var(--dur-1) var(--ease-out);
+}
+/* The 1–9 keymap index, shown only while the keyboard cursor rests on the block. */
+.option-index {
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-2);
+  margin: 0;
+  padding: 0 var(--space-1);
+  min-width: 1.1rem;
+  text-align: center;
+  color: var(--muted);
 }
 .option:hover:not([aria-disabled='true']) {
   border-color: var(--border-strong);
@@ -354,6 +371,7 @@
   cursor: default;
 }
 .option-indicator {
+  position: relative;
   width: var(--text-base);
   height: var(--text-base);
   margin-top: 2px;
@@ -363,6 +381,26 @@
   align-items: center;
   justify-content: center;
   transition: border-color var(--dur-1) var(--ease-out), background var(--dur-1) var(--ease-out);
+}
+/* Selection is a drawn Mark: a pencil ring encircling the radio dot, or a check
+   drawn into the filled checkbox — so the old CSS glyph pseudo stands down. */
+.option-indicator:has(.mark)::after {
+  content: none;
+}
+.option-indicator .mark {
+  position: absolute;
+}
+.option-indicator .mark svg {
+  width: 100%;
+  height: 100%;
+}
+.option-indicator .mark-ring {
+  inset: -30%;
+  color: var(--pencil);
+}
+.option-indicator .mark-check {
+  inset: 0;
+  color: var(--accent-fg);
 }
 .option[role='radio'] .option-indicator {
   border-radius: var(--radius-pill);
@@ -417,13 +455,22 @@
 /* --- Input --- */
 
 .input-block {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
 }
 .input-label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
   font-size: var(--text-sm);
   color: var(--muted);
+}
+/* The commit tick: a drawn check by the label answering "did it save?". */
+.input-label .input-tick {
+  color: var(--approve);
+  font-size: var(--text-base);
 }
 .input-block input,
 .input-block textarea {
@@ -435,10 +482,41 @@
   font: inherit;
   resize: vertical;
 }
+/* The commit sweep: a pencil underline drawn along the field's lower edge. It
+   rests fully drawn (scaleX 1) so the reduced-motion freeze shows it settled. */
+.input-sweep {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  background: var(--pencil);
+  transform: scaleX(1);
+  transform-origin: left center;
+  animation: input-sweep var(--dur-2) var(--ease-draw);
+  pointer-events: none;
+}
+@keyframes input-sweep {
+  from {
+    transform: scaleX(0);
+  }
+}
+/* The prior round's value reads as a struck graphite margin note under a caret. */
 .input-last-round {
+  display: flex;
+  gap: var(--space-1);
+  align-items: baseline;
   font-size: var(--text-xs);
+  color: var(--graphite);
+}
+.input-last-round-caret {
+  color: var(--graphite);
+  font-family: var(--font-mono);
+}
+.input-last-round-text {
   font-style: italic;
-  color: var(--was);
+  text-decoration: line-through;
+  text-decoration-color: color-mix(in srgb, var(--graphite) 60%, transparent);
 }
 
 /* --- Code (nested panel) --- */

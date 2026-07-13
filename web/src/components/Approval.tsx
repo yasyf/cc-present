@@ -5,6 +5,7 @@ import type { Interactions } from '../events';
 import { usePresent } from '../present';
 import { verdictToggle } from '../decide';
 import { useDecidable } from '../keyboard';
+import { Mark } from './Mark';
 import { ReplyItem } from './ReplyThread';
 
 export function Approval({ block, interactions }: { block: ApprovalBlock; interactions: Interactions }) {
@@ -64,7 +65,7 @@ export function Approval({ block, interactions }: { block: ApprovalBlock; intera
           onClick={() => choose('approved')}
         >
           <span className="verdict-glyph" aria-hidden>
-            ✓
+            {verdict === 'approved' ? <Mark kind="check" /> : '✓'}
           </span>
           Approve
         </button>
@@ -77,7 +78,7 @@ export function Approval({ block, interactions }: { block: ApprovalBlock; intera
           onClick={() => choose('rejected')}
         >
           <span className="verdict-glyph" aria-hidden>
-            ✕
+            {verdict === 'rejected' ? <Mark kind="cross" /> : '✕'}
           </span>
           Reject
         </button>

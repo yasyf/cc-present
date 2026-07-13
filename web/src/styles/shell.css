@@ -561,26 +561,96 @@
   color: var(--accent-fg);
 }
 
-.submit-dots {
+/* --- Sign-off tally strip ---
+   One segment per decidable, inked by state, each still a jump button. The
+   landing moment: when every segment is decided the strip gains .tally-complete,
+   staggered connectors draw between the segments (the board becomes one rule) and
+   the submit button ink-fills. Connectors rest drawn under .tally-complete so the
+   reduced-motion freeze lands them connected. */
+.tally-strip {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-1);
 }
-.dot {
-  width: 10px;
-  height: 10px;
+.tally-seg {
+  position: relative;
+  width: 16px;
+  height: 9px;
   padding: 0;
+  margin-right: 6px;
   border: 1.5px solid var(--border-strong);
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-sm);
   background: transparent;
 }
-.dot.on {
-  background: var(--accent-fill);
+.tally-seg:last-child {
+  margin-right: 0;
+}
+.tally-undecided {
+  border-color: var(--hold);
+  background: transparent;
+}
+.tally-approved {
+  border-color: var(--approve);
+  background: var(--approve);
+}
+.tally-rejected {
+  border-color: var(--reject);
+  background: var(--reject);
+}
+.tally-decided {
+  border-color: var(--pencil);
+  background: var(--pencil);
+}
+.tally-seg:hover:not(:disabled) {
   border-color: var(--accent-fill);
 }
-.dot:hover:not(:disabled) {
-  border-color: var(--accent-fill);
-  background: color-mix(in srgb, var(--accent-fill) 35%, transparent);
+.tally-seg::after {
+  content: '';
+  position: absolute;
+  left: 100%;
+  top: 50%;
+  width: 6px;
+  height: 2px;
+  background: var(--pencil);
+  transform: translateY(-50%) scaleX(0);
+  transform-origin: left center;
+}
+.tally-seg:last-child::after {
+  display: none;
+}
+.tally-complete .tally-seg::after {
+  transform: translateY(-50%) scaleX(1);
+  animation: tally-connect var(--dur-1) var(--ease-draw) backwards;
+  animation-delay: calc(var(--i, 0) * 20ms);
+}
+@keyframes tally-connect {
+  from {
+    transform: translateY(-50%) scaleX(0);
+  }
+}
+/* Reduced motion keeps the connectors' drawn resting frame but drops the stagger
+   so they settle together rather than sweeping in one at a time. */
+@media (prefers-reduced-motion: reduce) {
+  .tally-complete .tally-seg::after {
+    animation-delay: 0ms;
+  }
+}
+
+/* The signed submit button: pencil ink washes across on the landing moment and
+   holds (forwards), so a completed board reads inked at rest and after freeze. */
+.submit-ready {
+  background-image: linear-gradient(
+    90deg,
+    color-mix(in srgb, #000 18%, var(--accent-fill)),
+    color-mix(in srgb, #000 18%, var(--accent-fill))
+  );
+  background-repeat: no-repeat;
+  background-size: 0% 100%;
+  animation: submit-ink var(--dur-4) var(--ease-draw) forwards;
+}
+@keyframes submit-ink {
+  to {
+    background-size: 100% 100%;
+  }
 }
 
 .sr-only {
@@ -666,6 +736,14 @@ body[data-single] {
 .single-block .block-row {
   margin: 0;
 }
+/* The WKWebView frame is block-height and unscrollable, so a fixed toast overlay
+   would clip. Flow the stack in-tree instead: it grows the measured .single-block
+   root, and the ResizeObserver reports the taller height to the native host. */
+body[data-single] .toast-stack {
+  position: static;
+  max-width: none;
+  margin-top: var(--space-3);
+}
 
 /* --- Responsive: the two breakpoints of record (--bp-rail 720, --bp-compact 440).
    The page gutter already went fluid in tokens.css; here the board chrome reflows —
@@ -735,7 +813,7 @@ body[data-single] {
     gap: var(--space-2);
     padding: var(--space-2) var(--space-3);
   }
-  .submit-dots {
+  .tally-strip {
     flex-wrap: wrap;
   }
 }
