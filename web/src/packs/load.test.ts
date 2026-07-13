@@ -85,6 +85,16 @@ describe('loadPacks', () => {
     warn.mockRestore();
   });
 
+  it('a fractional manifest host api registers nothing (Go requires an integer)', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const importFn = vi.fn<ImportFn>();
+    await loadPacks(fetchJson({ ...manifest(), hostApi: 1.5 }), importFn);
+    expect(importFn).not.toHaveBeenCalled();
+    expect(getPackDefState('ex.rating')).toBe('unknown');
+    expect(warn).toHaveBeenCalledTimes(1);
+    warn.mockRestore();
+  });
+
   it('a rejected bundle marks the pack failed and drops it from the ring', async () => {
     const importFn: ImportFn = () => Promise.reject(new Error('boom'));
     await loadPacks(fetchOk(manifest()), importFn);
@@ -102,6 +112,13 @@ describe('loadPacks', () => {
 
   it('a bundle above the host api ceiling marks the pack failed', async () => {
     const importFn: ImportFn = async () => ({ default: { hostApi: 3, blocks: { rating: RatingComponent } } });
+    await loadPacks(fetchOk(manifest()), importFn);
+    expect(getPackDefState('ex.rating')).toBe('failed');
+    expect(getPackComponent('ex.rating')).toBeUndefined();
+  });
+
+  it('a bundle with a fractional host api marks the pack failed (Go requires an integer)', async () => {
+    const importFn: ImportFn = async () => ({ default: { hostApi: 1.5, blocks: { rating: RatingComponent } } });
     await loadPacks(fetchOk(manifest()), importFn);
     expect(getPackDefState('ex.rating')).toBe('failed');
     expect(getPackComponent('ex.rating')).toBeUndefined();

@@ -12,6 +12,9 @@ export interface PresentApi {
   post: (interaction: Interaction) => Promise<boolean>;
   closed: boolean;
   currentRound: number;
+  // The block's round is superseded. The board leaves this unset (its historical
+  // group carries roundOver); the group-less single-block view sets it.
+  roundOver?: boolean;
 }
 
 export const PresentContext = createContext<PresentApi | null>(null);

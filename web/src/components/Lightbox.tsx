@@ -1,4 +1,5 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useId, useRef } from 'react';
+import { Mark } from './Mark';
 
 // Lightbox shows an image in a native modal <dialog>; the browser owns Escape,
 // the backdrop, and focus restoration. `onClose` fires via the native `close`.
@@ -16,6 +17,7 @@ export function Lightbox({
   caption?: string;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
+  const captionId = useId();
 
   useEffect(() => {
     const dialog = ref.current;
@@ -35,13 +37,22 @@ export function Lightbox({
     <dialog
       ref={ref}
       className="lightbox"
+      aria-label={caption ? undefined : alt}
+      aria-labelledby={caption ? captionId : undefined}
       onClick={(e) => {
         if (e.target === ref.current) ref.current.close();
       }}
     >
+      <button type="button" className="lightbox-close" aria-label="Close" onClick={() => ref.current?.close()}>
+        <Mark kind="cross" />
+      </button>
       <figure className="lightbox-figure">
         <img className="lightbox-img" src={src} alt={alt} />
-        {caption && <figcaption className="lightbox-caption">{caption}</figcaption>}
+        {caption && (
+          <figcaption id={captionId} className="lightbox-caption">
+            {caption}
+          </figcaption>
+        )}
       </figure>
     </dialog>
   );

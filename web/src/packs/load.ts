@@ -20,7 +20,7 @@ interface PackModule {
 const HOST_API = 2;
 
 function hostApiSupported(v: unknown): boolean {
-  return typeof v === 'number' && v >= 1 && v <= HOST_API;
+  return typeof v === 'number' && Number.isInteger(v) && v >= 1 && v <= HOST_API;
 }
 
 let loadPromise: Promise<void> | null = null;

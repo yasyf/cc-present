@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import type { SyntheticEvent } from 'react';
 import { AnimatePresence, LazyMotion, MotionConfig, domMax } from 'motion/react';
-import { isDecided, submitItems } from '../decide';
+import { submitItems } from '../decide';
 import { stepTitle } from '../focus';
 import type { FocusStep } from '../focus';
 import { useKeyboardApi } from '../keyboard';
 import { useInteractivePackTypes } from '../packs/registry';
-import type { Interactions } from '../events';
+import type { Interactions, Verdict } from '../events';
 import { FocusCard } from './FocusCard';
 import { FocusPeek } from './FocusPeek';
 import { FocusProgress } from './FocusProgress';
@@ -50,7 +51,7 @@ export function FocusDeck({ steps, interactions, round, closed }: FocusDeckProps
   const packInteractive = useInteractivePackTypes();
   const deckRef = useRef<HTMLDivElement>(null);
   const pendingCursorRef = useRef<string | null>(null);
-  const prevDecidedRef = useRef<{ id: string; decided: boolean } | null>(null);
+  const prevDecidedRef = useRef<{ id: string; verdict: Verdict | undefined } | null>(null);
   const timerRef = useRef<{ id: ReturnType<typeof setTimeout>; stepId: string } | null>(null);
   const [currentId, setCurrentId] = useState<string>(() => steps[0]?.id ?? DECK_END);
   // The direction AnimatePresence flies the outgoing card: a verdict sends it fully
@@ -123,8 +124,11 @@ export function FocusDeck({ steps, interactions, round, closed }: FocusDeckProps
     go(list.length);
   }, [go]);
 
-  // Any stray input in the deck retracts an armed auto-advance; a no-op otherwise.
-  const cancelAdvance = useCallback(() => {
+  // Stray input in the deck retracts an armed auto-advance; a verdict interaction
+  // is exempt — its own re-decide re-arms the cue in the effect below — and a rest
+  // state is a no-op.
+  const cancelAdvance = useCallback((e: SyntheticEvent) => {
+    if (e.target instanceof Element && e.target.closest('.verdict')) return;
     if (timerRef.current) {
       clearTimeout(timerRef.current.id);
       timerRef.current = null;
@@ -157,25 +161,25 @@ export function FocusDeck({ steps, interactions, round, closed }: FocusDeckProps
         ? currentStep.primary
         : undefined;
     const stepId = currentStep?.id;
-    const decided = lone ? isDecided(lone, interactions) : false;
+    const verdict = lone ? interactions.decisions[lone.id]?.verdict : undefined;
+    const decided = verdict === 'approved' || verdict === 'rejected';
     const prev = prevDecidedRef.current;
-    prevDecidedRef.current = lone ? { id: stepId!, decided } : null;
+    prevDecidedRef.current = lone ? { id: stepId!, verdict } : null;
+    // Verdict changed on this same step — a first verdict or a re-decide — so
+    // (re-)arm below; a redundant echo keeps the verdict and stays false.
+    const revised = prev !== null && prev.id === stepId && prev.verdict !== verdict;
 
-    // An armed timer survives a redundant echo re-render (the optimistic patch and
-    // the SSE echo both bump interactions within 450ms); cancel it only when the
-    // step changes or the verdict reverts to undecided. Unmount and an open
-    // composer are handled by the unmount effect and the fire-time guard.
+    // An armed timer survives the echo re-render; cancel on a step change, a cleared
+    // verdict, or a revised verdict (the re-decide re-arms below), else keep it.
     const armed = timerRef.current;
-    if (armed && (armed.stepId !== stepId || !decided)) {
+    if (armed && (armed.stepId !== stepId || !decided || revised)) {
       clearTimeout(armed.id);
       timerRef.current = null;
       setAdvancing(false);
     }
-    // Arm 450ms after an undecided→decided transition while this lone approval is
-    // current — never on arrival, revisit, or the echo. The fly-off direction is
-    // the verdict's sign read when the timer *fires* (the verdict may flip within
-    // the window), so a swipe, a/r, and the buttons all exit alike.
-    if (lone && decided && prev && prev.id === stepId && !prev.decided && !timerRef.current) {
+    // Arm 450ms after the verdict changes on this lone current approval — never on
+    // arrival, revisit, or echo. The fly-off sign is read when the timer fires.
+    if (lone && decided && revised && !timerRef.current) {
       const loneId = lone.id;
       setAdvancing(true);
       api.announce('Advancing to the next step');

@@ -35,10 +35,13 @@ export function Input({ block, interactions }: { block: InputBlock; interactions
   const v = interactions.inputs[block.id];
   const committed = v && (readOnly || v.round === currentRound) ? v.text : '';
 
-  function save(value: string) {
+  async function save(value: string) {
     if (value === committed) return;
-    post({ type: 'input.submitted', blockId: block.id, text: value });
+    // Stamp optimistically, then retract the tick if the post is rejected so the
+    // value rollback and the mark agree.
     setCommittedAt(Date.now());
+    const ok = await post({ type: 'input.submitted', blockId: block.id, text: value });
+    if (!ok) setCommittedAt(0);
   }
 
   const committing = committedAt !== 0;

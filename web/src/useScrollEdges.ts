@@ -29,6 +29,8 @@ export function useScrollEdges<T extends HTMLElement>(axis: 'x' | 'y' = 'x') {
     el.addEventListener('scroll', measure, { passive: true });
     const ro = new ResizeObserver(measure);
     ro.observe(el);
+    // A same-id content swap can change scrollWidth without resizing the box.
+    if (el.firstElementChild) ro.observe(el.firstElementChild);
     return () => {
       el.removeEventListener('scroll', measure);
       ro.disconnect();

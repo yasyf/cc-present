@@ -12,7 +12,7 @@ import { emptyState, topLevelRound } from '../reduce';
 import { flatten } from '../decide';
 import { KeyboardProvider } from '../keyboard';
 import { PresentContext } from '../present';
-import { setPackToastSink } from '../packs/toasts';
+import { usePackToastSink } from '../packs/toasts';
 import type { PresentApi } from '../present';
 import type { PresentState } from '../events';
 import type { Block } from '../schema';
@@ -61,21 +61,22 @@ export function SingleBlockView({ subject, blockId }: { subject: string; blockId
   const block = findBlock(state, blockId);
   const round = topLevelRound(state, blockId);
   const realClosed = state.interactions.closed.value;
-  // A stale-round block is read-only: fold that into `closed`, which every
-  // interactive block already honors, without touching the ClosedBanner.
-  const closed = realClosed || (round !== undefined && round !== state.rounds.current);
+  // A superseded round is read-only but not closed: roundOver disables the block,
+  // while ClosedBanner and context.closed stay reserved for a closed artifact.
+  const roundOver = round !== undefined && round !== state.rounds.current;
   const currentRound = state.rounds.current;
 
   const api = useMemo<PresentApi>(
     () => ({
       post: (interaction) => mutation.mutateAsync(interaction).then(() => true, () => false),
-      closed,
+      closed: realClosed,
       currentRound,
+      roundOver,
     }),
-    [mutation, closed, currentRound],
+    [mutation, realClosed, currentRound, roundOver],
   );
 
-  useEffect(() => setPackToastSink(stream.notify), [stream.notify]);
+  usePackToastSink(stream.notify);
 
   const rootRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -112,7 +113,7 @@ export function SingleBlockView({ subject, blockId }: { subject: string; blockId
       <KeyboardProvider
         blocks={block ? [block] : []}
         interactions={state.interactions}
-        closed={closed}
+        closed={realClosed || roundOver}
         round={currentRound}
       >
         <div className="single-block" ref={rootRef}>

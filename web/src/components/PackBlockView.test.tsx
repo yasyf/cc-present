@@ -149,6 +149,26 @@ describe('PackBlockView v2 host surface', () => {
     expect(container.textContent).toContain('over=false');
   });
 
+  it('surfaces a superseded round from the api as roundOver, not closed, and disables the block', () => {
+    const CtxDisabled: PackComponent = ({ disabled, context }: PackComponentProps) => (
+      <button type="button" disabled={disabled}>
+        closed={String(context.closed)} over={String(context.roundOver)}
+      </button>
+    );
+    registerPack(def('ex', [{ type: 'ex.ctx', interactive: true }]), { ctx: CtxDisabled });
+    markPacksLoaded();
+    render(
+      <Board
+        blocks={[packBlock('c1', 'ex.ctx')]}
+        interactions={emptyInteractions()}
+        present={api({ roundOver: true, currentRound: 2 })}
+      />,
+    );
+    expect(container.textContent).toContain('closed=false');
+    expect(container.textContent).toContain('over=true');
+    expect(container.querySelector('button')?.disabled).toBe(true);
+  });
+
   it('scopes usePackState to the block so a pack keeps its own draft', () => {
     const Draft: PackComponent = () => {
       const [n, setN] = usePackState('n', 0);

@@ -146,12 +146,10 @@ export function KeyboardProvider({ blocks, interactions, closed, round, onViewTo
   const undecidedRef = useRef(undecided);
   const cursorRef = useRef(effectiveCursor);
   const closedRef = useRef(closed);
-  const helpRef = useRef(helpOpen);
   ringRef.current = ring;
   undecidedRef.current = undecided;
   cursorRef.current = effectiveCursor;
   closedRef.current = closed;
-  helpRef.current = helpOpen;
 
   const register = useCallback(
     (handle: DecidableHandle) => {
@@ -231,9 +229,10 @@ export function KeyboardProvider({ blocks, interactions, closed, round, onViewTo
       const typing = isTypingTarget(e.target);
       const action = interpretKey(descriptorOf(e), typing, closedRef.current);
       if (!action) return;
-      // A modal help dialog owns the page: only its own toggle acts, and Esc
-      // rides the dialog's native cancel back to state.
-      if (helpRef.current && action.kind !== 'help-toggle') return;
+      // Any open modal dialog (help, an image lightbox) owns the page: global
+      // shortcuts stay suppressed behind it, and Esc rides the dialog's native
+      // cancel back to state.
+      if (document.querySelector('dialog[open]') && action.kind !== 'escape') return;
 
       const handle = cursorRef.current ? registry.get(cursorRef.current) : undefined;
       switch (action.kind) {

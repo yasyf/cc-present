@@ -16,18 +16,19 @@ export function Survey({ block, value, submit, disabled, context }: PackComponen
   const steps = block.steps as [SurveyStep, SurveyStep];
   const last = steps.length - 1;
 
+  const committed = value as { summary?: string; detail?: string } | null | undefined;
+
   const [step, setStep] = usePackState<number>('step', 0);
-  const [summary, setSummary] = usePackState<string>('summary', '');
-  const [detail, setDetail] = usePackState<string>('detail', '');
+  const [summary, setSummary] = usePackState<string>('summary', committed?.summary ?? '');
+  const [detail, setDetail] = usePackState<string>('detail', committed?.detail ?? '');
   const current = step === 0 ? steps[0] : steps[1];
   const draft = step === 0 ? summary : detail;
   const setDraft = step === 0 ? setSummary : setDetail;
 
   const onSubmit = useCallback(() => {
-    const prior = (value as Record<string, unknown> | null | undefined) ?? {};
-    submit({ ...prior, summary, detail });
+    submit({ ...(committed ?? {}), summary, detail });
     toast({ kind: 'info', text: 'Survey sent' });
-  }, [submit, value, summary, detail]);
+  }, [submit, committed, summary, detail]);
 
   const caps: CSSProperties = {
     fontFamily: t.fontMono,

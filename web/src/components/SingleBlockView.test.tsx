@@ -9,6 +9,8 @@ import { presentKey, queryClient } from '../api';
 import { reduce } from '../reduce';
 import { SingleBlockView } from './SingleBlockView';
 import { packToast, setPackToastSink } from '../packs/toasts';
+import { markPacksLoaded, registerPack, resetPacksForTest } from '../packs/registry';
+import type { PackComponent, PackComponentProps } from '../packs/registry';
 import type { PresentEvent, PresentState } from '../events';
 import type { Doc, Markdown } from '../schema';
 
@@ -118,5 +120,47 @@ describe('SingleBlockView pack toasts', () => {
     // The stack is a child of the ResizeObserver'd root, never a sibling escaping it.
     const escaped = container.querySelector('.single-block')?.contains(container.querySelector('.toast-stack'));
     expect(escaped).toBe(true);
+  });
+});
+
+// staleRoundState leaves pack block p1 in round 1 after round 2 opens (dirty
+// round.started snapshots but keeps the doc block), the artifact still open.
+function staleRoundState(): PresentState {
+  const packDoc = { version: 1, title: '', blocks: [{ id: 'p1', type: 'ex.ctx' }] } as unknown as Doc;
+  const events: PresentEvent[] = [
+    { origin: 'agent', type: 'doc.replaced', seq: 1, payload: { doc: packDoc, revision: 1 } },
+    { origin: 'agent', type: 'round.started', seq: 2, payload: {} },
+  ];
+  return reduce(events);
+}
+
+describe('SingleBlockView stale-round context', () => {
+  const Ctx: PackComponent = ({ disabled, context }: PackComponentProps) => (
+    <span>
+      closed={String(context.closed)} over={String(context.roundOver)} disabled={String(disabled)}
+    </span>
+  );
+
+  beforeEach(() => {
+    resetPacksForTest();
+    registerPack(
+      { name: 'ex', version: '0', description: '', bundle: '/packs/ex/dist/pack.js', blocks: [{ type: 'ex.ctx', interactive: true, schema: {} }] },
+      { ctx: Ctx },
+    );
+    markPacksLoaded();
+  });
+  afterEach(() => resetPacksForTest());
+
+  it('exposes a superseded round as roundOver, not closed, on an open artifact', () => {
+    const state = staleRoundState();
+    expect(state.rounds.current).toBe(2);
+    expect(state.interactions.closed.value).toBe(false);
+
+    render('s', 'p1', state);
+
+    expect(container.textContent).toContain('closed=false');
+    expect(container.textContent).toContain('over=true');
+    expect(container.textContent).toContain('disabled=true');
+    expect(container.querySelector('.closed-banner')).toBeNull();
   });
 });

@@ -40,6 +40,15 @@ func TestJSONErrorAt(t *testing.T) {
 	var d doc.Doc
 	typeErr := json.Unmarshal(typeRaw, &d)
 
+	// A nested block/child type mismatch offsets a RawMessage sub-slice, not raw.
+	nestedRaw := []byte("{\n  \"version\": 1,\n  \"title\": \"T\",\n  \"blocks\": [\n    { \"id\": \"p1\", \"type\": \"progress\", \"label\": \"x\", \"value\": \"oops\", \"max\": 10 }\n  ]\n}")
+	var nd doc.Doc
+	nestedErr := json.Unmarshal(nestedRaw, &nd)
+
+	childRaw := []byte("{\n  \"version\": 1,\n  \"title\": \"T\",\n  \"blocks\": [\n    { \"id\": \"c1\", \"type\": \"card\", \"children\": [\n      { \"id\": \"p1\", \"type\": \"progress\", \"label\": \"x\", \"value\": \"oops\", \"max\": 5 }\n    ] }\n  ]\n}")
+	var cd doc.Doc
+	childErr := json.Unmarshal(childRaw, &cd)
+
 	plain := errors.New("boom")
 
 	tests := []struct {
@@ -49,7 +58,9 @@ func TestJSONErrorAt(t *testing.T) {
 		want string
 	}{
 		{"syntax error annotated", syntaxRaw, syntaxErr, syntaxErr.Error() + " (line 1, column 8)"},
-		{"type error annotated", typeRaw, typeErr, typeErr.Error() + " (line 2, column 19)"},
+		{"envelope type error passthrough", typeRaw, typeErr, typeErr.Error()},
+		{"nested block type error passthrough", nestedRaw, nestedErr, nestedErr.Error()},
+		{"nested card child type error passthrough", childRaw, childErr, childErr.Error()},
 		{"non-json passthrough", nil, plain, "boom"},
 	}
 	for _, tt := range tests {

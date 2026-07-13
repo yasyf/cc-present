@@ -77,7 +77,7 @@ index 3..4 100644
     expect(first.some((r) => r.text.includes('b/b.py'))).toBe(false);
   });
 
-  it('captures /dev/null for a deleted file', () => {
+  it('infers a deleted file from its old path when the new path is /dev/null', () => {
     const deleted = `diff --git a/gone.go b/gone.go
 deleted file mode 100644
 index 5..0
@@ -88,8 +88,21 @@ index 5..0
 -// bye`;
     const hunks = parseDiff(deleted);
     expect(hunks).toHaveLength(1);
-    expect(hunks[0]?.path).toBe('/dev/null');
+    expect(hunks[0]?.path).toBe('gone.go');
     expect(hunks[0]?.rows.map((r) => r.kind)).toEqual(['del', 'del']);
+  });
+
+  it('strips surrounding quotes and the a// b/ prefix from a quoted path', () => {
+    const quoted = `diff --git "a/caf\\303\\251.py" "b/caf\\303\\251.py"
+index 9..a 100644
+--- "a/caf\\303\\251.py"
++++ "b/caf\\303\\251.py"
+@@ -1 +1 @@
+-x = 1
++x = 2`;
+    // git quotes and octal-escapes non-ASCII bytes; the parser drops only the
+    // surrounding quotes and prefix, leaving the extension inferable.
+    expect(parseDiff(quoted)[0]?.path).toBe('caf\\303\\251.py');
   });
 
   it('captures the rename target as the new-file path', () => {

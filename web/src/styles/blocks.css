@@ -830,6 +830,7 @@
 /* The lightbox: a native modal dialog sized to the viewport over a blurred
    backdrop. touch-action lets pinch-zoom through to the enlarged image. */
 .lightbox {
+  position: relative;
   max-width: 92vw;
   max-height: 92vh;
   padding: var(--space-3);
@@ -842,6 +843,31 @@
 .lightbox::backdrop {
   background: color-mix(in srgb, var(--ink) 55%, transparent);
   backdrop-filter: blur(4px);
+}
+/* A drawn close cross pinned to the corner; the backdrop and Escape still
+   dismiss. */
+.lightbox-close {
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-2);
+  display: grid;
+  place-items: center;
+  width: 1.9rem;
+  height: 1.9rem;
+  padding: 0;
+  font-size: var(--text-md);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--card) 82%, transparent);
+  color: var(--muted);
+  cursor: pointer;
+}
+.lightbox-close:hover:not(:disabled) {
+  color: var(--reject);
+  border-color: var(--reject);
+}
+.lightbox-close .mark {
+  color: inherit;
 }
 .lightbox-figure {
   margin: 0;

@@ -67,4 +67,20 @@ describe('CopyButton', () => {
     await act(async () => root.render(<CopyButton text="x" />));
     expect(container.querySelector('button')?.getAttribute('aria-label')).toBe('Copy code');
   });
+
+  it('renders nothing when the Clipboard API is unavailable', async () => {
+    Object.defineProperty(navigator, 'clipboard', { value: undefined, configurable: true });
+    await act(async () => root.render(<CopyButton text="x" />));
+    expect(container.querySelector('button')).toBeNull();
+  });
+
+  it('draws a cross when the write is denied', async () => {
+    writeText.mockRejectedValueOnce(new Error('denied'));
+    await act(async () => root.render(<CopyButton text="x" />));
+    await click();
+    expect(writeText).toHaveBeenCalledWith('x');
+    expect(container.querySelector('.mark-cross')).not.toBeNull();
+    expect(container.querySelector('.mark-check')).toBeNull();
+    expect(container.querySelector('.copy-glyph')).toBeNull();
+  });
 });

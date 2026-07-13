@@ -300,6 +300,23 @@ describe('FocusDeck advance cue', () => {
     expect(currentPrompt()).toBe('Ship one');
   });
 
+  it('exempts a verdict re-decide and re-arms from the new verdict', () => {
+    vi.useFakeTimers();
+    render({ blocks: three, interactions: empty() });
+    // Approve arms the cue.
+    render({ blocks: three, interactions: withVerdict('a1', 'approved') });
+    // A pointerdown on the reject control is a verdict interaction, not stray
+    // input: it must not retract the cue.
+    const reject = liveCard().querySelector('.verdict-reject') as HTMLButtonElement;
+    act(() => reject.dispatchEvent(new Event('pointerdown', { bubbles: true })));
+    expect(container.querySelector('.focus-nav-btn.advancing')).not.toBeNull();
+    // The re-decide re-arms; the deck still advances 450ms after it lands.
+    render({ blocks: three, interactions: withVerdict('a1', 'rejected') });
+    expect(container.querySelector('.focus-nav-btn.advancing')).not.toBeNull();
+    act(() => vi.advanceTimersByTime(AUTO_ADVANCE_MS));
+    expect(currentPrompt()).toBe('Ship two');
+  });
+
   it('renders a static standing note for the reduced-motion path', () => {
     vi.useFakeTimers();
     render({ blocks: three, interactions: empty() });

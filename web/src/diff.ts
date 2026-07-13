@@ -17,12 +17,22 @@ export interface DiffHunk {
 }
 
 const HUNK_HEADER = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@(.*)$/;
-const NEW_FILE = /^\+\+\+ (?:b\/)?(.*?)(?:\t.*)?$/;
+const NEW_FILE = /^\+\+\+ (.*?)(?:\t.*)?$/;
+const OLD_FILE = /^--- (.*?)(?:\t.*)?$/;
+
+// cleanPath strips git's surrounding double quotes (present when a path holds a
+// byte git escapes) and the a// b/ prefix, leaving the bare path for extension
+// inference.
+function cleanPath(raw: string): string {
+  const unquoted = raw.startsWith('"') && raw.endsWith('"') ? raw.slice(1, -1) : raw;
+  return unquoted.replace(/^[ab]\//, '');
+}
 
 export function parseDiff(diff: string): DiffHunk[] {
   const hunks: DiffHunk[] = [];
   let current: DiffHunk | null = null;
   let currentPath: string | null = null;
+  let currentOldPath: string | null = null;
   let oldNo = 0;
   let newNo = 0;
   let oldRem = 0;
@@ -53,9 +63,18 @@ export function parseDiff(diff: string): DiffHunk[] {
     }
 
     if (!current) {
-      const file = NEW_FILE.exec(line);
-      if (file) currentPath = file[1] ?? null;
-      else if (line.startsWith('diff --git ')) currentPath = null;
+      const newFile = NEW_FILE.exec(line);
+      if (newFile) {
+        const raw = newFile[1] ?? '';
+        currentPath = cleanPath(raw === '/dev/null' && currentOldPath ? currentOldPath : raw);
+      } else {
+        const oldFile = OLD_FILE.exec(line);
+        if (oldFile) currentOldPath = oldFile[1] ?? null;
+        else if (line.startsWith('diff --git ')) {
+          currentPath = null;
+          currentOldPath = null;
+        }
+      }
       continue; // file headers before the next hunk
     }
 

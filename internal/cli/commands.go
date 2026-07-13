@@ -48,21 +48,15 @@ func readInput(arg string, in io.Reader) ([]byte, error) {
 
 func client(d cmd.Deps) *ccdaemon.Client { return ccdaemon.NewClient(d.NewClient()) }
 
-// jsonErrorAt annotates a JSON syntax or type-mismatch error with the line and
-// column of the offending byte in raw; any other error passes through unchanged.
+// jsonErrorAt annotates a JSON syntax error with the line and column of the
+// offending byte in raw; any other error passes through unchanged. A nested
+// block's type error offsets a RawMessage sub-slice, not raw, so it stays bare.
 func jsonErrorAt(raw []byte, err error) error {
-	var offset int64
 	var se *json.SyntaxError
-	var ute *json.UnmarshalTypeError
-	switch {
-	case errors.As(err, &se):
-		offset = se.Offset
-	case errors.As(err, &ute):
-		offset = ute.Offset
-	default:
+	if !errors.As(err, &se) {
 		return err
 	}
-	line, col := lineCol(raw, offset)
+	line, col := lineCol(raw, se.Offset)
 	return fmt.Errorf("%w (line %d, column %d)", err, line, col)
 }
 

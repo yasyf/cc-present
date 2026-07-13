@@ -111,13 +111,16 @@ class PackBoundary extends Component<BoundaryProps, BoundaryState> {
 }
 
 export function PackBlockView({ block, interactions }: { block: PackBlock; interactions: Interactions }) {
-  const { post, closed, currentRound } = usePresent();
+  const { post, closed, currentRound, roundOver: apiRoundOver } = usePresent();
   const readOnly = useGroupReadOnly();
   const interactive = useInteractivePackTypes().has(block.type);
-  const disabled = closed || readOnly || !interactive;
+  // roundOver is carried by the board's read-only group or, group-less, by the
+  // single-block view's api; closed stays strictly the artifact's closed flag.
+  const roundOver = readOnly || (apiRoundOver ?? false);
+  const disabled = closed || roundOver || !interactive;
   const context = useMemo<PackBlockContext>(
-    () => ({ closed, roundOver: readOnly, round: currentRound }),
-    [closed, readOnly, currentRound],
+    () => ({ closed, roundOver, round: currentRound }),
+    [closed, roundOver, currentRound],
   );
   const scope = useMemo(() => ({ id: block.id, type: block.type }), [block.id, block.type]);
 

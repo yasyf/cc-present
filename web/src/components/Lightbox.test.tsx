@@ -87,4 +87,27 @@ describe('Lightbox', () => {
     expect(dialog().open).toBe(true);
     expect(onClose).not.toHaveBeenCalled();
   });
+
+  it('names the dialog by its alt when there is no caption', () => {
+    render(true, () => {});
+    expect(dialog().getAttribute('aria-label')).toBe('pic');
+    expect(dialog().getAttribute('aria-labelledby')).toBeNull();
+  });
+
+  it('labels the dialog by the caption when one is present', () => {
+    render(true, () => {}, 'a diagram');
+    const cap = container.querySelector('.lightbox-caption') as HTMLElement;
+    expect(cap.id).not.toBe('');
+    expect(dialog().getAttribute('aria-labelledby')).toBe(cap.id);
+    expect(dialog().getAttribute('aria-label')).toBeNull();
+  });
+
+  it('closes and fires onClose when the close button is clicked', () => {
+    const onClose = vi.fn();
+    render(true, onClose);
+    const close = container.querySelector('.lightbox-close') as HTMLButtonElement;
+    act(() => close.click());
+    expect(dialog().open).toBe(false);
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
 });
