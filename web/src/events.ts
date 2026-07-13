@@ -1,8 +1,8 @@
 // The append-only event log and the interaction cache it reduces to. Each
 // PresentEvent envelope matches the fixture shape the Go reducer consumes
 // ({ origin, type, seq, payload }); the payload types match the Go JSON exactly.
-// The reducer implementation lands in Phase 2 and consumes the same
-// internal/state/testdata/*.json fixtures via vitest.
+// The reducer implementation lives in reduce.ts and is fixture-tested against
+// the same internal/state/testdata/*.json fixtures via vitest.
 
 import type { Block, Doc } from './schema';
 
