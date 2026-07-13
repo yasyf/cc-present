@@ -117,10 +117,11 @@ export interface KeyboardProviderProps {
   closed: boolean;
   round: number;
   onViewToggle?: () => void;
+  onExpandAll?: () => boolean;
   children: ReactNode;
 }
 
-export function KeyboardProvider({ blocks, interactions, closed, round, onViewToggle, children }: KeyboardProviderProps) {
+export function KeyboardProvider({ blocks, interactions, closed, round, onViewToggle, onExpandAll, children }: KeyboardProviderProps) {
   const [cursorId, setCursorId] = useState<string | null>(null);
   const [helpOpen, setHelpOpen] = useState(false);
   const [liveMsg, setLiveMsg] = useState('');
@@ -129,6 +130,8 @@ export function KeyboardProvider({ blocks, interactions, closed, round, onViewTo
   const stepNavRef = useRef<StepNav | null>(null);
   const viewToggleRef = useRef(onViewToggle);
   viewToggleRef.current = onViewToggle;
+  const expandAllRef = useRef(onExpandAll);
+  expandAllRef.current = onExpandAll;
 
   const packInteractive = useInteractivePackTypes();
   const ring = useMemo(() => decidableIds(blocks, packInteractive), [blocks, packInteractive]);
@@ -281,6 +284,14 @@ export function KeyboardProvider({ blocks, interactions, closed, round, onViewTo
           e.preventDefault();
           viewToggleRef.current?.();
           break;
+        case 'expand-all': {
+          const toggle = expandAllRef.current;
+          if (toggle) {
+            e.preventDefault();
+            announce(toggle() ? 'Expanded all' : 'Collapsed all');
+          }
+          break;
+        }
         case 'help-toggle':
           e.preventDefault();
           setHelpOpen((v) => !v);

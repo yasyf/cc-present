@@ -52,6 +52,11 @@ const cases: Case[] = [
   { name: 'v survives a closed board', key: key({ key: 'v' }), typing: false, closed: true, expected: { kind: 'view-toggle' } },
   { name: 'typing swallows v', key: key({ key: 'v' }), typing: true, closed: false, expected: null },
   { name: 'meta+v is unbound', key: key({ key: 'v', meta: true }), typing: false, closed: false, expected: null },
+  { name: 'e expands all', key: key({ key: 'e' }), typing: false, closed: false, expected: { kind: 'expand-all' } },
+  { name: 'held e (repeat) is dropped', key: key({ key: 'e', repeat: true }), typing: false, closed: false, expected: null },
+  { name: 'e survives a closed board', key: key({ key: 'e' }), typing: false, closed: true, expected: { kind: 'expand-all' } },
+  { name: 'typing swallows e', key: key({ key: 'e' }), typing: true, closed: false, expected: null },
+  { name: 'meta+e is unbound', key: key({ key: 'e', meta: true }), typing: false, closed: false, expected: null },
   { name: '? toggles help', key: key({ key: '?', shift: true }), typing: false, closed: false, expected: { kind: 'help-toggle' } },
   { name: 'Escape escapes', key: key({ key: 'Escape' }), typing: false, closed: false, expected: { kind: 'escape' } },
   { name: 'typing swallows a letter', key: key({ key: 'a' }), typing: true, closed: false, expected: null },
@@ -86,5 +91,10 @@ describe('KEYMAP', () => {
   it('documents the view toggle so the help overlay renders it', () => {
     const row = KEYMAP.find((r) => r.keys.includes('v'));
     expect(row?.action).toMatch(/view/i);
+  });
+
+  it('documents the expand-all toggle so the help overlay renders it', () => {
+    const row = KEYMAP.find((r) => r.keys.includes('e'));
+    expect(row?.action).toMatch(/expand/i);
   });
 });

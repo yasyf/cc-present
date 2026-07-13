@@ -13,10 +13,11 @@ index 111..222 100644
  return None`;
 
 describe('parseDiff', () => {
-  it('parses one hunk with its heading', () => {
+  it('parses one hunk with its heading and new-file path', () => {
     const hunks = parseDiff(SAMPLE);
     expect(hunks).toHaveLength(1);
     expect(hunks[0]?.heading).toBe('def greet(name):');
+    expect(hunks[0]?.path).toBe('greet.py');
   });
 
   it('classifies rows and numbers both gutters', () => {
@@ -45,5 +46,69 @@ describe('parseDiff', () => {
   it('captures a no-newline marker as a meta row', () => {
     const rows = parseDiff(`@@ -1 +1 @@\n-a\n+b\n\\ No newline at end of file`)[0]?.rows ?? [];
     expect(rows.at(-1)).toMatchObject({ kind: 'meta', oldNo: null, newNo: null });
+  });
+});
+
+describe('parseDiff file-path capture', () => {
+  it('captures each file path across a multi-file diff and keeps headers out of rows', () => {
+    const multi = `diff --git a/a.ts b/a.ts
+index 1..2 100644
+--- a/a.ts
++++ b/a.ts
+@@ -1,2 +1,2 @@
+-const a = 1;
++const a = 2;
+ export default a;
+diff --git a/b.py b/b.py
+index 3..4 100644
+--- a/b.py
++++ b/b.py
+@@ -1 +1 @@
+-x = 1
++x = 2`;
+    const hunks = parseDiff(multi);
+    expect(hunks).toHaveLength(2);
+    expect(hunks[0]?.path).toBe('a.ts');
+    expect(hunks[1]?.path).toBe('b.py');
+    // the second file's headers must not leak into the first hunk's rows
+    const first = hunks[0]?.rows ?? [];
+    expect(first).toHaveLength(3);
+    expect(first.some((r) => r.text.includes('diff --git'))).toBe(false);
+    expect(first.some((r) => r.text.includes('b/b.py'))).toBe(false);
+  });
+
+  it('captures /dev/null for a deleted file', () => {
+    const deleted = `diff --git a/gone.go b/gone.go
+deleted file mode 100644
+index 5..0
+--- a/gone.go
++++ /dev/null
+@@ -1,2 +0,0 @@
+-package main
+-// bye`;
+    const hunks = parseDiff(deleted);
+    expect(hunks).toHaveLength(1);
+    expect(hunks[0]?.path).toBe('/dev/null');
+    expect(hunks[0]?.rows.map((r) => r.kind)).toEqual(['del', 'del']);
+  });
+
+  it('captures the rename target as the new-file path', () => {
+    const renamed = `diff --git a/old.ts b/new.ts
+similarity index 90%
+rename from old.ts
+rename to new.ts
+index 7..8 100644
+--- a/old.ts
++++ b/new.ts
+@@ -1 +1 @@
+-const x = 1;
++const x = 2;`;
+    const hunks = parseDiff(renamed);
+    expect(hunks[0]?.path).toBe('new.ts');
+  });
+
+  it('handles a tab-suffixed +++ header', () => {
+    const tabbed = `--- a/x.rs\t2024-01-01\n+++ b/x.rs\t2024-01-02\n@@ -1 +1 @@\n-a\n+b`;
+    expect(parseDiff(tabbed)[0]?.path).toBe('x.rs');
   });
 });

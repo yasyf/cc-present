@@ -5,7 +5,7 @@
 
 import { createHighlighterCore } from 'shiki/core';
 import { createJavaScriptRegexEngine } from 'shiki/engine/javascript';
-import type { HighlighterCore } from 'shiki/core';
+import type { HighlighterCore, ThemedToken } from 'shiki/core';
 import githubDark from '@shikijs/themes/github-dark';
 import githubLight from '@shikijs/themes/github-light';
 import bash from '@shikijs/langs/bash';
@@ -63,6 +63,15 @@ export function resolveLang(lang: string): CodeLang | null {
   return ALIASES[normal] ?? null;
 }
 
+// langFromPath resolves a diff's file path to a grammar via its extension, or
+// null when the extension is outside the curated set.
+export function langFromPath(path: string): CodeLang | null {
+  const base = path.slice(path.lastIndexOf('/') + 1);
+  const dot = base.lastIndexOf('.');
+  if (dot <= 0) return null;
+  return resolveLang(base.slice(dot + 1));
+}
+
 let highlighterPromise: Promise<HighlighterCore> | null = null;
 
 export function getHighlighter(): Promise<HighlighterCore> {
@@ -94,5 +103,15 @@ export function getHighlighter(): Promise<HighlighterCore> {
 export function highlight(code: string, lang: CodeLang): Promise<string> {
   return getHighlighter().then((hl) =>
     hl.codeToHtml(code, { lang, themes: { light: 'github-light', dark: 'github-dark' } }),
+  );
+}
+
+// tokenizeLines returns dual-theme tokens per line (aligned to input lines) for
+// the Diff block; each token's htmlStyle carries the light color + --shiki-dark var.
+export function tokenizeLines(code: string, lang: CodeLang): Promise<ThemedToken[][]> {
+  return getHighlighter().then(
+    (hl) =>
+      hl.codeToTokens(code, { lang, themes: { light: 'github-light', dark: 'github-dark' } })
+        .tokens,
   );
 }

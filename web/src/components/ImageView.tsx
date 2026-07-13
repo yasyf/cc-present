@@ -1,5 +1,7 @@
+import { useState } from 'react';
 import type { Image as ImageBlock } from '../schema';
 import { withToken } from '../token';
+import { Lightbox } from './Lightbox';
 
 // asset:<sha256> resolves to the daemon's content-addressed store at
 // /assets/<sha256>, token-bearing so off-loopback sessions authenticate; https:
@@ -9,10 +11,15 @@ function resolveSrc(src: string): string {
 }
 
 export function ImageView({ block }: { block: ImageBlock }) {
+  const [open, setOpen] = useState(false);
+  const src = resolveSrc(block.src);
   return (
     <figure className="image-block">
-      <img src={resolveSrc(block.src)} alt={block.alt} loading="lazy" />
+      <button type="button" className="image-trigger" aria-haspopup="dialog" onClick={() => setOpen(true)}>
+        <img src={src} alt={block.alt} loading="lazy" />
+      </button>
       {block.caption && <figcaption className="image-caption">{block.caption}</figcaption>}
+      <Lightbox open={open} onClose={() => setOpen(false)} src={src} alt={block.alt} caption={block.caption} />
     </figure>
   );
 }

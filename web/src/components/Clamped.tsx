@@ -1,5 +1,6 @@
 import { useLayoutEffect, useRef, useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
+import { useExpandAll } from '../expand';
 
 interface ClampedProps {
   html?: string;
@@ -9,9 +10,17 @@ interface ClampedProps {
 }
 
 export function Clamped({ html, children, lines, className }: ClampedProps) {
+  const { epoch, expanded: wantExpanded } = useExpandAll();
   const contentRef = useRef<HTMLDivElement>(null);
   const [expanded, setExpanded] = useState(false);
   const [overflowing, setOverflowing] = useState(false);
+  // A global expand-all bumps the epoch; re-sync this block to the shared target,
+  // which a later Show more/less press overrides until the next epoch.
+  const [syncedEpoch, setSyncedEpoch] = useState(epoch);
+  if (syncedEpoch !== epoch) {
+    setSyncedEpoch(epoch);
+    setExpanded(wantExpanded);
+  }
   const expandedRef = useRef(expanded);
   expandedRef.current = expanded;
   const mounted = useRef(false);

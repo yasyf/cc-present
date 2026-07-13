@@ -524,10 +524,63 @@
 .code-block {
   margin: 0;
 }
+.code-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-bottom: var(--space-1);
+  min-height: 1.55rem;
+}
 .code-title {
   font-size: var(--text-2xs);
   color: var(--muted);
-  margin-bottom: var(--space-1);
+}
+.code-tools {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.code-lang {
+  font-family: var(--font-stamp);
+  font-size: var(--text-2xs);
+  letter-spacing: var(--track-caps);
+  text-transform: uppercase;
+  color: var(--muted);
+}
+/* The fallback stops being silent: an uncurated language reads in hold amber. */
+.code-lang-plain {
+  color: var(--hold);
+  text-transform: none;
+}
+.copy-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.55rem;
+  height: 1.55rem;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 15px;
+}
+.copy-button:hover {
+  color: var(--ink);
+}
+.copy-button:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+.copy-glyph {
+  width: 15px;
+  height: 15px;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 .code-plain,
 .shiki-wrap .shiki {
@@ -568,13 +621,33 @@
   color: var(--muted);
   margin-bottom: var(--space-1);
 }
+/* A tall diff caps at 60vh so the per-hunk header can stick as it scrolls; the
+   horizontal-overflow mask (mirroring the table block) still applies. */
 .diff-table {
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
-  overflow: hidden;
   font-family: var(--font-mono);
   font-size: var(--text-xs);
-  overflow-x: auto;
+  overflow: auto;
+  max-height: 60vh;
+}
+.diff-table.fade-start {
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 24px);
+  mask-image: linear-gradient(to right, transparent, #000 24px);
+}
+.diff-table.fade-end {
+  -webkit-mask-image: linear-gradient(to left, transparent, #000 24px);
+  mask-image: linear-gradient(to left, transparent, #000 24px);
+}
+.diff-table.fade-start.fade-end {
+  -webkit-mask-image: linear-gradient(
+    to right,
+    transparent,
+    #000 24px,
+    #000 calc(100% - 24px),
+    transparent
+  );
+  mask-image: linear-gradient(to right, transparent, #000 24px, #000 calc(100% - 24px), transparent);
 }
 .diff-row {
   display: grid;
@@ -601,6 +674,10 @@
 .diff-hunk-head {
   background: var(--mono-bg);
   color: var(--muted);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  box-shadow: inset 0 -1px 0 var(--line);
 }
 .diff-add {
   background: color-mix(in srgb, var(--approve) 14%, transparent);
@@ -614,11 +691,54 @@
 .diff-del .diff-mark {
   color: var(--reject);
 }
+/* Syntax tokens carry an inline light color + --shiki-dark var; swap only the
+   color in dark mode so the add/del row tints survive on top. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .diff-tok {
+    color: var(--shiki-dark) !important;
+  }
+}
+:root[data-theme='dark'] .diff-tok {
+  color: var(--shiki-dark) !important;
+}
 
 /* --- Table --- */
 
 .table-block {
   overflow-x: auto;
+}
+/* A tall table (>12 rows) caps at 60vh and scrolls vertically under a header
+   pinned to the paper surface; the horizontal-scroll mask still applies. */
+.table-block.table-capped {
+  max-height: 60vh;
+  overflow-y: auto;
+}
+.table-block.table-capped thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--paper);
+  box-shadow: inset 0 -1px 0 var(--border-strong);
+}
+/* Edge fades cue horizontal overflow: a column stays clipped behind a soft edge
+   until the scroller reaches that end. Toggled from useScrollEdges. */
+.table-block.fade-start {
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 24px);
+  mask-image: linear-gradient(to right, transparent, #000 24px);
+}
+.table-block.fade-end {
+  -webkit-mask-image: linear-gradient(to left, transparent, #000 24px);
+  mask-image: linear-gradient(to left, transparent, #000 24px);
+}
+.table-block.fade-start.fade-end {
+  -webkit-mask-image: linear-gradient(
+    to right,
+    transparent,
+    #000 24px,
+    #000 calc(100% - 24px),
+    transparent
+  );
+  mask-image: linear-gradient(to right, transparent, #000 24px, #000 calc(100% - 24px), transparent);
 }
 .table-block table {
   border-collapse: collapse;
@@ -683,6 +803,18 @@
 .image-block {
   margin: 0;
 }
+/* The image is the button that opens the lightbox; strip the base button chrome
+   so only the framed picture reads, and cue the zoom affordance. */
+.image-trigger {
+  display: block;
+  width: fit-content;
+  max-width: 100%;
+  padding: 0;
+  border: none;
+  background: none;
+  border-radius: var(--radius-md);
+  cursor: zoom-in;
+}
 .image-block img {
   max-width: 100%;
   border-radius: var(--radius-md);
@@ -693,6 +825,48 @@
   font-size: var(--text-sm);
   color: var(--muted);
   margin-top: var(--space-1);
+}
+
+/* The lightbox: a native modal dialog sized to the viewport over a blurred
+   backdrop. touch-action lets pinch-zoom through to the enlarged image. */
+.lightbox {
+  max-width: 92vw;
+  max-height: 92vh;
+  padding: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--card);
+  color: var(--ink);
+  animation: lightbox-in var(--dur-2) var(--ease-out);
+}
+.lightbox::backdrop {
+  background: color-mix(in srgb, var(--ink) 55%, transparent);
+  backdrop-filter: blur(4px);
+}
+.lightbox-figure {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.lightbox-img {
+  display: block;
+  max-width: 100%;
+  max-height: 78vh;
+  object-fit: contain;
+  border-radius: var(--radius-md);
+  touch-action: pinch-zoom;
+}
+.lightbox-caption {
+  font-size: var(--text-sm);
+  color: var(--muted);
+  text-align: center;
+}
+@keyframes lightbox-in {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
 }
 
 /* --- Clamped (expand/collapse for long text) --- */

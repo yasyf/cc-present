@@ -21,6 +21,7 @@ export type KbdAction =
   | { kind: 'engage' }
   | { kind: 'submit' }
   | { kind: 'view-toggle' }
+  | { kind: 'expand-all' }
   | { kind: 'help-toggle' }
   | { kind: 'escape' };
 
@@ -39,6 +40,7 @@ export const KEYMAP: KeymapRow[] = [
   { keys: ['f'], context: 'On an approval or field', action: 'Add feedback / focus the field' },
   { keys: ['⌘/Ctrl', '⏎'], context: 'Anywhere', action: 'Submit the round (confirm when items are undecided); while writing feedback, sends the note instead' },
   { keys: ['v'], context: 'Anywhere', action: 'Toggle focus / board view' },
+  { keys: ['e'], context: 'Anywhere', action: 'Expand / collapse all clamped content' },
   { keys: ['?'], context: 'Anywhere', action: 'Toggle this help' },
   { keys: ['Esc'], context: 'Anywhere', action: 'Close help, else leave the field' },
 ];
@@ -51,17 +53,19 @@ const TOGGLE_SUPPRESSED = new Set<KbdAction['kind']>([
   'choose',
   'engage',
   'view-toggle',
+  'expand-all',
   'help-toggle',
 ]);
 
 // resolveKey is the raw grammar (auto-repeat ignored): Esc survives a text field,
-// `?`/`v` survive a closed board, and a field swallows the rest.
+// `?`/`v`/`e` survive a closed board, and a field swallows the rest.
 function resolveKey(d: KeyDescriptor, typing: boolean, closed: boolean): KbdAction | null {
   if (d.key === 'Escape') return { kind: 'escape' };
   if (typing) return null;
 
   if (d.key === '?') return { kind: 'help-toggle' };
   if (d.key === 'v') return { kind: 'view-toggle' };
+  if (d.key === 'e') return { kind: 'expand-all' };
   if (closed) return null;
 
   switch (d.key) {

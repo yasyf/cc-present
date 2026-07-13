@@ -15,6 +15,7 @@ import { focusSteps } from './focus';
 import { loadView, resolveMode, saveView } from './viewmode';
 import type { ViewMode } from './viewmode';
 import { KeyboardProvider } from './keyboard';
+import { ExpandAllProvider, useExpandAll } from './expand';
 import { useInteractivePackTypes } from './packs/registry';
 import { PresentContext } from './present';
 import type { PresentApi } from './present';
@@ -48,11 +49,13 @@ export function App() {
   return (
     <SubjectProvider value={{ subject, scope: undefined }}>
       <EventStreamProvider subject={subject}>
-        {blockId ? (
-          <SingleBlockView subject={subject} blockId={blockId} />
-        ) : (
-          <PresentView subject={subject} />
-        )}
+        <ExpandAllProvider>
+          {blockId ? (
+            <SingleBlockView subject={subject} blockId={blockId} />
+          ) : (
+            <PresentView subject={subject} />
+          )}
+        </ExpandAllProvider>
       </EventStreamProvider>
     </SubjectProvider>
   );
@@ -106,6 +109,7 @@ function PresentView({ subject }: { subject: string }) {
     [subject],
   );
   const toggleView = useCallback(() => setView(mode === 'focus' ? 'board' : 'focus'), [mode, setView]);
+  const expandAll = useExpandAll();
 
   const listRef = useRef<HTMLDivElement>(null);
   useFlip(listRef);
@@ -180,6 +184,7 @@ function PresentView({ subject }: { subject: string }) {
         closed={closed}
         round={currentRound}
         onViewToggle={toggleView}
+        onExpandAll={expandAll.toggle}
       >
         <AppShell
           header={
