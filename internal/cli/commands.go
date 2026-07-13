@@ -48,6 +48,77 @@ func readInput(arg string, in io.Reader) ([]byte, error) {
 
 func client(d cmd.Deps) *ccdaemon.Client { return ccdaemon.NewClient(d.NewClient()) }
 
+// jsonErrorAt annotates a JSON syntax or type-mismatch error with the line and
+// column of the offending byte in raw; any other error passes through unchanged.
+func jsonErrorAt(raw []byte, err error) error {
+	var offset int64
+	var se *json.SyntaxError
+	var ute *json.UnmarshalTypeError
+	switch {
+	case errors.As(err, &se):
+		offset = se.Offset
+	case errors.As(err, &ute):
+		offset = ute.Offset
+	default:
+		return err
+	}
+	line, col := lineCol(raw, offset)
+	return fmt.Errorf("%w (line %d, column %d)", err, line, col)
+}
+
+// lineCol maps a 1-based json byte offset (the count read when the error fired,
+// so the offending byte is the last one) to its 1-based line and column.
+func lineCol(data []byte, offset int64) (int, int) {
+	if offset > int64(len(data)) {
+		offset = int64(len(data))
+	}
+	pos := offset - 1
+	if pos < 0 {
+		pos = 0
+	}
+	line, col := 1, 1
+	for _, b := range data[:pos] {
+		if b == '\n' {
+			line++
+			col = 1
+		} else {
+			col++
+		}
+	}
+	return line, col
+}
+
+// dryRunReport inlines any local image against the content-addressed store, then
+// runs the whole-document validator, returning the text to print and whether the
+// document passed; a false result maps to a non-zero exit at the call site.
+func dryRunReport(dd *doc.Doc, pt doc.PackTypes) (string, bool) {
+	if err := inlineImages(dd.Blocks, localUploader); err != nil {
+		return err.Error(), false
+	}
+	if err := dd.Validate(pt); err != nil {
+		return err.Error(), false
+	}
+	return "ok", true
+}
+
+// blockDoc wraps a lone block in a minimal envelope so update-block --dry-run
+// reuses the whole-document validator, checking the block as the top-level block
+// update-block inserts it as.
+func blockDoc(b doc.Block) *doc.Doc {
+	return &doc.Doc{Version: 1, Title: "dry-run", Blocks: []doc.Block{b}}
+}
+
+// stripDocKey drops the top-level "doc" key from reduced-state JSON so
+// outcomes --no-doc emits only the human interactions and round partition.
+func stripDocKey(raw json.RawMessage) (json.RawMessage, error) {
+	var m map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &m); err != nil {
+		return nil, err
+	}
+	delete(m, "doc")
+	return json.Marshal(m)
+}
+
 // newStartCmd creates or resumes this scope's artifact and prints its ref, URL,
 // and channel state, one per line.
 func newStartCmd(d cmd.Deps) *cobra.Command {
@@ -120,22 +191,18 @@ func newPushCmd(d cmd.Deps) *cobra.Command {
 			}
 			dd := &doc.Doc{}
 			if err := json.Unmarshal(raw, dd); err != nil {
-				return fmt.Errorf("decode doc: %w", err)
+				return fmt.Errorf("decode doc: %w", jsonErrorAt(raw, err))
 			}
 			if dryRun {
-				if err := inlineImages(dd.Blocks, localUploader); err != nil {
-					_, _ = fmt.Fprintln(c.OutOrStdout(), err)
-					os.Exit(1)
-				}
 				cfg, err := app.ReadConfig()
 				if err != nil {
 					return err
 				}
-				if err := dd.Validate(packs.Load(cfg.PackDirs, cfg.DisabledPacks)); err != nil {
-					_, _ = fmt.Fprintln(c.OutOrStdout(), err)
+				msg, ok := dryRunReport(dd, packs.Load(cfg.PackDirs, cfg.DisabledPacks))
+				_, _ = fmt.Fprintln(c.OutOrStdout(), msg)
+				if !ok {
 					os.Exit(1)
 				}
-				_, _ = fmt.Fprintln(c.OutOrStdout(), "ok")
 				return nil
 			}
 			ctx := c.Context()
@@ -168,13 +235,14 @@ func newPushCmd(d cmd.Deps) *cobra.Command {
 	}
 	c.Flags().StringVar(&session, "session", "", "Claude session id (defaults to $CLAUDE_CODE_SESSION_ID)")
 	c.Flags().StringVar(&cwd, "cwd", "", "working directory / scope (defaults to the current directory)")
-	c.Flags().BoolVar(&dryRun, "dry-run", false, "validate the document only; print the first error and exit non-zero")
+	c.Flags().BoolVar(&dryRun, "dry-run", false, "validate the document only; print every violation and exit non-zero")
 	return c
 }
 
 // newUpdateBlockCmd inserts or replaces a single block, optionally after another.
 func newUpdateBlockCmd(d cmd.Deps) *cobra.Command {
 	var session, cwd, after string
+	var dryRun bool
 	c := &cobra.Command{
 		Use:   "update-block <file|->",
 		Short: "Insert or replace a single block",
@@ -186,7 +254,19 @@ func newUpdateBlockCmd(d cmd.Deps) *cobra.Command {
 			}
 			blk, err := doc.DecodeBlock(raw)
 			if err != nil {
-				return err
+				return jsonErrorAt(raw, err)
+			}
+			if dryRun {
+				cfg, err := app.ReadConfig()
+				if err != nil {
+					return err
+				}
+				msg, ok := dryRunReport(blockDoc(blk), packs.Load(cfg.PackDirs, cfg.DisabledPacks))
+				_, _ = fmt.Fprintln(c.OutOrStdout(), msg)
+				if !ok {
+					os.Exit(1)
+				}
+				return nil
 			}
 			ctx := c.Context()
 			if err := d.EnsureCurrent(ctx); err != nil {
@@ -214,6 +294,7 @@ func newUpdateBlockCmd(d cmd.Deps) *cobra.Command {
 	c.Flags().StringVar(&session, "session", "", "Claude session id (defaults to $CLAUDE_CODE_SESSION_ID)")
 	c.Flags().StringVar(&cwd, "cwd", "", "working directory / scope (defaults to the current directory)")
 	c.Flags().StringVar(&after, "after", "", "insert a new block after this block id (append when absent or unknown)")
+	c.Flags().BoolVar(&dryRun, "dry-run", false, "validate the single block only; print every violation and exit non-zero")
 	return c
 }
 
@@ -300,6 +381,7 @@ func newRoundCmd(d cmd.Deps) *cobra.Command {
 // drain.
 func newOutcomesCmd(d cmd.Deps) *cobra.Command {
 	var session, cwd string
+	var noDoc bool
 	c := &cobra.Command{
 		Use:   "outcomes",
 		Short: "Print the artifact's reduced document and human interactions as JSON",
@@ -313,6 +395,12 @@ func newOutcomesCmd(d cmd.Deps) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			if noDoc {
+				raw, err = stripDocKey(raw)
+				if err != nil {
+					return err
+				}
+			}
 			var buf bytes.Buffer
 			if err := json.Indent(&buf, raw, "", "  "); err != nil {
 				return err
@@ -321,6 +409,7 @@ func newOutcomesCmd(d cmd.Deps) *cobra.Command {
 			return nil
 		},
 	}
+	c.Flags().BoolVar(&noDoc, "no-doc", false, "omit the reduced document, printing only the human interactions and rounds")
 	c.Flags().StringVar(&session, "session", "", "Claude session id (defaults to $CLAUDE_CODE_SESSION_ID)")
 	c.Flags().StringVar(&cwd, "cwd", "", "working directory / scope (defaults to the current directory)")
 	return c

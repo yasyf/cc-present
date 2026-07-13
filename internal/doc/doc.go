@@ -300,48 +300,49 @@ func decodeInto[T Block](data json.RawMessage, dst T) (Block, error) {
 	return dst, nil
 }
 
-// Validate reports the first structural violation in the document: version must
-// be 1, the title non-empty, presentation one of "focus" or "board" when set,
-// every block id globally unique, cards nesting
-// exactly one level of leaf blocks (a card may not contain a section or another
-// card), per-type required fields present, the serialized doc within
-// MaxDocBytes, and image data URIs within MaxDataURIBytes. Pack blocks are
-// leaf-only and validated against pt.
+// Validate reports every structural violation in the document, joined via
+// errors.Join so a whole board's problems surface in one pass: version must be 1,
+// the title non-empty, presentation one of "focus" or "board" when set, every
+// block id globally unique, cards nesting exactly one level of leaf blocks (a
+// card may not contain a section or another card), per-type required fields
+// present, the serialized doc within MaxDocBytes, and image data URIs within
+// MaxDataURIBytes. Each block's validator still fails fast at its first
+// violation; the per-block boundary is the collection granularity. Pack blocks
+// are leaf-only and validated against pt.
 func (d *Doc) Validate(pt PackTypes) error {
+	var errs []error
 	if d.Version != 1 {
-		return fmt.Errorf("doc version must be 1, got %d", d.Version)
+		errs = append(errs, fmt.Errorf("doc version must be 1, got %d", d.Version))
 	}
 	if d.Title == "" {
-		return errEmptyTitle
+		errs = append(errs, errEmptyTitle)
 	}
 	if d.Presentation != nil && !validPresentation[*d.Presentation] {
-		return fmt.Errorf("doc presentation must be focus or board, got %q", *d.Presentation)
+		errs = append(errs, fmt.Errorf("doc presentation must be focus or board, got %q", *d.Presentation))
 	}
 	seen := map[string]bool{}
 	for _, b := range d.Blocks {
 		if err := registerID(seen, b.BlockID()); err != nil {
-			return err
+			errs = append(errs, err)
 		}
 		if err := validateBlock(b, pt); err != nil {
-			return err
+			errs = append(errs, err)
 		}
 		for _, child := range Children(b) {
 			if err := registerID(seen, child.BlockID()); err != nil {
-				return err
+				errs = append(errs, err)
 			}
 			if err := validateChild(b, child, pt); err != nil {
-				return err
+				errs = append(errs, err)
 			}
 		}
 	}
-	data, err := json.Marshal(d)
-	if err != nil {
-		return fmt.Errorf("marshal doc: %w", err)
+	if data, err := json.Marshal(d); err != nil {
+		errs = append(errs, fmt.Errorf("marshal doc: %w", err))
+	} else if len(data) > MaxDocBytes {
+		errs = append(errs, fmt.Errorf("doc is %d bytes, exceeds %d", len(data), MaxDocBytes))
 	}
-	if len(data) > MaxDocBytes {
-		return fmt.Errorf("doc is %d bytes, exceeds %d", len(data), MaxDocBytes)
-	}
-	return nil
+	return errors.Join(errs...)
 }
 
 func registerID(seen map[string]bool, id string) error {

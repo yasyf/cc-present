@@ -136,6 +136,30 @@ func TestValidate(t *testing.T) {
 	}
 }
 
+// TestValidateJoinsViolations pins the all-violations behavior: three distinct
+// problems across three blocks surface together as one errors.Join string, in
+// document order, rather than fail-fasting on the first.
+func TestValidateJoinsViolations(t *testing.T) {
+	d := docWith(strings.Join([]string{
+		`{"id":"s1","type":"section"}`,
+		`{"id":"c1","type":"card","status":"bogus","children":[]}`,
+		`{"id":"p1","type":"progress","label":"L","value":9,"max":3}`,
+	}, ","))
+	_, err := parse(d)
+	if err == nil {
+		t.Fatal("parse() error = nil, want three joined violations")
+	}
+	want := `section "s1": title must not be empty
+card "c1": invalid status "bogus"
+progress "p1": value 9 out of range [0,3]`
+	if err.Error() != want {
+		t.Fatalf("parse() error =\n%s\nwant\n%s", err.Error(), want)
+	}
+	if got := strings.Count(err.Error(), "\n"); got != 2 {
+		t.Fatalf("joined error has %d newlines, want 2 (one per violation, newline-joined)", got)
+	}
+}
+
 func TestRoundTrip(t *testing.T) {
 	var d doc.Doc
 	if err := json.Unmarshal([]byte(richDoc), &d); err != nil {
