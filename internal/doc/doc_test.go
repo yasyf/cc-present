@@ -69,6 +69,10 @@ func TestValidate(t *testing.T) {
 
 		{"version not 1", `{"version":2,"title":"T","blocks":[]}`, "version must be 1"},
 		{"empty title", `{"version":1,"title":"","blocks":[]}`, "title must not be empty"},
+		{"presentation focus", `{"version":1,"title":"T","presentation":"focus","blocks":[]}`, ""},
+		{"presentation board", `{"version":1,"title":"T","presentation":"board","blocks":[]}`, ""},
+		{"presentation empty", `{"version":1,"title":"T","presentation":"","blocks":[]}`, "presentation must be"},
+		{"presentation junk", `{"version":1,"title":"T","presentation":"carousel","blocks":[]}`, "presentation must be"},
 		{"unknown block type", docWith(`{"id":"x1","type":"frobnicate"}`), `unknown type "frobnicate"`},
 		{"empty block id", docWith(`{"id":"","type":"section","title":"S"}`), "block id must not be empty"},
 		{"duplicate top-level id", docWith(`{"id":"d","type":"section","title":"A"},{"id":"d","type":"section","title":"B"}`), `duplicate block id "d"`},
@@ -212,6 +216,58 @@ func TestFieldRoundTrip(t *testing.T) {
 				t.Fatalf("block[0] type = %T, want *doc.Card", reparsed.Blocks[0])
 			}
 			tt.check(t, c)
+		})
+	}
+}
+
+// TestPresentationRoundTrip guards Doc.UnmarshalJSON's pointer copy of the
+// presentation hint: a present value survives decode and re-marshal, and an
+// absent field stays nil and re-marshals without the key.
+func TestPresentationRoundTrip(t *testing.T) {
+	tests := []struct {
+		name  string
+		doc   string
+		check func(t *testing.T, d *doc.Doc, marshaled string)
+	}{
+		{
+			name: "board value survives decode and marshal",
+			doc:  `{"version":1,"title":"T","presentation":"board","blocks":[]}`,
+			check: func(t *testing.T, d *doc.Doc, marshaled string) {
+				if d.Presentation == nil {
+					t.Fatalf("presentation = nil, want %q", "board")
+				}
+				if *d.Presentation != "board" {
+					t.Fatalf("presentation = %q, want %q", *d.Presentation, "board")
+				}
+				if !strings.Contains(marshaled, `"presentation":"board"`) {
+					t.Fatalf("marshal = %s, want substring %q", marshaled, `"presentation":"board"`)
+				}
+			},
+		},
+		{
+			name: "absent field stays nil and omits the key",
+			doc:  `{"version":1,"title":"T","blocks":[]}`,
+			check: func(t *testing.T, d *doc.Doc, marshaled string) {
+				if d.Presentation != nil {
+					t.Fatalf("presentation = %q, want nil", *d.Presentation)
+				}
+				if strings.Contains(marshaled, "presentation") {
+					t.Fatalf("marshal = %s, want no presentation key", marshaled)
+				}
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var d doc.Doc
+			if err := json.Unmarshal([]byte(tt.doc), &d); err != nil {
+				t.Fatalf("unmarshal: %v", err)
+			}
+			out, err := json.Marshal(&d)
+			if err != nil {
+				t.Fatalf("marshal: %v", err)
+			}
+			tt.check(t, &d, string(out))
 		})
 	}
 }

@@ -24,6 +24,7 @@ var (
 	validStatus        = map[string]bool{"open": true, "resolved": true, "redrafted": true}
 	validTone          = map[string]bool{"default": true, "flag": true, "demo": true}
 	validProgressState = map[string]bool{"active": true, "done": true, "error": true}
+	validPresentation  = map[string]bool{"focus": true, "board": true}
 	assetSHAPattern    = regexp.MustCompile(`^asset:[0-9a-f]{64}$`)
 	errEmptyBlockID    = errors.New("block id must not be empty")
 	errEmptyTitle      = errors.New("doc title must not be empty")
@@ -62,12 +63,13 @@ type Submit struct {
 // Doc is the document envelope: a flat list of top-level blocks plus header
 // metadata. Version is the schema version and is always 1.
 type Doc struct {
-	Version int     `json:"version"`
-	Title   string  `json:"title"`
-	Intro   string  `json:"intro,omitempty"`
-	Stats   []Stat  `json:"stats,omitempty"`
-	Submit  *Submit `json:"submit,omitempty"`
-	Blocks  []Block `json:"blocks"`
+	Version      int     `json:"version"`
+	Title        string  `json:"title"`
+	Intro        string  `json:"intro,omitempty"`
+	Stats        []Stat  `json:"stats,omitempty"`
+	Submit       *Submit `json:"submit,omitempty"`
+	Presentation *string `json:"presentation,omitempty"`
+	Blocks       []Block `json:"blocks"`
 }
 
 // Section is a top-level header marker with optional prose.
@@ -182,12 +184,13 @@ type Progress struct {
 // UnmarshalJSON decodes the envelope and dispatches each block by its type tag.
 func (d *Doc) UnmarshalJSON(data []byte) error {
 	var raw struct {
-		Version int               `json:"version"`
-		Title   string            `json:"title"`
-		Intro   string            `json:"intro"`
-		Stats   []Stat            `json:"stats"`
-		Submit  *Submit           `json:"submit"`
-		Blocks  []json.RawMessage `json:"blocks"`
+		Version      int               `json:"version"`
+		Title        string            `json:"title"`
+		Intro        string            `json:"intro"`
+		Stats        []Stat            `json:"stats"`
+		Submit       *Submit           `json:"submit"`
+		Presentation *string           `json:"presentation"`
+		Blocks       []json.RawMessage `json:"blocks"`
 	}
 	if err := json.Unmarshal(data, &raw); err != nil {
 		return fmt.Errorf("unmarshal doc: %w", err)
@@ -197,6 +200,7 @@ func (d *Doc) UnmarshalJSON(data []byte) error {
 	d.Intro = raw.Intro
 	d.Stats = raw.Stats
 	d.Submit = raw.Submit
+	d.Presentation = raw.Presentation
 	blocks, err := decodeBlocks(raw.Blocks)
 	if err != nil {
 		return err
@@ -297,7 +301,8 @@ func decodeInto[T Block](data json.RawMessage, dst T) (Block, error) {
 }
 
 // Validate reports the first structural violation in the document: version must
-// be 1, the title non-empty, every block id globally unique, cards nesting
+// be 1, the title non-empty, presentation one of "focus" or "board" when set,
+// every block id globally unique, cards nesting
 // exactly one level of leaf blocks (a card may not contain a section or another
 // card), per-type required fields present, the serialized doc within
 // MaxDocBytes, and image data URIs within MaxDataURIBytes. Pack blocks are
@@ -308,6 +313,9 @@ func (d *Doc) Validate(pt PackTypes) error {
 	}
 	if d.Title == "" {
 		return errEmptyTitle
+	}
+	if d.Presentation != nil && !validPresentation[*d.Presentation] {
+		return fmt.Errorf("doc presentation must be focus or board, got %q", *d.Presentation)
 	}
 	seen := map[string]bool{}
 	for _, b := range d.Blocks {

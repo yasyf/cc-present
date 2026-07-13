@@ -31,11 +31,19 @@ public struct Doc: Codable, Equatable, Sendable {
         }
     }
 
+    /// Presentation is a per-push hint for the client's default view; the
+    /// viewer's own toggle overrides it.
+    public enum Presentation: String, Codable, Equatable, Sendable {
+        case focus
+        case board
+    }
+
     public var version: Int
     public var title: String
     public var intro: String?
     public var stats: [Stat]?
     public var submit: Submit?
+    public var presentation: Presentation?
     public var blocks: [Block]
 
     public init(
@@ -44,6 +52,7 @@ public struct Doc: Codable, Equatable, Sendable {
         intro: String? = nil,
         stats: [Stat]? = nil,
         submit: Submit? = nil,
+        presentation: Presentation? = nil,
         blocks: [Block]
     ) {
         self.version = version
@@ -51,6 +60,7 @@ public struct Doc: Codable, Equatable, Sendable {
         self.intro = intro
         self.stats = stats
         self.submit = submit
+        self.presentation = presentation
         self.blocks = blocks
     }
 }

@@ -201,5 +201,7 @@ export interface Doc {
   intro?: string;
   stats?: Stat[];
   submit?: Submit;
+  // Per-push hint for the client's default view; the viewer's own toggle overrides it.
+  presentation?: 'focus' | 'board';
   blocks: Block[];
 }

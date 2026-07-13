@@ -18,12 +18,15 @@ seq 0 reconstructs a fresh tab's state; there is no get-document endpoint.
 ## Document envelope
 
 ```ts
-Doc = { version: 1, title, intro?, stats?: {label, value}[], submit?: {label, note?}, blocks: Block[] }
+Doc = { version: 1, title, intro?, stats?: {label, value}[], submit?: {label, note?}, presentation?: 'focus' | 'board', blocks: Block[] }
 ```
 
 `blocks` is a flat list of blocks. A `section`, a `card`, any of the nine built-in
 leaf blocks, or a pack block (see Block packs) may appear directly in `blocks`; a
 card nests leaf blocks only.
+
+`presentation` is a per-push hint for the client's default view; the viewer's own
+toggle overrides it.
 
 ## Block schema
 
@@ -46,6 +49,7 @@ card nests leaf blocks only.
 `Doc.Validate` returns the first violation, naming the offending block id:
 
 - `version` must be 1; `title` must be non-empty.
+- `presentation`, when set, is one of `focus` or `board`.
 - Every block id is globally unique, including card children. Choice option ids are
   unique within their block.
 - A `section`, `card`, or leaf block may appear at the top level. A card may not

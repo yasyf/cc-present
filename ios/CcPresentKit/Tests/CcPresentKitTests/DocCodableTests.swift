@@ -188,6 +188,26 @@ struct DocCodableTests {
             == .progress(Block.Progress(id: "p", label: "L", value: 2, max: 5, state: "done")))
     }
 
+    @Test("the presentation hint decodes to its enum, is nil when absent, and rejects an unknown value")
+    func presentationHintDecodes() throws {
+        let withHint = try decoder.decode(
+            Doc.self,
+            from: Data(#"{"version":1,"title":"T","presentation":"board","blocks":[]}"#.utf8)
+        )
+        #expect(withHint.presentation == .board)
+
+        let without = try decoder.decode(
+            Doc.self,
+            from: Data(#"{"version":1,"title":"T","blocks":[]}"#.utf8)
+        )
+        #expect(without.presentation == nil)
+
+        let junk = Data(#"{"version":1,"title":"T","presentation":"carousel","blocks":[]}"#.utf8)
+        #expect(throws: DecodingError.self) {
+            _ = try decoder.decode(Doc.self, from: junk)
+        }
+    }
+
     @Test("an unknown block type is a thrown decode error naming the block id")
     func unknownBlockTypeThrows() throws {
         let json = Data(#"{"id":"weird","type":"bogus","x":1}"#.utf8)
