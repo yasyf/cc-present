@@ -1,30 +1,38 @@
-// usePackState: ephemeral per-tab draft state for pack components, scoped by block
-// id. It survives board↔focus toggles and agent re-upserts, dying only on reload.
+// usePackState: ephemeral per-tab draft state for pack components, scoped by a
+// block's id and type. Survives board↔focus toggles and agent re-upserts, dies on reload.
 
 import { createContext, useCallback, useContext, useSyncExternalStore } from 'react';
 
-// PackBlockIdContext carries the enclosing pack block's id, set by PackBlockView;
+// PackBlockScope identifies the enclosing pack block; keying on id and type keeps a
+// re-typed upsert from reading the old type's stale draft.
+export interface PackBlockScope {
+  id: string;
+  type: string;
+}
+
+// PackBlockScopeContext carries the enclosing pack block's scope, set by PackBlockView;
 // null outside a pack block, which usePackState treats as a programmer error.
-export const PackBlockIdContext = createContext<string | null>(null);
+export const PackBlockScopeContext = createContext<PackBlockScope | null>(null);
 
-const store = new Map<string, unknown>();
-const listeners = new Map<string, Set<() => void>>();
+// store and listeners nest scope → key so a block scope and a state key never share a delimiter.
+const store = new Map<string, Map<string, unknown>>();
+const listeners = new Map<string, Map<string, Set<() => void>>>();
 
-function scopeKey(blockId: string, key: string): string {
-  return `${blockId}\0${key}`;
+function scopeId(scope: PackBlockScope): string {
+  return `${scope.id}\0${scope.type}`;
 }
 
-function listenersFor(sk: string): Set<() => void> {
-  let set = listeners.get(sk);
-  if (!set) {
-    set = new Set();
-    listeners.set(sk, set);
+function keyMap<V>(m: Map<string, Map<string, V>>, sid: string): Map<string, V> {
+  let byKey = m.get(sid);
+  if (!byKey) {
+    byKey = new Map();
+    m.set(sid, byKey);
   }
-  return set;
+  return byKey;
 }
 
-function emit(sk: string): void {
-  const set = listeners.get(sk);
+function emit(sid: string, key: string): void {
+  const set = listeners.get(sid)?.get(key);
   if (set) for (const listener of set) listener();
 }
 
@@ -33,31 +41,46 @@ export function resetPackStateForTest(): void {
   listeners.clear();
 }
 
+// packStateListenerScopesForTest counts scopes still holding listeners, so a test can
+// prove unsubscribe prunes the listener map instead of leaking sets.
+export function packStateListenerScopesForTest(): number {
+  return listeners.size;
+}
+
 // usePackState is ui.usePackState. The lazy seed is load-bearing: seeding without
 // emitting keeps getSnapshot stable so a per-render `initial` cannot loop React.
 export function usePackState<T>(key: string, initial: T): [T, (next: T) => void] {
-  const blockId = useContext(PackBlockIdContext);
-  if (blockId === null) throw new Error('usePackState must be called inside a pack block');
-  const sk = scopeKey(blockId, key);
-  if (!store.has(sk)) store.set(sk, initial);
+  const scope = useContext(PackBlockScopeContext);
+  if (scope === null) throw new Error('usePackState must be called inside a pack block');
+  const sid = scopeId(scope);
+  if (store.get(sid)?.has(key) !== true) keyMap(store, sid).set(key, initial);
 
   const subscribe = useCallback(
     (listener: () => void) => {
-      const set = listenersFor(sk);
+      const byKey = keyMap(listeners, sid);
+      let set = byKey.get(key);
+      if (!set) {
+        set = new Set();
+        byKey.set(key, set);
+      }
       set.add(listener);
       return () => {
         set.delete(listener);
+        if (set.size === 0) {
+          byKey.delete(key);
+          if (byKey.size === 0) listeners.delete(sid);
+        }
       };
     },
-    [sk],
+    [sid, key],
   );
-  const value = useSyncExternalStore(subscribe, () => store.get(sk) as T);
+  const value = useSyncExternalStore(subscribe, () => store.get(sid)?.get(key) as T);
   const setValue = useCallback(
     (next: T) => {
-      store.set(sk, next);
-      emit(sk);
+      keyMap(store, sid).set(key, next);
+      emit(sid, key);
     },
-    [sk],
+    [sid, key],
   );
   return [value, setValue];
 }

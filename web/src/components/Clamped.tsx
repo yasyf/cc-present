@@ -23,6 +23,8 @@ export function Clamped({ html, children, lines, className }: ClampedProps) {
   }
   const expandedRef = useRef(expanded);
   expandedRef.current = expanded;
+  const wantExpandedRef = useRef(wantExpanded);
+  wantExpandedRef.current = wantExpanded;
   const mounted = useRef(false);
 
   useLayoutEffect(() => {
@@ -38,12 +40,14 @@ export function Clamped({ html, children, lines, className }: ClampedProps) {
     return () => observer.disconnect();
   }, []);
 
+  // A content swap re-syncs to the shared expand-all target (false without a provider)
+  // rather than force-collapsing, so a global expand survives the swap.
   useLayoutEffect(() => {
     if (!mounted.current) {
       mounted.current = true;
       return;
     }
-    setExpanded(false);
+    setExpanded(wantExpandedRef.current);
   }, [html, children]);
 
   const collapsed = !expanded;

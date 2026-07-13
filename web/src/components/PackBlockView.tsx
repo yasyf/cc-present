@@ -12,7 +12,7 @@ import { usePresent } from '../present';
 import { useDecidable } from '../keyboard';
 import { usePackComponent, usePackDef, useInteractivePackTypes } from '../packs/registry';
 import type { PackBlockContext, PackDefState } from '../packs/registry';
-import { PackBlockIdContext } from '../packs/state';
+import { PackBlockScopeContext } from '../packs/state';
 
 const FOCUSABLE =
   'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
@@ -119,6 +119,7 @@ export function PackBlockView({ block, interactions }: { block: PackBlock; inter
     () => ({ closed, roundOver: readOnly, round: currentRound }),
     [closed, readOnly, currentRound],
   );
+  const scope = useMemo(() => ({ id: block.id, type: block.type }), [block.id, block.type]);
 
   const PackComponent = usePackComponent(block.type);
   const defState = usePackDef(block.type);
@@ -158,7 +159,7 @@ export function PackBlockView({ block, interactions }: { block: PackBlock; inter
 
   return (
     <div className="pack-block" ref={setRef} data-kbd-cursor={cursor || undefined}>
-      <PackBlockIdContext.Provider value={block.id}>{inner}</PackBlockIdContext.Provider>
+      <PackBlockScopeContext.Provider value={scope}>{inner}</PackBlockScopeContext.Provider>
     </div>
   );
 }

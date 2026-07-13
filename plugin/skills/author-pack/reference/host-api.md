@@ -74,7 +74,7 @@ export interface PackToast {
 }
 ```
 
-The toast renders in the shell's stack like the host's own notices. Use it for commit moments — a submit landed, an action failed — not for chatter. In single-block mode (the iOS webview) the stack flows in-tree inside the block instead of overlaying, and the height report grows to include it. Raising a toast before the shell has mounted throws.
+The toast renders in the shell's stack like the host's own notices. Use it for commit moments — a submit landed, an action failed — not for chatter. `submit` is optimistic and can still roll back, and the shell raises its own toast when a submission fails, so word a post-submit toast as sent, not confirmed. In single-block mode (the iOS webview) the stack flows in-tree inside the block instead of overlaying, and the height report grows to include it. Raising a toast before the shell has mounted throws.
 
 ### `ui.usePackState` — per-tab drafts
 

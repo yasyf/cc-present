@@ -81,3 +81,43 @@ describe('ExpandAllProvider', () => {
     expect(contents().every(clamp)).toBe(true);
   });
 });
+
+describe('Clamped resync on content change', () => {
+  function Provided({ html }: { html: string }) {
+    const { toggle } = useExpandAll();
+    return (
+      <>
+        <button type="button" className="global-toggle" onClick={() => toggle()}>
+          toggle
+        </button>
+        <Clamped html={html} lines={2} />
+      </>
+    );
+  }
+
+  it('keeps an expand-all block expanded across a content update', () => {
+    const show = (html: string): void =>
+      act(() =>
+        root.render(
+          <ExpandAllProvider>
+            <Provided html={html} />
+          </ExpandAllProvider>,
+        ),
+      );
+    show('<p>alpha</p>');
+    expect(clamp(contents()[0]!)).toBe(true);
+    globalToggle();
+    expect(clamp(contents()[0]!)).toBe(false);
+    show('<p>alpha revised</p>');
+    expect(clamp(contents()[0]!)).toBe(false);
+  });
+
+  it('re-clamps an expanded block on a content update with no provider', () => {
+    const show = (html: string): void => act(() => root.render(<Clamped html={html} lines={2} />));
+    show('<p>alpha</p>');
+    act(() => (container.querySelector('.clamp-toggle') as HTMLElement).click());
+    expect(clamp(contents()[0]!)).toBe(false);
+    show('<p>alpha revised</p>');
+    expect(clamp(contents()[0]!)).toBe(true);
+  });
+});

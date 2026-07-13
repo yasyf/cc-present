@@ -26,7 +26,7 @@ export function Survey({ block, value, submit, disabled, context }: PackComponen
   const onSubmit = useCallback(() => {
     const prior = (value as Record<string, unknown> | null | undefined) ?? {};
     submit({ ...prior, summary, detail });
-    toast({ kind: 'info', text: 'Survey submitted' });
+    toast({ kind: 'info', text: 'Survey sent' });
   }, [submit, value, summary, detail]);
 
   const caps: CSSProperties = {

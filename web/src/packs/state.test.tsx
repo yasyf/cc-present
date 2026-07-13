@@ -4,7 +4,12 @@ import { Component, act } from 'react';
 import type { ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import type { Root } from 'react-dom/client';
-import { PackBlockIdContext, resetPackStateForTest, usePackState } from './state';
+import {
+  PackBlockScopeContext,
+  packStateListenerScopesForTest,
+  resetPackStateForTest,
+  usePackState,
+} from './state';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -29,8 +34,8 @@ function render(ui: ReactNode): void {
   });
 }
 
-function Block({ id, children }: { id: string; children: ReactNode }) {
-  return <PackBlockIdContext.Provider value={id}>{children}</PackBlockIdContext.Provider>;
+function Block({ id, type = 'pack.demo', children }: { id: string; type?: string; children: ReactNode }) {
+  return <PackBlockScopeContext.Provider value={{ id, type }}>{children}</PackBlockScopeContext.Provider>;
 }
 
 class Catch extends Component<{ onError: (e: Error) => void; children: ReactNode }, { failed: boolean }> {
@@ -121,6 +126,33 @@ describe('usePackState', () => {
     expect(buttons()[1]?.textContent).toBe('two');
   });
 
+  it('isolates state per block type under the same id', () => {
+    function Named({ label }: { label: string }) {
+      const [v, setV] = usePackState('shared', label);
+      return (
+        <button type="button" onClick={() => setV(`${label}!`)}>
+          {v}
+        </button>
+      );
+    }
+    render(
+      <>
+        <Block id="b1" type="pack.alpha">
+          <Named label="alpha" />
+        </Block>
+        <Block id="b1" type="pack.beta">
+          <Named label="beta" />
+        </Block>
+      </>,
+    );
+    const buttons = () => container.querySelectorAll('button');
+    expect(buttons()[0]?.textContent).toBe('alpha');
+    expect(buttons()[1]?.textContent).toBe('beta');
+    act(() => (buttons()[0] as HTMLButtonElement).click());
+    expect(buttons()[0]?.textContent).toBe('alpha!');
+    expect(buttons()[1]?.textContent).toBe('beta');
+  });
+
   it('throws when called outside a pack block', () => {
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
     let caught: Error | null = null;
@@ -165,5 +197,38 @@ describe('usePackState', () => {
       </Block>,
     );
     expect(container.textContent).toContain('v=2');
+  });
+
+  it('prunes the listeners map on final unmount while the draft survives', () => {
+    function Draft({ next }: { next: string }) {
+      const [v, setV] = usePackState('d', 'seed');
+      return (
+        <button type="button" onClick={() => setV(next)}>
+          {v}
+        </button>
+      );
+    }
+    render(
+      <Block id="b1">
+        <Draft next="edited" />
+      </Block>,
+    );
+    act(() => container.querySelector('button')?.click());
+    expect(container.textContent).toContain('edited');
+    expect(packStateListenerScopesForTest()).toBeGreaterThan(0);
+
+    act(() => root.unmount());
+    expect(packStateListenerScopesForTest()).toBe(0);
+
+    // The stored draft outlives the pruned listener, and a fresh subscribe still emits.
+    root = createRoot(container);
+    render(
+      <Block id="b1">
+        <Draft next="again" />
+      </Block>,
+    );
+    expect(container.textContent).toContain('edited');
+    act(() => container.querySelector('button')?.click());
+    expect(container.textContent).toContain('again');
   });
 });
