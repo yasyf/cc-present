@@ -152,11 +152,11 @@ enum StepStatus: String {
 /// stepStatus classifies a step: nil for a step with nothing to tally (context
 /// runs, input-only steps — inputs are never decided, matching the SubmitBar
 /// tally), otherwise decided/undecided, with approve/reject for a lone approval so
-/// its dot fills with the verdict color. Mirrors web/src/focus.ts `stepStatus`;
-/// like the native SubmitBar it tallies approvals and choices only, so a pack
-/// decision step reads nil until the underlying tally learns pack decidedness.
-func stepStatus(_ step: FocusStep, _ interactions: Interactions) -> StepStatus? {
-    let items = submitItems([step.block], interactions)
+/// its dot fills with the verdict color. An interactive pack decision step tallies
+/// like any other decidable now that submitItems is pack-aware. Mirrors
+/// web/src/focus.ts `stepStatus`.
+func stepStatus(_ step: FocusStep, _ interactions: Interactions, _ packInteractive: Set<String>) -> StepStatus? {
+    let items = submitItems([step.block], interactions, packInteractive)
     if items.isEmpty {
         return nil
     }
@@ -171,8 +171,8 @@ func stepStatus(_ step: FocusStep, _ interactions: Interactions) -> StepStatus? 
 
 /// stepUndecided reports whether a step still has an undecided tally item — the
 /// predicate the deck's next-undecided walk and auto-advance guard use.
-func stepUndecided(_ step: FocusStep, _ interactions: Interactions) -> Bool {
-    submitItems([step.block], interactions).contains { !$0.decided }
+func stepUndecided(_ step: FocusStep, _ interactions: Interactions, _ packInteractive: Set<String>) -> Bool {
+    submitItems([step.block], interactions, packInteractive).contains { !$0.decided }
 }
 
 /// deckEnd is the sentinel anchor id for the review summary — never a real block id
@@ -229,11 +229,10 @@ func saveViewOverride(subject: String, mode: ViewMode, defaults: UserDefaults = 
     defaults.set(mode.rawValue, forKey: viewOverrideKey(subject: subject))
 }
 
-/// presentPackTypes is the runtime interactive-pack set the native focus deck
-/// derives: every pack type present in the live blocks. A pack's interactivity is a
-/// manifest fact the native client never fetches (the web reads it from the pack
-/// registry), so — matching the plan's fallback — every pack block is treated as
-/// interactive and earns its own focus step.
+/// presentPackTypes is the all-interactive fallback: every pack type present in the
+/// live blocks, treated as interactive. The classification the deck actually renders
+/// by comes from the daemon's `/api/packs` manifest; until that response lands (or if
+/// it fails) `interactivePackTypes` falls back here so a pack still earns a step.
 func presentPackTypes(_ blocks: [Block]) -> Set<String> {
     Set(flatten(blocks).compactMap { block -> String? in
         if case let .pack(pack) = block {
@@ -241,4 +240,13 @@ func presentPackTypes(_ blocks: [Block]) -> Set<String> {
         }
         return nil
     })
+}
+
+/// interactivePackTypes is the pack-interactivity set BoardScreen renders by: the
+/// manifest's declared interactive types once `/api/packs` has answered, else the
+/// all-interactive `presentPackTypes` fallback over the live blocks. Mirrors the web
+/// registry's progressive load — every pack is interactive until the manifest
+/// reclassifies it.
+func interactivePackTypes(declared: Set<String>?, blocks: [Block]) -> Set<String> {
+    declared ?? presentPackTypes(blocks)
 }

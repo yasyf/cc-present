@@ -66,12 +66,12 @@ final class FocusDeckModel {
     /// next lands on the nearest undecided step after the cursor, wrapping across
     /// the deck (mirroring nextUndecided); it settles on the summary only when
     /// nothing is undecided.
-    func next(_ steps: [FocusStep], _ interactions: Interactions) {
+    func next(_ steps: [FocusStep], _ interactions: Interactions, _ packInteractive: Set<String>) {
         guard !steps.isEmpty else { return }
         let from = index(steps)
         for hop in 1 ... steps.count {
             let idx = (from + hop) % steps.count
-            if stepUndecided(steps[idx], interactions) {
+            if stepUndecided(steps[idx], interactions, packInteractive) {
                 go(steps, to: idx)
                 return
             }
@@ -109,9 +109,24 @@ final class FocusDeckModel {
         advance = nil
     }
 
+    /// reconcileAdvance arms or cancels the 450ms approval auto-advance from a change
+    /// in the swipeable step's decided-transition key, the way the web's advanceKey
+    /// effect does: an unchanged key — a redundant optimistic/SSE echo re-render —
+    /// leaves an armed timer running; any other change cancels it; and only a
+    /// same-step undecided→decided flip arms a fresh one. It is the whole schedule/
+    /// cancel decision, so it is exercised directly rather than through the View.
+    func reconcileAdvance(from old: AdvanceKey?, to new: AdvanceKey?) {
+        guard old != new else { return }
+        guard let new, new.decided, let old, old.stepId == new.stepId, !old.decided else {
+            cancelAdvance()
+            return
+        }
+        scheduleAdvance(armed: new.stepId)
+    }
+
     /// scheduleAdvance arms the 450ms approval auto-advance; the timer no-ops if
     /// navigation left the armed step or the feedback composer opened meanwhile.
-    func scheduleAdvance(armed: String) {
+    private func scheduleAdvance(armed: String) {
         cancelAdvance()
         advance = Task { @MainActor [weak self] in
             try? await Task.sleep(for: .milliseconds(450))
@@ -121,12 +136,22 @@ final class FocusDeckModel {
     }
 }
 
-private struct AdvanceKey: Equatable {
+/// AdvanceKey is the swipeable step's auto-advance trigger: the step's id and whether
+/// its lone approval is decided. A change from undecided to decided on the same step
+/// arms the timer; the deck feeds successive keys to `reconcileAdvance`.
+struct AdvanceKey: Equatable {
     let stepId: String
     let decided: Bool
 }
 
-private struct FocusMetricKey: PreferenceKey {
+private struct FocusStageWidthKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
+    }
+}
+
+private struct FocusContentHeightKey: PreferenceKey {
     static let defaultValue: CGFloat = 0
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
         value = max(value, nextValue())
@@ -141,16 +166,25 @@ private struct FocusMetricKey: PreferenceKey {
 struct FocusDeckView: View {
     let steps: [FocusStep]
     let store: BoardStore
+    let packInteractive: Set<String>
     var client: APIClient?
     var packContext: PackContext?
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var model: FocusDeckModel
     @State private var stageWidth: CGFloat = 360
+    @AccessibilityFocusState private var cardFocused: Bool
 
-    init(steps: [FocusStep], store: BoardStore, client: APIClient? = nil, packContext: PackContext? = nil) {
+    init(
+        steps: [FocusStep],
+        store: BoardStore,
+        packInteractive: Set<String>,
+        client: APIClient? = nil,
+        packContext: PackContext? = nil
+    ) {
         self.steps = steps
         self.store = store
+        self.packInteractive = packInteractive
         self.client = client
         self.packContext = packContext
         _model = State(initialValue: FocusDeckModel(anchorId: steps.first?.id ?? deckEnd))
@@ -183,14 +217,20 @@ struct FocusDeckView: View {
 
     var body: some View {
         VStack(spacing: 16) {
-            FocusProgressView(steps: steps, index: index, interactions: interactions, onJump: jump)
+            FocusProgressView(
+                steps: steps,
+                index: index,
+                interactions: interactions,
+                packInteractive: packInteractive,
+                onJump: jump
+            )
             stage
             FocusNavView(
                 index: index,
                 total: steps.count,
                 onBack: { model.move(steps, -1) },
                 onSkip: { model.move(steps, 1) },
-                onNext: { model.next(steps, interactions) }
+                onNext: { model.next(steps, interactions, packInteractive) }
             )
         }
         .frame(maxWidth: .infinity)
@@ -198,11 +238,17 @@ struct FocusDeckView: View {
         .onAppear { model.reconcile(steps) }
         .onChange(of: steps.map(\.id)) { _, _ in model.reconcile(steps) }
         .onChange(of: round) { _, _ in model.reset(steps) }
-        .onChange(of: advanceKey) { old, new in
-            model.cancelAdvance()
-            guard let new, new.decided, let old, old.stepId == new.stepId, !old.decided else { return }
-            model.scheduleAdvance(armed: new.stepId)
-        }
+        .onChange(of: advanceKey) { old, new in model.reconcileAdvance(from: old, to: new) }
+        .onChange(of: index) { _, _ in announceStep() }
+    }
+
+    /// announceStep speaks the new step and moves VoiceOver focus onto the freshly
+    /// mounted card (or the review summary), mirroring the web deck's announce +
+    /// focus move on every step change.
+    private func announceStep() {
+        let message = currentStep.map { "Step \(index + 1) of \(steps.count) — \(stepTitle($0))" } ?? "Review"
+        AccessibilityNotification.Announcement(message).post()
+        cardFocused = true
     }
 
     private var stage: some View {
@@ -213,21 +259,24 @@ struct FocusDeckView: View {
                     .offset(y: 10)
                     .opacity(0.45)
                     .allowsHitTesting(false)
+                    .accessibilityHidden(true)
             }
             if onSummary {
-                FocusSummaryView(steps: steps, interactions: interactions, onJump: jump)
+                FocusSummaryView(steps: steps, interactions: interactions, packInteractive: packInteractive, onJump: jump)
+                    .accessibilityFocused($cardFocused)
             } else if let step = currentStep {
                 card(step)
                     .id("\(round):\(step.id)")
+                    .accessibilityFocused($cardFocused)
             }
         }
         .frame(maxWidth: .infinity)
         .background(
             GeometryReader { proxy in
-                Color.clear.preference(key: FocusMetricKey.self, value: proxy.size.width)
+                Color.clear.preference(key: FocusStageWidthKey.self, value: proxy.size.width)
             }
         )
-        .onPreferenceChange(FocusMetricKey.self) { stageWidth = $0 }
+        .onPreferenceChange(FocusStageWidthKey.self) { stageWidth = $0 }
     }
 
     @ViewBuilder
@@ -259,17 +308,19 @@ struct FocusProgressView: View {
     let steps: [FocusStep]
     let index: Int
     let interactions: Interactions
+    let packInteractive: Set<String>
     let onJump: (String) -> Void
 
     private let railMax = 10
 
     var body: some View {
         let total = steps.count
+        let onSummary = index >= total
         let shown = min(index + 1, total)
         let tier = index < total ? steps[index].tier : nil
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 10) {
-                Text("STEP \(shown) / \(total)")
+                Text(onSummary ? "REVIEW" : "STEP \(shown) / \(total)")
                     .font(.system(.caption, design: .monospaced).weight(.semibold))
                     .foregroundStyle(BlockPalette.muted)
                 if let tier, !tier.isEmpty {
@@ -281,11 +332,10 @@ struct FocusProgressView: View {
                 Spacer(minLength: 0)
             }
             if total <= railMax {
-                HStack(spacing: 6) {
+                HStack(spacing: 4) {
                     ForEach(Array(steps.enumerated()), id: \.element.id) { position, step in
                         dot(step, position: position)
                     }
-                    Spacer(minLength: 0)
                 }
             } else {
                 bar(shown: shown, total: total)
@@ -295,9 +345,11 @@ struct FocusProgressView: View {
     }
 
     private func dot(_ step: FocusStep, position: Int) -> some View {
-        Button { onJump(step.id) } label: {
+        let status = stepStatus(step, interactions, packInteractive)
+        // The visual dot stays small; the flexible ≥44pt cell is the tap target.
+        return Button { onJump(step.id) } label: {
             Circle()
-                .fill(fill(stepStatus(step, interactions)))
+                .fill(fill(status))
                 .frame(width: 9, height: 9)
                 .overlay(
                     Circle().strokeBorder(
@@ -306,10 +358,17 @@ struct FocusProgressView: View {
                     )
                 )
                 .frame(width: 22, height: 22)
+                .frame(maxWidth: .infinity, minHeight: 44)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("Step \(position + 1): \(stepTitle(step))")
+        .accessibilityLabel(dotLabel(step, position: position, status: status))
+        .accessibilityAddTraits(position == index ? [.isSelected] : [])
+    }
+
+    private func dotLabel(_ step: FocusStep, position: Int, status: StepStatus?) -> String {
+        let base = "Step \(position + 1): \(stepTitle(step))"
+        return status.map { "\(base), \($0.rawValue)" } ?? base
     }
 
     private func fill(_ status: StepStatus?) -> Color {
@@ -331,6 +390,9 @@ struct FocusProgressView: View {
             }
         }
         .frame(height: 4)
+        .accessibilityElement()
+        .accessibilityLabel("Step progress")
+        .accessibilityValue("Step \(shown) of \(total)")
     }
 }
 
@@ -396,13 +458,13 @@ struct FocusCardView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(
                     GeometryReader { proxy in
-                        Color.clear.preference(key: FocusMetricKey.self, value: proxy.size.height)
+                        Color.clear.preference(key: FocusContentHeightKey.self, value: proxy.size.height)
                     }
                 )
             }
             .frame(height: min(contentHeight, cardMaxHeight))
             .scrollBounceBehavior(.basedOnSize)
-            .onPreferenceChange(FocusMetricKey.self) { contentHeight = $0 }
+            .onPreferenceChange(FocusContentHeightKey.self) { contentHeight = $0 }
         }
         .padding(18)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -427,15 +489,21 @@ struct SwipeableFocusCard: View {
     let stageWidth: CGFloat
     let reduceMotion: Bool
 
+    @Environment(\.focusComposer) private var focusComposer
     @GestureState private var drag: CGSize = .zero
     @State private var committed: CGSize = .zero
     @State private var opacity: Double = 1
+    @State private var locked = false
 
     private let commitDistance: CGFloat = 120
     private let predictedCommit: CGFloat = 250
 
     private var offset: CGSize {
         CGSize(width: drag.width + committed.width, height: drag.height + committed.height)
+    }
+
+    private var decided: Bool {
+        store.state.interactions.decisions[approvalId] != nil
     }
 
     var body: some View {
@@ -449,7 +517,15 @@ struct SwipeableFocusCard: View {
             .offset(offset)
             .rotationEffect(.degrees(offset.width / 28))
             .opacity(opacity)
+            .allowsHitTesting(!locked)
             .gesture(swipe)
+            .onChange(of: decided) { _, present in
+                // A committed verdict that rolled back (or was cleared elsewhere)
+                // cancels the deck's advance, so restore the flown-off card.
+                if locked, !present {
+                    restore()
+                }
+            }
     }
 
     private var swipe: some Gesture {
@@ -458,21 +534,43 @@ struct SwipeableFocusCard: View {
                 state = value.translation
             }
             .onEnded { value in
-                if commits(value) {
-                    commit(direction: value.translation.width > 0 ? 1 : -1, from: value.translation)
+                guard !locked else { return }
+                if let direction = commitDirection(value) {
+                    commit(direction: direction, from: value.translation)
                 } else {
-                    committed = value.translation
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) { committed = .zero }
+                    snapBack(from: value.translation)
                 }
             }
     }
 
-    private func commits(_ value: DragGesture.Value) -> Bool {
-        abs(value.translation.width) > commitDistance || abs(value.predictedEndTranslation.width) > predictedCommit
+    /// commitDirection is the verdict sign a gesture end commits, or nil to snap back:
+    /// the crossing metric — drag distance or the flick's predicted end — sets the
+    /// sign, and a translation/flick sign clash (a reversal flick) snaps back rather
+    /// than stamp a stale verdict.
+    private func commitDirection(_ value: DragGesture.Value) -> CGFloat? {
+        let translation = value.translation.width
+        let predicted = value.predictedEndTranslation.width
+        let byDistance = abs(translation) > commitDistance
+        let byFlick = abs(predicted) > predictedCommit
+        guard byDistance || byFlick else { return nil }
+        if (translation > 0) != (predicted > 0) {
+            return nil
+        }
+        return (byDistance ? translation : predicted) > 0 ? 1 : -1
     }
 
     private func commit(direction: CGFloat, from translation: CGSize) {
+        // The 450ms auto-advance fires only on an undecided→decided flip with no open
+        // composer; when it will not, stamp the verdict but keep the card in place so
+        // it never strands at opacity 0. The fly-off locks the gesture until the step
+        // changes (or the verdict rolls back), so a second flick can't double-post.
+        let willAdvance = !decided && !(focusComposer?.isComposing ?? false)
         store.decide(blockId: approvalId, verdict: direction > 0 ? .approved : .rejected)
+        guard willAdvance else {
+            snapBack(from: translation)
+            return
+        }
+        locked = true
         committed = translation
         if reduceMotion {
             withAnimation(.easeOut(duration: 0.2)) {
@@ -483,6 +581,32 @@ struct SwipeableFocusCard: View {
             withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
                 committed = CGSize(width: direction * 1.2 * stageWidth, height: translation.height)
                 opacity = 0
+            }
+        }
+    }
+
+    /// snapBack returns the card to center, honoring Reduce Motion with an instant
+    /// reset in place of the spring.
+    private func snapBack(from translation: CGSize) {
+        if reduceMotion {
+            committed = .zero
+        } else {
+            committed = translation
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) { committed = .zero }
+        }
+    }
+
+    /// restore reverses a fly-off whose advance never fired, bringing the card back to
+    /// center and re-enabling the gesture.
+    private func restore() {
+        locked = false
+        if reduceMotion {
+            committed = .zero
+            opacity = 1
+        } else {
+            withAnimation(.easeOut(duration: 0.2)) {
+                committed = .zero
+                opacity = 1
             }
         }
     }
@@ -506,6 +630,7 @@ struct SwipeableFocusCard: View {
 struct FocusSummaryView: View {
     let steps: [FocusStep]
     let interactions: Interactions
+    let packInteractive: Set<String>
     let onJump: (String) -> Void
 
     var body: some View {
@@ -529,7 +654,7 @@ struct FocusSummaryView: View {
     }
 
     private func receipt(_ step: FocusStep) -> some View {
-        let status = stepStatus(step, interactions)
+        let status = stepStatus(step, interactions, packInteractive)
         return HStack {
             Text(stepTitle(step))
                 .font(.subheadline)

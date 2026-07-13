@@ -30,13 +30,14 @@ func showsNativeReplyThread(_ block: Block) -> Bool {
     }
 }
 
-/// SubmitItem is one entry of the submit tally: an approval or choice with its
-/// decided state. Inputs never count toward the tally.
+/// SubmitItem is one entry of the submit tally: an approval, choice, or interactive
+/// pack block with its decided state. Inputs never count toward the tally.
 struct SubmitItem: Equatable {
     /// Kind is which interactive block produced this tally entry.
     enum Kind: Equatable {
         case approval
         case choice
+        case pack
     }
 
     let id: String
@@ -44,9 +45,11 @@ struct SubmitItem: Equatable {
     let decided: Bool
 }
 
-/// submitItems is the tally set — approvals and choices in document order with
-/// their decided state — driving the SubmitBar count. Mirrors web/src/decide.ts.
-func submitItems(_ blocks: [Block], _ interactions: Interactions) -> [SubmitItem] {
+/// submitItems is the tally set — approvals, choices, and interactive pack blocks in
+/// document order with their decided state — driving the SubmitBar count. A pack
+/// block joins the tally only when its type is in `packInteractive`, the manifest's
+/// interactive set. Mirrors web/src/decide.ts `submitItems`.
+func submitItems(_ blocks: [Block], _ interactions: Interactions, _ packInteractive: Set<String>) -> [SubmitItem] {
     var out: [SubmitItem] = []
     for block in flatten(blocks) {
         switch block {
@@ -54,6 +57,10 @@ func submitItems(_ blocks: [Block], _ interactions: Interactions) -> [SubmitItem
             out.append(SubmitItem(id: approval.id, kind: .approval, decided: isDecided(block, interactions)))
         case let .choice(choice):
             out.append(SubmitItem(id: choice.id, kind: .choice, decided: isDecided(block, interactions)))
+        case let .pack(pack):
+            if packInteractive.contains(pack.packType) {
+                out.append(SubmitItem(id: pack.id, kind: .pack, decided: isDecided(block, interactions)))
+            }
         default:
             continue
         }
@@ -61,15 +68,18 @@ func submitItems(_ blocks: [Block], _ interactions: Interactions) -> [SubmitItem
     return out
 }
 
-/// isDecided mirrors the SubmitBar tally for one block: an approval with any
-/// verdict (cleared decisions are removed, so presence is decidedness) or a choice
-/// with at least one selected option. Every other block is never decided.
+/// isDecided mirrors the SubmitBar tally for one block: an approval with any verdict
+/// (cleared decisions are removed, so presence is decidedness), a choice with at
+/// least one selected option, or a pack block with a stored interaction. Every other
+/// block is never decided. Mirrors web/src/decide.ts `isDecided`.
 func isDecided(_ block: Block, _ interactions: Interactions) -> Bool {
     switch block {
     case let .approval(approval):
         interactions.decisions[approval.id] != nil
     case let .choice(choice):
         !(interactions.choices[choice.id]?.optionIds.isEmpty ?? true)
+    case let .pack(pack):
+        interactions.packs[pack.id] != nil
     default:
         false
     }

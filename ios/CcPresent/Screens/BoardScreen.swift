@@ -15,6 +15,7 @@ struct BoardScreen: View {
 
     @State private var store: BoardStore
     @State private var viewOverride: ViewMode?
+    @State private var declaredInteractive: Set<String>?
     private let client: APIClient
     private let bearerToken: String?
 
@@ -41,8 +42,12 @@ struct BoardScreen: View {
         state.doc.blocks.filter { state.rounds.blockRounds[$0.id] == state.rounds.current }
     }
 
+    private var packInteractive: Set<String> {
+        interactivePackTypes(declared: declaredInteractive, blocks: currentBlocks)
+    }
+
     private var deckSteps: [FocusStep] {
-        focusSteps(currentBlocks, presentPackTypes(currentBlocks))
+        focusSteps(currentBlocks, packInteractive)
     }
 
     private var mode: ViewMode {
@@ -75,6 +80,11 @@ struct BoardScreen: View {
                 let connection = await sse.connect()
                 store.connect(connection)
             }
+            .task {
+                if let response = try? await client.packs() {
+                    declaredInteractive = response.interactiveTypes
+                }
+            }
     }
 
     @ViewBuilder
@@ -100,7 +110,13 @@ struct BoardScreen: View {
                     currentRoundHeader
                 }
                 if mode == .focus, !currentBlocks.isEmpty {
-                    FocusDeckView(steps: deckSteps, store: store, client: client, packContext: packContext)
+                    FocusDeckView(
+                        steps: deckSteps,
+                        store: store,
+                        packInteractive: packInteractive,
+                        client: client,
+                        packContext: packContext
+                    )
                 } else {
                     ForEach(currentBlocks, id: \.id) { block in
                         BlockView(block: block, store: store, client: client, packContext: packContext)
@@ -193,7 +209,13 @@ struct BoardScreen: View {
     @ViewBuilder
     private var submitBar: some View {
         if !store.isClosed, !currentBlocks.isEmpty {
-            SubmitBarView(blocks: currentBlocks, doc: state.doc, store: store, hasHistory: hasHistory)
+            SubmitBarView(
+                blocks: currentBlocks,
+                doc: state.doc,
+                store: store,
+                packInteractive: packInteractive,
+                hasHistory: hasHistory
+            )
         }
     }
 }

@@ -6,6 +6,10 @@ private func card(_ id: String, children: [Block]) -> Block {
     .card(Block.Card(id: id, children: children))
 }
 
+private func pack(_ id: String, _ type: String) -> Block {
+    .pack(Block.Pack(id: id, packType: type, raw: .object(["id": .string(id), "type": .string(type)])))
+}
+
 @Test func flattenInlinesCardChildrenOneLevel() {
     let blocks: [Block] = [
         .approval(Block.Approval(id: "top-ap")),
@@ -34,11 +38,26 @@ private func card(_ id: String, children: [Block]) -> Block {
         choices: ["ch1": Selection(optionIds: ["o1"])]
     )
 
-    let items = submitItems(blocks, interactions)
+    let items = submitItems(blocks, interactions, [])
 
     #expect(items.map(\.id) == ["ap1", "ap2", "ch1"])
     #expect(items.map(\.kind) == [.approval, .approval, .choice])
     #expect(items.map(\.decided) == [true, false, true])
+}
+
+@Test func submitItemsTalliesInteractivePackButSkipsStaticPack() {
+    let blocks: [Block] = [
+        pack("r1", "ex.rating"),
+        pack("c1", "ex.callout"),
+        .approval(Block.Approval(id: "ap1")),
+    ]
+    let interactions = Interactions(packs: ["r1": PackValue(payload: .object(["value": .int(4)]))])
+
+    let items = submitItems(blocks, interactions, ["ex.rating"])
+
+    #expect(items.map(\.id) == ["r1", "ap1"])
+    #expect(items.map(\.kind) == [.pack, .approval])
+    #expect(items.map(\.decided) == [true, false])
 }
 
 @Test func isDecidedTreatsEmptyChoiceSelectionAsUndecided() {
@@ -46,6 +65,13 @@ private func card(_ id: String, children: [Block]) -> Block {
 
     #expect(isDecided(choice, Interactions(choices: ["ch": Selection(optionIds: [])])) == false)
     #expect(isDecided(choice, Interactions(choices: ["ch": Selection(optionIds: ["o1"])])) == true)
+}
+
+@Test func isDecidedTreatsStoredPackInteractionAsDecided() {
+    let block = pack("pk", "ex.rating")
+
+    #expect(isDecided(block, Interactions()) == false)
+    #expect(isDecided(block, Interactions(packs: ["pk": PackValue(payload: .object(["value": .int(5)]))])) == true)
 }
 
 @Test func roundTallyCountsVerdictsPicksAndNotes() {

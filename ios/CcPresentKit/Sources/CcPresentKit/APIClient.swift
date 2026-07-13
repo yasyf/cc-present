@@ -96,6 +96,44 @@ public struct SessionSummary: Decodable, Equatable, Sendable, Identifiable {
     }
 }
 
+/// PacksResponse is the slice of GET /api/packs the client models: each registered
+/// pack's block types with their declared `interactive` flag. It drops the fields
+/// the native client never reads (bundle, styles, schemas, dropped) so decoding is
+/// forgiving of the wider contract shape (docs/contract.md — PacksResponse).
+public struct PacksResponse: Decodable, Equatable, Sendable {
+    /// Pack is one registered block pack: only its block-type declarations are modeled.
+    public struct Pack: Decodable, Equatable, Sendable {
+        /// BlockType is one block a pack contributes, tagged with its interactivity.
+        public struct BlockType: Decodable, Equatable, Sendable {
+            public let type: String
+            public let interactive: Bool
+
+            public init(type: String, interactive: Bool) {
+                self.type = type
+                self.interactive = interactive
+            }
+        }
+
+        public let blocks: [BlockType]
+
+        public init(blocks: [BlockType]) {
+            self.blocks = blocks
+        }
+    }
+
+    public let packs: [Pack]
+
+    public init(packs: [Pack]) {
+        self.packs = packs
+    }
+
+    /// interactiveTypes is the set of pack block types the manifest declares
+    /// interactive — the classification the focus deck and SubmitBar tally by.
+    public var interactiveTypes: Set<String> {
+        Set(packs.flatMap(\.blocks).filter(\.interactive).map(\.type))
+    }
+}
+
 /// InteractionPoster is the one call BoardStore needs from the network: submit a
 /// human interaction and return the seq the daemon assigned it. APIClient is the
 /// production conformer; tests inject a scripted fake.
@@ -151,6 +189,18 @@ public struct APIClient: InteractionPoster {
         let (data, response) = try await urlSession.data(for: request)
         try APIClient.check(response, data: data)
         return try JSONDecoder().decode([SessionSummary].self, from: data)
+    }
+
+    /// packs GETs /api/packs, the daemon's pack manifest, so the focus deck can
+    /// classify which pack block types are interactive instead of assuming all are.
+    public func packs() async throws -> PacksResponse {
+        var request = URLRequest(url: baseURL.appending(path: "api/packs"))
+        request.httpMethod = "GET"
+        authorize(&request)
+
+        let (data, response) = try await urlSession.data(for: request)
+        try APIClient.check(response, data: data)
+        return try JSONDecoder().decode(PacksResponse.self, from: data)
     }
 
     /// assetRequest builds an authorized GET for /assets/<sha>. SwiftUI's

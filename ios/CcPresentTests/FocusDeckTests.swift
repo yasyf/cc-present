@@ -109,10 +109,10 @@ private func nextUndecidedWraps() {
         "a1": Decision(verdict: "approved"),
         "a2": Decision(verdict: "approved"),
     ])
-    model.next(steps, interactions)
+    model.next(steps, interactions, [])
     #expect(model.anchorId == "a3")
     // From a3 with a3 still undecided, next wraps forward and stays on a3.
-    model.next(steps, interactions)
+    model.next(steps, interactions, [])
     #expect(model.anchorId == "a3")
 }
 
@@ -126,7 +126,7 @@ private func nextLandsOnSummary() {
         "a1": Decision(verdict: "approved"),
         "a2": Decision(verdict: "rejected"),
     ])
-    model.next(steps, interactions)
+    model.next(steps, interactions, [])
     #expect(model.anchorId == deckEnd)
 }
 
@@ -143,26 +143,68 @@ private func roundChangeResets() {
     #expect(model.anchorId == "b1")
 }
 
+// The auto-advance schedule/cancel decision is driven the way production does: the
+// deck feeds successive AdvanceKey transitions to reconcileAdvance, so these exercise
+// the real guard rather than poking the private timer.
+
+private func armed(_ stepId: String) -> AdvanceKey {
+    AdvanceKey(stepId: stepId, decided: true)
+}
+
+private func undecidedKey(_ stepId: String) -> AdvanceKey {
+    AdvanceKey(stepId: stepId, decided: false)
+}
+
 @MainActor
-@Test("an approval verdict auto-advances after the delay")
-private func autoAdvanceMovesOn() async {
+@Test("an optimistic verdict then its SSE echo still auto-advances")
+private func optimisticThenEchoAdvances() async {
     let steps = focusSteps([approval("a1"), approval("a2")], [])
     let model = FocusDeckModel(anchorId: steps[0].id)
     model.reconcile(steps)
-    model.scheduleAdvance(armed: "a1")
+    // The optimistic patch flips the current step undecided→decided and arms the timer.
+    model.reconcileAdvance(from: undecidedKey("a1"), to: armed("a1"))
+    // The SSE echo re-renders the same key; the armed timer must survive it.
+    model.reconcileAdvance(from: armed("a1"), to: armed("a1"))
     #expect(model.anchorId == "a1")
     try? await Task.sleep(for: .milliseconds(650))
     #expect(model.anchorId == "a2")
 }
 
 @MainActor
-@Test("an open feedback composer cancels the auto-advance")
-private func autoAdvanceHeldWhileComposing() async {
+@Test("a rolled-back verdict cancels the pending auto-advance")
+private func rollbackCancelsAdvance() async {
+    let steps = focusSteps([approval("a1"), approval("a2")], [])
+    let model = FocusDeckModel(anchorId: steps[0].id)
+    model.reconcile(steps)
+    model.reconcileAdvance(from: undecidedKey("a1"), to: armed("a1"))
+    // The optimistic decision fails and reverts to undecided before the timer fires.
+    model.reconcileAdvance(from: armed("a1"), to: undecidedKey("a1"))
+    try? await Task.sleep(for: .milliseconds(650))
+    #expect(model.anchorId == "a1")
+}
+
+@MainActor
+@Test("an open feedback composer suppresses the auto-advance at fire time")
+private func composerSuppressesAdvance() async {
     let steps = focusSteps([approval("a1"), approval("a2")], [])
     let model = FocusDeckModel(anchorId: steps[0].id)
     model.reconcile(steps)
     model.composer.set("a1", composing: true)
-    model.scheduleAdvance(armed: "a1")
+    model.reconcileAdvance(from: undecidedKey("a1"), to: armed("a1"))
+    try? await Task.sleep(for: .milliseconds(650))
+    #expect(model.anchorId == "a1")
+}
+
+@MainActor
+@Test("re-deciding an already-decided step never schedules an advance")
+private func alreadyDecidedNeverAdvances() async {
+    let steps = focusSteps([approval("a1"), approval("a2")], [])
+    let model = FocusDeckModel(anchorId: steps[0].id)
+    model.reconcile(steps)
+    // Swiping an already-decided approval yields an unchanged key, so no advance is
+    // scheduled and the anchor stays put — the finding-3 case the SwipeableFocusCard
+    // pairs with restoring its own visibility.
+    model.reconcileAdvance(from: armed("a1"), to: armed("a1"))
     try? await Task.sleep(for: .milliseconds(650))
     #expect(model.anchorId == "a1")
 }

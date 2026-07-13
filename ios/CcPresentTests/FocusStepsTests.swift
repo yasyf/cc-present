@@ -181,6 +181,7 @@ private struct StatusCase: CustomStringConvertible {
     let blocks: [Block]
     let interactions: Interactions
     let expected: StepStatus?
+    var pack: Set<String> = []
 
     var description: String {
         name
@@ -209,10 +210,78 @@ private let statusCases: [StatusCase] = [
     ),
     StatusCase(name: "input steps never fill", blocks: [input("i1")], interactions: Interactions(), expected: nil),
     StatusCase(name: "context runs never fill", blocks: [markdown("m1")], interactions: Interactions(), expected: nil),
+    StatusCase(
+        name: "undecided interactive pack reads undecided",
+        blocks: [pack("r1", "ex.rating")],
+        interactions: Interactions(),
+        expected: .undecided,
+        pack: ["ex.rating"]
+    ),
+    StatusCase(
+        name: "decided interactive pack reads decided",
+        blocks: [pack("r1", "ex.rating")],
+        interactions: Interactions(packs: ["r1": PackValue(payload: .object(["value": .int(5)]))]),
+        expected: .decided,
+        pack: ["ex.rating"]
+    ),
+    StatusCase(
+        name: "a static pack step never fills",
+        blocks: [pack("c1", "ex.callout")],
+        interactions: Interactions(),
+        expected: nil
+    ),
 ]
 
 @Test("stepStatus mirrors the web receipt classification", arguments: statusCases)
 private func stepStatusMatchesWeb(_ testCase: StatusCase) {
-    let step = focusSteps(testCase.blocks, [])[0]
-    #expect(stepStatus(step, testCase.interactions) == testCase.expected, "case: \(testCase.name)")
+    let step = focusSteps(testCase.blocks, testCase.pack)[0]
+    #expect(stepStatus(step, testCase.interactions, testCase.pack) == testCase.expected, "case: \(testCase.name)")
+}
+
+@Test("stepUndecided tracks an interactive pack decision")
+private func stepUndecidedTracksPack() {
+    let step = focusSteps([pack("r1", "ex.rating")], ["ex.rating"])[0]
+    #expect(stepUndecided(step, Interactions(), ["ex.rating"]) == true)
+    let decided = Interactions(packs: ["r1": PackValue(payload: .object(["value": .int(5)]))])
+    #expect(stepUndecided(step, decided, ["ex.rating"]) == false)
+    // A static pack contributes no tally item, so its step is never "undecided".
+    let staticStep = focusSteps([pack("c1", "ex.callout")], [])[0]
+    #expect(stepUndecided(staticStep, Interactions(), []) == false)
+}
+
+private struct ClassifyCase: CustomStringConvertible {
+    let name: String
+    let declared: Set<String>?
+    let blocks: [Block]
+    let expected: Set<String>
+
+    var description: String {
+        name
+    }
+}
+
+private let classifyCases: [ClassifyCase] = [
+    ClassifyCase(
+        name: "pre-fetch falls back to every present pack type as interactive",
+        declared: nil,
+        blocks: [pack("r1", "ex.rating"), pack("c1", "ex.callout")],
+        expected: ["ex.rating", "ex.callout"]
+    ),
+    ClassifyCase(
+        name: "the declared manifest set replaces the fallback once it arrives",
+        declared: ["ex.rating"],
+        blocks: [pack("r1", "ex.rating"), pack("c1", "ex.callout")],
+        expected: ["ex.rating"]
+    ),
+    ClassifyCase(
+        name: "a declared set with nothing interactive classifies no pack",
+        declared: [],
+        blocks: [pack("c1", "ex.callout")],
+        expected: []
+    ),
+]
+
+@Test("interactivePackTypes progresses from all-interactive to the manifest set", arguments: classifyCases)
+private func interactivePackTypesClassifies(_ testCase: ClassifyCase) {
+    #expect(interactivePackTypes(declared: testCase.declared, blocks: testCase.blocks) == testCase.expected, "case: \(testCase.name)")
 }
