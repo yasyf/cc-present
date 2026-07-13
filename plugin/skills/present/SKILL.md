@@ -25,6 +25,8 @@ Write the document JSON to a file in your **session scratchpad** and pass the pa
 - A card whose children run past ~2 screens splits into multiple cards.
 - Local image paths in `image` blocks are fine — `push`, `update-block`, and `start --doc` inline them automatically.
 
+**Choosing a presentation.** Omit `presentation` and the client decides: a board with any decision unit opens in focus mode — one card at a time — and a content-only board opens as the classic board. Set `"presentation": "board"` for a reference or dashboard push the human should scan freely; set `"focus"` to force the deck for a decision-heavy review. Either way it is a hint — the viewer's own toggle wins.
+
 **Pack blocks.** When no built-in fits, installed block packs may supply extra types. Run `"${CLAUDE_PLUGIN_ROOT}/bin/cc-present" pack list` to see them: each block prints as a dotted type (`example.rating`), and each pack prints the absolute path of its reference fragment — read that fragment before first use; it documents the pack's fields the way `reference/blocks.md` documents the built-ins. Compose a dotted type like any other block. `push --dry-run` validates pack blocks against their schemas too; an uninstalled dotted type fails the dry run with `pack block type "example.rating" is not installed`.
 
 Validate offline before starting (no daemon needed):

@@ -73,6 +73,7 @@ The host qualifies those bare names with your manifest's pack name and calls eac
 - Theme with the host's CSS custom properties — `var(--text)`, `var(--surface)`, `var(--accent)`, `var(--border)`, `var(--muted)`, `var(--radius-md)`, `var(--font-mono)` — so the block matches light and dark boards.
 - Never put an `asset:` URI in a pack field: the garbage collector's reference walk can't see pack-defined fields, so the bytes get deleted. Use `/packs/<pack>/dist/…`, `https:`, or `data:` URLs.
 - Blocks also render full-bleed in single-block mode (the iOS webview) — don't assume board chrome around you.
+- In focus mode an interactive block is its own step, your component the card's body — the host reserves no gestures over it: `reference/host-api.md` § Focus mode.
 
 ## 4. Build and check
 

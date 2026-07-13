@@ -46,7 +46,7 @@ toggle overrides it.
 
 ### Validation
 
-`Doc.Validate` returns the first violation, naming the offending block id:
+`Doc.Validate` returns the first violation, naming the offending block id (or the envelope field, for document-level checks):
 
 - `version` must be 1; `title` must be non-empty.
 - `presentation`, when set, is one of `focus` or `board`.

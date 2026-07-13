@@ -18,6 +18,7 @@ The document is JSON, validated by `push --dry-run` before anything touches the 
 - `version` is always `1`; `title` is required and seeds the URL slug.
 - `stats` renders a headline number row — use it for scale ("26 repos", "3 flagged").
 - `submit` labels the submit bar; `note` states exactly what submitting commits the human to. Omit `submit` for a purely informational page.
+- `presentation` (optional) is `focus` or `board` — a per-push hint for the default view. The viewer's own toggle overrides it.
 
 ## Composition rules
 
@@ -41,6 +42,18 @@ The UI clamps long prose behind "Show more" — markdown blocks at ~10 lines, ap
 ```
 
 The first buries the tradeoff in a label nobody scans; the second reads at a glance and keeps the detail one clamp away.
+
+## Composing for focus mode
+
+A board with any decision unit opens in focus mode by default: one step at a time, in document order. The same document serves both views — these rules make it read well as a deck.
+
+- **Each card is one focus step.** "Cards are decision units" is literal: the card renders as the step body and its controls decide it.
+- **Doc order is deck order.** Order cards by decision priority — the human meets them one at a time.
+- **A card fits one screen.** The content-density clamps above are the budget; an overlong card splits into multiple cards, same as on the board.
+- **Context attaches forward.** A top-level run of content blocks (markdown, code, diff, image, table, progress) becomes the lead-in of the next card or decidable; a trailing run is its own read-only step. Put context immediately before the decision it informs — a run cut off by a section header turns into a standalone read-only step instead of attaching.
+- **Sections are never steps.** A section surfaces as the tier label in the deck's progress header.
+- **A lone approval swipes.** A step whose only decidable is an approval takes swipe-to-decide — right approves, left rejects. A card with several decidables decides by its controls only.
+- **Content-only boards stay boards.** A push with no decision unit opens as the classic board; set `presentation` to override either default.
 
 ## Size caps
 

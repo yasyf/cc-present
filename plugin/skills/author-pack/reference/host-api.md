@@ -77,3 +77,9 @@ The payload travels verbatim — the reducer stores it under `interactions.packs
 `/p/<ref>?block=<id>` renders one block full-bleed: the same event stream and interaction REST as the board, with no board chrome. It is what the iOS client loads in a webview per pack block. A block whose round has closed renders read-only through the same `disabled` flag. When a `ccPresentHeight` WebKit message handler is present, the page posts `{type: "height", px}` on every content resize so the native host can size the webview.
 
 Design for it: the component must lay out sanely at full width with nothing around it, and content should size itself — a fixed height fights the resize reporting.
+
+## Focus mode
+
+A board with decisions opens as a focus deck — one step at a time — and an interactive pack block is one step, your component rendering as the body of a focus card. The single-block rule above already covers the layout: content sizes itself, and nothing about board chrome is assumed. `disabled` semantics are unchanged.
+
+Step participation is automatic: a manifest-declared `interaction` schema makes the block its own step and counts it toward the submit tally, on web and iOS alike; a block without one is context. The component owns all pointer interaction inside its card: a pack step is never swipe-to-decide, and the host reserves no gestures over it. No new host surface: `hostApi` stays 1.
