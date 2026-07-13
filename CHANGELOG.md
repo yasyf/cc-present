@@ -6,6 +6,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.1] - 2026-07-13
+
+### Fixed
+- `install-binary.sh` reads only the plugin's own version from `plugin.json`;
+  the 0.8.0 dependencies block added a second `version` key that corrupted the
+  release download URL, so fresh installs got no binary.
+
 ## [0.8.0] - 2026-07-13
 
 ### Changed
