@@ -1,1 +1,1 @@
-{"v":1,"lamport":2,"ops":[{"kind":"add_comment","body":"Verified: web/src/packs/{host,load,registry,manifest}.ts and web/src/components/{PackBlockView,SingleBlockView}.tsx implement SPA dynamic pack rendering + window.CcPresent + single-block mode, with shared fixture internal/state/testdata/pack-interaction-lww.json. Closing as done."}]}
+{"v":1,"lamport":3,"ops":[{"kind":"set_criterion_status","id":"912b782fd46fd2708337fc82cacc3cff","status":"met"}]}
