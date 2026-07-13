@@ -1,1 +1,1 @@
-{"v":1,"lamport":2,"ops":[{"kind":"add_comment","body":"Verified: internal/doc/pack.go defines PackBlock/PackTypes/NoPacks; internal/packs/registry.go implements doc.PackTypes. Closing as done."}]}
+{"v":1,"lamport":3,"ops":[{"kind":"set_criterion_status","id":"77a038f6de4c80a3695ec2e4d375948c","status":"met"}]}
