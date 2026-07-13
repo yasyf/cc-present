@@ -104,6 +104,18 @@ export function submitItems(
   return out;
 }
 
+// blockDecided drives a board row's data-decided receipt: the block has at least
+// one tallied decidable and every one is decided. Unlike the shallow isDecided
+// (never true for a card), it aggregates a card over its children via submitItems.
+export function blockDecided(
+  block: Block,
+  interactions: Interactions,
+  packInteractive: ReadonlySet<string>,
+): boolean {
+  const items = submitItems([block], interactions, packInteractive);
+  return items.length > 0 && items.every((i) => i.decided);
+}
+
 // step moves the cursor one place along the ring, clamped at both ends. A null
 // cursor enters at the first (forward) or last (back) member; a cursor that has
 // left the ring re-enters the same way.

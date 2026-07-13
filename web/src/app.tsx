@@ -19,7 +19,7 @@ import { PresentContext } from './present';
 import type { PresentApi } from './present';
 import type { PresentState } from './events';
 import { interactionErrorText } from './interactionError';
-import { BlockRenderer } from './components/BlockRenderer';
+import { BoardBlocks } from './components/BoardBlocks';
 import { RoundGroup } from './components/RoundGroup';
 import { DocHeader } from './components/DocHeader';
 import { SubmitBar } from './components/SubmitBar';
@@ -152,11 +152,7 @@ function PresentView({ subject }: { subject: string }) {
                   {state.rounds.currentTitle && ` · ${state.rounds.currentTitle}`}
                 </div>
               )}
-              {liveBlocks.map((block) => (
-                <div className="block-row" key={block.id} data-flip-key={block.id}>
-                  <BlockRenderer block={block} interactions={state.interactions} />
-                </div>
-              ))}
+              <BoardBlocks blocks={liveBlocks} interactions={state.interactions} packInteractive={packInteractive} />
             </div>
           </div>
           {phase.kind === 'waiting' && <WaitingPanel round={currentRound} lastRound={phase.lastRound} />}

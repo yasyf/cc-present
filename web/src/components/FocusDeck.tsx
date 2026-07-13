@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { AnimatePresence, LazyMotion, MotionConfig, domMax } from 'motion/react';
 import { isDecided, submitItems } from '../decide';
 import { stepTitle } from '../focus';
 import type { FocusStep } from '../focus';
@@ -10,6 +11,7 @@ import { FocusPeek } from './FocusPeek';
 import { FocusProgress } from './FocusProgress';
 import { FocusNav } from './FocusNav';
 import { FocusSummary } from './FocusSummary';
+import type { ExitCustom } from './focusMotion';
 
 // A sentinel step id for the review summary — never a real block id — so the deck
 // stores one anchor id and the summary survives every recompute.
@@ -51,6 +53,9 @@ export function FocusDeck({ steps, interactions, round, closed }: FocusDeckProps
   const prevDecidedRef = useRef<{ id: string; decided: boolean } | null>(null);
   const timerRef = useRef<{ id: ReturnType<typeof setTimeout>; stepId: string } | null>(null);
   const [currentId, setCurrentId] = useState<string>(() => steps[0]?.id ?? DECK_END);
+  // The direction AnimatePresence flies the outgoing card: a verdict sends it fully
+  // off toward its sign, plain navigation slides it toward the move.
+  const [exitCustom, setExitCustom] = useState<ExitCustom>({ dir: 1, kind: 'nav' });
 
   const total = steps.length;
   const lastIndexRef = useRef(0);
@@ -72,7 +77,13 @@ export function FocusDeck({ steps, interactions, round, closed }: FocusDeckProps
     const clamped = Math.max(0, Math.min(i, list.length));
     setCurrentId(clamped >= list.length ? DECK_END : list[clamped]!.id);
   }, []);
-  const move = useCallback((delta: 1 | -1) => go(indexRef.current + delta), [go]);
+  const move = useCallback(
+    (delta: 1 | -1) => {
+      setExitCustom({ dir: delta, kind: 'nav' });
+      go(indexRef.current + delta);
+    },
+    [go],
+  );
   const jump = useCallback(
     (id: string) => {
       const list = stepsRef.current;
@@ -87,6 +98,7 @@ export function FocusDeck({ steps, interactions, round, closed }: FocusDeckProps
         api.setCursor(target);
         return;
       }
+      setExitCustom({ dir: i > indexRef.current ? 1 : -1, kind: 'nav' });
       pendingCursorRef.current = target;
       go(i);
     },
@@ -100,10 +112,12 @@ export function FocusDeck({ steps, interactions, round, closed }: FocusDeckProps
     for (let hop = 1; hop <= list.length; hop++) {
       const i = (from + hop) % list.length;
       if (stepUndecided(list[i]!, interactionsRef.current, packRef.current)) {
+        setExitCustom({ dir: i > from ? 1 : -1, kind: 'nav' });
         go(i);
         return;
       }
     }
+    setExitCustom({ dir: 1, kind: 'nav' });
     go(list.length);
   }, [go]);
 
@@ -146,13 +160,18 @@ export function FocusDeck({ steps, interactions, round, closed }: FocusDeckProps
       timerRef.current = null;
     }
     // Arm 450ms after an undecided→decided transition while this lone approval is
-    // current — never on arrival, revisit, or the echo.
+    // current — never on arrival, revisit, or the echo. The fly-off direction is
+    // the verdict's sign read when the timer *fires* (the verdict may flip within
+    // the window), so a swipe, a/r, and the buttons all exit alike.
     if (lone && decided && prev && prev.id === stepId && !prev.decided && !timerRef.current) {
+      const loneId = lone.id;
       timerRef.current = {
         stepId: stepId!,
         id: setTimeout(() => {
           timerRef.current = null;
-          if (deckRef.current?.querySelector('[data-composing]')) return;
+          if (deckRef.current?.querySelector('.focus-card:not([data-exiting]) [data-composing]')) return;
+          const dir: 1 | -1 = interactionsRef.current.decisions[loneId]?.verdict === 'rejected' ? -1 : 1;
+          setExitCustom({ dir, kind: 'verdict' });
           go(indexRef.current + 1);
         }, AUTO_ADVANCE_MS),
       };
@@ -173,30 +192,54 @@ export function FocusDeck({ steps, interactions, round, closed }: FocusDeckProps
     // Move DOM focus onto the freshly-mounted card (or the summary) so keyboard
     // and screen-reader users land on it; the deck never scrolls the cursor in
     // focus mode, so preventScroll keeps the viewport still.
-    deckRef.current?.querySelector<HTMLElement>('.focus-card, .focus-summary')?.focus({ preventScroll: true });
+    deckRef.current
+      ?.querySelector<HTMLElement>('.focus-card:not([data-exiting]), .focus-summary:not([data-exiting])')
+      ?.focus({ preventScroll: true });
     api.announce(currentStep ? `Step ${index + 1} of ${total} — ${stepTitle(currentStep)}` : 'Review');
   }, [api, index, total, currentStep]);
 
   const onSummary = index >= total;
 
+  // A clamp (the current anchor vanished from live churn) is not a verdict
+  // advance: fly the outgoing card out on a plain nav slide, never the stale
+  // verdict fly-off exitCustom still holds from an earlier decision. This is
+  // derived for THIS render — the exit is captured now, before the sync effect
+  // updates currentId — and framer locks an already-airborne exit's variant at
+  // its start, so the override only reaches the card leaving on this commit.
+  const clamped = currentStep !== undefined && currentStep.id !== currentId;
+  const exitCustomForPresence: ExitCustom =
+    clamped && exitCustom.kind === 'verdict' ? { dir: 1, kind: 'nav' } : exitCustom;
+
   return (
-    <div className="focus-deck" ref={deckRef}>
-      <FocusProgress
-        steps={steps}
-        index={index}
-        interactions={interactions}
-        packInteractive={packInteractive}
-        onJump={jump}
-      />
-      <div className="focus-stage">
-        {!onSummary && index + 1 < total && <FocusPeek step={steps[index + 1]!} />}
-        {onSummary ? (
-          <FocusSummary steps={steps} interactions={interactions} packInteractive={packInteractive} onJump={jump} />
-        ) : (
-          <FocusCard key={`${round}:${currentStep!.id}`} step={currentStep!} interactions={interactions} />
-        )}
-      </div>
-      <FocusNav index={index} total={total} onPrev={() => move(-1)} onNext={() => move(1)} />
-    </div>
+    <LazyMotion features={domMax} strict>
+      <MotionConfig reducedMotion="user">
+        <div className="focus-deck" ref={deckRef}>
+          <FocusProgress
+            steps={steps}
+            index={index}
+            interactions={interactions}
+            packInteractive={packInteractive}
+            onJump={jump}
+          />
+          <div className="focus-stage">
+            {!onSummary && index + 1 < total && <FocusPeek step={steps[index + 1]!} />}
+            <AnimatePresence mode="popLayout" custom={exitCustomForPresence} initial={false}>
+              {onSummary ? (
+                <FocusSummary
+                  key={`${round}:${DECK_END}`}
+                  steps={steps}
+                  interactions={interactions}
+                  packInteractive={packInteractive}
+                  onJump={jump}
+                />
+              ) : (
+                <FocusCard key={`${round}:${currentStep!.id}`} step={currentStep!} interactions={interactions} />
+              )}
+            </AnimatePresence>
+          </div>
+          <FocusNav index={index} total={total} onPrev={() => move(-1)} onNext={() => move(1)} />
+        </div>
+      </MotionConfig>
+    </LazyMotion>
   );
 }

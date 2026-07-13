@@ -16,6 +16,7 @@
     "@tanstack/react-query": "^5",
     "dompurify": "^3",
     "marked": "^18",
+    "motion": "^12.42.2",
     "react": "^19",
     "react-dom": "^19",
     "shiki": "^4"

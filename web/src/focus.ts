@@ -139,3 +139,20 @@ export function stepStatus(
   }
   return 'decided';
 }
+
+const SWIPE_OFFSET = 120;
+const SWIPE_VELOCITY = 600;
+
+// swipeVerdict is the pure commit rule for a swipe on a lone approval: a drag
+// past ±120px or a flick past ±600px/s commits, its sign the verdict (right =
+// approved); anything short snaps back. Distance wins the direction when it
+// reaches threshold, else the flick does — so a fast, short flick still commits
+// toward its own direction. Unit-tested in focus.test.ts against a renderer-free
+// table, mirrored by iOS.
+export function swipeVerdict(offsetX: number, velocityX: number): 'approved' | 'rejected' | null {
+  const byOffset = Math.abs(offsetX) >= SWIPE_OFFSET;
+  const byVelocity = Math.abs(velocityX) >= SWIPE_VELOCITY;
+  if (!byOffset && !byVelocity) return null;
+  const dir = byOffset ? Math.sign(offsetX) : Math.sign(velocityX);
+  return dir >= 0 ? 'approved' : 'rejected';
+}

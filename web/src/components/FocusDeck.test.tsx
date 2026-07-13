@@ -9,6 +9,7 @@ import type { PresentApi } from '../present';
 import { KeyboardProvider } from '../keyboard';
 import { FocusDeck } from './FocusDeck';
 import { SubmitBar } from './SubmitBar';
+import * as focusMotion from './focusMotion';
 import { focusSteps } from '../focus';
 import { loadView, saveView } from '../viewmode';
 import { emptyState } from '../reduce';
@@ -110,8 +111,10 @@ function render(props: DeckProps): void {
   act(() => root.render(<Deck {...props} />));
 }
 
+// AnimatePresence keeps the outgoing card mounted (marked data-exiting) while it
+// flies off, so every current-card query targets the live, non-exiting card.
 const currentPrompt = (): string | undefined =>
-  container.querySelector('.focus-card .approval-prompt')?.textContent ?? undefined;
+  container.querySelector('.focus-card:not([data-exiting]) .approval-prompt')?.textContent ?? undefined;
 const peekTitle = (): string | undefined => container.querySelector('.focus-peek-title')?.textContent ?? undefined;
 function clickNext(): void {
   act(() => (container.querySelector('.focus-nav-btn.primary') as HTMLButtonElement).click());
@@ -159,7 +162,7 @@ describe('FocusDeck navigation', () => {
   it('lands on the review summary past the last step', () => {
     render({ blocks: [approval('a1', 'Ship one')], interactions: empty() });
     clickNext();
-    expect(container.querySelector('.focus-card')).toBeNull();
+    expect(container.querySelector('.focus-card:not([data-exiting])')).toBeNull();
     expect(container.querySelector('.focus-step-count')?.textContent).toBe('Review');
     expect(container.querySelector('.focus-summary-head')?.textContent).toBe('Review');
     expect(container.querySelector('.focus-receipt-title')?.textContent).toBe('Ship one');
@@ -215,7 +218,11 @@ describe('FocusDeck auto-advance', () => {
   it('cancels the auto-advance while feedback is composing', () => {
     vi.useFakeTimers();
     render({ blocks: three, interactions: empty() });
-    act(() => (container.querySelector('.focus-card .feedback-affordance .link-btn') as HTMLButtonElement).click());
+    act(() =>
+      (
+        container.querySelector('.focus-card:not([data-exiting]) .feedback-affordance .link-btn') as HTMLButtonElement
+      ).click(),
+    );
     expect(container.querySelector('[data-composing]')).not.toBeNull();
     render({ blocks: three, interactions: withVerdict('a1', 'approved') });
     act(() => vi.advanceTimersByTime(AUTO_ADVANCE_MS));
@@ -273,7 +280,7 @@ describe('FocusDeck next-undecided wrapping', () => {
   it('lands on Review only when every step is decided', () => {
     render({ blocks: three, interactions: withVerdicts({ a1: 'approved', a2: 'approved', a3: 'approved' }) });
     pressKey('n');
-    expect(container.querySelector('.focus-card')).toBeNull();
+    expect(container.querySelector('.focus-card:not([data-exiting])')).toBeNull();
     expect(container.querySelector('.focus-summary-head')?.textContent).toBe('Review');
   });
 });
@@ -319,6 +326,38 @@ describe('FocusDeck nested-decidable jump', () => {
   });
 });
 
+describe('FocusDeck churn exit direction', () => {
+  it('flies a churn-removed card out on the nav variant, not a stale verdict fly-off', () => {
+    vi.useFakeTimers();
+    const variants = focusMotion.cardVariants as unknown as { exit: (c: { kind: string }) => unknown };
+    const exitSpy = vi.spyOn(variants, 'exit');
+    render({ blocks: three, interactions: empty() });
+    // approve a1 -> auto-advance to a2 leaves exitCustom holding a verdict fly-off
+    render({ blocks: three, interactions: withVerdict('a1', 'approved') });
+    act(() => vi.advanceTimersByTime(AUTO_ADVANCE_MS));
+    expect(currentPrompt()).toBe('Ship two');
+    exitSpy.mockClear();
+    // live churn removes the current card (a2); its exit must not reuse the verdict
+    render({ blocks: [three[0]!, three[2]!], interactions: withVerdict('a1', 'approved') });
+    expect(currentPrompt()).toBe('Ship three');
+    const kinds = exitSpy.mock.calls.map((c) => c[0].kind);
+    expect(kinds).toContain('nav');
+    expect(kinds).not.toContain('verdict');
+  });
+});
+
+describe('FocusDeck summary presence key', () => {
+  it('keeps the review distinct from a block literally named "summary"', () => {
+    render({ blocks: [approval('summary', 'Ship summary')], interactions: empty() });
+    clickNext();
+    // the review renders past the last step...
+    expect(container.querySelector('.focus-summary')).not.toBeNull();
+    // ...and the 'summary' block's card exits cleanly rather than being swapped
+    // in place under a presence key colliding with the review's.
+    expect(container.querySelector('.focus-card[data-exiting]')).not.toBeNull();
+  });
+});
+
 describe('FocusDeck final-step removal', () => {
   it('clamps to the surviving neighbour rather than the summary', () => {
     render({ blocks: three, interactions: empty() });
@@ -334,7 +373,7 @@ describe('FocusDeck step-change focus and announce', () => {
   it('moves DOM focus into the new card and announces the step', () => {
     render({ blocks: three, interactions: empty() });
     clickNext();
-    const card = container.querySelector('.focus-card');
+    const card = container.querySelector('.focus-card:not([data-exiting])');
     expect(card).not.toBeNull();
     expect(card!.contains(document.activeElement)).toBe(true);
     const live = container.querySelector('.sr-only[role="status"]');
@@ -353,7 +392,7 @@ describe('FocusDeck step-change focus and announce', () => {
 describe('FocusDeck closed', () => {
   it('disables the verdict controls', () => {
     render({ blocks: three, interactions: empty(), closed: true });
-    const buttons = [...container.querySelectorAll('.focus-card .verdict')] as HTMLButtonElement[];
+    const buttons = [...container.querySelectorAll('.focus-card:not([data-exiting]) .verdict')] as HTMLButtonElement[];
     expect(buttons.length).toBeGreaterThan(0);
     expect(buttons.every((b) => b.disabled)).toBe(true);
   });

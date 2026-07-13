@@ -1,6 +1,9 @@
+import { forwardRef } from 'react';
+import { m, useIsPresent } from 'motion/react';
 import type { FocusStep } from '../focus';
 import { stepStatus, stepTitle } from '../focus';
 import type { Interactions } from '../events';
+import { cardVariants } from './focusMotion';
 
 export interface FocusSummaryProps {
   steps: FocusStep[];
@@ -11,10 +14,24 @@ export interface FocusSummaryProps {
 
 // FocusSummary is the deck-end receipt: one row per step with its verdict, and an
 // undecided item as a jump-link back to its step. The SubmitBar stays mounted
-// below as the single submit path.
-export function FocusSummary({ steps, interactions, packInteractive, onJump }: FocusSummaryProps) {
+// below as the single submit path. It forwards the ref AnimatePresence's popLayout
+// mode injects so the outgoing summary can be measured and lifted out of flow.
+export const FocusSummary = forwardRef<HTMLDivElement, FocusSummaryProps>(function FocusSummary(
+  { steps, interactions, packInteractive, onJump },
+  ref,
+) {
+  const present = useIsPresent();
   return (
-    <div className="focus-summary" tabIndex={-1}>
+    <m.div
+      ref={ref}
+      className="focus-summary"
+      tabIndex={-1}
+      data-exiting={!present || undefined}
+      variants={cardVariants}
+      initial="enter"
+      animate="center"
+      exit="exit"
+    >
       <div className="focus-summary-head">Review</div>
       <ul className="focus-receipts">
         {steps.map((step) => {
@@ -33,6 +50,6 @@ export function FocusSummary({ steps, interactions, packInteractive, onJump }: F
           );
         })}
       </ul>
-    </div>
+    </m.div>
   );
-}
+});

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { focusSteps, stepStatus, stepTitle } from './focus';
+import { focusSteps, stepStatus, stepTitle, swipeVerdict } from './focus';
 import type { FocusStep } from './focus';
 import type { Block } from './schema';
 import type { Interactions } from './events';
@@ -220,6 +220,28 @@ describe('stepStatus', () => {
   for (const c of cases) {
     it(c.name, () => {
       expect(stepStatus(c.step, c.interactions, new Set())).toBe(c.expected);
+    });
+  }
+});
+
+describe('swipeVerdict', () => {
+  const cases: { name: string; offset: number; velocity: number; expected: ReturnType<typeof swipeVerdict> }[] = [
+    { name: 'offset at the right threshold approves', offset: 120, velocity: 0, expected: 'approved' },
+    { name: 'offset at the left threshold rejects', offset: -120, velocity: 0, expected: 'rejected' },
+    { name: 'offset just past the right threshold approves', offset: 200, velocity: 0, expected: 'approved' },
+    { name: 'offset one below threshold snaps back', offset: 119, velocity: 0, expected: null },
+    { name: 'offset one below threshold to the left snaps back', offset: -119, velocity: 0, expected: null },
+    { name: 'a rightward flick alone commits', offset: 0, velocity: 600, expected: 'approved' },
+    { name: 'a leftward flick alone commits', offset: 0, velocity: -600, expected: 'rejected' },
+    { name: 'a flick one below threshold snaps back', offset: 40, velocity: 599, expected: null },
+    { name: 'sub-threshold in both dimensions snaps back', offset: 40, velocity: 100, expected: null },
+    { name: 'distance wins direction over a contrary flick', offset: 200, velocity: -900, expected: 'approved' },
+    { name: 'a short leftward flick past velocity rejects', offset: -30, velocity: -800, expected: 'rejected' },
+    { name: 'no movement snaps back', offset: 0, velocity: 0, expected: null },
+  ];
+  for (const c of cases) {
+    it(c.name, () => {
+      expect(swipeVerdict(c.offset, c.velocity)).toBe(c.expected);
     });
   }
 });
