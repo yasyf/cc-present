@@ -7,7 +7,7 @@ description: Present options, drafts, or work-in-progress to the human as a live
 
 You are presenting work for human sign-off through a live web artifact. You compose a JSON document of typed blocks — cards, approvals, choices, diffs — and the human's clicks stream back to you as events while you keep working. You **never write HTML**; the blocks are the entire authoring surface. Everything is CLI calls to `cc-present` — you are a thin wrapper around it.
 
-The binary is `"${CLAUDE_PLUGIN_ROOT}/bin/cc-present"` — always invoke it by that absolute path, never as bare `cc-present`. If it's missing, run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/install-binary.sh"` once.
+Invoke it as bare `cc-present` — Claude Code (≥ 2.1.91) puts the plugin's `bin/` on the Bash tool PATH. If the command isn't found or resolves to a stale version, fall back to the absolute path `"${CLAUDE_PLUGIN_ROOT}/bin/cc-present"` (see `reference/troubleshooting.md`). If the binary itself is missing, run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/install-binary.sh"` once.
 
 There is **no edit gate**. An open artifact never blocks your tools: keep executing the task while the board is up, reacting to events as they arrive. Never park the session waiting for a click.
 
@@ -27,12 +27,12 @@ Write the document JSON to a file in your **session scratchpad** and pass the pa
 
 **Choosing a presentation.** Omit `presentation` and the client decides: a board with any decision unit opens in focus mode — one card at a time — and a content-only board opens as the classic board. Set `"presentation": "board"` for a reference or dashboard push the human should scan freely; set `"focus"` to force the deck for a decision-heavy review. Either way it is a hint — the viewer's own toggle wins.
 
-**Pack blocks.** When no built-in fits, installed block packs may supply extra types. Run `"${CLAUDE_PLUGIN_ROOT}/bin/cc-present" pack list` to see them: each block prints as a dotted type (`example.rating`), and each pack prints the absolute path of its reference fragment — read that fragment before first use; it documents the pack's fields the way `reference/blocks.md` documents the built-ins. Compose a dotted type like any other block. `push --dry-run` validates pack blocks against their schemas too; an uninstalled dotted type fails the dry run with `pack block type "example.rating" is not installed`.
+**Pack blocks.** When no built-in fits, installed block packs may supply extra types. Run `cc-present pack list` to see them: each block prints as a dotted type (`example.rating`), and each pack prints the absolute path of its reference fragment — read that fragment before first use; it documents the pack's fields the way `reference/blocks.md` documents the built-ins. Compose a dotted type like any other block. `push --dry-run` validates pack blocks against their schemas too; an uninstalled dotted type fails the dry run with `pack block type "example.rating" is not installed`.
 
 Validate offline before starting (no daemon needed):
 
 ```bash
-"${CLAUDE_PLUGIN_ROOT}/bin/cc-present" push --dry-run "$DOC"
+cc-present push --dry-run "$DOC"
 ```
 
 `ok` on stdout means valid; otherwise **every** violation prints at once, one per line, each naming its offending block id — compose, validate once, fix all in a single pass. A malformed JSON file fails with the line and column of the offending byte.
@@ -40,7 +40,7 @@ Validate offline before starting (no daemon needed):
 ## 2. Start the artifact and give the user the URL
 
 ```bash
-"${CLAUDE_PLUGIN_ROOT}/bin/cc-present" start --session "$CLAUDE_CODE_SESSION_ID" --doc "$DOC"
+cc-present start --session "$CLAUDE_CODE_SESSION_ID" --doc "$DOC"
 ```
 
 It prints exactly three lines:
@@ -63,12 +63,12 @@ Route by the `channel:` line from step 2:
 - **`pending`** or **`inactive`** — launch a **Monitor** (`persistent: true`, description `cc-present events`) wrapping:
 
   ```bash
-  "${CLAUDE_PLUGIN_ROOT}/bin/cc-present" watch --session "$CLAUDE_CODE_SESSION_ID"
+  cc-present watch --session "$CLAUDE_CODE_SESSION_ID"
   ```
 
   Each line it prints is one JSON event. `--session` is required — `watch` does not read the environment, and without it it polls forever.
 
-If a `<channel source="cc-present">` tag arrives while the Monitor is armed, the channel went live: run `"${CLAUDE_PLUGIN_ROOT}/bin/cc-present" channel-ack --session "$CLAUDE_CODE_SESSION_ID"`, stop the Monitor with **TaskStop**, and rely on tags from then on. Delivery is at-least-once; re-delivery is harmless — decisions, choices, and inputs are last-write-wins, and feedback carries its own `id`.
+If a `<channel source="cc-present">` tag arrives while the Monitor is armed, the channel went live: run `cc-present channel-ack --session "$CLAUDE_CODE_SESSION_ID"`, stop the Monitor with **TaskStop**, and rely on tags from then on. Delivery is at-least-once; re-delivery is harmless — decisions, choices, and inputs are last-write-wins, and feedback carries its own `id`.
 
 Either way: **do not block waiting.** Tell the user you're watching and continue the underlying task.
 
@@ -90,13 +90,13 @@ Each event (Monitor line or channel tag) is the event's JSON payload, self-descr
 To reply — it renders under the block in realtime, on any block type (approvals, inputs, tables, pack blocks alike); an unknown block id is rejected:
 
 ```bash
-"${CLAUDE_PLUGIN_ROOT}/bin/cc-present" reply --block <blockId> --body "Good catch — redrafting now."
+cc-present reply --block <blockId> --body "Good catch — redrafting now."
 ```
 
 To redraft, write the revised block JSON to the scratchpad and upsert it:
 
 ```bash
-"${CLAUDE_PLUGIN_ROOT}/bin/cc-present" update-block "$BLOCK" [--after <id>]
+cc-present update-block "$BLOCK" [--after <id>]
 ```
 
 **Prefer `update-block` over a full `push`** — it keeps the event log lean and never disturbs the rest of the board. Upserting replaces the block wholesale (nothing from the old block survives), and human verdicts live outside the document, so a redraft never clobbers a decision. `remove-block <id>` drops a block you no longer want on the board.
@@ -106,7 +106,7 @@ To redraft, write the revised block JSON to the scratchpad and upsert it:
 A submit on a board you've touched this round also closes the round: those blocks collapse into a read-only "Round N" group in the browser, and the next round opens on the same URL. A submit on an untouched board records only the revision. Either way, drain the outcomes:
 
 ```bash
-"${CLAUDE_PLUGIN_ROOT}/bin/cc-present" outcomes --no-doc --session "$CLAUDE_CODE_SESSION_ID"
+cc-present outcomes --no-doc --session "$CLAUDE_CODE_SESSION_ID"
 ```
 
 This prints every human interaction keyed by block id — `decisions`, `choices`, `inputs`, `feedback`, your `replies`, the `submitted` marker, and `rounds` (the closed-round history). `--no-doc` omits the reduced document: you authored it, so re-printing it every drain only burns context. Drop the flag on the rare drain where you need the current document too. Then:
@@ -116,8 +116,8 @@ This prints every human interaction keyed by block id — `decisions`, `choices`
 3. Either **close** (below), or **start the next round**: optionally name it, then upsert the blocks the round is about.
 
 ```bash
-"${CLAUDE_PLUGIN_ROOT}/bin/cc-present" round --title "Redrafts"   # → round: 2 — names the round the submit just opened
-"${CLAUDE_PLUGIN_ROOT}/bin/cc-present" update-block "$BLOCK"      # each upsert pulls its block into the new round
+cc-present round --title "Redrafts"   # → round: 2 — names the round the submit just opened
+cc-present update-block "$BLOCK"      # each upsert pulls its block into the new round
 ```
 
 **Carry-forward is explicit.** After a submit, a block stays actionable only if you re-upsert it — even unchanged. Touching an old block pulls it into the current round; that *is* the redraft flow, and the old version stays frozen in the collapsed group. Blocks you don't touch stay in the closed round, read-only. A full `push` pulls the entire new document into the current round. Inputs come back fresh each round automatically (the UI shows a dim "last round" hint) — never ask the human to clear a field.
@@ -125,7 +125,7 @@ This prints every human interaction keyed by block id — `decisions`, `choices`
 To finish instead:
 
 ```bash
-"${CLAUDE_PLUGIN_ROOT}/bin/cc-present" close --summary "All 5 openers approved; two redrafted per feedback."
+cc-present close --summary "All 5 openers approved; two redrafted per feedback."
 ```
 
 `close` is **terminal**: the board greys out, later interactions get a 409, and no event un-closes it. The `present.closed` event streams back to you as the final frame, and `watch` exits on it — a Monitor wrapping `watch` completes on its own, no TaskStop needed. A later `start` in this window creates a fresh artifact.
@@ -171,8 +171,8 @@ The user asks: "present the two release-note drafts for approval." Write this to
 ```
 
 ```bash
-"${CLAUDE_PLUGIN_ROOT}/bin/cc-present" push --dry-run "$DOC"     # → ok
-"${CLAUDE_PLUGIN_ROOT}/bin/cc-present" start --session "$CLAUDE_CODE_SESSION_ID" --doc "$DOC"
+cc-present push --dry-run "$DOC"     # → ok
+cc-present start --session "$CLAUDE_CODE_SESSION_ID" --doc "$DOC"
 # session: 4f3a…  /  url: http://127.0.0.1:54713/p/release-note-drafts--b6cc453c  /  channel: pending
 ```
 

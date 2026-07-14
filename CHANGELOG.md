@@ -6,6 +6,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- The present and author-pack skills invoke bare `cc-present` — Claude Code ≥ 2.1.91 puts
+  each plugin's `bin/` on the Bash tool PATH; `"${CLAUDE_PLUGIN_ROOT}/bin/cc-present"` remains
+  the documented fallback when the bare name is missing or a stale shell snapshot pins an
+  older version.
+
 ## [0.9.1] - 2026-07-13
 
 ### Changed

@@ -1,5 +1,7 @@
 # Troubleshooting
 
+**Bare `cc-present` isn't found — or answers with an old version.** Bare invocation relies on Claude Code ≥ 2.1.91 putting each plugin's `bin/` on the Bash tool PATH, and that entry is version-pinned in the session's shell snapshot. A snapshot captured before the plugin was installed leaves the command not found; one captured before the last plugin update keeps resolving the superseded binary, so bare `cc-present` silently runs an older version than the plugin ships — compare `cc-present --version` when in doubt. Both cases have the same remedy: invoke the absolute path `"${CLAUDE_PLUGIN_ROOT}/bin/cc-present"`, which always names the current install, and start a fresh session to rebuild the snapshot. A missing binary file is the next entry.
+
 **The binary is missing.** Run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/install-binary.sh"`. It downloads the release binary for this platform into `bin/cc-present`. The SessionStart hook runs it automatically on session start, and `mcp-channel.sh` runs it again before exec'ing the channel server, so a missing binary usually means both paths failed — run it by hand and read its stderr.
 
 **`watch` prints nothing and never exits.** You omitted `--session`. The artifact commands default it from `$CLAUDE_CODE_SESSION_ID`; `watch` takes only the flag, and with an empty session it polls for a subject forever. Relaunch it as `watch --session "$CLAUDE_CODE_SESSION_ID"`. Confirm the Monitor wrapping it was launched with `persistent: true`, and check the daemon with `status`.

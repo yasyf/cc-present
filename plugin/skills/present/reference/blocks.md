@@ -377,7 +377,7 @@ The dominant board shape: a section groups cards, and each card carries the befo
 Installed block packs extend the block set beyond the built-ins above. A pack block's `type` is dotted — `<pack>.<block>`, both segments lowercase kebab-case — and the dot is the namespace boundary: built-in types never contain one. Discover what is installed:
 
 ```bash
-"${CLAUDE_PLUGIN_ROOT}/bin/cc-present" pack list
+cc-present pack list
 ```
 
 Per pack it prints the name and version, the pack directory, the absolute path of the pack's reference fragment, and each block's dotted type with an `(interactive)` marker; `dropped:` lists every skipped candidate with its reason. Read the reference fragment before first use — it documents the pack's fields the way this page documents the built-ins.

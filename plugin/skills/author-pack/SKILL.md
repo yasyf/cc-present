@@ -7,12 +7,12 @@ description: Author a block pack — custom block types for cc-present boards, s
 
 You are authoring a block pack: custom block types the cc-present SPA loads at runtime. A pack is one directory — a TOML manifest (`cc-present.toml`), a JSON Schema per block, and one prebuilt ES-module bundle of React components. Each block gets a dotted wire type, `<pack>.<name>`, that composes on a board like any built-in. Author a pack when the built-in blocks can't render what a board needs. *Using* installed packs on a board is the `present` skill's job (its `reference/blocks.md` § Pack blocks) — don't re-teach composition here.
 
-The binary is `"${CLAUDE_PLUGIN_ROOT}/bin/cc-present"` — always invoke it by that absolute path, never as bare `cc-present`. If it's missing, run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/install-binary.sh"` once. Building the bundle also needs `bun` on PATH.
+Invoke it as bare `cc-present` — Claude Code (≥ 2.1.91) puts the plugin's `bin/` on the Bash tool PATH. If the command isn't found or resolves to a stale version, use the absolute path `"${CLAUDE_PLUGIN_ROOT}/bin/cc-present"` (see the present skill's `reference/troubleshooting.md`). If the binary itself is missing, run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/install-binary.sh"` once. Building the bundle also needs `bun` on PATH.
 
 ## 1. Scaffold
 
 ```bash
-"${CLAUDE_PLUGIN_ROOT}/bin/cc-present" pack init --name <pack> <dir>
+cc-present pack init --name <pack> <dir>
 ```
 
 Offline, no daemon. `--name` defaults to the target directory's basename, and the command refuses a non-empty directory. It writes 23 files: a working pack with one content block (`<pack>.callout`) and two interactive blocks (`<pack>.rating`, plus the two-step `<pack>.survey` wizard that exercises the hostApi 2 helpers), renamed to your pack throughout, plus a `.gitignore` that ignores only `node_modules/` — never `dist/`, which a shipped pack commits.
@@ -84,7 +84,7 @@ bun install
 bun run typecheck
 bun run build     # emits dist/pack.js — the manifest's entry
 bun run smoke     # imports the built bundle under a stubbed host
-"${CLAUDE_PLUGIN_ROOT}/bin/cc-present" pack lint .
+cc-present pack lint .
 ```
 
 `pack lint` runs discovery's own fail-loud checks (strict manifest, `host_api`, declared files present, schemas compiling) plus one discovery skips: every declared example must validate against its block schema. A clean lint prints exactly one line, `ok: <pack> <version> (N blocks)`. A fresh scaffold fails lint until you build (`entry "dist/pack.js" not found`), and `smoke` asserts the scaffolded block names — update `scripts/smoke.ts` when you rename or add blocks. Anything else red: `reference/troubleshooting.md`.
@@ -98,7 +98,7 @@ bun run smoke     # imports the built bundle under a stubbed host
 **Verify** either way:
 
 ```bash
-"${CLAUDE_PLUGIN_ROOT}/bin/cc-present" pack list
+cc-present pack list
 ```
 
 Per pack it prints the name and version, the directory, the reference fragment's absolute path, and each block's dotted type with an `(interactive)` marker; `dropped:` lists every skipped candidate with its reason. Then `push --dry-run` a document that uses the dotted type — an uninstalled type fails with `pack block type "<pack>.<name>" is not installed`; a validating one prints `ok`.
@@ -112,7 +112,7 @@ Fill in the pack's own `reference/blocks.md` — the file the manifest's `refere
 The user asks: "add a severity picker for our triage boards."
 
 ```bash
-"${CLAUDE_PLUGIN_ROOT}/bin/cc-present" pack init --name triage triage
+cc-present pack init --name triage triage
 ```
 
 ```
@@ -142,13 +142,13 @@ Build, check, register:
 
 ```bash
 cd triage && bun install && bun run typecheck && bun run build && bun run smoke
-"${CLAUDE_PLUGIN_ROOT}/bin/cc-present" pack lint .        # → ok: triage 0.2.0 (3 blocks)
+cc-present pack lint .        # → ok: triage 0.2.0 (3 blocks)
 ```
 
 Add `"/work/triage"` to `packDirs` in `~/.cc-present/config.json`; within 2 seconds:
 
 ```bash
-"${CLAUDE_PLUGIN_ROOT}/bin/cc-present" pack list
+cc-present pack list
 ```
 
 ```
@@ -174,7 +174,7 @@ Prove it composes — write a document using the new type and dry-run it:
 ```
 
 ```bash
-"${CLAUDE_PLUGIN_ROOT}/bin/cc-present" push --dry-run "$DOC"   # → ok
+cc-present push --dry-run "$DOC"   # → ok
 ```
 
 When the human later clicks a point, the agent receives `{"blockId":"sev","payload":{"value":3},"type":"pack.interaction"}`. To ship, commit the pack — `dist/` included — at the plugin's `.claude/components/`.
