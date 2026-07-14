@@ -6,6 +6,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.4] - 2026-07-14
+
+### Fixed
+- Mobile option rows now respect the keymap chip and the touch floor. When facts
+  fold below the body on narrow screens — and on factless rows at any width — a long
+  option label no longer runs under the 1–9 keymap chip; the folded facts row drops a
+  stray gap left by a chip-avoidance rule the cascade could never apply; and the
+  detail and lightbox modal close buttons reach the 44px touch target the mobile
+  layout enforces everywhere else.
+
 ## [0.9.3] - 2026-07-14
 
 ### Added
@@ -287,7 +297,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   marketplace.
 - `examples/opener-board.json`, a complete sample document.
 
-[Unreleased]: https://github.com/yasyf/cc-present/compare/v0.9.3...main
+[Unreleased]: https://github.com/yasyf/cc-present/compare/v0.9.4...main
+[0.9.4]: https://github.com/yasyf/cc-present/compare/v0.9.3...v0.9.4
 [0.9.3]: https://github.com/yasyf/cc-present/compare/v0.9.2...v0.9.3
 [0.9.2]: https://github.com/yasyf/cc-present/compare/v0.9.1...v0.9.2
 [0.9.1]: https://github.com/yasyf/cc-present/compare/v0.9.0...v0.9.1
