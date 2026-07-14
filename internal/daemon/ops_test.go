@@ -52,9 +52,9 @@ func (h *harness) hc(b body) ccd.HandlerCtx {
 	raw, _ := json.Marshal(b)
 	return ccd.HandlerCtx{
 		Ctx:      context.Background(),
-		Env:      ccd.Envelope{Session: "s1", ClaudePID: 100, Scope: "/repo", Body: raw},
+		Env:      ccd.Envelope{Session: "s1", ClaudePID: 100, Scope: scopeSentinel, Body: raw},
 		Window:   subject.Window{Session: "s1", ClaudePID: 100},
-		Scope:    "/repo",
+		Scope:    scopeSentinel,
 		Subjects: h.resolver,
 		DB:       h.cc.DB(),
 		Append:   h.cc.AppendEvent,

@@ -40,7 +40,7 @@ Validate offline before starting (no daemon needed):
 ## 2. Start the artifact and give the user the URL
 
 ```bash
-"${CLAUDE_PLUGIN_ROOT}/bin/cc-present" start --session "$CLAUDE_CODE_SESSION_ID" --cwd "$PWD" --doc "$DOC"
+"${CLAUDE_PLUGIN_ROOT}/bin/cc-present" start --session "$CLAUDE_CODE_SESSION_ID" --doc "$DOC"
 ```
 
 It prints exactly three lines:
@@ -51,7 +51,7 @@ url: http://127.0.0.1:<port>/p/<slug>--<hash>
 channel: active|pending|inactive
 ```
 
-**Show the URL to the user verbatim** and tell them to open it, click through the board, and press Submit when done. By default `start` resumes this window's open artifact (across `/clear` and resume); `--new` forces a fresh one, and a previously closed artifact forces fresh automatically. To seed later instead, run `start --title "..."` now and `push "$DOC"` when the document is ready.
+**Show the URL to the user verbatim** and tell them to open it, click through the board, and press Submit when done. By default `start` resumes this window's open artifact (across `/clear` and resume); `--new` forces a fresh one, and a previously closed artifact forces fresh automatically. The artifact belongs to this window, not a directory — every `cc-present` command resolves it from any cwd. For an unrelated presentation pass `--new`: a resumed board keeps prior interaction state, and a reused block id inherits stale verdicts. To seed later instead, run `start --title "..."` now and `push "$DOC"` when the document is ready.
 
 To preview a visually heavy board yourself — many images, diffs, or pack blocks — screenshot the live URL with the agent-browser skill and read the result. There is no CLI preview verb; the running artifact is the preview.
 
@@ -63,12 +63,12 @@ Route by the `channel:` line from step 2:
 - **`pending`** or **`inactive`** — launch a **Monitor** (`persistent: true`, description `cc-present events`) wrapping:
 
   ```bash
-  "${CLAUDE_PLUGIN_ROOT}/bin/cc-present" watch --session "$CLAUDE_CODE_SESSION_ID" --cwd "$PWD"
+  "${CLAUDE_PLUGIN_ROOT}/bin/cc-present" watch --session "$CLAUDE_CODE_SESSION_ID"
   ```
 
   Each line it prints is one JSON event. `--session` is required — `watch` does not read the environment, and without it it polls forever.
 
-If a `<channel source="cc-present">` tag arrives while the Monitor is armed, the channel went live: run `"${CLAUDE_PLUGIN_ROOT}/bin/cc-present" channel-ack --session "$CLAUDE_CODE_SESSION_ID" --cwd "$PWD"`, stop the Monitor with **TaskStop**, and rely on tags from then on. Delivery is at-least-once; re-delivery is harmless — decisions, choices, and inputs are last-write-wins, and feedback carries its own `id`.
+If a `<channel source="cc-present">` tag arrives while the Monitor is armed, the channel went live: run `"${CLAUDE_PLUGIN_ROOT}/bin/cc-present" channel-ack --session "$CLAUDE_CODE_SESSION_ID"`, stop the Monitor with **TaskStop**, and rely on tags from then on. Delivery is at-least-once; re-delivery is harmless — decisions, choices, and inputs are last-write-wins, and feedback carries its own `id`.
 
 Either way: **do not block waiting.** Tell the user you're watching and continue the underlying task.
 
@@ -106,7 +106,7 @@ To redraft, write the revised block JSON to the scratchpad and upsert it:
 A submit on a board you've touched this round also closes the round: those blocks collapse into a read-only "Round N" group in the browser, and the next round opens on the same URL. A submit on an untouched board records only the revision. Either way, drain the outcomes:
 
 ```bash
-"${CLAUDE_PLUGIN_ROOT}/bin/cc-present" outcomes --no-doc --session "$CLAUDE_CODE_SESSION_ID" --cwd "$PWD"
+"${CLAUDE_PLUGIN_ROOT}/bin/cc-present" outcomes --no-doc --session "$CLAUDE_CODE_SESSION_ID"
 ```
 
 This prints every human interaction keyed by block id — `decisions`, `choices`, `inputs`, `feedback`, your `replies`, the `submitted` marker, and `rounds` (the closed-round history). `--no-doc` omits the reduced document: you authored it, so re-printing it every drain only burns context. Drop the flag on the rare drain where you need the current document too. Then:
@@ -156,8 +156,12 @@ The user asks: "present the two release-note drafts for approval." Write this to
       "title": "Opening line",
       "children": [
         { "id": "opener-choice", "type": "choice", "prompt": "Which opener?", "options": [
-          { "id": "punchy", "label": "Validate first. Ship faster." },
-          { "id": "plain", "label": "v2.1 adds offline validation." }
+          { "id": "punchy", "label": "Validate first. Ship faster.", "hint": "my pick — command form",
+            "facts": [ { "label": "frame", "value": "command" }, { "label": "words", "value": "4" } ],
+            "detail": { "pros": [ "Names the benefit, not the feature" ], "cons": [ "Says nothing about what shipped" ] } },
+          { "id": "plain", "label": "v2.1 adds offline validation.", "hint": "literal, safer",
+            "facts": [ { "label": "frame", "value": "changelog", "tone": "warn" }, { "label": "words", "value": "4" } ],
+            "detail": { "pros": [ "States the actual change" ], "cons": [ "Reads like any other release note" ] } }
         ]},
         { "id": "opener-approval", "type": "approval", "prompt": "Approve the selected opener?" }
       ]
@@ -168,7 +172,7 @@ The user asks: "present the two release-note drafts for approval." Write this to
 
 ```bash
 "${CLAUDE_PLUGIN_ROOT}/bin/cc-present" push --dry-run "$DOC"     # → ok
-"${CLAUDE_PLUGIN_ROOT}/bin/cc-present" start --session "$CLAUDE_CODE_SESSION_ID" --cwd "$PWD" --doc "$DOC"
+"${CLAUDE_PLUGIN_ROOT}/bin/cc-present" start --session "$CLAUDE_CODE_SESSION_ID" --doc "$DOC"
 # session: 4f3a…  /  url: http://127.0.0.1:54713/p/release-note-drafts--b6cc453c  /  channel: pending
 ```
 

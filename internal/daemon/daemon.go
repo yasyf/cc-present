@@ -38,6 +38,14 @@ const (
 	channelPollWindow = 3 * time.Second
 )
 
+// scopeSentinel is the constant ownership scope every envelope's raw scope
+// (a cwd) canonicalizes to. A cc-present artifact belongs to a Claude window
+// (session id + claude pid), never to the directory a CLI command ran from,
+// so resolution is cwd-independent by construction.
+const scopeSentinel = "cc-present"
+
+func resolveScope(_ context.Context, _ string) string { return scopeSentinel }
+
 // lifecycle names the subject statuses the resolver writes: a fresh artifact is
 // born open; a fresh start closes the window's prior artifact.
 var lifecycle = subject.Lifecycle{Initial: statusOpen, Closed: statusClosed}
@@ -45,10 +53,12 @@ var lifecycle = subject.Lifecycle{Initial: statusOpen, Closed: statusClosed}
 var slugStrip = regexp.MustCompile(`[^a-z0-9]+`)
 
 // BuildServer composes the cc-present daemon: presence via channel.Connectivity,
-// no edit gate, raw-cwd scope. bind is the HTTP plane's bind address (empty =
-// loopback), token the optional LAN bearer token, loader the pack registry the
-// authoring handlers and REST plane validate against. It registers the artifact
-// ops and mounts the REST plane, returning a Server the caller Serves.
+// no edit gate, window-owned scope (every cwd canonicalizes to a constant
+// sentinel, so an artifact resolves by session id + claude pid alone). bind is
+// the HTTP plane's bind address (empty = loopback), token the optional LAN bearer
+// token, loader the pack registry the authoring handlers and REST plane validate
+// against. It registers the artifact ops and mounts the REST plane, returning a
+// Server the caller Serves.
 func BuildServer(p paths.Paths, version, bind, token string, loader *packs.Loader) (*ccd.Server, error) {
 	c := channel.Connectivity{}
 	s, err := ccd.New(ccd.Config{
@@ -66,9 +76,10 @@ func BuildServer(p paths.Paths, version, bind, token string, loader *packs.Loade
 		BindAddr:    bind,
 		HTTPToken:   token,
 		OnHTTPStart: bonjourHook(bind),
-		// Gate nil → no edit gate; ScopeResolve nil → raw cwd; Migrate nil → no
-		// domain tables (document and interaction state are a pure reduction of the
-		// event log).
+		// Gate nil → no edit gate; Migrate nil → no domain tables (document and
+		// interaction state are a pure reduction of the event log). ScopeResolve
+		// canonicalizes every raw cwd to the window sentinel.
+		ScopeResolve: resolveScope,
 	})
 	if err != nil {
 		return nil, err
@@ -310,7 +321,7 @@ func handleClose(hc ccd.HandlerCtx, ast *assets.Store) ccd.Reply {
 		return errReply(err.Error())
 	}
 	if !ok {
-		return errReply("no cc-present artifact for this scope; run `cc-present start` first")
+		return errReply("no cc-present artifact for this window; run `cc-present start` first")
 	}
 	if sub.Status == statusClosed {
 		return errReply(fmt.Sprintf("artifact %s is already closed", sub.Slug))
@@ -341,7 +352,7 @@ func handleOutcomes(hc ccd.HandlerCtx) ccd.Reply {
 		return errReply(err.Error())
 	}
 	if !ok {
-		return errReply("no cc-present artifact for this scope; run `cc-present start` first")
+		return errReply("no cc-present artifact for this window; run `cc-present start` first")
 	}
 	events, err := loadEvents(hc.Ctx, hc.DB, sub.ID)
 	if err != nil {
@@ -366,7 +377,7 @@ func resolveOpen(hc ccd.HandlerCtx) (subject.Subject, error) {
 		return subject.Subject{}, err
 	}
 	if !ok {
-		return subject.Subject{}, errors.New("no cc-present artifact for this scope; run `cc-present start` first")
+		return subject.Subject{}, errors.New("no cc-present artifact for this window; run `cc-present start` first")
 	}
 	if sub.Status == statusClosed {
 		return subject.Subject{}, fmt.Errorf("artifact %s is closed", sub.Slug)

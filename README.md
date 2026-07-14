@@ -13,11 +13,11 @@ One round takes about two minutes end to end. Install, serve the sample board, c
 ```bash
 brew install yasyf/tap/cc-present
 curl -fsSLO https://raw.githubusercontent.com/yasyf/cc-present/main/examples/quickstart-board.json
-cc-present start --session demo --cwd "$PWD" --doc quickstart-board.json
+cc-present start --session demo --doc quickstart-board.json
 # session: <session id>
 # url: http://127.0.0.1:<port>/p/approve-the-retry-plan--<hash>
 # channel: inactive
-cc-present watch --session demo --cwd "$PWD"
+cc-present watch --session demo
 ```
 
 <img src="docs/assets/demo-quickstart.png" alt="A cc-present board titled 'Approve the retry plan' — an approval card with two choice options, approve and reject controls, and a Send decisions bar" width="700">
@@ -33,8 +33,8 @@ Open the URL, pick "Full jitter", approve, and press Send decisions. `channel: i
 Collect the round and shut down. On close, `watch` prints `{"type":"present.closed"}` and exits:
 
 ```bash
-cc-present outcomes --session demo --cwd "$PWD"   # reduced doc + human interactions as JSON
-cc-present close --session demo --cwd "$PWD"
+cc-present outcomes --session demo   # reduced doc + human interactions as JSON
+cc-present close --session demo
 # closed: approve-the-retry-plan--<hash>
 cc-present stop
 # daemon: stopping

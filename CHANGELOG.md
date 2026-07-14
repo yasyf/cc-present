@@ -6,6 +6,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Artifacts are window-owned. The daemon canonicalizes every request's scope to
+  a constant sentinel, so an artifact is keyed by its Claude window (session id
+  plus claude pid) and every command resolves it from any working directory.
+  Previously the scope was the raw cwd of `start`, and a command run from a
+  different directory failed with `no cc-present artifact for this scope`.
+  One window now holds one live board: `start` resumes it and `start --new`
+  replaces it, from anywhere; session-rotation rebind no longer depends on the
+  SessionStart hook's cwd; `--cwd` is accepted and recorded but no longer
+  affects resolution; the missing-artifact error now reads `no cc-present
+  artifact for this window`. Boards created by earlier daemons keep their
+  directory scopes and are not resolvable after the upgrade — they linger in
+  the open-sessions list until cleaned up by hand.
+
 ## [0.8.1] - 2026-07-13
 
 ### Fixed

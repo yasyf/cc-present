@@ -1,6 +1,6 @@
 // Package daemon wires cc-present's domain onto cc-interact's daemon substrate:
 // it builds the daemon.Config (presence via channel.Connectivity, no edit gate,
-// raw-cwd scope), registers the artifact ops as handlers, and mounts the REST
+// window-owned scope), registers the artifact ops as handlers, and mounts the REST
 // plane (human interactions + the content-addressed asset store). Client is the
 // typed control client the CLI speaks through.
 package daemon

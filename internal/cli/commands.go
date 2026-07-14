@@ -18,7 +18,7 @@ import (
 	"github.com/yasyf/cc-present/internal/packs"
 )
 
-const noArtifact = "no cc-present artifact for this scope; run `cc-present start` first"
+const noArtifact = "no cc-present artifact for this window; run `cc-present start` first"
 
 func mustCwd(cwd string) string {
 	if cwd != "" {
@@ -113,14 +113,14 @@ func stripDocKey(raw json.RawMessage) (json.RawMessage, error) {
 	return json.Marshal(m)
 }
 
-// newStartCmd creates or resumes this scope's artifact and prints its ref, URL,
+// newStartCmd creates or resumes this window's artifact and prints its ref, URL,
 // and channel state, one per line.
 func newStartCmd(d cmd.Deps) *cobra.Command {
 	var session, cwd, title, docPath string
 	var fresh bool
 	c := &cobra.Command{
 		Use:   "start",
-		Short: "Create or resume this scope's cc-present artifact and print its URL",
+		Short: "Create or resume this window's cc-present artifact and print its URL",
 		Args:  cobra.NoArgs,
 		RunE: func(c *cobra.Command, _ []string) error {
 			ctx := c.Context()
@@ -162,9 +162,9 @@ func newStartCmd(d cmd.Deps) *cobra.Command {
 		},
 	}
 	c.Flags().StringVar(&session, "session", "", "Claude session id (defaults to $CLAUDE_CODE_SESSION_ID)")
-	c.Flags().StringVar(&cwd, "cwd", "", "working directory / scope (defaults to the current directory)")
+	c.Flags().StringVar(&cwd, "cwd", "", "working directory (recorded on the request; artifacts are per-window, not resolved by directory)")
 	c.Flags().StringVar(&title, "title", "", "artifact title used for the URL slug when no --doc is given")
-	c.Flags().BoolVar(&fresh, "new", false, "force a fresh artifact, detaching any existing one for this scope")
+	c.Flags().BoolVar(&fresh, "new", false, "force a fresh artifact, detaching any existing one for this window")
 	c.Flags().StringVar(&docPath, "doc", "", "seed the artifact with a document from a file (- for stdin)")
 	return c
 }
@@ -228,7 +228,7 @@ func newPushCmd(d cmd.Deps) *cobra.Command {
 		},
 	}
 	c.Flags().StringVar(&session, "session", "", "Claude session id (defaults to $CLAUDE_CODE_SESSION_ID)")
-	c.Flags().StringVar(&cwd, "cwd", "", "working directory / scope (defaults to the current directory)")
+	c.Flags().StringVar(&cwd, "cwd", "", "working directory (recorded on the request; artifacts are per-window, not resolved by directory)")
 	c.Flags().BoolVar(&dryRun, "dry-run", false, "validate the document only; print every violation and exit non-zero")
 	return c
 }
@@ -286,7 +286,7 @@ func newUpdateBlockCmd(d cmd.Deps) *cobra.Command {
 		},
 	}
 	c.Flags().StringVar(&session, "session", "", "Claude session id (defaults to $CLAUDE_CODE_SESSION_ID)")
-	c.Flags().StringVar(&cwd, "cwd", "", "working directory / scope (defaults to the current directory)")
+	c.Flags().StringVar(&cwd, "cwd", "", "working directory (recorded on the request; artifacts are per-window, not resolved by directory)")
 	c.Flags().StringVar(&after, "after", "", "insert a new block after this block id (append when absent or unknown)")
 	c.Flags().BoolVar(&dryRun, "dry-run", false, "validate the single block only; print every violation and exit non-zero")
 	return c
@@ -308,7 +308,7 @@ func newRemoveBlockCmd(d cmd.Deps) *cobra.Command {
 		},
 	}
 	c.Flags().StringVar(&session, "session", "", "Claude session id (defaults to $CLAUDE_CODE_SESSION_ID)")
-	c.Flags().StringVar(&cwd, "cwd", "", "working directory / scope (defaults to the current directory)")
+	c.Flags().StringVar(&cwd, "cwd", "", "working directory (recorded on the request; artifacts are per-window, not resolved by directory)")
 	return c
 }
 
@@ -340,7 +340,7 @@ func newReplyCmd(d cmd.Deps) *cobra.Command {
 	c.Flags().StringVar(&block, "block", "", "block id to reply under")
 	c.Flags().StringVar(&bodyMd, "body", "", "reply markdown")
 	c.Flags().StringVar(&session, "session", "", "Claude session id (defaults to $CLAUDE_CODE_SESSION_ID)")
-	c.Flags().StringVar(&cwd, "cwd", "", "working directory / scope (defaults to the current directory)")
+	c.Flags().StringVar(&cwd, "cwd", "", "working directory (recorded on the request; artifacts are per-window, not resolved by directory)")
 	return c
 }
 
@@ -367,7 +367,7 @@ func newRoundCmd(d cmd.Deps) *cobra.Command {
 	}
 	c.Flags().StringVar(&title, "title", "", "title for the round (optional)")
 	c.Flags().StringVar(&session, "session", "", "Claude session id (defaults to $CLAUDE_CODE_SESSION_ID)")
-	c.Flags().StringVar(&cwd, "cwd", "", "working directory / scope (defaults to the current directory)")
+	c.Flags().StringVar(&cwd, "cwd", "", "working directory (recorded on the request; artifacts are per-window, not resolved by directory)")
 	return c
 }
 
@@ -405,16 +405,16 @@ func newOutcomesCmd(d cmd.Deps) *cobra.Command {
 	}
 	c.Flags().BoolVar(&noDoc, "no-doc", false, "omit the reduced document, printing only the human interactions and rounds")
 	c.Flags().StringVar(&session, "session", "", "Claude session id (defaults to $CLAUDE_CODE_SESSION_ID)")
-	c.Flags().StringVar(&cwd, "cwd", "", "working directory / scope (defaults to the current directory)")
+	c.Flags().StringVar(&cwd, "cwd", "", "working directory (recorded on the request; artifacts are per-window, not resolved by directory)")
 	return c
 }
 
-// newCloseCmd terminally closes this scope's artifact.
+// newCloseCmd terminally closes this window's artifact.
 func newCloseCmd(d cmd.Deps) *cobra.Command {
 	var session, cwd, summary string
 	c := &cobra.Command{
 		Use:   "close",
-		Short: "Terminally close this scope's artifact",
+		Short: "Terminally close this window's artifact",
 		Args:  cobra.NoArgs,
 		RunE: func(c *cobra.Command, _ []string) error {
 			ctx := c.Context()
@@ -431,6 +431,6 @@ func newCloseCmd(d cmd.Deps) *cobra.Command {
 	}
 	c.Flags().StringVar(&summary, "summary", "", "closing summary recorded on the present.closed event")
 	c.Flags().StringVar(&session, "session", "", "Claude session id (defaults to $CLAUDE_CODE_SESSION_ID)")
-	c.Flags().StringVar(&cwd, "cwd", "", "working directory / scope (defaults to the current directory)")
+	c.Flags().StringVar(&cwd, "cwd", "", "working directory (recorded on the request; artifacts are per-window, not resolved by directory)")
 	return c
 }
