@@ -6,6 +6,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.3] - 2026-07-14
+
+### Added
+- Context-rich option primitives. `choice` options and `approval` blocks carry a
+  scannable `facts` cluster (`{label?, value, tone?}`, tone tinting the outlier) and
+  an expandable `detail` drill-down (`{pros?, cons?, md?, mode?}`) — pros and cons
+  plus a full markdown body, revealed inline (joining the expand-all key) or in a
+  modal. Two tiers: `label` + `hint` + `facts` + the clamped `md` stay scannable up
+  front; `detail` opens on demand, so depth never costs clarity. The `present` skill
+  now says never present an option blind — every option must carry the tradeoffs a
+  person needs to decide — and the `opener-board.json` example models it. Non-breaking:
+  existing `label`/`hint`/`md` are untouched, and there are no reducer, event, or REST
+  changes, since drill-down is pure client state.
+
 ## [0.9.2] - 2026-07-14
 
 ### Changed
@@ -273,7 +287,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   marketplace.
 - `examples/opener-board.json`, a complete sample document.
 
-[Unreleased]: https://github.com/yasyf/cc-present/compare/v0.9.2...main
+[Unreleased]: https://github.com/yasyf/cc-present/compare/v0.9.3...main
+[0.9.3]: https://github.com/yasyf/cc-present/compare/v0.9.2...v0.9.3
 [0.9.2]: https://github.com/yasyf/cc-present/compare/v0.9.1...v0.9.2
 [0.9.1]: https://github.com/yasyf/cc-present/compare/v0.9.0...v0.9.1
 [0.9.0]: https://github.com/yasyf/cc-present/compare/v0.8.1...v0.9.0
