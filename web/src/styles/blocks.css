@@ -330,6 +330,9 @@
   gap: var(--space-2);
 }
 .option {
+  /* The keymap chip's footprint (min-width + h-padding + right offset + a gap),
+     reserved on the body wherever it reaches the chip's top-right corner. */
+  --chip-clear: calc(1.1rem + 2 * var(--space-1) + 2 * var(--space-2));
   position: relative;
   display: grid;
   grid-template-columns: auto 1fr;
@@ -367,6 +370,11 @@
    drop the facts stack below the chip so it never covers the first fact. */
 .option:has(.option-index) .option-facts {
   padding-top: var(--space-4);
+}
+/* A factless option has no trailing facts column, so its body reaches the right
+   edge at every width — clear the chip's footprint horizontally on the label. */
+.option:not(:has(.option-facts)):has(.option-index) .option-body {
+  padding-right: var(--chip-clear);
 }
 .option:hover:not([aria-disabled='true']) {
   border-color: var(--border-strong);
@@ -1207,6 +1215,16 @@
   .option:has(.option-facts) {
     grid-template-columns: auto 1fr;
   }
+  /* With facts folded to row 2, the body reaches the card's right edge — where the
+     keymap chip sits. Reserve the chip's footprint so a long label never runs under
+     it, and cancel the desktop rule that drops the (now row-2) facts below the chip:
+     down here the chip clears horizontally, so the vertical pad only leaves a gap. */
+  .option:has(.option-index) .option-body {
+    padding-right: var(--chip-clear);
+  }
+  .option:has(.option-index) .option-facts {
+    padding-top: 0;
+  }
   .option-facts {
     grid-column: 2 / -1;
     grid-row: 2;
@@ -1215,7 +1233,6 @@
     align-items: baseline;
     justify-content: flex-start;
     gap: var(--space-3);
-    padding-top: 0;
     margin-top: var(--space-1);
     text-align: left;
   }
@@ -1227,6 +1244,13 @@
   .detail-trigger,
   .option-detail .cc-group-header {
     min-height: 44px;
+  }
+  /* The overlay close buttons reach the same 44px touch floor this block enforces
+     everywhere else; they sit at 1.9rem for the pointer layout above. */
+  .detail-modal-close,
+  .lightbox-close {
+    width: 2.75rem;
+    height: 2.75rem;
   }
   .clamp-toggle {
     display: inline-flex;
