@@ -6,6 +6,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.1] - 2026-07-13
+
 ### Changed
 - Artifacts are window-owned. The daemon canonicalizes every request's scope to
   a constant sentinel, so an artifact is keyed by its Claude window (session id
@@ -19,6 +21,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   artifact for this window`. Boards created by earlier daemons keep their
   directory scopes and are not resolvable after the upgrade — they linger in
   the open-sessions list until cleaned up by hand.
+
+## [0.9.0] - 2026-07-13
+
+### Added
+- Pack host API v2: pack renderers get `ui.tokens`, `ui.toast`, `usePackState`,
+  and block context. A manifest's `host_api` is now a floor, so the daemon
+  loads any pack whose minimum it meets; the example pack's survey wizard
+  demonstrates the v2 surface.
+- Blue Pencil web UI: editorial palette, drawn-mark confirmations, sign-off
+  tally, exhaustive lifecycle states (toasts, skeletons, placeholders), richer
+  content blocks (highlighted diffs, code headers with copy, table overflow,
+  lightbox, expand-all), and phone-width breakpoints. The iOS client adopts
+  the palette and decided-row receipts.
+
+### Changed
+- CLI ergonomics: `push --dry-run` reports every violation at once and
+  `update-block` gains `--dry-run`; `outcomes --no-doc` omits the document;
+  JSON decode errors carry line and column.
 
 ## [0.8.1] - 2026-07-13
 
@@ -245,7 +265,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   marketplace.
 - `examples/opener-board.json`, a complete sample document.
 
-[Unreleased]: https://github.com/yasyf/cc-present/compare/v0.7.0...main
+[Unreleased]: https://github.com/yasyf/cc-present/compare/v0.9.1...main
+[0.9.1]: https://github.com/yasyf/cc-present/compare/v0.9.0...v0.9.1
+[0.9.0]: https://github.com/yasyf/cc-present/compare/v0.8.1...v0.9.0
+[0.8.1]: https://github.com/yasyf/cc-present/compare/v0.8.0...v0.8.1
+[0.8.0]: https://github.com/yasyf/cc-present/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/yasyf/cc-present/compare/v0.6.1...v0.7.0
 [0.6.1]: https://github.com/yasyf/cc-present/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/yasyf/cc-present/compare/v0.5.0...v0.6.0
