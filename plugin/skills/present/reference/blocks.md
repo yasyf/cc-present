@@ -31,7 +31,7 @@ The document is JSON, validated by `push --dry-run` before anything touches the 
 
 ### Content density
 
-The UI clamps long prose behind "Show more" — markdown blocks at ~10 lines, approval replies at 4, option bodies at 3. Write for the fold. Labels carry the pick, `hint` the one-line why, `md` only detail the human must read.
+The UI clamps long prose behind "Show more" — markdown blocks at ~10 lines, approval replies at 4, option bodies at 3. Write for the fold. Labels carry the pick, `hint` the one-line why, `md` only the short must-read lede — the full drill-down rides `detail` (next section).
 
 ```json
 { "id": "sqlite", "label": "Use SQLite because it gives us a single-file deployment with zero operational overhead, WAL supports our single-writer daemon, and migrating to Postgres later stays easy since all SQL lives in the store package" }
@@ -42,6 +42,15 @@ The UI clamps long prose behind "Show more" — markdown blocks at ~10 lines, ap
 ```
 
 The first buries the tradeoff in a label nobody scans; the second reads at a glance and keeps the detail one clamp away.
+
+### Give the whole picture
+
+Never present an option blind. Every option carries enough for the human to decide without a follow-up question: the tradeoff, the numbers, the pros and the cons. If someone scanning the board couldn't say why they'd pick an option over its neighbor, you've under-informed — clamping keeps the row scannable; it is not license to omit. Split context by tier, don't drop it:
+
+- `label` is the pick (~6 words); `hint` the one-line why beside it.
+- `facts` are the comparable numbers — `{value, label?, tone?}`, an aligned cluster that reads column-to-column across options. Set `tone` (`good`/`warn`/`bad`) to flag the outlier.
+- `detail` is the drill-down — `pros`, `cons`, a full `md` — opened on demand, so depth never costs up-front clarity. Fill it: an empty `detail`, or a throwaway "My pick.", is the anti-pattern this replaces.
+- `md` holds only a short must-read lede; everything longer belongs in `detail`.
 
 ## Composing for focus mode
 
@@ -91,10 +100,20 @@ A board with any decision unit opens in focus mode by default: one step at a tim
 ### `approval` — approve/reject verdict
 
 ```json
-{ "id": "opener-approval", "type": "approval", "prompt": "Approve this opener?", "allowFeedback": true }
+{
+  "id": "opener-approval",
+  "type": "approval",
+  "prompt": "Approve this opener?",
+  "allowFeedback": true,
+  "detail": {
+    "pros": [ "Shortest opener of the round", "Doubles as the About text unchanged" ],
+    "cons": [ "Tone risks reading as a gimmick" ],
+    "md": "The full rationale the approver opens before deciding."
+  }
+}
 ```
 
-`allowFeedback` defaults to true; set `false` to forbid free-text feedback and verdict notes on this block.
+`allowFeedback` defaults to true; set `false` to forbid free-text feedback and verdict notes on this block. Optional `detail` carries the pros, cons, and why for the single approve/reject gate — same shape and drill-down as a choice option's `detail` (below).
 
 ### `choice` — pick from options
 
@@ -105,13 +124,41 @@ A board with any decision unit opens in focus mode by default: one step at a tim
   "prompt": "My pick is selected. Prefer an alternate?",
   "multi": false,
   "options": [
-    { "id": "pick", "label": "Never ship 'delve' again.", "hint": "my pick — shortest, boldest" },
-    { "id": "alt-a", "label": "AI-written, without the AI accent.", "hint": "safer, less memorable" }
+    {
+      "id": "pick",
+      "label": "Never ship 'delve' again.",
+      "hint": "my pick — shortest, boldest",
+      "facts": [
+        { "label": "words", "value": "4", "tone": "good" },
+        { "label": "frame", "value": "command" }
+      ],
+      "detail": {
+        "pros": [ "The one word every reader has caught an LLM using", "Doubles as the About text unchanged" ],
+        "cons": [ "Opaque to anyone who hasn't seen LLM prose" ],
+        "md": "One concrete tell beats describing the category — 'delve' makes the promise legible on sight."
+      }
+    },
+    {
+      "id": "alt-a",
+      "label": "AI-written, without the AI accent.",
+      "hint": "safer, less memorable",
+      "facts": [
+        { "label": "words", "value": "5" },
+        { "label": "frame", "value": "outcome" }
+      ],
+      "detail": {
+        "pros": [ "Legible with zero context" ],
+        "cons": [ "Concedes 'AI-written' in the first two words" ],
+        "mode": "modal"
+      }
+    }
   ]
 }
 ```
 
-An option has three tiers: `label` (the pick itself, ~6 words), optional `hint` (a one-line inline-markdown qualifier rendered dim beside the label — the why or the cost), and optional `md` (a detail body the UI clamps at ~3 lines). A newline in `hint` fails validation, naming the block id.
+An option splits across two tiers. Always visible in the row: `label` (the pick itself, ~6 words), `hint` (a one-line inline-markdown qualifier rendered dim beside the label — the why or the cost), `facts` (a cluster of `{value, label?, tone?}` — comparable numbers aligned so options read column-to-column; `tone` is `default`, `good`, `warn`, or `bad`), and `md` (a short must-read lede, clamped at ~3 lines). Behind the "Details" affordance: `detail` — `pros`, `cons`, and a full `md` body. `detail.mode` picks the drill-down surface: `inline` (the default) expands in place and joins the board's expand-all; `modal` opens an overlay.
+
+The `md`-vs-`detail.md` line: `md` is what the human must read before deciding; `detail.md` is everything they'd want once they drill in. A newline in `hint`, a fact `label` or `value`, or a `pros`/`cons` entry fails validation, naming the block id; a non-null `detail` needs at least one of `pros`, `cons`, or `md`.
 
 ### `input` — free text
 
@@ -174,7 +221,7 @@ Every leaf type (`approval` through `progress`) works both at the top level and 
 
 ## Validation
 
-`push --dry-run FILE` runs the full check offline and prints every violation at once, one per line, each naming its offending block id — an unknown type, a duplicate id, a missing required field (`input.label`, `markdown.md`, `code.lang`/`code.code`, `image.src`/`image.alt`, `progress.label`), a `progress` with `max <= 0` or `value` outside `[0, max]`, an over-cap image, or a document past 1 MiB. Compose the whole document, validate once, fix everything in a single pass. A file that isn't valid JSON fails earlier, with the line and column of the offending byte.
+`push --dry-run FILE` runs the full check offline and prints every violation at once, one per line, each naming its offending block id — an unknown type, a duplicate id, a missing required field (`input.label`, `markdown.md`, `code.lang`/`code.code`, `image.src`/`image.alt`, `progress.label`), a `progress` with `max <= 0` or `value` outside `[0, max]`, a fact without a `value`, a newline in a fact or a `pros`/`cons` entry, an empty `detail`, an over-cap image, or a document past 1 MiB. Compose the whole document, validate once, fix everything in a single pass. A file that isn't valid JSON fails earlier, with the line and column of the offending byte.
 
 ## Worked document: an opener approval board
 
@@ -225,8 +272,33 @@ A condensed version of `examples/opener-board.json` — sections as tiers, one c
           "type": "choice",
           "prompt": "My pick is selected. Prefer an alternate?",
           "options": [
-            { "id": "pick", "label": "Your spec clocks in. A reviewed diff clocks out.", "hint": "my pick — names both ends of the loop" },
-            { "id": "alt-a", "label": "Stop reviewing your agent's first draft.", "hint": "punchier, but leads with a negative" }
+            {
+              "id": "pick",
+              "label": "Your spec clocks in. A reviewed diff clocks out.",
+              "hint": "my pick — names both ends of the loop",
+              "facts": [
+                { "label": "frame", "value": "command" },
+                { "label": "words", "value": "9" }
+              ],
+              "detail": {
+                "pros": [ "Names the input and the output in one line", "Factory metaphor matches the repo name" ],
+                "cons": [ "Two sentences where the alternate uses one" ],
+                "md": "The clock-in/clock-out pair carries the whole pipeline without listing a stage."
+              }
+            },
+            {
+              "id": "alt-a",
+              "label": "Stop reviewing your agent's first draft.",
+              "hint": "punchier, but leads with a negative",
+              "facts": [
+                { "label": "frame", "value": "loss" },
+                { "label": "words", "value": "6", "tone": "good" }
+              ],
+              "detail": {
+                "pros": [ "Names the pain directly" ],
+                "cons": [ "Says what it stops, not what it ships" ]
+              }
+            }
           ]
         },
         {
@@ -300,8 +372,12 @@ The dominant board shape: a section groups cards, and each card carries the befo
         { "id": "opener-was", "type": "markdown", "struck": true, "md": "A tool for checking prose." },
         { "id": "opener-new", "type": "markdown", "md": "**Never ship 'delve' again.**" },
         { "id": "opener-alts", "type": "choice", "prompt": "My pick is selected. Prefer an alternate?", "options": [
-          { "id": "pick", "label": "Never ship 'delve' again.", "hint": "my pick — shortest, boldest" },
-          { "id": "alt-a", "label": "Catch the AI accent before it lands.", "hint": "softer, names the mechanism" }
+          { "id": "pick", "label": "Never ship 'delve' again.", "hint": "my pick — shortest, boldest",
+            "facts": [ { "label": "words", "value": "4", "tone": "good" } ],
+            "detail": { "pros": [ "A concrete tell every reader recognizes" ], "cons": [ "Opaque without LLM context" ] } },
+          { "id": "alt-a", "label": "Catch the AI accent before it lands.", "hint": "softer, names the mechanism",
+            "facts": [ { "label": "words", "value": "7" } ],
+            "detail": { "pros": [ "Legible with zero context" ], "cons": [ "Less memorable than the pick" ] } }
         ]},
         { "id": "opener-approval", "type": "approval", "prompt": "Approve this opener?" }
       ]

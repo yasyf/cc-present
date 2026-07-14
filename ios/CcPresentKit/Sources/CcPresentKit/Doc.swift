@@ -138,31 +138,77 @@ public enum Block: Codable, Equatable, Sendable {
     }
 
     /// Approval is an approve/reject control with optional free-text feedback;
-    /// allowFeedback defaults to true at render time when omitted.
+    /// allowFeedback defaults to true at render time when omitted. Detail is an
+    /// optional Tier-2 drill-down shown under the prompt.
     public struct Approval: Codable, Equatable, Sendable {
         public var id: String
         public var prompt: String?
         public var allowFeedback: Bool?
+        public var detail: Detail?
 
-        public init(id: String, prompt: String? = nil, allowFeedback: Bool? = nil) {
+        public init(id: String, prompt: String? = nil, allowFeedback: Bool? = nil, detail: Detail? = nil) {
             self.id = id
             self.prompt = prompt
             self.allowFeedback = allowFeedback
+            self.detail = detail
         }
     }
 
-    /// Option is one selectable entry within a Choice block.
+    /// Fact is one scannable key/value in an option's up-front cluster; tone is
+    /// `default`, `good`, `warn`, or `bad`.
+    public struct Fact: Codable, Equatable, Sendable {
+        public var label: String?
+        public var value: String
+        public var tone: String?
+
+        public init(label: String? = nil, value: String, tone: String? = nil) {
+            self.label = label
+            self.value = value
+            self.tone = tone
+        }
+    }
+
+    /// Detail is an expandable drill-down of tradeoffs and full rationale, hidden
+    /// until opened. Mode is `inline` (the default — expands in place) or `modal`
+    /// (opens in an overlay).
+    public struct Detail: Codable, Equatable, Sendable {
+        public var pros: [String]?
+        public var cons: [String]?
+        public var md: String?
+        public var mode: String?
+
+        public init(pros: [String]? = nil, cons: [String]? = nil, md: String? = nil, mode: String? = nil) {
+            self.pros = pros
+            self.cons = cons
+            self.md = md
+            self.mode = mode
+        }
+    }
+
+    /// Option is one selectable entry within a Choice block. Facts is the Tier-1
+    /// up-front cluster; detail is the optional Tier-2 drill-down.
     public struct Option: Codable, Equatable, Sendable {
         public var id: String
         public var label: String
         public var hint: String?
         public var md: String?
+        public var facts: [Fact]?
+        public var detail: Detail?
 
-        public init(id: String, label: String, hint: String? = nil, md: String? = nil) {
+        public init(
+            id: String,
+            label: String,
+            hint: String? = nil,
+            md: String? = nil,
+            facts: [Fact]? = nil,
+            detail: Detail? = nil
+        ) {
             self.id = id
             self.label = label
             self.hint = hint
             self.md = md
+            self.facts = facts
+            self.detail = detail
         }
     }
 

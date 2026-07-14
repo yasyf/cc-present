@@ -23,6 +23,8 @@ const (
 var (
 	validStatus        = map[string]bool{"open": true, "resolved": true, "redrafted": true}
 	validTone          = map[string]bool{"default": true, "flag": true, "demo": true}
+	validFactTone      = map[string]bool{"default": true, "good": true, "warn": true, "bad": true}
+	validDetailMode    = map[string]bool{"inline": true, "modal": true}
 	validProgressState = map[string]bool{"active": true, "done": true, "error": true}
 	validPresentation  = map[string]bool{"focus": true, "board": true}
 	assetSHAPattern    = regexp.MustCompile(`^asset:[0-9a-f]{64}$`)
@@ -100,16 +102,35 @@ type Card struct {
 // Approval is an approve/reject control with optional free-text feedback.
 type Approval struct {
 	base
-	Prompt        string `json:"prompt,omitempty"`
-	AllowFeedback *bool  `json:"allowFeedback,omitempty"`
+	Prompt        string  `json:"prompt,omitempty"`
+	AllowFeedback *bool   `json:"allowFeedback,omitempty"`
+	Detail        *Detail `json:"detail,omitempty"`
+}
+
+// Fact is one scannable key/value in an option's up-front cluster.
+type Fact struct {
+	Label string `json:"label,omitempty"`
+	Value string `json:"value"`
+	Tone  string `json:"tone,omitempty"` // default|good|warn|bad
+}
+
+// Detail is an expandable drill-down: the tradeoffs and full rationale a human
+// needs to decide, hidden until opened.
+type Detail struct {
+	Pros []string `json:"pros,omitempty"`
+	Cons []string `json:"cons,omitempty"`
+	Md   string   `json:"md,omitempty"`
+	Mode string   `json:"mode,omitempty"` // inline|modal (default inline)
 }
 
 // Option is one selectable choice within a Choice block.
 type Option struct {
-	ID    string `json:"id"`
-	Label string `json:"label"`
-	Hint  string `json:"hint,omitempty"`
-	Md    string `json:"md,omitempty"`
+	ID     string  `json:"id"`
+	Label  string  `json:"label"`
+	Hint   string  `json:"hint,omitempty"`
+	Md     string  `json:"md,omitempty"`
+	Facts  []Fact  `json:"facts,omitempty"`
+	Detail *Detail `json:"detail,omitempty"`
 }
 
 // Choice is a single- or multi-select control; selecting an option approves it.
@@ -398,7 +419,57 @@ func validateChild(parent, child Block, pt PackTypes) error {
 	return sp.validate(child)
 }
 
-func validateApproval(*Approval) error { return nil }
+func validateApproval(a *Approval) error {
+	if err := validateDetail(a.Detail); err != nil {
+		return fmt.Errorf("approval %q: %w", a.ID, err)
+	}
+	return nil
+}
+
+func validateFact(f Fact) error {
+	if f.Value == "" {
+		return errors.New("fact value must not be empty")
+	}
+	if strings.Contains(f.Value, "\n") {
+		return errors.New("fact value must be a single line")
+	}
+	if strings.Contains(f.Label, "\n") {
+		return errors.New("fact label must be a single line")
+	}
+	if f.Tone != "" && !validFactTone[f.Tone] {
+		return fmt.Errorf("fact tone must be default, good, warn, or bad, got %q", f.Tone)
+	}
+	return nil
+}
+
+func validateDetail(d *Detail) error {
+	if d == nil {
+		return nil
+	}
+	if len(d.Pros) == 0 && len(d.Cons) == 0 && d.Md == "" {
+		return errors.New("detail must set at least one of pros, cons, or md")
+	}
+	for _, p := range d.Pros {
+		if p == "" {
+			return errors.New("detail pro must not be empty")
+		}
+		if strings.Contains(p, "\n") {
+			return errors.New("detail pro must be a single line")
+		}
+	}
+	for _, c := range d.Cons {
+		if c == "" {
+			return errors.New("detail con must not be empty")
+		}
+		if strings.Contains(c, "\n") {
+			return errors.New("detail con must be a single line")
+		}
+	}
+	if d.Mode != "" && !validDetailMode[d.Mode] {
+		return fmt.Errorf("detail mode must be inline or modal, got %q", d.Mode)
+	}
+	return nil
+}
 
 func validateInput(i *Input) error {
 	if i.Label == "" {
@@ -439,6 +510,14 @@ func validateChoice(c *Choice) error {
 		}
 		if strings.Contains(o.Hint, "\n") {
 			return fmt.Errorf("choice %q: option %q hint must be a single line", c.ID, o.ID)
+		}
+		for _, f := range o.Facts {
+			if err := validateFact(f); err != nil {
+				return fmt.Errorf("choice %q: option %q: %w", c.ID, o.ID, err)
+			}
+		}
+		if err := validateDetail(o.Detail); err != nil {
+			return fmt.Errorf("choice %q: option %q: %w", c.ID, o.ID, err)
 		}
 	}
 	return nil

@@ -19,7 +19,8 @@ Write the document JSON to a file in your **session scratchpad** and pass the pa
 - Every block id is globally unique, kebab-case; a card nests leaf blocks only (one level deep).
 - Put an `approval` inside each card that needs a verdict; add a `choice` when you're offering alternates.
 - A top-level `submit` bar states what submitting commits the human to.
-- Write for the fold — the UI clamps long prose behind "Show more". Option labels stay short (~6 words); the one-line why or cost goes in the option's `hint`; option `md` holds only detail the human must read and clamps at ~3 lines, so front-load its first sentence.
+- Write for the fold — the UI clamps long prose behind "Show more". Option labels stay short (~6 words); the one-line why or cost goes in the option's `hint`; option `md` holds only a short must-read lede and clamps at ~3 lines, so front-load its first sentence.
+- Never present an option blind — every option carries the tradeoffs a person needs to decide it: comparable numbers in `facts` (`{value, label?, tone?}`, aligned across options), the full why (`pros`, `cons`, longer `md`) in `detail`, one tap away. Clamping keeps the row scannable; it is not license to omit.
 - A content-heavy card gets a one-sentence `summary` — the dim lede under its title.
 - Comparisons go in a `table` block, not parallel markdown paragraphs.
 - A card whose children run past ~2 screens splits into multiple cards.

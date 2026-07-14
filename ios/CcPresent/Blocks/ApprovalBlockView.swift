@@ -47,6 +47,10 @@ struct ApprovalBlockView: View {
                     .receiptContent()
             }
 
+            if let detail = block.detail {
+                DetailView(detail: detail)
+            }
+
             verdictPair
 
             if allowFeedback, !isClosed {
@@ -192,7 +196,13 @@ private func previewStore() -> BoardStore {
             block: Block.Approval(
                 id: "ap1",
                 prompt: "Approve the reduce-order refactor?",
-                allowFeedback: true
+                allowFeedback: true,
+                detail: Block.Detail(
+                    pros: ["Deterministic replay", "Smaller event log"],
+                    cons: ["Touches every reducer call site"],
+                    md: "The reducer now folds events in receipt order, so a fresh tab replays identically.",
+                    mode: "inline"
+                )
             ),
             store: previewStore()
         )

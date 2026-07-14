@@ -109,6 +109,24 @@ func TestValidate(t *testing.T) {
 		{"choice option with hint", docWith(card("c1", `{"id":"ch1","type":"choice","options":[{"id":"o","label":"A","hint":"a few words"}]}`)), ""},
 		{"choice option hint with newline", docWith(card("c1", `{"id":"ch1","type":"choice","options":[{"id":"o","label":"A","hint":"line1\nline2"}]}`)), "hint must be a single line"},
 
+		{"choice option with facts and detail", docWith(card("c1", `{"id":"ch1","type":"choice","options":[{"id":"o","label":"A","facts":[{"label":"Cost","value":"$5/mo","tone":"good"},{"value":"no label"}],"detail":{"pros":["fast","cheap"],"cons":["locks in"],"md":"Full rationale.","mode":"modal"}}]}`)), ""},
+		{"choice option nil detail omitted facts", docWith(card("c1", `{"id":"ch1","type":"choice","options":[{"id":"o","label":"A"}]}`)), ""},
+		{"fact empty value", docWith(card("c1", `{"id":"ch1","type":"choice","options":[{"id":"o","label":"A","facts":[{"label":"Cost","value":""}]}]}`)), `choice "ch1": option "o": fact value must not be empty`},
+		{"fact value with newline", docWith(card("c1", `{"id":"ch1","type":"choice","options":[{"id":"o","label":"A","facts":[{"value":"line1\nline2"}]}]}`)), "fact value must be a single line"},
+		{"fact label with newline", docWith(card("c1", `{"id":"ch1","type":"choice","options":[{"id":"o","label":"A","facts":[{"label":"a\nb","value":"x"}]}]}`)), "fact label must be a single line"},
+		{"fact bad tone", docWith(card("c1", `{"id":"ch1","type":"choice","options":[{"id":"o","label":"A","facts":[{"value":"x","tone":"loud"}]}]}`)), `fact tone must be default, good, warn, or bad, got "loud"`},
+		{"detail all empty", docWith(card("c1", `{"id":"ch1","type":"choice","options":[{"id":"o","label":"A","detail":{}}]}`)), `choice "ch1": option "o": detail must set at least one of pros, cons, or md`},
+		{"detail empty pro", docWith(card("c1", `{"id":"ch1","type":"choice","options":[{"id":"o","label":"A","detail":{"pros":[""]}}]}`)), "detail pro must not be empty"},
+		{"detail pro with newline", docWith(card("c1", `{"id":"ch1","type":"choice","options":[{"id":"o","label":"A","detail":{"pros":["a\nb"]}}]}`)), "detail pro must be a single line"},
+		{"detail empty con", docWith(card("c1", `{"id":"ch1","type":"choice","options":[{"id":"o","label":"A","detail":{"cons":[""]}}]}`)), "detail con must not be empty"},
+		{"detail con with newline", docWith(card("c1", `{"id":"ch1","type":"choice","options":[{"id":"o","label":"A","detail":{"cons":["a\nb"]}}]}`)), "detail con must be a single line"},
+		{"detail bad mode", docWith(card("c1", `{"id":"ch1","type":"choice","options":[{"id":"o","label":"A","detail":{"md":"x","mode":"popover"}}]}`)), `detail mode must be inline or modal, got "popover"`},
+
+		{"approval with detail", docWith(card("c1", `{"id":"a1","type":"approval","prompt":"OK?","detail":{"pros":["safe"],"md":"why"}}`)), ""},
+		{"approval nil detail", docWith(card("c1", `{"id":"a1","type":"approval","prompt":"OK?"}`)), ""},
+		{"approval all-empty detail", docWith(card("c1", `{"id":"a1","type":"approval","detail":{}}`)), `approval "a1": detail must set at least one of pros, cons, or md`},
+		{"approval detail bad mode", docWith(card("c1", `{"id":"a1","type":"approval","detail":{"md":"x","mode":"popover"}}`)), `approval "a1": detail mode must be inline or modal, got "popover"`},
+
 		{"card with summary", docWith(`{"id":"c1","type":"card","summary":"One crisp line.","children":[]}`), ""},
 		{"card summary with newline", docWith(`{"id":"c1","type":"card","summary":"line1\nline2","children":[]}`), "summary must be a single line"},
 		{"card bad status", docWith(`{"id":"c1","type":"card","status":"pending","children":[]}`), "invalid status"},
@@ -217,6 +235,54 @@ func TestFieldRoundTrip(t *testing.T) {
 				}
 				if got := ch.Options[0].Hint; got != "fewest words" {
 					t.Fatalf("hint = %q, want %q", got, "fewest words")
+				}
+			},
+		},
+		{
+			name: "option facts and detail survive marshal",
+			doc:  docWith(card("c1", `{"id":"ch1","type":"choice","options":[{"id":"o1","label":"Terse","facts":[{"label":"Cost","value":"$5/mo","tone":"good"}],"detail":{"pros":["fast"],"cons":["locks in"],"md":"why","mode":"modal"}}]}`)),
+			check: func(t *testing.T, c *doc.Card) {
+				ch, ok := c.Children[0].(*doc.Choice)
+				if !ok {
+					t.Fatalf("child[0] type = %T, want *doc.Choice", c.Children[0])
+				}
+				o := ch.Options[0]
+				if len(o.Facts) != 1 {
+					t.Fatalf("facts = %d, want 1", len(o.Facts))
+				}
+				if o.Facts[0] != (doc.Fact{Label: "Cost", Value: "$5/mo", Tone: "good"}) {
+					t.Fatalf("fact = %+v, want {Cost $5/mo good}", o.Facts[0])
+				}
+				if o.Detail == nil {
+					t.Fatal("detail = nil, want set")
+				}
+				if got := o.Detail.Pros; len(got) != 1 || got[0] != "fast" {
+					t.Fatalf("detail pros = %v, want [fast]", got)
+				}
+				if got := o.Detail.Cons; len(got) != 1 || got[0] != "locks in" {
+					t.Fatalf("detail cons = %v, want [locks in]", got)
+				}
+				if o.Detail.Md != "why" || o.Detail.Mode != "modal" {
+					t.Fatalf("detail md/mode = %q/%q, want why/modal", o.Detail.Md, o.Detail.Mode)
+				}
+			},
+		},
+		{
+			name: "approval detail survives marshal",
+			doc:  docWith(card("c1", `{"id":"a1","type":"approval","prompt":"OK?","detail":{"pros":["safe"],"md":"why"}}`)),
+			check: func(t *testing.T, c *doc.Card) {
+				a, ok := c.Children[0].(*doc.Approval)
+				if !ok {
+					t.Fatalf("child[0] type = %T, want *doc.Approval", c.Children[0])
+				}
+				if a.Detail == nil {
+					t.Fatal("detail = nil, want set")
+				}
+				if got := a.Detail.Pros; len(got) != 1 || got[0] != "safe" {
+					t.Fatalf("detail pros = %v, want [safe]", got)
+				}
+				if a.Detail.Md != "why" {
+					t.Fatalf("detail md = %q, want why", a.Detail.Md)
 				}
 			},
 		},

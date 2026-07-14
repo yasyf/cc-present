@@ -15,6 +15,7 @@ enum BlockPalette {
     static let was = Color(hexLight: 0x747B86, hexDark: 0x858C9A)
     static let approve = Color(hexLight: 0x1E7B4F, hexDark: 0x5BC489)
     static let reject = Color(hexLight: 0xBF3B2F, hexDark: 0xEE8273)
+    static let warn = Color(hexLight: 0x8F6400, hexDark: 0xDCA847)
     static let accentInk = Color(hexLight: 0x3D56C5, hexDark: 0x91A3F2)
     static let accentFg = Color(hexLight: 0xFFFFFF, hexDark: 0x14161C)
 }

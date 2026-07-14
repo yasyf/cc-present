@@ -47,9 +47,46 @@
           "type": "choice",
           "prompt": "My pick is selected. Prefer an alternate?",
           "options": [
-            { "id": "pick", "label": "Your spec clocks in. A reviewed diff clocks out.", "hint": "command form", "md": "My pick." },
-            { "id": "alt-a", "label": "Stop reviewing your agent's first draft.", "hint": "loss-framed" },
-            { "id": "alt-b", "label": "Your spec runs the line: design, plan, parallel build, review, pushback.", "hint": "descriptive" }
+            {
+              "id": "pick",
+              "label": "Your spec clocks in. A reviewed diff clocks out.",
+              "hint": "command form",
+              "facts": [
+                { "label": "frame", "value": "command" },
+                { "label": "words", "value": "9" }
+              ],
+              "detail": {
+                "pros": [ "Names the input and the output in one line", "Factory metaphor matches the repo name" ],
+                "cons": [ "Two sentences where the alternates use one" ],
+                "md": "The clock-in/clock-out pair carries the whole pipeline — design, plan, build, review — without listing a stage."
+              }
+            },
+            {
+              "id": "alt-a",
+              "label": "Stop reviewing your agent's first draft.",
+              "hint": "loss-framed",
+              "facts": [
+                { "label": "frame", "value": "loss" },
+                { "label": "words", "value": "6", "tone": "good" }
+              ],
+              "detail": {
+                "pros": [ "Names the pain every agent user knows" ],
+                "cons": [ "Says what it stops, not what it ships" ]
+              }
+            },
+            {
+              "id": "alt-b",
+              "label": "Your spec runs the line: design, plan, parallel build, review, pushback.",
+              "hint": "descriptive",
+              "facts": [
+                { "label": "frame", "value": "descriptive" },
+                { "label": "words", "value": "11", "tone": "warn" }
+              ],
+              "detail": {
+                "pros": [ "Lists the actual stages" ],
+                "cons": [ "Longest of the three; reads as a feature list" ]
+              }
+            }
           ]
         },
         {
@@ -97,9 +134,46 @@
           "type": "choice",
           "prompt": "My pick is selected. Prefer an alternate?",
           "options": [
-            { "id": "pick", "label": "Stop repeating yourself to Claude.", "hint": "the core promise", "md": "My pick." },
-            { "id": "alt-a", "label": "Claude isn't done until the tests pass.", "hint": "test-integrity angle" },
-            { "id": "alt-b", "label": "All the autonomy. None of the rm -rf.", "hint": "safety angle" }
+            {
+              "id": "pick",
+              "label": "Stop repeating yourself to Claude.",
+              "hint": "the core promise",
+              "facts": [
+                { "label": "angle", "value": "core promise" },
+                { "label": "words", "value": "5", "tone": "good" }
+              ],
+              "detail": {
+                "pros": [ "Names the exact pain the tool removes", "Works with zero product context" ],
+                "cons": [ "Doesn't hint at the hook mechanism" ],
+                "md": "The promise is the mechanism's outcome: the corrections you keep typing become hooks you never type again."
+              }
+            },
+            {
+              "id": "alt-a",
+              "label": "Claude isn't done until the tests pass.",
+              "hint": "test-integrity angle",
+              "facts": [
+                { "label": "angle", "value": "test integrity" },
+                { "label": "words", "value": "7" }
+              ],
+              "detail": {
+                "pros": [ "Concrete, verifiable claim" ],
+                "cons": [ "Covers one hook category, not the product" ]
+              }
+            },
+            {
+              "id": "alt-b",
+              "label": "All the autonomy. None of the rm -rf.",
+              "hint": "safety angle",
+              "facts": [
+                { "label": "angle", "value": "safety" },
+                { "label": "words", "value": "8" }
+              ],
+              "detail": {
+                "pros": [ "Memorable; names a concrete fear" ],
+                "cons": [ "Safety is only part of the pitch" ]
+              }
+            }
           ]
         },
         {
@@ -143,9 +217,46 @@
           "type": "choice",
           "prompt": "My pick is selected. Prefer an alternate?",
           "options": [
-            { "id": "pick", "label": "The only thing between Claude and its next edit is your Submit button.", "hint": "the gate, dramatized", "md": "My pick." },
-            { "id": "alt-a", "label": "Stop reviewing Claude's diffs in terminal scrollback.", "hint": "pain-point" },
-            { "id": "alt-b", "label": "Inline-comment a commit that doesn't exist yet.", "hint": "novelty hook" }
+            {
+              "id": "pick",
+              "label": "The only thing between Claude and its next edit is your Submit button.",
+              "hint": "the gate, dramatized",
+              "facts": [
+                { "label": "angle", "value": "the edit gate" },
+                { "label": "words", "value": "13", "tone": "warn" }
+              ],
+              "detail": {
+                "pros": [ "Dramatizes the edit gate — the feature nothing else has", "Puts the human in the loop by name" ],
+                "cons": [ "Longest pick on the board" ],
+                "md": "The gate is the differentiator; the alternates describe workflow, this one describes control."
+              }
+            },
+            {
+              "id": "alt-a",
+              "label": "Stop reviewing Claude's diffs in terminal scrollback.",
+              "hint": "pain-point",
+              "facts": [
+                { "label": "angle", "value": "pain point" },
+                { "label": "words", "value": "7" }
+              ],
+              "detail": {
+                "pros": [ "Names where review actually happens today" ],
+                "cons": [ "Leads with the thing it replaces" ]
+              }
+            },
+            {
+              "id": "alt-b",
+              "label": "Inline-comment a commit that doesn't exist yet.",
+              "hint": "novelty hook",
+              "facts": [
+                { "label": "angle", "value": "novelty" },
+                { "label": "words", "value": "7" }
+              ],
+              "detail": {
+                "pros": [ "A genuinely new capability, stated plainly" ],
+                "cons": [ "Reads as a riddle on first pass" ]
+              }
+            }
           ]
         },
         {
@@ -187,9 +298,46 @@
           "type": "choice",
           "prompt": "My pick is selected. Prefer an alternate?",
           "options": [
-            { "id": "pick", "label": "Never ship 'delve' again.", "hint": "concrete tell", "md": "My pick." },
-            { "id": "alt-a", "label": "Your agent's prose, booked on 48 counts of slop.", "hint": "playful" },
-            { "id": "alt-b", "label": "AI-written, without the AI accent.", "hint": "outcome-framed" }
+            {
+              "id": "pick",
+              "label": "Never ship 'delve' again.",
+              "hint": "concrete tell",
+              "facts": [
+                { "label": "angle", "value": "concrete tell" },
+                { "label": "words", "value": "4", "tone": "good" }
+              ],
+              "detail": {
+                "pros": [ "The one word every reader has caught an LLM using", "Shortest opener of the round" ],
+                "cons": [ "Opaque to anyone who hasn't seen LLM prose" ],
+                "md": "One concrete tell beats describing the category — 'delve' makes the promise legible on sight."
+              }
+            },
+            {
+              "id": "alt-a",
+              "label": "Your agent's prose, booked on 48 counts of slop.",
+              "hint": "playful",
+              "facts": [
+                { "label": "angle", "value": "playful" },
+                { "label": "words", "value": "9" }
+              ],
+              "detail": {
+                "pros": [ "Carries the detector count — real scale" ],
+                "cons": [ "The cop bit can wear thin on a README" ]
+              }
+            },
+            {
+              "id": "alt-b",
+              "label": "AI-written, without the AI accent.",
+              "hint": "outcome-framed",
+              "facts": [
+                { "label": "angle", "value": "outcome" },
+                { "label": "words", "value": "5" }
+              ],
+              "detail": {
+                "pros": [ "States the end state a buyer wants" ],
+                "cons": [ "Concedes 'AI-written' in the first two words" ]
+              }
+            }
           ]
         },
         {
@@ -238,9 +386,46 @@
           "type": "choice",
           "prompt": "My pick is selected. Prefer an alternate?",
           "options": [
-            { "id": "pick", "label": "Delete your HANDOFF.md.", "hint": "kill the artifact", "md": "My pick." },
-            { "id": "alt-a", "label": "Your agents remember. Your diff never knows.", "hint": "invisibility angle" },
-            { "id": "alt-b", "label": "Never re-explain the plan to a fresh agent.", "hint": "continuity angle" }
+            {
+              "id": "pick",
+              "label": "Delete your HANDOFF.md.",
+              "hint": "kill the artifact",
+              "facts": [
+                { "label": "angle", "value": "kill the artifact" },
+                { "label": "words", "value": "3", "tone": "good" }
+              ],
+              "detail": {
+                "pros": [ "Names the exact file the tool replaces", "Three words, imperative" ],
+                "cons": [ "Only lands if you've maintained one" ],
+                "md": "Everyone running agents keeps a HANDOFF.md or its cousin; naming it makes the replacement claim concrete."
+              }
+            },
+            {
+              "id": "alt-a",
+              "label": "Your agents remember. Your diff never knows.",
+              "hint": "invisibility angle",
+              "facts": [
+                { "label": "angle", "value": "invisibility" },
+                { "label": "words", "value": "7" }
+              ],
+              "detail": {
+                "pros": [ "Captures the git-objects trick in one parallel pair" ],
+                "cons": [ "Abstract until you know the mechanism" ]
+              }
+            },
+            {
+              "id": "alt-b",
+              "label": "Never re-explain the plan to a fresh agent.",
+              "hint": "continuity angle",
+              "facts": [
+                { "label": "angle", "value": "continuity" },
+                { "label": "words", "value": "8" }
+              ],
+              "detail": {
+                "pros": [ "Names the recurring pain directly" ],
+                "cons": [ "Generic — any memory tool could claim it" ]
+              }
+            }
           ]
         },
         {
@@ -284,9 +469,46 @@
           "type": "choice",
           "prompt": "My pick is selected. Prefer an alternate?",
           "options": [
-            { "id": "pick", "label": "Never write a daemon for a Claude Code tool again.", "hint": "developer pain", "md": "My pick." },
-            { "id": "alt-a", "label": "An echo server with a daemon, event log, SSE, edit gate, and MCP is 381 lines.", "hint": "proof by numbers" },
-            { "id": "alt-b", "label": "All of cc-review's plumbing. None of the review.", "hint": "framing by contrast" }
+            {
+              "id": "pick",
+              "label": "Never write a daemon for a Claude Code tool again.",
+              "hint": "developer pain",
+              "facts": [
+                { "label": "angle", "value": "developer pain" },
+                { "label": "words", "value": "10" }
+              ],
+              "detail": {
+                "pros": [ "Speaks to the exact audience — tool authors", "'Again' implies they've already paid the cost" ],
+                "cons": [ "Assumes the reader has written one" ],
+                "md": "The framework pitch works best as pain removal; the plumbing list belongs in the body, not the opener."
+              }
+            },
+            {
+              "id": "alt-a",
+              "label": "An echo server with a daemon, event log, SSE, edit gate, and MCP is 381 lines.",
+              "hint": "proof by numbers",
+              "facts": [
+                { "label": "angle", "value": "proof by numbers" },
+                { "label": "words", "value": "16", "tone": "warn" }
+              ],
+              "detail": {
+                "pros": [ "A verifiable number beats an adjective" ],
+                "cons": [ "Too long for an About line" ]
+              }
+            },
+            {
+              "id": "alt-b",
+              "label": "All of cc-review's plumbing. None of the review.",
+              "hint": "framing by contrast",
+              "facts": [
+                { "label": "angle", "value": "contrast" },
+                { "label": "words", "value": "8" }
+              ],
+              "detail": {
+                "pros": [ "Positions against the known sibling repo" ],
+                "cons": [ "Meaningless without knowing cc-review" ]
+              }
+            }
           ]
         },
         {

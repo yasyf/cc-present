@@ -74,7 +74,10 @@ struct DocCodableTests {
         #expect(alts.options.count == 3)
         #expect(alts.options[0].id == "pick")
         #expect(alts.options[0].hint == "command form")
-        #expect(alts.options[0].md == "My pick.")
+        #expect(alts.options[0].md == nil)
+        #expect(alts.options[0].facts?.count == 2)
+        #expect(alts.options[0].facts?.first == Block.Fact(label: "frame", value: "command"))
+        #expect(alts.options[0].detail?.pros?.count == 2)
 
         // Encode → decode → the value is identical.
         let again = try roundTrip(doc)

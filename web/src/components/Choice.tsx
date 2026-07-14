@@ -7,6 +7,7 @@ import { useDecidable } from '../keyboard';
 import { renderInlineMarkdown } from '../markdown';
 import { Mark } from './Mark';
 import { Clamped } from './Clamped';
+import { DetailDisclosure } from './Detail';
 
 export function Choice({ block, interactions }: { block: ChoiceBlock; interactions: Interactions }) {
   const { post, closed } = usePresent();
@@ -77,6 +78,17 @@ export function Choice({ block, interactions }: { block: ChoiceBlock; interactio
                   />
                 )}
               </span>
+              {option.facts && option.facts.length > 0 && (
+                <span className="option-facts">
+                  {option.facts.map((fact, fi) => (
+                    <span key={fi} className={`fact fact-${fact.tone ?? 'default'}`}>
+                      <span className="fact-value">{fact.value}</span>
+                      {fact.label && <span className="fact-label">{fact.label}</span>}
+                    </span>
+                  ))}
+                </span>
+              )}
+              {option.detail && <DetailDisclosure detail={option.detail} />}
             </div>
           );
         })}

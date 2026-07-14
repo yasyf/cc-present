@@ -1,12 +1,14 @@
 import CcPresentKit
 import SwiftUI
 
-/// ChoiceBlockView renders a single- or multi-select option list. Each option
-/// shows its label, an optional inline-markdown hint, and an optional clamped
-/// markdown body. Selection is the last-write-wins set from BoardState; a tap
-/// toggles one option and posts the FULL next `optionIds` array (single-select
-/// replaces or clears, multi adds or removes), matching choice.selected semantics.
-/// A closed board is read-only. Mirrors web/src/components/Choice.tsx.
+/// ChoiceBlockView renders a single- or multi-select option list. Each option's
+/// Tier-1 row shows its label, an optional inline-markdown hint, an optional
+/// clamped markdown body, and a trailing facts cluster; an optional Tier-2 detail
+/// drill-down sits below, outside the tap-to-choose region. Selection is the
+/// last-write-wins set from BoardState; a tap toggles one option and posts the
+/// FULL next `optionIds` array (single-select replaces or clears, multi adds or
+/// removes), matching choice.selected semantics. A closed board is read-only.
+/// Mirrors web/src/components/Choice.tsx.
 struct ChoiceBlockView: View {
     let block: Block.Choice
     let store: BoardStore
@@ -42,26 +44,41 @@ struct ChoiceBlockView: View {
     }
 
     private func optionRow(_ option: Block.Option, isOn: Bool) -> some View {
-        HStack(alignment: .top, spacing: 12) {
-            OptionIndicator(multi: multi, isOn: isOn)
-                .padding(.top, 2)
-            VStack(alignment: .leading, spacing: 4) {
-                Text(option.label)
-                    .font(.body)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(BlockPalette.ink)
-                if let hint = option.hint, !hint.isEmpty {
-                    MarkdownText(hint)
-                        .font(.caption2)
-                        .foregroundStyle(BlockPalette.muted)
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .top, spacing: 12) {
+                OptionIndicator(multi: multi, isOn: isOn)
+                    .padding(.top, 2)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(option.label)
+                        .font(.body)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(BlockPalette.ink)
+                    if let hint = option.hint, !hint.isEmpty {
+                        MarkdownText(hint)
+                            .font(.caption2)
+                            .foregroundStyle(BlockPalette.muted)
+                    }
+                    if let body = option.md, !body.isEmpty {
+                        MarkdownText(body, style: .clamped)
+                            .font(.subheadline)
+                            .foregroundStyle(BlockPalette.muted)
+                    }
                 }
-                if let body = option.md, !body.isEmpty {
-                    MarkdownText(body, style: .clamped)
-                        .font(.subheadline)
-                        .foregroundStyle(BlockPalette.muted)
+                Spacer(minLength: 12)
+                if let facts = option.facts, !facts.isEmpty {
+                    FactsCluster(facts: facts)
                 }
             }
-            Spacer(minLength: 0)
+            .contentShape(Rectangle())
+            .onTapGesture { toggle(option.id) }
+            .accessibilityElement(children: .combine)
+            .accessibilityAddTraits(traits(isOn: isOn))
+            .accessibilityAction { toggle(option.id) }
+
+            if let detail = option.detail {
+                DetailView(detail: detail)
+                    .padding(.leading, 30)
+            }
         }
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -74,17 +91,12 @@ struct ChoiceBlockView: View {
                 .strokeBorder(isOn ? BlockPalette.accentInk : BlockPalette.line)
         )
         .opacity(locked ? 0.55 : 1)
-        .contentShape(RoundedRectangle(cornerRadius: 8))
-        .onTapGesture { toggle(option.id) }
-        .accessibilityElement(children: .combine)
-        .accessibilityAddTraits(traits(isOn: isOn))
-        .accessibilityAction { toggle(option.id) }
     }
 
     private func traits(isOn: Bool) -> AccessibilityTraits {
         var traits: AccessibilityTraits = multi ? .isToggle : .isButton
         if isOn {
-            traits.insert(.isSelected)
+            traits.formUnion(.isSelected)
         }
         return traits
     }
@@ -147,6 +159,44 @@ private struct OptionIndicator: View {
     }
 }
 
+/// FactsCluster renders an option's Tier-1 facts on the row's trailing edge: each
+/// fact's value reads prominent and tone-tinted, with its optional label as a dim
+/// uppercase eyebrow beneath.
+private struct FactsCluster: View {
+    let facts: [Block.Fact]
+
+    var body: some View {
+        VStack(alignment: .trailing, spacing: 6) {
+            ForEach(Array(facts.enumerated()), id: \.offset) { _, fact in
+                VStack(alignment: .trailing, spacing: 1) {
+                    Text(fact.value)
+                        .font(.system(size: 14, weight: .semibold, design: .rounded))
+                        .foregroundStyle(factToneColor(fact.tone))
+                        .multilineTextAlignment(.trailing)
+                    if let label = fact.label, !label.isEmpty {
+                        Text(label)
+                            .font(.system(size: 10, weight: .medium))
+                            .textCase(.uppercase)
+                            .tracking(0.4)
+                            .foregroundStyle(BlockPalette.muted)
+                            .multilineTextAlignment(.trailing)
+                    }
+                }
+            }
+        }
+        .accessibilityElement(children: .combine)
+    }
+}
+
+private func factToneColor(_ tone: String?) -> Color {
+    switch tone {
+    case "good": BlockPalette.approve
+    case "warn": BlockPalette.warn
+    case "bad": BlockPalette.reject
+    default: BlockPalette.ink
+    }
+}
+
 @MainActor
 private func previewStore(blockId: String, selected: [String]) -> BoardStore {
     let store = BoardStore(subject: "preview", transport: PreviewPoster())
@@ -164,12 +214,35 @@ private struct PreviewPoster: InteractionPoster {
 
 #Preview("Choice block") {
     let options = [
-        Block.Option(id: "opt-a", label: "Rebase onto main", hint: "keeps history linear"),
+        Block.Option(
+            id: "opt-a",
+            label: "Rebase onto main",
+            hint: "keeps history linear",
+            facts: [
+                Block.Fact(label: "conflicts", value: "0", tone: "good"),
+                Block.Fact(label: "commits", value: "4"),
+            ],
+            detail: Block.Detail(
+                pros: ["Keeps history linear", "Easy to bisect"],
+                cons: ["Rewrites shared commits"],
+                md: "Rebase replays each commit onto the new base, so the branch **disappears** from the graph.",
+                mode: "inline"
+            )
+        ),
         Block.Option(
             id: "opt-b",
             label: "Merge commit",
             hint: "preserves the branch shape",
-            md: "Adds a merge node so the two lines of work stay **visible** in the graph."
+            md: "Adds a merge node so the two lines of work stay **visible** in the graph.",
+            facts: [
+                Block.Fact(label: "conflicts", value: "2", tone: "warn"),
+                Block.Fact(label: "commits", value: "5", tone: "bad"),
+            ],
+            detail: Block.Detail(
+                pros: ["Preserves the branch shape"],
+                cons: ["Adds a merge node", "Noisier graph"],
+                mode: "modal"
+            )
         ),
         Block.Option(id: "opt-c", label: "Squash and merge"),
     ]

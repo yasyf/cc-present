@@ -343,16 +343,30 @@
   cursor: pointer;
   transition: border-color var(--dur-1) var(--ease-out), background var(--dur-1) var(--ease-out);
 }
-/* The 1–9 keymap index, shown only while the keyboard cursor rests on the block. */
+/* The trailing facts column only exists when the option carries facts, so a
+   factless option keeps its full-width body with no dead trailing gutter. */
+.option:has(.option-facts) {
+  grid-template-columns: auto 1fr auto;
+}
+/* The 1–9 keymap index, shown only while the keyboard cursor rests on the block.
+   A surface chip keeps it legible where it overlaps the facts column. */
 .option-index {
   position: absolute;
   top: var(--space-2);
   right: var(--space-2);
+  z-index: 1;
   margin: 0;
   padding: 0 var(--space-1);
   min-width: 1.1rem;
   text-align: center;
   color: var(--muted);
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  border-radius: var(--radius-sm);
+}
+/* When the cursor's index chip and the facts column share the top-right corner,
+   drop the facts stack below the chip so it never covers the first fact. */
+.option:has(.option-index) .option-facts {
+  padding-top: var(--space-4);
 }
 .option:hover:not([aria-disabled='true']) {
   border-color: var(--border-strong);
@@ -371,6 +385,8 @@
   cursor: default;
 }
 .option-indicator {
+  grid-column: 1;
+  grid-row: 1;
   position: relative;
   width: var(--text-base);
   height: var(--text-base);
@@ -431,6 +447,8 @@
   transform: rotate(45deg);
 }
 .option-body {
+  grid-column: 2;
+  grid-row: 1;
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
@@ -450,6 +468,173 @@
   color: var(--muted);
   font-size: var(--text-sm);
   line-height: var(--leading-normal);
+}
+
+/* Facts: the scannable Tier-1 cluster on the option's trailing edge. A vertical
+   right-aligned stack keeps each fact at a steady offset down the option list. */
+.option-facts {
+  grid-column: 3;
+  grid-row: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--space-2);
+  min-width: 0;
+  text-align: right;
+}
+.fact {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  line-height: var(--leading-tight);
+}
+.fact-value {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  font-size: var(--text-sm);
+  color: var(--text);
+}
+.fact-label {
+  font-family: var(--font-stamp);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: var(--text-2xs);
+  color: var(--dim);
+}
+.fact-good .fact-value {
+  color: var(--ok);
+}
+.fact-warn .fact-value {
+  color: var(--warn);
+}
+.fact-bad .fact-value {
+  color: var(--danger);
+}
+
+/* Detail: the Tier-2 drill-down, full-width under the option body. The inline
+   variant reuses CollapsedGroup; the modal variant is a native <dialog>. */
+.option-detail {
+  grid-column: 1 / -1;
+  margin-top: var(--space-1);
+}
+.option-detail .cc-group {
+  background: transparent;
+  border: none;
+  border-top: 1px solid var(--border);
+  border-radius: 0;
+}
+.option-detail .cc-group-header {
+  padding: var(--space-2) 0;
+  font-size: var(--text-2xs);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--dim);
+}
+.option-detail .cc-group-body {
+  padding: var(--space-2) 0 0;
+  border-top: none;
+}
+.detail-trigger {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  padding: var(--space-2) 0;
+  border: none;
+  border-top: 1px solid var(--border);
+  border-radius: 0;
+  background: transparent;
+  color: var(--dim);
+  font-family: var(--font-stamp);
+  font-size: var(--text-2xs);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  text-align: left;
+}
+.detail-trigger::before {
+  content: '▸';
+  color: var(--dim);
+}
+.detail-trigger:hover:not(:disabled) {
+  background: transparent;
+  border-color: var(--border);
+  color: var(--text);
+}
+.detail-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  font-size: var(--text-sm);
+}
+.detail-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+.detail-list li {
+  display: flex;
+  gap: var(--space-2);
+  align-items: baseline;
+  line-height: var(--leading-normal);
+}
+.detail-glyph {
+  flex: none;
+  font-weight: 700;
+}
+.detail-pros .detail-glyph {
+  color: var(--ok);
+}
+.detail-cons .detail-glyph {
+  color: var(--danger);
+}
+.detail-text {
+  min-width: 0;
+}
+
+/* The modal drill-down: a native <dialog> over a blurred backdrop, mirroring the
+   image lightbox so Escape, the backdrop, and focus restoration come for free. */
+.detail-modal {
+  position: relative;
+  width: min(92vw, 34rem);
+  max-height: 85vh;
+  overflow: auto;
+  padding: var(--space-5) var(--space-4) var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface-raised);
+  color: var(--text);
+  animation: detail-modal-in var(--dur-2) var(--ease-out);
+}
+.detail-modal::backdrop {
+  background: color-mix(in srgb, var(--text) 45%, transparent);
+  backdrop-filter: blur(3px);
+}
+.detail-modal-close {
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-2);
+  display: grid;
+  place-items: center;
+  width: 1.9rem;
+  height: 1.9rem;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--dim);
+}
+.detail-modal-close:hover:not(:disabled) {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+@keyframes detail-modal-in {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
 }
 
 /* --- Input --- */
@@ -1016,6 +1201,31 @@
     min-height: 44px;
   }
   .option {
+    min-height: 44px;
+  }
+  /* Facts fold to a wrapping row stacked under the body; the trailing column drops. */
+  .option:has(.option-facts) {
+    grid-template-columns: auto 1fr;
+  }
+  .option-facts {
+    grid-column: 2 / -1;
+    grid-row: 2;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: flex-start;
+    gap: var(--space-3);
+    padding-top: 0;
+    margin-top: var(--space-1);
+    text-align: left;
+  }
+  .fact {
+    flex-direction: row;
+    align-items: baseline;
+    gap: var(--space-1);
+  }
+  .detail-trigger,
+  .option-detail .cc-group-header {
     min-height: 44px;
   }
   .clamp-toggle {

@@ -7,6 +7,7 @@ import { verdictToggle } from '../decide';
 import { useDecidable } from '../keyboard';
 import { Mark } from './Mark';
 import { ReplyItem } from './ReplyThread';
+import { DetailDisclosure } from './Detail';
 
 export function Approval({ block, interactions }: { block: ApprovalBlock; interactions: Interactions }) {
   const { post, closed } = usePresent();
@@ -55,6 +56,7 @@ export function Approval({ block, interactions }: { block: ApprovalBlock; intera
   return (
     <div className="approval" ref={ref} data-kbd-cursor={cursor || undefined} data-composing={composing || undefined}>
       {block.prompt && <p className="approval-prompt">{block.prompt}</p>}
+      {block.detail && <DetailDisclosure detail={block.detail} />}
       <div className="verdict-pair" role="radiogroup" aria-label="verdict">
         <button
           type="button"

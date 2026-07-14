@@ -34,8 +34,8 @@ toggle overrides it.
 |---|---|---|---|
 | `section` | top | `id`, `type`, `title`, `md?` | Header marker with optional prose. |
 | `card` | top | `id`, `type`, `title?`, `chips?`, `flagged?`, `status?`, `children` | `chips[].tone` is one of `default`, `flag`, `demo`. `status` is one of `open`, `resolved`, `redrafted` and is agent-owned. `children` nests one level of leaf blocks. |
-| `approval` | top or child | `id`, `type`, `prompt?`, `allowFeedback?` | `allowFeedback` defaults to true at render time. |
-| `choice` | top or child | `id`, `type`, `prompt?`, `multi?`, `options` | `options[]` is `{id, label, md?}`; option ids are unique within the block. |
+| `approval` | top or child | `id`, `type`, `prompt?`, `allowFeedback?`, `detail?` | `allowFeedback` defaults to true at render time. `detail` is a `Detail` (see Validation). |
+| `choice` | top or child | `id`, `type`, `prompt?`, `multi?`, `options` | `options[]` is `{id, label, hint?, md?, facts?, detail?}`; option ids are unique within the block. `facts` is `Fact[]`, `detail` a `Detail` (see Validation). |
 | `input` | top or child | `id`, `type`, `label`, `placeholder?`, `multiline?` | Free-text field. |
 | `markdown` | top or child | `id`, `type`, `md`, `struck?` | `struck` applies the "was:" treatment. |
 | `code` | top or child | `id`, `type`, `lang`, `code`, `title?` | |
@@ -61,6 +61,21 @@ toggle overrides it.
 - `image.src` is `https://…`, `asset:` followed by 64 lowercase hex characters, or
   `data:…`. A `data:` URI is at most **32 KiB**.
 - The serialized document is at most **1 MiB**.
+
+`Fact` and `Detail` are the option-context shapes — `facts` and `detail` on a choice
+option, `detail` on an approval:
+
+```ts
+Fact = { label?, value, tone?: 'default' | 'good' | 'warn' | 'bad' }
+Detail = { pros?: string[], cons?: string[], md?, mode?: 'inline' | 'modal' }
+```
+
+- `fact.value` is required and single-line; `fact.label`, when set, is single-line;
+  `fact.tone`, when set, is one of the four tones.
+- A non-null `detail` carries at least one of `pros`, `cons`, or `md`; every `pros`
+  and `cons` entry is non-empty and single-line.
+- `detail.mode`, when set, is `inline` or `modal`; unset renders as `inline`. Inline
+  expands in place; modal opens an overlay.
 
 `Validate` takes the installed pack registry and checks each pack block's payload
 against its declared schema; an uninstalled dotted type is a violation naming the

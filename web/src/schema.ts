@@ -64,6 +64,28 @@ export interface Approval {
   prompt?: string;
   // Defaults to true when omitted; the default is applied at render time.
   allowFeedback?: boolean;
+  // Drill-down tradeoffs and rationale behind a "Details" affordance.
+  detail?: Detail;
+}
+
+export type FactTone = 'default' | 'good' | 'warn' | 'bad';
+
+// A scannable key/value in an option's up-front cluster; tone tints the value.
+export interface Fact {
+  label?: string;
+  value: string;
+  tone?: FactTone;
+}
+
+export type DetailMode = 'inline' | 'modal';
+
+// An expandable drill-down. mode picks the surface: inline (default) expands in
+// place and joins expand-all; modal opens an overlay.
+export interface Detail {
+  pros?: string[];
+  cons?: string[];
+  md?: string;
+  mode?: DetailMode;
 }
 
 export interface ChoiceOption {
@@ -72,6 +94,10 @@ export interface ChoiceOption {
   // Single-line inline markdown shown beside the option label.
   hint?: string;
   md?: string;
+  // Scannable metrics shown in the option's up-front cluster.
+  facts?: Fact[];
+  // Drill-down tradeoffs and rationale behind a "Details" affordance.
+  detail?: Detail;
 }
 
 export interface Choice {
