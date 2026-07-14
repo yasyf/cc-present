@@ -46,6 +46,7 @@ export interface KeyboardApi {
   register: (handle: DecidableHandle) => void;
   unregister: (handle: DecidableHandle) => void;
   registerSubmit: (fn: (() => void) | null) => void;
+  registerEscape: (fn: (() => boolean) | null) => void;
   registerStepNav: (nav: StepNav | null) => void;
   setCursor: (id: string | null) => void;
   jumpTo: (id: string) => void;
@@ -127,6 +128,7 @@ export function KeyboardProvider({ blocks, interactions, closed, round, onViewTo
   const [liveMsg, setLiveMsg] = useState('');
   const registry = useRef(new Map<string, DecidableHandle>()).current;
   const submitFnRef = useRef<(() => void) | null>(null);
+  const escapeFnRef = useRef<(() => boolean) | null>(null);
   const stepNavRef = useRef<StepNav | null>(null);
   const viewToggleRef = useRef(onViewToggle);
   viewToggleRef.current = onViewToggle;
@@ -165,6 +167,9 @@ export function KeyboardProvider({ blocks, interactions, closed, round, onViewTo
   );
   const registerSubmit = useCallback((fn: (() => void) | null) => {
     submitFnRef.current = fn;
+  }, []);
+  const registerEscape = useCallback((fn: (() => boolean) | null) => {
+    escapeFnRef.current = fn;
   }, []);
   const registerStepNav = useCallback((nav: StepNav | null) => {
     stepNavRef.current = nav;
@@ -232,7 +237,8 @@ export function KeyboardProvider({ blocks, interactions, closed, round, onViewTo
       // Any open modal dialog (help, an image lightbox) owns the page: global
       // shortcuts stay suppressed behind it, and Esc rides the dialog's native
       // cancel back to state.
-      if (document.querySelector('dialog[open]') && action.kind !== 'escape') return;
+      const dialogOpen = document.querySelector('dialog[open]') !== null;
+      if (dialogOpen && action.kind !== 'escape') return;
 
       const handle = cursorRef.current ? registry.get(cursorRef.current) : undefined;
       switch (action.kind) {
@@ -296,9 +302,14 @@ export function KeyboardProvider({ blocks, interactions, closed, round, onViewTo
           setHelpOpen((v) => !v);
           break;
         case 'escape':
+          // With an input to blur, Esc leaves the field; otherwise — and only when
+          // no dialog owns Esc — it cancels an armed submit confirm, which the bar
+          // itself catches only while its own div holds focus.
           if (typing && e.target instanceof HTMLElement) {
             e.preventDefault();
             e.target.blur();
+          } else if (!dialogOpen && escapeFnRef.current?.()) {
+            e.preventDefault();
           }
           break;
       }
@@ -322,8 +333,8 @@ export function KeyboardProvider({ blocks, interactions, closed, round, onViewTo
   }, [registry, moveCursor, jumpNextUndecided]);
 
   const api = useMemo<KeyboardApi>(
-    () => ({ register, unregister, registerSubmit, registerStepNav, setCursor, jumpTo, jumpNextUndecided, announce }),
-    [register, unregister, registerSubmit, registerStepNav, setCursor, jumpTo, jumpNextUndecided, announce],
+    () => ({ register, unregister, registerSubmit, registerEscape, registerStepNav, setCursor, jumpTo, jumpNextUndecided, announce }),
+    [register, unregister, registerSubmit, registerEscape, registerStepNav, setCursor, jumpTo, jumpNextUndecided, announce],
   );
 
   return (

@@ -84,10 +84,22 @@ export function SubmitBar({ blocks, doc, interactions, subject, hasHistory }: Su
   // is a no-op exactly when the bar renders nothing.
   const submitRef = useRef(submit);
   submitRef.current = submit;
+  // The bar's own onKeyDown fires only with focus inside it, so a body-level Esc
+  // routes through the keyboard layer; the handle reports whether it cancelled.
+  const cancelConfirmRef = useRef<() => boolean>(() => false);
+  cancelConfirmRef.current = () => {
+    if (!confirming) return false;
+    setArmed(null);
+    return true;
+  };
   useEffect(() => {
     if (hidden) return;
     kbd.registerSubmit(() => submitRef.current());
-    return () => kbd.registerSubmit(null);
+    kbd.registerEscape(() => cancelConfirmRef.current());
+    return () => {
+      kbd.registerSubmit(null);
+      kbd.registerEscape(null);
+    };
   }, [kbd, hidden]);
 
   if (hidden) return null;

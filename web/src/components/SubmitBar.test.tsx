@@ -111,4 +111,17 @@ describe('SubmitBar armed confirm', () => {
     expect(btn().textContent).toBe('Submit');
     expect(container.querySelector('.submit-warn')).toBeNull();
   });
+
+  it('clears the arm on Escape while focus sits on the body', () => {
+    const blocks = [approval('a1')];
+    render({ blocks, interactions: empty() });
+    const btn = () => container.querySelector('.submit-btn') as HTMLButtonElement;
+    act(() => btn().click());
+    expect(btn().textContent).toBe('Submit anyway?');
+    act(() => {
+      document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    });
+    expect(btn().textContent).toBe('Submit');
+    expect(container.querySelector('.submit-warn')).toBeNull();
+  });
 });
