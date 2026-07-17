@@ -119,12 +119,26 @@ public enum TokenStore {
     /// setToken writes (replacing any prior value) the token for `machineID`, bound to
     /// this device and readable by a background read after the first post-boot unlock.
     public static func setToken(_ token: String, machineID: String) throws {
-        SecItemDelete(baseQuery(machineID) as CFDictionary)
+        let changes: [String: Any] = [
+            kSecValueData as String: Data(token.utf8),
+            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly,
+        ]
+        let updateStatus = SecItemUpdate(baseQuery(machineID) as CFDictionary, changes as CFDictionary)
+        if updateStatus == errSecSuccess {
+            return
+        }
+        guard updateStatus == errSecItemNotFound else { throw KeychainError(status: updateStatus) }
         var attributes = baseQuery(machineID)
-        attributes[kSecValueData as String] = Data(token.utf8)
-        attributes[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
-        let status = SecItemAdd(attributes as CFDictionary, nil)
-        guard status == errSecSuccess else { throw KeychainError(status: status) }
+        attributes.merge(changes) { _, new in new }
+        let addStatus = SecItemAdd(attributes as CFDictionary, nil)
+        if addStatus == errSecSuccess {
+            return
+        }
+        // A concurrent writer created the item between our update miss and this add;
+        // fold our value in with a final update rather than throwing a spurious dup.
+        guard addStatus == errSecDuplicateItem else { throw KeychainError(status: addStatus) }
+        let retryStatus = SecItemUpdate(baseQuery(machineID) as CFDictionary, changes as CFDictionary)
+        guard retryStatus == errSecSuccess else { throw KeychainError(status: retryStatus) }
     }
 
     /// token reads the token for `machineID`, or nil when none is stored. A token
@@ -139,16 +153,19 @@ public enum TokenStore {
         if status == errSecItemNotFound {
             return nil
         }
-        guard status == errSecSuccess,
-              let item = result as? [String: Any],
+        guard status == errSecSuccess else { throw KeychainError(status: status) }
+        guard let item = result as? [String: Any],
               let data = item[kSecValueData as String] as? Data
         else {
-            throw KeychainError(status: status)
+            throw KeychainError(status: errSecInternalError)
         }
         if needsAccessibilityUpgrade(current: item[kSecAttrAccessible as String] as? String) {
             try upgradeAccessibility(machineID: machineID)
         }
-        return String(decoding: data, as: UTF8.self)
+        guard let token = String(data: data, encoding: .utf8) else {
+            throw KeychainError(status: errSecDecode)
+        }
+        return token
     }
 
     /// deleteToken removes the token for `machineID`; a missing item is not an error.
@@ -159,16 +176,31 @@ public enum TokenStore {
         }
     }
 
+    /// The accessibility classes an earlier build could have written that are NOT
+    /// device-bound. Reading a token stored under one upgrades it in place to the
+    /// hardened class; anything already device-bound — including a stricter class —
+    /// is left as-is, so the migration only ever tightens, never loosens.
+    static let migratableAccessibilityClasses: Set<String> = [
+        kSecAttrAccessibleWhenUnlocked as String,
+        kSecAttrAccessibleAfterFirstUnlock as String,
+    ]
+
     static func needsAccessibilityUpgrade(current: String?) -> Bool {
-        current != (kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly as String)
+        guard let current else { return false }
+        return migratableAccessibilityClasses.contains(current)
     }
 
+    /// Best-effort, post-read migration: if the item was deleted out from under us
+    /// between the read and here, there is nothing left to upgrade — that is not a
+    /// failure of the read that already succeeded.
     private static func upgradeAccessibility(machineID: String) throws {
         let status = SecItemUpdate(
             baseQuery(machineID) as CFDictionary,
             [kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly] as CFDictionary
         )
-        guard status == errSecSuccess else { throw KeychainError(status: status) }
+        guard status == errSecSuccess || status == errSecItemNotFound else {
+            throw KeychainError(status: status)
+        }
     }
 
     private static func baseQuery(_ machineID: String) -> [String: Any] {

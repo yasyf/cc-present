@@ -58,12 +58,12 @@ struct PairingTests {
     }
 
     @Test(
-        "the migration decision upgrades any non-hardened accessibility and is idempotent",
+        "the migration upgrades only backup-migratable classes and never loosens a device-bound one",
         arguments: [
-            (nil, true),
+            (nil, false),
             (kSecAttrAccessibleWhenUnlocked as String, true),
             (kSecAttrAccessibleAfterFirstUnlock as String, true),
-            (kSecAttrAccessibleWhenUnlockedThisDeviceOnly as String, true),
+            (kSecAttrAccessibleWhenUnlockedThisDeviceOnly as String, false),
             (kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly as String, false),
         ] as [(String?, Bool)]
     )
