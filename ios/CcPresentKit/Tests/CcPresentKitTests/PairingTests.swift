@@ -1,5 +1,6 @@
 @testable import CcPresentKit
 import Foundation
+import Security
 import Testing
 
 @Suite("Pairing")
@@ -54,5 +55,51 @@ struct PairingTests {
 
         let loaded = try store.load()
         #expect(loaded == machines)
+    }
+
+    @Test(
+        "the migration decision upgrades any non-hardened accessibility and is idempotent",
+        arguments: [
+            (nil, true),
+            (kSecAttrAccessibleWhenUnlocked as String, true),
+            (kSecAttrAccessibleAfterFirstUnlock as String, true),
+            (kSecAttrAccessibleWhenUnlockedThisDeviceOnly as String, true),
+            (kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly as String, false),
+        ] as [(String?, Bool)]
+    )
+    func accessibilityUpgradeDecision(current: String?, expected: Bool) {
+        #expect(TokenStore.needsAccessibilityUpgrade(current: current) == expected)
+    }
+
+    @Test("a written token round-trips and delete clears it")
+    func tokenRoundTrip() throws {
+        let machineID = "cc-present-tests-\(UUID().uuidString)"
+        defer { try? TokenStore.deleteToken(machineID: machineID) }
+
+        #expect(try TokenStore.token(machineID: machineID) == nil)
+        try TokenStore.setToken("secret-abc", machineID: machineID)
+        #expect(try TokenStore.token(machineID: machineID) == "secret-abc")
+        try TokenStore.setToken("secret-xyz", machineID: machineID)
+        #expect(try TokenStore.token(machineID: machineID) == "secret-xyz")
+        try TokenStore.deleteToken(machineID: machineID)
+        #expect(try TokenStore.token(machineID: machineID) == nil)
+    }
+
+    @Test("rewrite-on-read migrates a legacy item without losing the token")
+    func legacyTokenMigratesOnRead() throws {
+        let machineID = "cc-present-tests-\(UUID().uuidString)"
+        defer { try? TokenStore.deleteToken(machineID: machineID) }
+
+        let legacyItem: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: TokenStore.service,
+            kSecAttrAccount as String: machineID,
+            kSecValueData as String: Data("legacy-secret".utf8),
+        ]
+        SecItemDelete(legacyItem as CFDictionary)
+        try #require(SecItemAdd(legacyItem as CFDictionary, nil) == errSecSuccess)
+
+        #expect(try TokenStore.token(machineID: machineID) == "legacy-secret")
+        #expect(try TokenStore.token(machineID: machineID) == "legacy-secret")
     }
 }

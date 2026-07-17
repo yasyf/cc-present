@@ -116,27 +116,37 @@ public enum TokenStore {
     /// service is the Keychain service every token item shares.
     public static let service = "com.yasyf.cc-present"
 
-    /// setToken writes (replacing any prior value) the token for `machineID`.
+    /// setToken writes (replacing any prior value) the token for `machineID`, bound to
+    /// this device and readable by a background read after the first post-boot unlock.
     public static func setToken(_ token: String, machineID: String) throws {
         SecItemDelete(baseQuery(machineID) as CFDictionary)
         var attributes = baseQuery(machineID)
         attributes[kSecValueData as String] = Data(token.utf8)
+        attributes[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
         let status = SecItemAdd(attributes as CFDictionary, nil)
         guard status == errSecSuccess else { throw KeychainError(status: status) }
     }
 
-    /// token reads the token for `machineID`, or nil when none is stored.
+    /// token reads the token for `machineID`, or nil when none is stored. A token
+    /// written before the device-only hardening is upgraded to it in place on read.
     public static func token(machineID: String) throws -> String? {
         var query = baseQuery(machineID)
         query[kSecReturnData as String] = true
+        query[kSecReturnAttributes as String] = true
         query[kSecMatchLimit as String] = kSecMatchLimitOne
         var result: CFTypeRef?
         let status = SecItemCopyMatching(query as CFDictionary, &result)
         if status == errSecItemNotFound {
             return nil
         }
-        guard status == errSecSuccess, let data = result as? Data else {
+        guard status == errSecSuccess,
+              let item = result as? [String: Any],
+              let data = item[kSecValueData as String] as? Data
+        else {
             throw KeychainError(status: status)
+        }
+        if needsAccessibilityUpgrade(current: item[kSecAttrAccessible as String] as? String) {
+            try upgradeAccessibility(machineID: machineID)
         }
         return String(decoding: data, as: UTF8.self)
     }
@@ -147,6 +157,18 @@ public enum TokenStore {
         guard status == errSecSuccess || status == errSecItemNotFound else {
             throw KeychainError(status: status)
         }
+    }
+
+    static func needsAccessibilityUpgrade(current: String?) -> Bool {
+        current != (kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly as String)
+    }
+
+    private static func upgradeAccessibility(machineID: String) throws {
+        let status = SecItemUpdate(
+            baseQuery(machineID) as CFDictionary,
+            [kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly] as CFDictionary
+        )
+        guard status == errSecSuccess else { throw KeychainError(status: status) }
     }
 
     private static func baseQuery(_ machineID: String) -> [String: Any] {
