@@ -6,6 +6,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-07-17
+
+### Added
+- Synckit mesh trust. When `~/.config/synckit/state.json` exists, the daemon
+  automatically trusts every machine in the synckit host registry: their tailnet
+  IPs (resolved via `tailscale status`, refreshed on a 30s TTL, failing closed to
+  an empty set) reach boards with no bearer token, and with a loopback bind the
+  daemon additionally listens on its own tailnet addresses (best-effort, recorded
+  in the handshake's `extra_addrs`). A read-only `cc-present trust` inspector
+  shows the detected mesh, resolved IPs, and live listeners. Token auth, `pair`,
+  and the loopback bypass are unchanged; contract.md § Authentication documents
+  the three acceptance paths and bans `tailscale serve`/Funnel by name.
+
+### Security
+- The cc-interact bump (v0.6.0 → v0.9.0) picks up the upstream Origin-gated
+  loopback bypass and the new `Sec-Fetch-Site: cross-site` rejection on
+  origin-less requests — CSRF hardening for both no-token paths.
+
 ## [0.9.4] - 2026-07-14
 
 ### Fixed
@@ -297,7 +315,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   marketplace.
 - `examples/opener-board.json`, a complete sample document.
 
-[Unreleased]: https://github.com/yasyf/cc-present/compare/v0.9.4...main
+[Unreleased]: https://github.com/yasyf/cc-present/compare/v0.10.0...main
+[0.10.0]: https://github.com/yasyf/cc-present/compare/v0.9.4...v0.10.0
 [0.9.4]: https://github.com/yasyf/cc-present/compare/v0.9.3...v0.9.4
 [0.9.3]: https://github.com/yasyf/cc-present/compare/v0.9.2...v0.9.3
 [0.9.2]: https://github.com/yasyf/cc-present/compare/v0.9.1...v0.9.2
