@@ -68,8 +68,8 @@ github.com/vishvananda/netlink v1.2.1-beta.2 h1:Llsql0lnQEbHj0I1OuKyp8otXp0r3q0m
 github.com/vishvananda/netlink v1.2.1-beta.2/go.mod h1:twkDnbuQxJYemMlGd4JFIcuhgX83tXhKS2B/PRMpOho=
 github.com/vishvananda/netns v0.0.0-20200728191858-db3c7e526aae h1:4hwBBUfQCFe3Cym0ZtKyq7L16eZUtYKs+BaHDN6mAns=
 github.com/vishvananda/netns v0.0.0-20200728191858-db3c7e526aae/go.mod h1:DD4vA1DwXk04H54A1oHXtwZmA0grkVMdPxx/VGLCah0=
-github.com/yasyf/cc-interact v0.9.0 h1:lilCD59nYILO/3Q49SzI/pqFSRcjXlPcvF8wWMHQ/YQ=
-github.com/yasyf/cc-interact v0.9.0/go.mod h1:RievdGL+pZaZ+yIUNz9Jfe3GQ30WwkanEjy6S+temoo=
+github.com/yasyf/cc-interact v0.9.1 h1:ukp6HHk2BZw49GnNfNyvS85EofKdN5+PYuYXpW9zPhE=
+github.com/yasyf/cc-interact v0.9.1/go.mod h1:RievdGL+pZaZ+yIUNz9Jfe3GQ30WwkanEjy6S+temoo=
 github.com/yasyf/synckit v0.17.0 h1:t8IKS1CW3EgXaTBFC2vs8IZ0yBOaGyMBOsTbsRCWuHU=
 github.com/yasyf/synckit v0.17.0/go.mod h1:ANvxMrvFuqvytqZ9sFw8KnGgm6JpZe8FS0L3GlRy5sc=
 github.com/yusufpapurcu/wmi v1.2.4 h1:zFUKzehAFReQwLys1b/iSMl+JQGSCSjtVqQn9bBrPo0=
