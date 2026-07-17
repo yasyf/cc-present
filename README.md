@@ -61,6 +61,8 @@ cc-present pair
 
 Your open boards appear in the app, and every tap streams back like any other click. `cc-present pair --off` rebinds to loopback and takes the boards off the LAN.
 
+Machines in your [synckit](https://github.com/yasyf/synckit) mesh skip pairing entirely: the daemon trusts them automatically and serves your boards over the tailnet, no token required. The trust rules live in [Authentication](docs/contract.md#authentication).
+
 ---
 
 ## Use cases

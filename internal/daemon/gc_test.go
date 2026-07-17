@@ -80,7 +80,8 @@ func topImageDoc(sha string) string {
 func cardImageDoc(sha string) string {
 	return fmt.Sprintf(
 		`{"version":1,"title":"T","blocks":[{"id":"c","type":"card","children":[{"id":"img","type":"image","src":"asset:%s","alt":"a"}]}]}`,
-		sha)
+		sha,
+	)
 }
 
 // seedSubject creates a subject with the given status and appends one

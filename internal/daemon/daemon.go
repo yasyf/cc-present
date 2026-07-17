@@ -23,6 +23,7 @@ import (
 	"github.com/yasyf/cc-present/internal/doc"
 	"github.com/yasyf/cc-present/internal/packs"
 	"github.com/yasyf/cc-present/internal/state"
+	"github.com/yasyf/cc-present/internal/trust"
 )
 
 const (
@@ -53,15 +54,12 @@ var lifecycle = subject.Lifecycle{Initial: statusOpen, Closed: statusClosed}
 var slugStrip = regexp.MustCompile(`[^a-z0-9]+`)
 
 // BuildServer composes the cc-present daemon: presence via channel.Connectivity,
-// no edit gate, window-owned scope (every cwd canonicalizes to a constant
-// sentinel, so an artifact resolves by session id + claude pid alone). bind is
-// the HTTP plane's bind address (empty = loopback), token the optional LAN bearer
-// token, loader the pack registry the authoring handlers and REST plane validate
-// against. It registers the artifact ops and mounts the REST plane, returning a
-// Server the caller Serves.
-func BuildServer(p paths.Paths, version, bind, token string, loader *packs.Loader) (*ccd.Server, error) {
+// no edit gate, window-owned scope, and optional synckit mesh trust tp (nil =
+// token/loopback auth only; with trust on and a loopback bind the daemon also
+// listens on its own tailnet addresses).
+func BuildServer(ctx context.Context, p paths.Paths, version, bind, token string, loader *packs.Loader, tp *trust.Provider) (*ccd.Server, error) {
 	c := channel.Connectivity{}
-	s, err := ccd.New(ccd.Config{
+	cfg := ccd.Config{
 		AppName:        appName,
 		Paths:          p,
 		Version:        version,
@@ -80,7 +78,13 @@ func BuildServer(p paths.Paths, version, bind, token string, loader *packs.Loade
 		// interaction state are a pure reduction of the event log). ScopeResolve
 		// canonicalizes every raw cwd to the window sentinel.
 		ScopeResolve: resolveScope,
-	})
+	}
+	if tp != nil {
+		cfg.TrustedPeer = tp.TrustedPeer
+		cfg.TrustedOrigin = tp.TrustedOrigin
+		cfg.ExtraHTTPListeners = tailnetListeners(p, bind, tp.SelfAddrs(ctx))
+	}
+	s, err := ccd.New(cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -102,9 +106,10 @@ func BuildServer(p paths.Paths, version, bind, token string, loader *packs.Loade
 
 // Serve builds the daemon and runs it until ctx is cancelled. bind is the HTTP
 // plane's bind address (empty = loopback) and token the optional LAN bearer
-// token; the caller reads both from the host config and supplies the pack loader.
-func Serve(ctx context.Context, p paths.Paths, version, bind, token string, loader *packs.Loader) error {
-	s, err := BuildServer(p, version, bind, token, loader)
+// token; the caller reads both from the host config and supplies the pack
+// loader and the optional mesh trust.
+func Serve(ctx context.Context, p paths.Paths, version, bind, token string, loader *packs.Loader, tp *trust.Provider) error {
+	s, err := BuildServer(ctx, p, version, bind, token, loader, tp)
 	if err != nil {
 		return err
 	}

@@ -34,7 +34,7 @@ func startTestDaemon(ctx context.Context, t *testing.T) *Client {
 	ctx, cancel := context.WithCancel(ctx)
 	errCh := make(chan error, 1)
 	go func() {
-		errCh <- Serve(ctx, p, "v1.0.0", "", "", packs.NewLoader(nil, nil))
+		errCh <- Serve(ctx, p, "v1.0.0", "", "", packs.NewLoader(nil, nil), nil)
 		close(errCh)
 	}()
 	// Closing errCh after the send lets cleanup's receive return even when the

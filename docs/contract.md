@@ -377,26 +377,70 @@ The event stream is `GET /events` over SSE, replaying the log from seq 0.
 
 The HTTP plane binds per `~/.cc-present/config.json`: an absent file or empty
 `bind` is loopback-only `127.0.0.1`, and `"bind": "0.0.0.0"` exposes the plane to
-the LAN. The bearer token lives at `~/.cc-present/token` — 32 crypto-random bytes
-as lowercase hex, written 0600. `cc-present pair` writes both; an absent or empty
-token disables the check entirely. The daemon refuses to start the HTTP plane
-on a non-loopback bind with no token; it never serves an off-host request
-unauthenticated.
+the LAN — those are the two valid values. The bearer token lives at
+`~/.cc-present/token` — 32 crypto-random bytes as lowercase hex, written 0600.
+`cc-present pair` writes both; an absent or empty token disables the token path.
+The daemon refuses to start the HTTP plane on a non-loopback bind with no token
+and no synckit trust; it never serves an off-host request unauthenticated.
 
 The auth middleware wraps the whole plane: `GET /events`, the REST routes,
 `/assets/{sha}`, the pack routes (`/api/packs` and `/packs/{pack}/{file}`), and
-the SPA.
+the SPA. A request is accepted on exactly one of three paths:
 
-- A loopback request always passes, token or no token. The check reads the
-  immediate TCP peer (a v4-in-v6 `::ffff:127.0.0.1` counts as loopback), so a
-  reverse proxy in front of the daemon arrives as a loopback peer and bypasses
-  the token — the plane is dialed directly, never reverse-proxied.
-- A non-loopback request must carry the token, in an `Authorization: Bearer
-  <token>` header or the `?token=` query fallback that browser `EventSource`
-  needs, since it cannot set headers. The header wins when both are present. The
-  comparison is constant-time; anything else is 401. A `?token=` parameter is
-  stripped from the request before any handler runs, so it never reaches a
-  redirect `Location` or access log.
+- **Loopback peer.** An unzoned loopback TCP peer passes without a token, under
+  the `Origin`-header gate below. A v4-in-v6 `::ffff:127.0.0.1` counts as
+  loopback; a zoned `[::1%zone]` does not.
+- **Trusted peer.** A non-loopback TCP peer whose IP belongs to a machine in the
+  user's synckit mesh (below) passes without a token, under the same
+  `Origin`-header gate.
+- **Bearer token.** Any other request must carry the token, in an
+  `Authorization: Bearer <token>` header or the `?token=` query fallback that
+  browser `EventSource` needs, since it cannot set headers. The header wins when
+  both are present. The comparison is constant-time; anything else is 401. A
+  `?token=` parameter is stripped from the request before any handler runs, so
+  it never reaches a redirect `Location` or access log.
+
+### The Origin-header gate
+
+Both no-token paths check the request's `Origin` header, so a foreign web page
+cannot drive the daemon through a browser running on an admitted machine. The
+`Origin` must be absent (a native client), name `localhost` or a loopback IP, or
+name a host the daemon is itself served under — its own MagicDNS name or one of
+its own tailnet IPs, IP literals compared canonically. Ports in `Origin` values
+are ignored. An absent `Origin` is additionally rejected when the request
+carries `Sec-Fetch-Site: cross-site`, which closes originless cross-site GET
+navigations; native clients never send that header and are unaffected. A foreign
+page in a browser on any machine, trusted or not, must present the token.
+
+### Synckit mesh trust
+
+Trust is automatic: when synckit's state file (`~/.config/synckit/state.json`)
+exists at daemon start, every host registered in the mesh is trusted. Registered
+targets (`user@host` strings) resolve to tailnet IPs via `tailscale status
+--json`, accepted only while `BackendState` is `Running`; a parse anomaly
+anywhere rejects the whole snapshot. The trust set refreshes on a 30-second TTL,
+so mid-session mesh changes apply without a daemon restart, and fails closed to
+empty on any read, exec, or parse error. Bare-LAN registry entries resolve to no
+tailnet IPs and are not network-trusted. Offline peers stay trusted — the set is
+identity, not liveness. Trust is machine-level: any process on a trusted machine
+can reach the plane.
+
+With trust on and a loopback primary bind, the daemon additionally binds each of
+its own tailnet IPs, best-effort: an unbindable address is skipped with a
+warning, and loopback always serves. The bound legs are recorded in the
+handshake's `extra_addrs`, the source of truth for where the plane listens; an
+extra leg can land on a different port than the primary when the port-reuse hint
+is taken on one interface only. With `pair`'s `0.0.0.0` bind the primary already
+covers the tailnet and no extra legs are bound.
+
+`cc-present trust` is a read-only inspector: it reports whether synckit state
+was detected, each registered host with its resolved tailnet IPs (or that it is
+not network-trusted), and the live listener addresses when the daemon is
+reachable.
+
+Dial the plane directly, never through a reverse proxy. `tailscale serve` and
+Funnel deliver every proxied request from a loopback TCP peer, which rides the
+loopback path and defeats both the token and the trust check.
 
 ## Session listing
 
