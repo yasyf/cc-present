@@ -18,12 +18,12 @@ import (
 	ccevent "github.com/yasyf/cc-interact/event"
 	"github.com/yasyf/cc-interact/paths"
 	"github.com/yasyf/cc-interact/subject"
+	"github.com/yasyf/synckit/meshtrust"
 
 	"github.com/yasyf/cc-present/internal/assets"
 	"github.com/yasyf/cc-present/internal/doc"
 	"github.com/yasyf/cc-present/internal/packs"
 	"github.com/yasyf/cc-present/internal/state"
-	"github.com/yasyf/cc-present/internal/trust"
 )
 
 const (
@@ -54,10 +54,10 @@ var lifecycle = subject.Lifecycle{Initial: statusOpen, Closed: statusClosed}
 var slugStrip = regexp.MustCompile(`[^a-z0-9]+`)
 
 // BuildServer composes the cc-present daemon: presence via channel.Connectivity,
-// no edit gate, window-owned scope, and optional synckit mesh trust tp (nil =
+// no edit gate, window-owned scope, and optional mesh trust tp (nil =
 // token/loopback auth only; with trust on and a loopback bind the daemon also
 // listens on its own tailnet addresses).
-func BuildServer(ctx context.Context, p paths.Paths, version, bind, token string, loader *packs.Loader, tp *trust.Provider) (*ccd.Server, error) {
+func BuildServer(ctx context.Context, p paths.Paths, version, bind, token string, loader *packs.Loader, tp *meshtrust.Provider) (*ccd.Server, error) {
 	c := channel.Connectivity{}
 	cfg := ccd.Config{
 		AppName:        appName,
@@ -108,7 +108,7 @@ func BuildServer(ctx context.Context, p paths.Paths, version, bind, token string
 // plane's bind address (empty = loopback) and token the optional LAN bearer
 // token; the caller reads both from the host config and supplies the pack
 // loader and the optional mesh trust.
-func Serve(ctx context.Context, p paths.Paths, version, bind, token string, loader *packs.Loader, tp *trust.Provider) error {
+func Serve(ctx context.Context, p paths.Paths, version, bind, token string, loader *packs.Loader, tp *meshtrust.Provider) error {
 	s, err := BuildServer(ctx, p, version, bind, token, loader, tp)
 	if err != nil {
 		return err

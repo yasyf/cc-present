@@ -12,10 +12,11 @@ import (
 	ccd "github.com/yasyf/cc-interact/daemon"
 	"github.com/yasyf/cc-interact/paths"
 
+	"github.com/yasyf/synckit/meshtrust"
+
 	ccdaemon "github.com/yasyf/cc-present/internal/daemon"
 	"github.com/yasyf/cc-present/internal/packs"
 	"github.com/yasyf/cc-present/internal/procs"
-	"github.com/yasyf/cc-present/internal/trust"
 	"github.com/yasyf/cc-present/internal/version"
 )
 
@@ -65,8 +66,8 @@ func Deps() cmd.Deps {
 
 // serve runs the long-lived daemon, binding and authenticating the HTTP plane
 // per the host config: an absent config binds loopback with no token. When
-// synckit's mesh state exists, its hosts are additionally trusted by their
-// tailnet addresses (trust.Detect).
+// the mesh state exists, its hosts are additionally trusted by their
+// tailnet addresses (meshtrust.Detect).
 func serve(ctx context.Context) error {
 	cfg, err := ReadConfig()
 	if err != nil {
@@ -77,7 +78,7 @@ func serve(ctx context.Context) error {
 		return err
 	}
 	loader := packs.NewLoader(cfg.PackDirs, cfg.DisabledPacks)
-	return ccdaemon.Serve(ctx, Paths(), version.String(), cfg.Bind, token, loader, trust.Detect())
+	return ccdaemon.Serve(ctx, Paths(), version.String(), cfg.Bind, token, loader, meshtrust.Detect())
 }
 
 // channelTools advertises zero domain tools: the cc-present channel is a pure

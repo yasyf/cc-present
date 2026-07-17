@@ -11,8 +11,7 @@ import (
 
 	"github.com/yasyf/cc-interact/cmd"
 	ccd "github.com/yasyf/cc-interact/daemon"
-
-	"github.com/yasyf/cc-present/internal/trust"
+	"github.com/yasyf/synckit/meshtrust"
 )
 
 // newTrustCmd reports the synckit mesh trust the daemon derives automatically:
@@ -31,11 +30,11 @@ func newTrustCmd(d cmd.Deps) *cobra.Command {
 }
 
 func runTrust(ctx context.Context, out io.Writer, d cmd.Deps) error {
-	path, err := trust.StatePath()
+	path, err := meshtrust.StatePath()
 	if err != nil {
 		return err
 	}
-	tp := trust.Detect()
+	tp := meshtrust.Detect()
 	if tp == nil {
 		_, _ = fmt.Fprintf(out, "synckit not detected (no %s); tailnet trust off\n", path)
 		return nil
@@ -44,7 +43,7 @@ func runTrust(ctx context.Context, out io.Writer, d cmd.Deps) error {
 	return nil
 }
 
-func renderTrust(out io.Writer, statePath string, m trust.Mesh, info ccd.HTTPInfo, live bool) {
+func renderTrust(out io.Writer, statePath string, m meshtrust.Mesh, info ccd.HTTPInfo, live bool) {
 	_, _ = fmt.Fprintf(out, "synckit mesh: %s\n", statePath)
 	_, _ = fmt.Fprintf(out, "self: %s\n", m.Self)
 	_, _ = fmt.Fprintln(out, "trusted hosts:")

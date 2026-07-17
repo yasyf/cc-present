@@ -6,14 +6,13 @@ import (
 	"testing"
 
 	ccd "github.com/yasyf/cc-interact/daemon"
-
-	"github.com/yasyf/cc-present/internal/trust"
+	"github.com/yasyf/synckit/meshtrust"
 )
 
 func TestRenderTrust(t *testing.T) {
-	mesh := trust.Mesh{
+	mesh := meshtrust.Mesh{
 		Self: "yasyf@yasyf-home.tail71af5d.ts.net",
-		Hosts: []trust.HostTrust{
+		Hosts: []meshtrust.HostTrust{
 			{Target: "yasyf@yasyf.tail71af5d.ts.net", Addrs: []netip.Addr{
 				netip.MustParseAddr("100.114.101.73"),
 				netip.MustParseAddr("fd7a:115c:a1e0::d101:654a"),
@@ -23,7 +22,7 @@ func TestRenderTrust(t *testing.T) {
 	}
 	tests := []struct {
 		name string
-		mesh trust.Mesh
+		mesh meshtrust.Mesh
 		info ccd.HTTPInfo
 		live bool
 		want []string
@@ -57,7 +56,7 @@ func TestRenderTrust(t *testing.T) {
 		},
 		{
 			"live with none published",
-			trust.Mesh{Self: "yasyf@solo"},
+			meshtrust.Mesh{Self: "yasyf@solo"},
 			ccd.HTTPInfo{},
 			true,
 			[]string{
@@ -67,7 +66,7 @@ func TestRenderTrust(t *testing.T) {
 		},
 		{
 			"daemon down with no handshake",
-			trust.Mesh{Self: "yasyf@solo"},
+			meshtrust.Mesh{Self: "yasyf@solo"},
 			ccd.HTTPInfo{},
 			false,
 			[]string{"tailnet listeners: daemon not running"},
