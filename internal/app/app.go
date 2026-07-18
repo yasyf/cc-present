@@ -11,12 +11,12 @@ import (
 	"github.com/yasyf/cc-interact/cmd"
 	ccd "github.com/yasyf/cc-interact/daemon"
 	"github.com/yasyf/cc-interact/paths"
+	"github.com/yasyf/cc-interact/procs"
 
 	"github.com/yasyf/synckit/meshtrust"
 
 	ccdaemon "github.com/yasyf/cc-present/internal/daemon"
 	"github.com/yasyf/cc-present/internal/packs"
-	"github.com/yasyf/cc-present/internal/procs"
 	"github.com/yasyf/cc-present/internal/version"
 )
 

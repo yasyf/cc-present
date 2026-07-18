@@ -10,7 +10,7 @@ cc-present/
 ├── internal/
 │   ├── cli/               # cobra command tree: start, push, update-block, remove-block,
 │   │                      #   reply, outcomes, close + cc-interact scaffold (daemon, watch,
-│   │                      #   status, stop, session-record, guard-edit, channel-ack, channel)
+│   │                      #   status, stop, session-record, channel-ack, channel)
 │   ├── app/               # paths/launcher/client/cmd.Deps wiring (cc-interact consumer scaffold)
 │   ├── daemon/            # buildServer: domain ops (start/push/upsert/remove/reply/close) + REST
 │   ├── doc/               # block schema structs + Validate

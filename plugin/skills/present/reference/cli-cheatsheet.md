@@ -22,6 +22,6 @@ Invoke every command as bare `cc-present` — the plugin's `bin/` rides the Bash
 
 `image` blocks whose `src` is a local file path are inlined by `start --doc`, `push`, and `update-block`: the file is read (5 MiB cap), stored content-addressed on the daemon, and the src rewritten to its `asset:<sha256>` ref. `push --dry-run` performs the same read locally, so a missing or oversized image fails the dry run too.
 
-The remaining subcommands — `daemon`, `channel`, `session-record`, `guard-edit`, `completion` — are plumbing the plugin's hooks and MCP config invoke; never run them from the skill flow.
+The remaining subcommands — `daemon`, `channel`, `session-record`, `completion` — are plumbing the plugin's hooks and MCP config invoke; never run them from the skill flow.
 
 The daemon keeps state under `~/.cc-present` (sqlite db, control socket, HTTP handshake, per-consumer cursors).

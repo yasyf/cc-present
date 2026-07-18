@@ -1,0 +1,6 @@
+fragments = [
+  { use = "cc-skills:install-binary-pinned", args = { binary = "cc-present", brew = "yasyf/tap/cc-present", plugin = "cc-present", repo = "yasyf/cc-present" } },
+]
+
+[sources.cc-skills]
+source = "github:yasyf/cc-skills@main"
