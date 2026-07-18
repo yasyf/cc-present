@@ -371,7 +371,22 @@ top-level block belongs
 to a closed round is rejected with `400 block "<id>" belongs to closed round
 <n>`. `submit` is exempt from the round guard — it is what closes a round.
 
-The event stream is `GET /events` over SSE, replaying the log from seq 0.
+### The event stream
+
+The event stream is `GET /events` over SSE. A new connection replays the log
+as unnamed frames, `id:` carrying the seq and `data:` the payload,
+self-describing through the injected `"type"` (see Event taxonomy). Replay
+starts at seq 0, or after the client's `Last-Event-ID` on a resume. Once the
+replay flush completes, the stream emits one named frame, `event: caught-up`
+with `data: {"seq": N}`, where `N` is the connection's replay high-water seq.
+The marker fires exactly once per connection, after a zero-length replay too
+when a resume is already at the head. It is stream-plane only: never appended
+to the log, never entering either reducer.
+
+`caught-up` marks the replay/live boundary. A client that reacts to activity
+gates live-only behavior on it: the SPA toasts only on frames past the marker,
+so a tab remount replays history silently. Clients ignore named events they do
+not recognize, which keeps future stream-plane markers backward-compatible.
 
 ## Authentication
 
