@@ -2,3 +2,9 @@ name = "cc-present"
 version = "0.7.0"
 description = "Blocks the built-in Artifact tool (static claude.ai pages); presentation goes through a cc-present live board or chat instead."
 hooks = "."
+
+[pack]
+name = "cc-present"
+version = "0.7.0"
+description = "Blocks the built-in Artifact tool (static claude.ai pages); presentation goes through a cc-present live board or chat instead."
+hooks = "."
