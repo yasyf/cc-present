@@ -93,10 +93,11 @@ jobs:
       - uses: astral-sh/setup-uv@v8.2.0
         with:
           enable-cache: false
-      # capt-hook 9.9.0 needs Python >=3.13; pin both so uvx can't backtrack to a
-      # pack-less version when the runner's default Python is older.
+      # capt-hook 10.0.0 needs Python >=3.13; pin both so uvx can't backtrack to a
+      # pack-less version when the runner's default Python is older. 10.x matches
+      # the pure [pack] manifest format the plugin migrated to.
       - name: Lint capt-hook pack
-        run: uvx --python 3.13 capt-hook@9.9.0 pack lint plugin
+        run: uvx --python 3.13 capt-hook@10.0.0 pack lint plugin
 
   vuln:
     runs-on: ubuntu-latest
