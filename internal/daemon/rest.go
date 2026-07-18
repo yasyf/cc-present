@@ -7,7 +7,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"mime"
 	"net/http"
+	"strings"
 
 	ccd "github.com/yasyf/cc-interact/daemon"
 	ccevent "github.com/yasyf/cc-interact/event"
@@ -83,10 +85,29 @@ func mountREST(s *ccd.Server, ast *assets.Store, loader *packs.Loader) {
 	mux.Handle("/", rs.static)
 }
 
+// requireJSON rejects a request whose Content-Type is not application/json
+// with 415, reporting whether the caller may proceed. Every state-changing
+// JSON route sits behind it as CSRF hardening: the daemon's auth layer admits
+// tokenless loopback and trusted-peer requests under a localhost Origin, and a
+// hostile page on such a machine can fire preflight-free "simple" POSTs
+// (text/plain, form encodings) — but it cannot send application/json without a
+// CORS preflight the daemon never answers.
+func requireJSON(w http.ResponseWriter, r *http.Request) bool {
+	mt, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
+	if err != nil || mt != "application/json" {
+		http.Error(w, "Content-Type must be application/json", http.StatusUnsupportedMediaType)
+		return false
+	}
+	return true
+}
+
 // handleInteractions resolves the subject, rejects a closed artifact, validates
 // the interaction against the reduced document, then appends it under the human
 // origin with a retry-idempotent dedup key.
 func (rs *restServer) handleInteractions(w http.ResponseWriter, r *http.Request) {
+	if !requireJSON(w, r) {
+		return
+	}
 	r.Body = http.MaxBytesReader(w, r.Body, maxInteractionBytes)
 	var req interactionReq
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -339,10 +360,26 @@ func allowsFeedback(ap *doc.Approval) bool {
 	return ap.AllowFeedback == nil || *ap.AllowFeedback
 }
 
+// requireAssetType is requireJSON's CSRF gate for the raw-bytes asset upload:
+// the CLI uploader sends application/octet-stream, and neither it nor image/*
+// is a CORS-"simple" type a hostile localhost page could POST preflight-free.
+// The tokenless loopback CLI rules out a pair-bearer check here.
+func requireAssetType(w http.ResponseWriter, r *http.Request) bool {
+	mt, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
+	if err != nil || (mt != "application/octet-stream" && !strings.HasPrefix(mt, "image/")) {
+		http.Error(w, "Content-Type must be application/octet-stream or image/*", http.StatusUnsupportedMediaType)
+		return false
+	}
+	return true
+}
+
 // handlePutAsset content-addresses the raw request body into the asset store and
 // returns its asset:<sha256> reference, rejecting a non-image body or one past
 // the cap.
 func (rs *restServer) handlePutAsset(w http.ResponseWriter, r *http.Request) {
+	if !requireAssetType(w, r) {
+		return
+	}
 	b, err := io.ReadAll(io.LimitReader(r.Body, assets.MaxBytes+1))
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)

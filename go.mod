@@ -9,7 +9,7 @@ require (
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.2
 	github.com/spf13/cobra v1.10.2
 	github.com/yasyf/cc-interact v0.11.0
-	github.com/yasyf/synckit v0.17.0
+	github.com/yasyf/synckit v0.18.0
 )
 
 require (

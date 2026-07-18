@@ -86,9 +86,46 @@ func newRestHarnessWith(t *testing.T, docJSON string, loader *packs.Loader) *res
 func (h *restHarness) post(t *testing.T, bodyJSON string) *httptest.ResponseRecorder {
 	t.Helper()
 	req := httptest.NewRequest(http.MethodPost, "/api/interactions", strings.NewReader(bodyJSON))
+	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	h.rs.handleInteractions(w, req)
 	return w
+}
+
+// TestInteractionContentTypeGate proves the CSRF hardening: the preflight-free
+// "simple" content types a hostile localhost page can POST are refused with 415
+// before any body handling, while application/json (with or without a charset
+// parameter) proceeds.
+func TestInteractionContentTypeGate(t *testing.T) {
+	const body = `{"subject":"board--abcd0000","nonce":"ct1","interaction":{"type":"decision.created","blockId":"a2","verdict":"approved"}}`
+	tests := []struct {
+		name        string
+		contentType string
+		wantCode    int
+	}{
+		{"text/plain rejected", "text/plain", http.StatusUnsupportedMediaType},
+		{"form-urlencoded rejected", "application/x-www-form-urlencoded", http.StatusUnsupportedMediaType},
+		{"missing content type rejected", "", http.StatusUnsupportedMediaType},
+		{"json accepted", "application/json", http.StatusOK},
+		{"json with charset accepted", "application/json; charset=utf-8", http.StatusOK},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := newRestHarness(t)
+			req := httptest.NewRequest(http.MethodPost, "/api/interactions", strings.NewReader(body))
+			if tt.contentType != "" {
+				req.Header.Set("Content-Type", tt.contentType)
+			}
+			w := httptest.NewRecorder()
+			h.rs.handleInteractions(w, req)
+			if w.Code != tt.wantCode {
+				t.Fatalf("status = %d, want %d (body %q)", w.Code, tt.wantCode, w.Body.String())
+			}
+			if tt.wantCode == http.StatusUnsupportedMediaType && !strings.Contains(w.Body.String(), "application/json") {
+				t.Fatalf("body = %q, want Content-Type complaint", w.Body.String())
+			}
+		})
+	}
 }
 
 func TestInteractionValidation(t *testing.T) {
@@ -217,6 +254,7 @@ func TestAssetRoundTrip(t *testing.T) {
 	payload := append([]byte("\x89PNG\r\n\x1a\n"), bytes.Repeat([]byte{7}, 16)...)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/assets", bytes.NewReader(payload))
+	req.Header.Set("Content-Type", "application/octet-stream")
 	w := httptest.NewRecorder()
 	h.rs.handlePutAsset(w, req)
 	if w.Code != http.StatusOK {
@@ -252,6 +290,7 @@ func TestAssetRejectsNonImage(t *testing.T) {
 	h := newRestHarness(t)
 	req := httptest.NewRequest(http.MethodPost, "/api/assets",
 		strings.NewReader("<!doctype html><script>fetch('/api/interactions')</script>"))
+	req.Header.Set("Content-Type", "application/octet-stream")
 	w := httptest.NewRecorder()
 	h.rs.handlePutAsset(w, req)
 	if w.Code != http.StatusUnsupportedMediaType {
@@ -262,9 +301,44 @@ func TestAssetRejectsNonImage(t *testing.T) {
 	}
 }
 
+// TestAssetContentTypeGate proves the CSRF hardening on the raw upload: the
+// preflight-free "simple" content types are refused with 415 even when the body
+// is a real image, while the CLI's application/octet-stream and an explicit
+// image type proceed.
+func TestAssetContentTypeGate(t *testing.T) {
+	png := append([]byte("\x89PNG\r\n\x1a\n"), bytes.Repeat([]byte{7}, 16)...)
+	tests := []struct {
+		name        string
+		contentType string
+		wantCode    int
+	}{
+		{"text/plain rejected", "text/plain", http.StatusUnsupportedMediaType},
+		{"form-urlencoded rejected", "application/x-www-form-urlencoded", http.StatusUnsupportedMediaType},
+		{"multipart rejected", "multipart/form-data; boundary=x", http.StatusUnsupportedMediaType},
+		{"missing content type rejected", "", http.StatusUnsupportedMediaType},
+		{"octet-stream accepted", "application/octet-stream", http.StatusOK},
+		{"image type accepted", "image/png", http.StatusOK},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := newRestHarness(t)
+			req := httptest.NewRequest(http.MethodPost, "/api/assets", bytes.NewReader(png))
+			if tt.contentType != "" {
+				req.Header.Set("Content-Type", tt.contentType)
+			}
+			w := httptest.NewRecorder()
+			h.rs.handlePutAsset(w, req)
+			if w.Code != tt.wantCode {
+				t.Fatalf("status = %d, want %d (body %q)", w.Code, tt.wantCode, w.Body.String())
+			}
+		})
+	}
+}
+
 func TestAssetCap(t *testing.T) {
 	h := newRestHarness(t)
 	req := httptest.NewRequest(http.MethodPost, "/api/assets", bytes.NewReader(bytes.Repeat([]byte{1}, assets.MaxBytes+1)))
+	req.Header.Set("Content-Type", "application/octet-stream")
 	w := httptest.NewRecorder()
 	h.rs.handlePutAsset(w, req)
 	if w.Code != http.StatusRequestEntityTooLarge {

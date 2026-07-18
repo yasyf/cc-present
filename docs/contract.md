@@ -358,8 +358,8 @@ one level of card children. `submittedRevision` is set only when a submit closed
 
 | Method | Path | Body | Purpose |
 |---|---|---|---|
-| `POST` | `/api/interactions` | `{subject, nonce, interaction}` | Submit one human interaction. `interaction` is a discriminated union over the human event payloads. The handler validates `blockId` and type against the reduced document, then appends. The body is capped at **256 KiB**. |
-| `POST` | `/api/assets` | image bytes | Store an image content-addressed; returns its `asset:<sha256>`. A body that does not sniff as an image is rejected with 415. |
+| `POST` | `/api/interactions` | `{subject, nonce, interaction}` | Submit one human interaction. `interaction` is a discriminated union over the human event payloads. The handler validates `blockId` and type against the reduced document, then appends. The body is capped at **256 KiB**. Requires `Content-Type: application/json`; anything else is rejected with 415 (CSRF hardening — a hostile localhost page cannot send it preflight-free). |
+| `POST` | `/api/assets` | image bytes | Store an image content-addressed; returns its `asset:<sha256>`. Requires `Content-Type: application/octet-stream` or `image/*` (neither is CORS-simple — same CSRF hardening); a body that does not sniff as an image is rejected with 415. |
 | `GET` | `/assets/{sha}` | none | Fetch a stored asset by its sha256. |
 | `GET` | `/api/sessions` | none | List the open artifacts, most-recently-updated first (see Session listing). |
 | `GET` | `/api/packs` | none | List the installed block packs with inlined schemas, plus the dropped candidates (see Block packs). |
