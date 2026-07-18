@@ -30,6 +30,55 @@ func showsNativeReplyThread(_ block: Block) -> Bool {
     }
 }
 
+/// SectionGroup is one header-led run of the board feed: a section header over the
+/// top-level blocks that follow it, up to the next section. `id` is namespaced —
+/// "s#" + the section id for a header group, "lead" for the headerless run before
+/// the first section — so a section whose own id collides with the lead sentinel
+/// can't produce duplicate ForEach identity. Drives BoardScreen's pinned headers.
+struct SectionGroup: Equatable {
+    let id: String
+    let header: Block.Section?
+    let blocks: [Block]
+}
+
+/// sectionGroups splits top-level blocks into header-led runs for the pinned-header
+/// board layout. Blocks before the first section form the lead group, omitted
+/// entirely when empty; each section opens a group carrying the following non-section
+/// blocks up to the next section or the end, so a trailing or back-to-back section
+/// yields a group with empty blocks. A section nested inside a card stays in that
+/// card's body — only top-level sections split the feed. Concatenating every group's
+/// header and blocks reproduces the input exactly.
+func sectionGroups(_ blocks: [Block]) -> [SectionGroup] {
+    var groups: [SectionGroup] = []
+    var lead: [Block] = []
+    var header: Block.Section?
+    var body: [Block] = []
+
+    func flush() {
+        if let header {
+            groups.append(SectionGroup(id: "s#" + header.id, header: header, blocks: body))
+        }
+    }
+
+    for block in blocks {
+        if case let .section(section) = block {
+            flush()
+            header = section
+            body = []
+        } else if header == nil {
+            lead.append(block)
+        } else {
+            body.append(block)
+        }
+    }
+    flush()
+
+    if !lead.isEmpty {
+        groups.insert(SectionGroup(id: "lead", header: nil, blocks: lead), at: 0)
+    }
+    return groups
+}
+
 /// SubmitItem is one entry of the submit tally: an approval, choice, or interactive
 /// pack block with its decided state. Inputs never count toward the tally.
 struct SubmitItem: Equatable {

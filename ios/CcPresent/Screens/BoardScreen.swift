@@ -98,7 +98,7 @@ struct BoardScreen: View {
 
     private var board: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
+            LazyVStack(alignment: .leading, spacing: 24, pinnedViews: [.sectionHeaders]) {
                 docHeader
                 if store.isClosed {
                     ClosedBannerView(summary: state.interactions.closed.summary)
@@ -118,9 +118,16 @@ struct BoardScreen: View {
                         packContext: packContext
                     )
                 } else {
-                    ForEach(currentBlocks, id: \.id) { block in
-                        BlockView(block: block, store: store, client: client, packContext: packContext)
-                            .environment(\.receiptReceded, blockDecided(block, state.interactions, packInteractive))
+                    ForEach(sectionGroups(currentBlocks), id: \.id) { group in
+                        if let header = group.header {
+                            Section {
+                                sectionRows(group)
+                            } header: {
+                                SectionHeaderView(block: header)
+                            }
+                        } else {
+                            sectionRows(group)
+                        }
                     }
                 }
                 if isWaiting {
@@ -131,6 +138,17 @@ struct BoardScreen: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .environment(\.blockReplies, state.interactions.replies)
+    }
+
+    @ViewBuilder
+    private func sectionRows(_ group: SectionGroup) -> some View {
+        if let header = group.header, let thread = state.interactions.replies[header.id], !thread.isEmpty {
+            FeedbackThreadView(feedback: [], replies: thread)
+        }
+        ForEach(group.blocks, id: \.id) { block in
+            BlockView(block: block, store: store, client: client, packContext: packContext)
+                .environment(\.receiptReceded, blockDecided(block, state.interactions, packInteractive))
+        }
     }
 
     @ViewBuilder
@@ -299,6 +317,26 @@ private struct WaitingPanelView: View {
             return "Round \(lastRound.number) submitted · rev \(revision)"
         }
         return "Round \(lastRound.number) wrapped up"
+    }
+}
+
+/// SectionHeaderView is the pinned board section header: the shared SectionView over
+/// an opaque background with a hairline bottom rule that content slides beneath. The
+/// background sits after the vertical padding so body text never ghosts through the
+/// padding band while pinned.
+private struct SectionHeaderView: View {
+    let block: Block.Section
+
+    var body: some View {
+        SectionView(block: block)
+            .padding(.vertical, 8)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color(.systemBackground))
+            .overlay(alignment: .bottom) {
+                Rectangle()
+                    .fill(BlockPalette.line)
+                    .frame(height: 1)
+            }
     }
 }
 

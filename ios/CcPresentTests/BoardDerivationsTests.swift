@@ -10,6 +10,18 @@ private func pack(_ id: String, _ type: String) -> Block {
     .pack(Block.Pack(id: id, packType: type, raw: .object(["id": .string(id), "type": .string(type)])))
 }
 
+private func section(_ id: String) -> Block {
+    .section(Block.Section(id: id, title: "Section \(id)"))
+}
+
+private func markdown(_ id: String) -> Block {
+    .markdown(Block.Markdown(id: id, md: "text"))
+}
+
+private func approval(_ id: String) -> Block {
+    .approval(Block.Approval(id: id))
+}
+
 @Test func flattenInlinesCardChildrenOneLevel() {
     let blocks: [Block] = [
         .approval(Block.Approval(id: "top-ap")),
@@ -248,4 +260,82 @@ private let replyThreadCases: [ReplyThreadCase] = [
 @Test("showsNativeReplyThread hides the thread only for approval and pack", arguments: replyThreadCases)
 private func showsNativeReplyThreadHidesOnlyApprovalAndPack(_ testCase: ReplyThreadCase) {
     #expect(showsNativeReplyThread(testCase.block) == testCase.shows, "case: \(testCase.name)")
+}
+
+private struct SectionGroupCase {
+    let name: String
+    let blocks: [Block]
+    let ids: [String]
+    let headerIDs: [String?]
+    let blockIDs: [[String]]
+}
+
+private let sectionGroupCases: [SectionGroupCase] = [
+    SectionGroupCase(name: "empty", blocks: [], ids: [], headerIDs: [], blockIDs: []),
+    SectionGroupCase(
+        name: "leading-only",
+        blocks: [markdown("m1"), approval("a1")],
+        ids: ["lead"],
+        headerIDs: [nil],
+        blockIDs: [["m1", "a1"]]
+    ),
+    SectionGroupCase(
+        name: "section-first",
+        blocks: [section("s1")],
+        ids: ["s#s1"],
+        headerIDs: ["s1"],
+        blockIDs: [[]]
+    ),
+    SectionGroupCase(
+        name: "section-then-blocks",
+        blocks: [section("s1"), markdown("m1"), approval("a1")],
+        ids: ["s#s1"],
+        headerIDs: ["s1"],
+        blockIDs: [["m1", "a1"]]
+    ),
+    SectionGroupCase(
+        name: "interleaved",
+        blocks: [markdown("lead1"), section("s1"), markdown("b1"), approval("b2"), section("s2"), markdown("c1")],
+        ids: ["lead", "s#s1", "s#s2"],
+        headerIDs: [nil, "s1", "s2"],
+        blockIDs: [["lead1"], ["b1", "b2"], ["c1"]]
+    ),
+    SectionGroupCase(
+        name: "trailing-empty-section",
+        blocks: [section("s1"), markdown("m1"), section("s2")],
+        ids: ["s#s1", "s#s2"],
+        headerIDs: ["s1", "s2"],
+        blockIDs: [["m1"], []]
+    ),
+    SectionGroupCase(
+        name: "sections-only",
+        blocks: [section("s1"), section("s2")],
+        ids: ["s#s1", "s#s2"],
+        headerIDs: ["s1", "s2"],
+        blockIDs: [[], []]
+    ),
+    SectionGroupCase(
+        name: "card-block-rides-in-body",
+        blocks: [section("sec"), card("card", children: [markdown("cm"), approval("ca")])],
+        ids: ["s#sec"],
+        headerIDs: ["sec"],
+        blockIDs: [["card"]]
+    ),
+    SectionGroupCase(
+        name: "lead-sentinel-collision",
+        blocks: [markdown("m"), section("__lead__")],
+        ids: ["lead", "s#__lead__"],
+        headerIDs: [nil, "__lead__"],
+        blockIDs: [["m"], []]
+    ),
+]
+
+@Test("sectionGroups splits top-level blocks into header-led runs", arguments: sectionGroupCases)
+private func sectionGroupsSplitsIntoHeaderLedRuns(_ testCase: SectionGroupCase) {
+    let groups = sectionGroups(testCase.blocks)
+    #expect(groups.map(\.id) == testCase.ids, "case: \(testCase.name)")
+    #expect(groups.map(\.header?.id) == testCase.headerIDs, "case: \(testCase.name)")
+    #expect(groups.map { $0.blocks.map(\.id) } == testCase.blockIDs, "case: \(testCase.name)")
+    let reconstructed = groups.flatMap { ($0.header.map { [Block.section($0)] } ?? []) + $0.blocks }
+    #expect(reconstructed == testCase.blocks, "case: \(testCase.name)")
 }
