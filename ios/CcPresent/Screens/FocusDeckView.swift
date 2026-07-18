@@ -346,38 +346,38 @@ struct FocusProgressView: View {
 
     private func dot(_ step: FocusStep, position: Int) -> some View {
         let status = stepStatus(step, interactions, packInteractive)
-        // The visual dot stays small; the flexible ≥44pt cell is the tap target.
+        let look = dotAppearance(status)
+        let current = position == index
+        // Only the glyph resizes per status; the flexible ≥44pt cell is the tap
+        // target, and the current-step ring rides a fixed 9pt slot so it reads the
+        // same over a 4pt tick as over a 9pt decision dot.
         return Button { onJump(step.id) } label: {
             Circle()
-                .fill(fill(status))
+                .fill(look.fill)
+                .frame(width: look.size, height: look.size)
+                .overlay {
+                    if !current, let stroke = look.stroke {
+                        Circle().strokeBorder(stroke, lineWidth: 1)
+                    }
+                }
                 .frame(width: 9, height: 9)
-                .overlay(
-                    Circle().strokeBorder(
-                        position == index ? BlockPalette.accentInk : BlockPalette.borderStrong,
-                        lineWidth: position == index ? 2 : 1
-                    )
-                )
+                .overlay {
+                    if current {
+                        Circle().strokeBorder(BlockPalette.accentInk, lineWidth: 2)
+                    }
+                }
                 .frame(width: 22, height: 22)
                 .frame(maxWidth: .infinity, minHeight: 44)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityLabel(dotLabel(step, position: position, status: status))
-        .accessibilityAddTraits(position == index ? [.isSelected] : [])
+        .accessibilityAddTraits(current ? [.isSelected] : [])
     }
 
     private func dotLabel(_ step: FocusStep, position: Int, status: StepStatus?) -> String {
         let base = "Step \(position + 1): \(stepTitle(step))"
-        return status.map { "\(base), \($0.rawValue)" } ?? base
-    }
-
-    private func fill(_ status: StepStatus?) -> Color {
-        switch status {
-        case .approved: BlockPalette.approve
-        case .rejected: BlockPalette.reject
-        case .decided: BlockPalette.accentInk
-        case .undecided, nil: BlockPalette.chipBg
-        }
+        return "\(base), \(status?.rawValue ?? "no decision")"
     }
 
     private func bar(shown: Int, total: Int) -> some View {
@@ -393,6 +393,33 @@ struct FocusProgressView: View {
         .accessibilityElement()
         .accessibilityLabel("Step progress")
         .accessibilityValue("Step \(shown) of \(total)")
+    }
+}
+
+/// DotAppearance is the resolved look of one progress dot — the glyph diameter, its
+/// fill, and an optional 1pt border. Derived purely from a step's StepStatus so the
+/// mapping stays table-testable apart from the view.
+struct DotAppearance: Equatable {
+    let size: CGFloat
+    let fill: Color
+    let stroke: Color?
+}
+
+/// dotAppearance maps tally status to the dot glyph, mirroring the web dot rail
+/// (web/src/styles/focus.css): nil is a small filled tick, undecided a hollow
+/// warn-bordered ring, and each decided verdict a filled dot.
+func dotAppearance(_ status: StepStatus?) -> DotAppearance {
+    switch status {
+    case nil:
+        DotAppearance(size: 4, fill: BlockPalette.borderStrong, stroke: nil)
+    case .undecided:
+        DotAppearance(size: 9, fill: .clear, stroke: BlockPalette.warn)
+    case .approved:
+        DotAppearance(size: 9, fill: BlockPalette.approve, stroke: BlockPalette.borderStrong)
+    case .rejected:
+        DotAppearance(size: 9, fill: BlockPalette.reject, stroke: BlockPalette.borderStrong)
+    case .decided:
+        DotAppearance(size: 9, fill: BlockPalette.accentInk, stroke: BlockPalette.borderStrong)
     }
 }
 
