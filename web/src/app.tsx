@@ -174,6 +174,7 @@ function PresentView({ subject }: { subject: string }) {
           interactions={state.interactions}
           subject={subject}
           hasHistory={hasHistory}
+          showTally={mode !== 'focus'}
         />
       )}
     </>

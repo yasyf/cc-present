@@ -98,6 +98,17 @@
     background var(--dur-2) var(--ease-out),
     border-color var(--dur-2) var(--ease-out);
 }
+/* The tick's smaller glyph pads back out to the decision dot's hit area. */
+.focus-dot.tick {
+  padding: 11px;
+}
+.focus-dot.tick::before {
+  width: 4px;
+  height: 4px;
+  border: none;
+  border-radius: var(--radius-pill);
+  background: var(--border-strong);
+}
 .focus-dot.undecided::before {
   border-color: var(--pending);
 }
@@ -352,5 +363,8 @@
   }
   .focus-dot {
     padding: 8px;
+  }
+  .focus-dot.tick {
+    padding: 13px;
   }
 }

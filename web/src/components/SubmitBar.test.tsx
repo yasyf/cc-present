@@ -24,13 +24,28 @@ const decisions = (over: Record<string, Verdict>): Interactions['decisions'] =>
 
 const doc = (blocks: Block[]): Doc => ({ version: 1, title: '', submit: { label: 'Submit' }, blocks });
 
-function Bar({ blocks, interactions }: { blocks: Block[]; interactions: Interactions }) {
+function Bar({
+  blocks,
+  interactions,
+  showTally = true,
+}: {
+  blocks: Block[];
+  interactions: Interactions;
+  showTally?: boolean;
+}) {
   const present: PresentApi = { post: async () => true, closed: false, currentRound: 1 };
   return (
     <QueryClientProvider client={new QueryClient()}>
       <PresentContext.Provider value={present}>
         <KeyboardProvider blocks={blocks} interactions={interactions} closed={false} round={1}>
-          <SubmitBar blocks={blocks} doc={doc(blocks)} interactions={interactions} subject="s" hasHistory={false} />
+          <SubmitBar
+            blocks={blocks}
+            showTally={showTally}
+            doc={doc(blocks)}
+            interactions={interactions}
+            subject="s"
+            hasHistory={false}
+          />
         </KeyboardProvider>
       </PresentContext.Provider>
     </QueryClientProvider>
@@ -50,7 +65,7 @@ afterEach(() => {
   container.remove();
 });
 
-function render(props: { blocks: Block[]; interactions: Interactions }): void {
+function render(props: { blocks: Block[]; interactions: Interactions; showTally?: boolean }): void {
   act(() => root.render(<Bar {...props} />));
 }
 
@@ -58,6 +73,15 @@ const segClasses = (): string[][] =>
   [...container.querySelectorAll('.tally-seg')].map((s) => [...s.classList]);
 
 describe('SubmitBar tally segments', () => {
+  it('hides only the per-item rail when the focus deck owns progress', () => {
+    const blocks = [approval('a1')];
+    render({ blocks, interactions: empty(), showTally: false });
+    expect(container.querySelector('.tally-strip')).toBeNull();
+    expect(container.querySelector('.submit-count')?.textContent).toBe('0/1 decided');
+    render({ blocks, interactions: empty(), showTally: true });
+    expect(container.querySelector('.tally-strip')).not.toBeNull();
+  });
+
   it('inks one segment per decidable by its state', () => {
     const blocks = [approval('a1'), approval('a2'), choice('c1'), approval('a3')];
     render({

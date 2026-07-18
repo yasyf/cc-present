@@ -13,8 +13,8 @@ export interface FocusProgressProps {
 const RAIL_MAX = 10;
 
 // FocusProgress is the deck header: the mono step counter, the tier label, and a
-// tap-to-jump dot rail that fills decided dots with the verdict color, collapsing
-// to a segmented bar past RAIL_MAX steps.
+// tap-to-jump dot rail that fills decided dots with the verdict color, renders
+// untallied steps as muted ticks, and collapses to a segmented bar past RAIL_MAX.
 export function FocusProgress({ steps, index, interactions, packInteractive, onJump }: FocusProgressProps) {
   const total = steps.length;
   const onSummary = index >= total;
@@ -36,7 +36,7 @@ export function FocusProgress({ steps, index, interactions, packInteractive, onJ
               <button
                 key={step.id}
                 type="button"
-                className={`focus-dot${i === index ? ' current' : ''}${status ? ` ${status}` : ''}`}
+                className={`focus-dot${i === index ? ' current' : ''}${status ? ` ${status}` : ' tick'}`}
                 aria-label={label}
                 aria-current={i === index || undefined}
                 onClick={() => onJump(step.id)}

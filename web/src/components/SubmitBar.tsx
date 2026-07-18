@@ -14,13 +14,15 @@ import { useInteractivePackTypes } from '../packs/registry';
 export interface SubmitBarProps {
   // The current round's live blocks; the decided/total tally spans only these.
   blocks: Block[];
+  // The tally strip is the board's per-item rail; the focus deck's dot rail owns per-step progress there.
+  showTally: boolean;
   doc: Doc;
   interactions: Interactions;
   subject: string;
   hasHistory: boolean;
 }
 
-export function SubmitBar({ blocks, doc, interactions, subject, hasHistory }: SubmitBarProps) {
+export function SubmitBar({ blocks, showTally, doc, interactions, subject, hasHistory }: SubmitBarProps) {
   const { post, currentRound } = usePresent();
   const kbd = useKeyboardApi();
   const packInteractive = useInteractivePackTypes();
@@ -113,7 +115,7 @@ export function SubmitBar({ blocks, doc, interactions, subject, hasHistory }: Su
     >
       <div className="submit-status">
         {hasHistory && <span className="submit-round">Round {currentRound}</span>}
-        {total > 0 && (
+        {total > 0 && showTally && (
           <div
             className={`tally-strip${complete ? ' tally-complete' : ''}`}
             role="group"

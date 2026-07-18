@@ -344,8 +344,8 @@ describe('FocusDeck next-undecided wrapping', () => {
   });
 });
 
-describe('FocusDeck nested-decidable jump', () => {
-  it('lands the cursor on a nested decidable when a SubmitBar dot jumps to it', () => {
+describe('FocusDeck SubmitBar progress', () => {
+  it('keeps the cursor on the primary while omitting the SubmitBar tally rail', () => {
     const cardBlock: Block = {
       id: 'c1',
       type: 'card',
@@ -366,7 +366,14 @@ describe('FocusDeck nested-decidable jump', () => {
           <PresentContext.Provider value={present}>
             <KeyboardProvider blocks={blocks} interactions={interactions} closed={false} round={1}>
               <FocusDeck steps={steps} interactions={interactions} round={1} closed={false} />
-              <SubmitBar blocks={blocks} doc={doc} interactions={interactions} subject="s" hasHistory={false} />
+              <SubmitBar
+                blocks={blocks}
+                showTally={false}
+                doc={doc}
+                interactions={interactions}
+                subject="s"
+                hasHistory={false}
+              />
             </KeyboardProvider>
           </PresentContext.Provider>
         </QueryClientProvider>,
@@ -375,12 +382,7 @@ describe('FocusDeck nested-decidable jump', () => {
     // The cursor enters on the step's primary (the approval).
     expect(container.querySelector('.approval[data-kbd-cursor]')).not.toBeNull();
     expect(container.querySelector('.choice[data-kbd-cursor]')).toBeNull();
-    // The SubmitBar tally maps to [c1a, c1c]; tapping the second jumps to the nested choice.
-    const dots = container.querySelectorAll('.tally-strip .tally-seg');
-    expect(dots.length).toBe(2);
-    act(() => (dots[1] as HTMLButtonElement).click());
-    expect(container.querySelector('.choice[data-kbd-cursor]')).not.toBeNull();
-    expect(container.querySelector('.approval[data-kbd-cursor]')).toBeNull();
+    expect(container.querySelector('.tally-strip')).toBeNull();
     queryClient.clear();
   });
 });
