@@ -1,0 +1,272 @@
+{
+  "version": 1,
+  "title": "Northstar event gateway: architecture decisions",
+  "intro": "Northstar is a fictional event-ingestion service for retail telemetry. This board captures the decisions needed to move from a single-region prototype to a production launch without hiding operational tradeoffs.",
+  "stats": [
+    { "label": "decisions", "value": "13" },
+    { "label": "target throughput", "value": "120k events/s" },
+    { "label": "launch window", "value": "Q4" }
+  ],
+  "presentation": "focus",
+  "submit": {
+    "label": "Submit architecture decisions",
+    "note": "Selections become the implementation brief for the Northstar delivery team."
+  },
+  "blocks": [
+    {
+      "id": "northstar-context",
+      "type": "markdown",
+      "md": "## Decision context\n\nNorthstar accepts telemetry bursts from 4,000 retail locations.\n\nPeak traffic is twelve times the hourly average.\n\nProducers retry for up to fifteen minutes after a network outage.\n\nConsumers need ordered events within each store, not across stores.\n\nThe current prototype runs in one region and shares its database with reporting.\n\nThe launch target is 120,000 events per second with a 99.95% ingest SLO.\n\nThe team has six engineers and one embedded SRE.\n\nChoose the smallest architecture that preserves a credible path to regional failover."
+    },
+    {
+      "id": "northstar-current-flow",
+      "type": "diagram",
+      "kind": "mermaid",
+      "title": "Current request path",
+      "source": "graph LR\n  Device --> Gateway\n  Gateway --> API\n  API --> Database\n  Database --> Reporter"
+    },
+    {
+      "id": "service-shape",
+      "type": "choice",
+      "prompt": "Which service boundary should Northstar launch with?",
+      "options": [
+        {
+          "id": "modular-monolith",
+          "label": "Modular monolith with an internal queue",
+          "hint": "One deployable, explicit ingest and delivery modules",
+          "recommended": true,
+          "facts": [
+            { "label": "p95 latency", "value": "85 ms", "tone": "good" },
+            { "label": "on-call load", "value": "Low", "tone": "good" },
+            { "label": "fault isolation", "value": "Process" }
+          ],
+          "detail": {
+            "pros": [ "Smallest operational surface", "Module seam supports a later split" ],
+            "cons": [ "A process crash interrupts both ingest and delivery" ]
+          },
+          "visual": {
+            "id": "modular-monolith-visual",
+            "type": "diagram",
+            "kind": "mermaid",
+            "title": "Modular monolith",
+            "source": "graph LR\n  Client --> API\n  API --> Queue\n  Queue --> Worker\n  Worker --> Store"
+          }
+        },
+        {
+          "id": "split-services",
+          "label": "Separate ingest and delivery services",
+          "hint": "Independent deploys joined by a durable broker",
+          "facts": [
+            { "label": "p95 latency", "value": "110 ms" },
+            { "label": "on-call load", "value": "Medium", "tone": "warn" },
+            { "label": "fault isolation", "value": "Service", "tone": "good" }
+          ],
+          "detail": {
+            "pros": [ "Independent scaling and failure domains" ],
+            "cons": [ "Adds broker operations before launch" ]
+          },
+          "visual": {
+            "id": "split-services-visual",
+            "type": "diagram",
+            "kind": "mermaid",
+            "title": "Split services",
+            "source": "graph LR\n  Client --> Ingest\n  Ingest --> Broker\n  Broker --> Delivery\n  Delivery --> Store\n  Delivery --> Audit"
+          }
+        },
+        {
+          "id": "edge-workers",
+          "label": "Edge workers with regional collectors",
+          "hint": "Push validation close to producers",
+          "facts": [
+            { "label": "p95 latency", "value": "55 ms", "tone": "good" },
+            { "label": "on-call load", "value": "High", "tone": "bad" },
+            { "label": "fault isolation", "value": "Region", "tone": "good" }
+          ],
+          "detail": {
+            "pros": [ "Lowest producer latency", "Natural regional isolation" ],
+            "cons": [ "Largest deployment and debugging surface" ]
+          },
+          "visual": {
+            "id": "edge-workers-visual",
+            "type": "code",
+            "title": "Edge routing sketch",
+            "lang": "go",
+            "code": "func route(store Store) Region {\n\treturn rendezvousHash(store.ID, healthyRegions())\n}"
+          }
+        }
+      ]
+    },
+    {
+      "id": "consistency-model",
+      "type": "choice",
+      "prompt": "What consistency contract should the delivery API expose?",
+      "options": [
+        {
+          "id": "strict-ordering",
+          "label": "Strict per-store ordering",
+          "facts": [
+            { "label": "ordering", "value": "Strict", "tone": "good" },
+            { "label": "write latency", "value": "Higher", "tone": "warn" }
+          ]
+        },
+        {
+          "id": "eventual-ordering",
+          "label": "Best-effort ordering with sequence numbers",
+          "facts": [
+            { "label": "throughput", "value": "Highest", "tone": "good" },
+            { "label": "consumer work", "value": "Deduplicate", "tone": "warn" }
+          ]
+        },
+        {
+          "id": "bounded-reorder",
+          "label": "Five-second reorder window",
+          "facts": [
+            { "label": "staleness", "value": "≤ 5 s" },
+            { "label": "recovery", "value": "Automatic", "tone": "good" },
+            { "label": "memory", "value": "Moderate" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "launch-capabilities",
+      "type": "choice",
+      "multi": true,
+      "prompt": "Which capabilities belong in the launch slice?",
+      "options": [
+        { "id": "dead-letter", "label": "Dead-letter replay", "hint": "Required for poison events" },
+        { "id": "tenant-quotas", "label": "Per-tenant quotas", "hint": "Prevents one retailer from starving others" },
+        { "id": "schema-registry", "label": "Schema registry", "hint": "Rejects incompatible payloads before delivery" },
+        { "id": "historical-backfill", "label": "Historical backfill", "hint": "Useful after launch, expensive in the hot path" }
+      ]
+    },
+    {
+      "id": "degradation-policy",
+      "type": "card",
+      "title": "Degraded-mode policy",
+      "summary": "Choose the overload behavior and explicitly approve its customer impact.",
+      "chips": [
+        { "label": "reliability", "tone": "flag" },
+        { "label": "two decisions" }
+      ],
+      "children": [
+        {
+          "id": "overload-behavior",
+          "type": "choice",
+          "prompt": "How should ingest behave above the regional safety limit?",
+          "options": [
+            { "id": "backpressure", "label": "Return 429 with retry hints", "hint": "Protects ordering and storage" },
+            { "id": "buffer", "label": "Buffer to object storage", "hint": "Accepts traffic with delayed delivery" },
+            { "id": "sample", "label": "Sample low-priority events", "hint": "Preserves availability but loses data" }
+          ]
+        },
+        {
+          "id": "degradation-approval",
+          "type": "approval",
+          "prompt": "Approve a customer-visible degraded mode for overload events?",
+          "allowFeedback": true,
+          "detail": {
+            "md": "Approval permits the API to return an explicit degraded response instead of accepting work it cannot deliver inside the SLO."
+          }
+        }
+      ]
+    },
+    {
+      "id": "retry-policy-diff",
+      "type": "diff",
+      "title": "Proposed retry and overload policy",
+      "diff": "diff --git a/config/service.yaml b/config/service.yaml\nindex 76ad1b2..a8f4ca1 100644\n--- a/config/service.yaml\n+++ b/config/service.yaml\n@@ -8,7 +8,12 @@ ingest:\n-  max_inflight: 25000\n-  retry_after: 1s\n+  max_inflight: 40000\n+  retry_after_min: 250ms\n+  retry_after_max: 8s\n+  retry_jitter: 0.25\n+  shed_at_percent: 92\n+  recover_at_percent: 78\n   request_timeout: 3s\n@@ -24,4 +29,8 @@ delivery:\n-  attempts: 5\n+  attempts: 8\n+  backoff: exponential\n+  dead_letter_after: 15m\n+  preserve_store_order: true\n+  max_batch: 500\ndiff --git a/internal/routing/policy.go b/internal/routing/policy.go\nindex c4a1170..8a7d031 100644\n--- a/internal/routing/policy.go\n+++ b/internal/routing/policy.go\n@@ -17,8 +17,15 @@ func (p Policy) Route(event Event) Target {\n-\treturn p.primary\n+\tif p.primary.Healthy() {\n+\t\treturn p.primary\n+\t}\n+\treturn p.secondary.ForStore(event.StoreID)\n }\n \n-func (p Policy) Retry() time.Duration {\n-\treturn time.Second\n+func (p Policy) Retry(attempt int) time.Duration {\n+\tdelay := min(250*time.Millisecond<<attempt, 8*time.Second)\n+\treturn withJitter(delay, 0.25)\n }\n@@ -39,3 +46,9 @@ func (p Policy) Accept(load float64) bool {\n-\treturn load < 1\n+\tif load >= 0.92 {\n+\t\treturn false\n+\t}\n+\tif load <= 0.78 {\n+\t\treturn true\n+\t}\n+\treturn p.wasAccepting\n }\ndiff --git a/deploy/alerts.yaml b/deploy/alerts.yaml\nindex 6bdcc02..aff1339 100644\n--- a/deploy/alerts.yaml\n+++ b/deploy/alerts.yaml\n@@ -11,6 +11,18 @@ groups:\n       expr: rate(ingest_errors_total[5m]) > 0.01\n       for: 10m\n+    - alert: IngestSheddingActive\n+      expr: rate(ingest_shed_total[2m]) > 0\n+      for: 2m\n+      labels:\n+        severity: page\n+      annotations:\n+        runbook: northstar/ingest-shedding\n+    - alert: DeadLetterLagHigh\n+      expr: dead_letter_oldest_seconds > 300\n+      for: 5m\n+      labels:\n+        severity: ticket\ndiff --git a/docs/runbook.md b/docs/runbook.md\nindex fa89c44..cc98382 100644\n--- a/docs/runbook.md\n+++ b/docs/runbook.md\n@@ -3,3 +3,12 @@\n 1. Confirm producer error rate.\n 2. Check regional storage latency.\n+3. Compare inflight load with the 92% shedding threshold.\n+4. If the primary is unhealthy, verify store routing in the secondary.\n+5. Pause replay while dead-letter age exceeds five minutes.\n+6. Notify affected tenants before forcing a regional drain.\n+\n+## Recovery\n+\n+Resume replay at 10% and double every five minutes while error rate stays below 1%."
+    },
+    {
+      "id": "retry-strategy",
+      "type": "choice",
+      "prompt": "Should the proposed retry and overload policy become the launch baseline?",
+      "options": [
+        { "id": "adopt-policy", "label": "Adopt as shown", "hint": "Includes hysteresis, jitter, and paging" },
+        { "id": "simplify-policy", "label": "Keep fixed retries for launch", "hint": "Smaller change, synchronized retry risk" },
+        { "id": "load-test-policy", "label": "Gate adoption on a 2× load test", "hint": "Adds evidence and one week" }
+      ]
+    },
+    {
+      "id": "event-store",
+      "type": "choice",
+      "prompt": "Where should the durable event log live?",
+      "options": [
+        { "id": "managed-stream", "label": "Managed streaming service", "hint": "Fastest route to durable partitions" },
+        { "id": "postgres-log", "label": "Partitioned PostgreSQL log", "hint": "Known tooling, tighter scaling ceiling" },
+        { "id": "object-log", "label": "Object storage plus index", "hint": "Cheap retention, slower hot reads" }
+      ]
+    },
+    {
+      "id": "producer-api",
+      "type": "choice",
+      "prompt": "Which producer-facing API should launch first?",
+      "options": [
+        { "id": "http-batch", "label": "HTTP batch endpoint", "hint": "Universal client support" },
+        { "id": "grpc-stream", "label": "gRPC bidirectional stream", "hint": "Efficient flow control" },
+        { "id": "dual-protocol", "label": "HTTP and gRPC together", "hint": "Broadest support, two contracts" }
+      ]
+    },
+    {
+      "id": "observability-stack",
+      "type": "choice",
+      "prompt": "What is the minimum launch observability stack?",
+      "options": [
+        { "id": "metrics-only", "label": "Metrics and structured logs", "hint": "Lowest cost" },
+        { "id": "sampled-tracing", "label": "Metrics, logs, and 1% tracing", "hint": "Cross-service diagnosis at controlled cost" },
+        { "id": "full-tracing", "label": "Metrics, logs, and tail-based tracing", "hint": "Best diagnosis, highest setup cost" }
+      ]
+    },
+    {
+      "id": "tenant-auth",
+      "type": "choice",
+      "prompt": "How should retail locations authenticate producers?",
+      "options": [
+        { "id": "signed-keys", "label": "Rotating signed API keys", "hint": "Simple device bootstrap" },
+        { "id": "mtls", "label": "Per-location mTLS certificates", "hint": "Strong identity, certificate operations" },
+        { "id": "oauth-device", "label": "OAuth device credentials", "hint": "Central policy, heavier clients" }
+      ]
+    },
+    {
+      "id": "poison-events",
+      "type": "choice",
+      "prompt": "What should happen when one event repeatedly fails delivery?",
+      "options": [
+        { "id": "block-partition", "label": "Block the store partition", "hint": "Preserves strict order" },
+        { "id": "quarantine-event", "label": "Quarantine and continue", "hint": "Preserves throughput with an audit gap" },
+        { "id": "quarantine-store", "label": "Quarantine the store", "hint": "Contains bad producers" }
+      ]
+    },
+    {
+      "id": "regional-topology",
+      "type": "choice",
+      "prompt": "Which regional topology should the first production release use?",
+      "options": [
+        { "id": "active-passive", "label": "Active-passive across two regions", "hint": "Simple ownership and recovery" },
+        { "id": "active-active", "label": "Active-active with home regions", "hint": "Lower failover time, harder reconciliation" },
+        { "id": "single-region", "label": "Single region with restore drills", "hint": "Cheapest, misses failover goal" }
+      ]
+    },
+    {
+      "id": "launch-slo",
+      "type": "choice",
+      "prompt": "Which launch SLO should the team publish?",
+      "options": [
+        { "id": "balanced-slo", "label": "99.95% ingest and 99.9% delivery", "hint": "Matches current staffing" },
+        { "id": "strict-slo", "label": "99.99% ingest and delivery", "hint": "Requires automated regional failover" },
+        { "id": "pilot-slo", "label": "99.9% ingest during pilot", "hint": "More error budget, weaker customer promise" }
+      ]
+    },
+    {
+      "id": "architecture-approval",
+      "type": "approval",
+      "prompt": "Approve the selected Northstar architecture as the production implementation brief?",
+      "allowFeedback": true,
+      "detail": {
+        "pros": [ "Thirteen explicit decisions with visible tradeoffs", "Launch scope and degraded behavior are reviewable" ],
+        "cons": [ "Capacity numbers still require load-test confirmation" ],
+        "mode": "modal"
+      }
+    }
+  ]
+}

@@ -51,6 +51,7 @@
               "id": "pick",
               "label": "Your spec clocks in. A reviewed diff clocks out.",
               "hint": "command form",
+              "recommended": true,
               "facts": [
                 { "label": "frame", "value": "command" },
                 { "label": "words", "value": "9" }
@@ -59,6 +60,13 @@
                 "pros": [ "Names the input and the output in one line", "Factory metaphor matches the repo name" ],
                 "cons": [ "Two sentences where the alternates use one" ],
                 "md": "The clock-in/clock-out pair carries the whole pipeline — design, plan, build, review — without listing a stage."
+              },
+              "visual": {
+                "id": "cc-factory-pick-flow",
+                "type": "diagram",
+                "kind": "mermaid",
+                "title": "Spec to reviewed diff",
+                "source": "graph LR\n  Spec --> Review\n  Review --> Diff"
               }
             },
             {
