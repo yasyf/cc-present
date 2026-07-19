@@ -472,11 +472,24 @@ can reach the plane.
 
 With trust on and a loopback primary bind, the daemon additionally binds each of
 its own tailnet IPs, best-effort: an unbindable address is skipped with a
-warning, and loopback always serves. The bound legs are recorded in the
-handshake's `extra_addrs`, the source of truth for where the plane listens; an
-extra leg can land on a different port than the primary when the port-reuse hint
-is taken on one interface only. With `pair`'s `0.0.0.0` bind the primary already
-covers the tailnet and no extra legs are bound.
+warning, and loopback always serves. Binding is dynamic — a reconcile pass runs
+every 30 seconds, so a daemon started while tailscale was down grows its tailnet
+legs within one pass of `tailscale up`, no restart needed. Legs are never
+pruned: a leg whose address vanished is inert (auth is per-request), and the
+same socket resumes if the address returns. The bound legs are recorded in the
+handshake's `extra_addrs` — rewritten atomically as each leg binds, the source
+of truth for where the plane listens. An extra leg can land on a different port
+than the primary when the port-reuse hint is taken on one interface only, and
+ports are sticky across restarts: each bind retries its previous port first,
+falling to ephemeral only on conflict. One restart still required: synckit
+state created after daemon start is not detected — trust hooks fix at daemon
+construction. With `pair`'s `0.0.0.0` bind the primary already covers the
+tailnet and no extra legs are bound.
+
+`start` and `push` results carry the composed display URLs for the live legs
+(`tailnetUrls`): the daemon's MagicDNS name when tailscale publishes one —
+deduped by port, so v4 and v6 legs on one port yield one URL — raw tailnet IPs
+otherwise. The scheme is `http`; WireGuard encrypts the path underneath.
 
 `cc-present trust` is a read-only inspector: it reports whether synckit state
 was detected, each registered host with its resolved tailnet IPs (or that it is
@@ -486,6 +499,13 @@ reachable.
 Dial the plane directly, never through a reverse proxy. `tailscale serve` and
 Funnel deliver every proxied request from a loopback TCP peer, which rides the
 loopback path and defeats both the token and the trust check.
+
+## Health
+
+`GET /api/health` returns `{"version":"<daemon version>"}`. This is the one
+non-vacuous liveness probe: the SPA fallback answers unmatched paths with a 200
+HTML shell, so a bare status-code check proves nothing — expect the JSON body.
+Unknown `/api/*` paths return 404, never the shell.
 
 ## Session listing
 

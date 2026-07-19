@@ -21,6 +21,12 @@ Write the document JSON to a file in your **session scratchpad** and pass the pa
 - A top-level `submit` bar states what submitting commits the human to.
 - Write for the fold — the UI clamps long prose behind "Show more". Option labels stay short (~6 words); the one-line why or cost goes in the option's `hint`; option `md` holds only a short must-read lede and clamps at ~3 lines, so front-load its first sentence.
 - Never present an option blind — every option carries the tradeoffs a person needs to decide it: comparable numbers in `facts` (`{value, label?, tone?}`, aligned across options), the full why (`pros`, `cons`, longer `md`) in `detail`, one tap away. Clamping keeps the row scannable; it is not license to omit.
+- Give every decision a visual — the default is a picture of the tradeoff, not a paragraph about it: attach a `code` sample or a `diagram` to each option via `option.visual`, or lead the card with a `diagram`. A prose-only decision is the exception, and `push` prints a non-blocking reminder when a choice ships without one. See `reference/blocks.md` for the visual types and the mermaid style rules.
+- Recommend at most one option — set `recommended: true` on your suggested pick (one per single-select choice) and it renders a stamp badge, replacing the old "Recommended —" `hint` prefix.
+- Keep facts in one order — same labels, same sequence across every option, so matched labels engage the aligned comparison grid that reads column-to-column; a single mismatched label silently drops the whole choice back to per-option chips.
+- Never author an escape hatch — every choice already carries a write-in and a note thread as chrome, so don't add an "Other" option or promise a notes field. They come back in `outcomes`: a write-in as `other` on the choice, a note as `feedback` keyed to the choice's block id.
+- Front-load the context — a step's lead-in markdown shows ~6 lines before it clamps to expand in place, and a heavier block (code, diff, table, image) collapses to a one-line titled disclosure. Lead with the one sentence that bears on the decision.
+- Order consequential picks first — a step with a lone single-select choice (or a lone approval) auto-advances the deck the moment it's decided, so the picks that reshape later steps come early, and you announce their revisions promptly (see step 4).
 - A content-heavy card gets a one-sentence `summary` — the dim lede under its title.
 - Comparisons go in a `table` block, not parallel markdown paragraphs.
 - A card whose children run past ~2 screens splits into multiple cards.
@@ -44,15 +50,18 @@ cc-present push --dry-run "$DOC"
 cc-present start --session "$CLAUDE_CODE_SESSION_ID" --doc "$DOC"
 ```
 
-It prints exactly three lines:
+It prints:
 
 ```
 session: <subject-id>
 url: http://127.0.0.1:<port>/p/<slug>--<hash>
+tailnet: http://<magicdns-name>:<port>/p/<slug>--<hash>
 channel: active|pending|inactive
 ```
 
-**Show the URL to the user verbatim** and tell them to open it, click through the board, and press Submit when done. By default `start` resumes this window's open artifact (across `/clear` and resume); `--new` forces a fresh one, and a previously closed artifact forces fresh automatically. The artifact belongs to this window, not a directory — every `cc-present` command resolves it from any cwd. For an unrelated presentation pass `--new`: a resumed board keeps prior interaction state, and a reused block id inherits stale verdicts. To seed later instead, run `start --title "..."` now and `push "$DOC"` when the document is ready.
+The `tailnet:` line appears zero or more times — once per live tailnet leg, only when synckit mesh trust is active — and typically carries a different port than `url:`.
+
+**Show the URL to the user verbatim** and tell them to open it, click through the board, and press Submit when done. When the user is on another machine (or asks for remote access), hand them the `tailnet:` URL — it works from any machine in their synckit mesh as-is; no `tailscale serve`, no proxying (the contract bans it). No `tailnet:` line printed → see `reference/troubleshooting.md`. By default `start` resumes this window's open artifact (across `/clear` and resume); `--new` forces a fresh one, and a previously closed artifact forces fresh automatically. The artifact belongs to this window, not a directory — every `cc-present` command resolves it from any cwd. For an unrelated presentation pass `--new`: a resumed board keeps prior interaction state, and a reused block id inherits stale verdicts. To seed later instead, run `start --title "..."` now and `push "$DOC"` when the document is ready.
 
 To preview a visually heavy board yourself — many images, diffs, or pack blocks — screenshot the live URL with the agent-browser skill and read the result. There is no CLI preview verb; the running artifact is the preview.
 
@@ -81,7 +90,7 @@ Each event (Monitor line or channel tag) is the event's JSON payload, self-descr
 |---|---|---|
 | `feedback.created` | `{blockId, id, text, type}` | Reply under the block, and when the feedback warrants a redraft, upsert the card with `"status": "redrafted"`. |
 | `decision.created` | `{blockId, note?, type, verdict}` | `rejected` — redraft: upsert the card with alternates folded in. `approved` — optionally upsert with `"status": "resolved"`. `cleared` — the human withdrew their verdict; nothing to do. |
-| `choice.selected` | `{blockId, optionIds, type}` | Informational until submit. |
+| `choice.selected` | `{blockId, optionIds, other?, type}` | Informational until submit; `other` is the human's write-in past your options. |
 | `input.submitted` | `{blockId, text, type}` | Informational until submit. |
 | `pack.interaction` | `{blockId, payload, type}` | A pack block's interaction; `payload`'s shape is the pack's own — see its reference fragment. Informational until submit. |
 | `submit` | `{revision, type}` | Also closes the current round when you've touched a block this round. Go to step 5. |
@@ -101,6 +110,21 @@ cc-present update-block "$BLOCK" [--after <id>]
 ```
 
 **Prefer `update-block` over a full `push`** — it keeps the event log lean and never disturbs the rest of the board. Upserting replaces the block wholesale (nothing from the old block survives), and human verdicts live outside the document, so a redraft never clobbers a decision. `remove-block <id>` drops a block you no longer want on the board.
+
+### Revise downstream steps as decisions land
+
+Every pick reaches you before submit, so later steps react to earlier ones instead of guessing. Never bake a verbal conditional into a step you authored up front — no "if you picked A above…". Author each step for the decision it holds, then rewrite the ones downstream once the pick that governs them lands. The choreography for a consequential pick:
+
+1. **Announce the working set.** `cc-present revising step-4 step-5 --note "folding in your daemon pick"` marks those steps as in-flight — their rail dots pulse and a banner names the note. Controls stay live throughout: this warns, it never locks.
+2. **Upsert the same ids.** `update-block` each announced block with its revised content. Completion is implicit — upserting a block clears its mark, so there's no "done" call. A bare `cc-present revising` with no ids abandons the announcement.
+
+**Reply versus revision.** Answering a human's note under a step is a `reply`. Changing what a step *says* is a revision — announce it, then upsert. Don't reply where the content should change, and don't silently rewrite where a word back would do.
+
+**Re-asking a question.** A revision that changes the *question itself* — not just its options or context — mints a new block id: `push` the new block, then `remove-block` the old one. That is the sanctioned re-ask, and the chrome badges the fresh step "Claude added this step." Reusing the id to swap the question out from under a human who may have already answered it is what this avoids.
+
+**Re-confirm a stale decision.** Warn-only means the human can decide a step while you're mid-rewrite. When a decision lands for a block you announced, it was made against content you were replacing — so after your upsert, ask them in chat to re-confirm it. This is the primary guard on staleness; there is no lock to fall back on.
+
+**Let the chrome own the "changed" signals.** Stop hand-authoring "Updated: …" prefixes on revised markdown or "new" chips on added steps — the deck now stamps a revised step, an added step, and a removed step on its own. Revision waves are plain upserts; never open a new round to carry them (`round` marks a post-submit boundary, not a mid-review rewrite).
 
 ## 5. On the `submit` event — the round lifecycle
 
@@ -174,7 +198,8 @@ The user asks: "present the two release-note drafts for approval." Write this to
 ```bash
 cc-present push --dry-run "$DOC"     # → ok
 cc-present start --session "$CLAUDE_CODE_SESSION_ID" --doc "$DOC"
-# session: 4f3a…  /  url: http://127.0.0.1:54713/p/release-note-drafts--b6cc453c  /  channel: pending
+# session: 4f3a…  /  url: http://127.0.0.1:54713/p/release-note-drafts--b6cc453c
+# tailnet: http://<machine>.<tailnet>.ts.net:<leg-port>/p/release-note-drafts--b6cc453c  /  channel: pending
 ```
 
 Channel is `pending`, so arm the Monitor on `watch` and keep working. Events arrive:

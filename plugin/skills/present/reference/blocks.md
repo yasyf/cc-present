@@ -160,6 +160,12 @@ An option splits across two tiers. Always visible in the row: `label` (the pick 
 
 The `md`-vs-`detail.md` line: `md` is what the human must read before deciding; `detail.md` is everything they'd want once they drill in. A newline in `hint`, a fact `label` or `value`, or a `pros`/`cons` entry fails validation, naming the block id; a non-null `detail` needs at least one of `pros`, `cons`, or `md`.
 
+`recommended: true` marks your suggested pick: the option carries a stamp badge, and it replaces the free-text "Recommended —" `hint` prefix that used to signal the same thing. At most one option per single-select choice may set it — a second one fails validation. A multi-select choice allows any number.
+
+`visual` attaches one visual block to an option — a `code`, `diagram`, `image`, or `diff`, each with its own doc-unique id. The deck renders it in the step's visual stage as the option becomes active, so it stands in for a prose tier instead of crowding the row; on the board it rides inside the option's Details. Pick the type that shows the difference between the options: `code` for the shape of what the option produces, `diagram` for a flow or structure that differs across them, `diff` for a before/after edit, `image` for a rendered mockup or screenshot. Any other block type is rejected at decode, naming the option.
+
+Facts earn the comparison grid by lining up. Give every option the same fact labels in the same order — matched labels render as a column-to-column grid the eye reads across options; a single mismatched label drops the whole choice back to per-option chips, silently.
+
 ### `input` — free text
 
 ```json
@@ -187,6 +193,21 @@ An input carried into a new round renders empty with a dim "last round: …" hin
 ```json
 { "id": "readme-diff", "type": "diff", "title": "README.md", "diff": "--- a/README.md\n+++ b/README.md\n@@ -1 +1 @@\n-old opener\n+new opener" }
 ```
+
+### `diagram` — text-to-diagram
+
+```json
+{ "id": "flow-streaming", "type": "diagram", "kind": "mermaid", "title": "Streaming path", "source": "graph LR\n  agent[Agent] --> daemon[Daemon]\n  daemon --> browser[Browser]" }
+```
+
+`kind` is `mermaid`; `source` is the diagram text (8 KiB cap); `title`, when set, is single-line. The client renders it — mermaid loads lazily, and the diagram is inked in the board's theme and re-inked on a light/dark flip. A diagram works at the top level, inside a card, or as an `option.visual`.
+
+Keep the source scannable — a diagram earns its place by reading at a glance, not by encoding the whole design:
+
+- **At most ~12 nodes.** Past that it stops being legible; cut to the decision-relevant path or split it across diagrams.
+- **Plain `graph LR` or `graph TD`.** Left-to-right for a pipeline, top-down for a hierarchy. Skip the specialized mermaid diagram kinds.
+- **No inline styling.** Leave out `style`, `classDef`, and `class` directives and any HTML in labels. The client owns ink and theming and re-inks on a theme flip, so author colors fight it and read inconsistently.
+- **A visual replaces a prose tier; it never repeats one.** When the diagram carries what a neighboring markdown block already says, cut the prose — don't caption the picture with its own transcript.
 
 ### `image`
 
@@ -221,7 +242,7 @@ Every leaf type (`approval` through `progress`) works both at the top level and 
 
 ## Validation
 
-`push --dry-run FILE` runs the full check offline and prints every violation at once, one per line, each naming its offending block id — an unknown type, a duplicate id, a missing required field (`input.label`, `markdown.md`, `code.lang`/`code.code`, `image.src`/`image.alt`, `progress.label`), a `progress` with `max <= 0` or `value` outside `[0, max]`, a fact without a `value`, a newline in a fact or a `pros`/`cons` entry, an empty `detail`, an over-cap image, or a document past 1 MiB. Compose the whole document, validate once, fix everything in a single pass. A file that isn't valid JSON fails earlier, with the line and column of the offending byte.
+`push --dry-run FILE` runs the full check offline and prints every violation at once, one per line, each naming its offending block id — an unknown type, a duplicate id, a missing required field (`input.label`, `markdown.md`, `code.lang`/`code.code`, `image.src`/`image.alt`, `progress.label`), a `progress` with `max <= 0` or `value` outside `[0, max]`, a fact without a `value`, a newline in a fact or a `pros`/`cons` entry, a `diagram` whose `kind` isn't `mermaid` or whose `source` is empty or past 8 KiB, an option `visual` outside the `code`/`diagram`/`image`/`diff` set, a single-select choice with more than one `recommended` option, an empty `detail`, an over-cap image, or a document past 1 MiB. Compose the whole document, validate once, fix everything in a single pass. A file that isn't valid JSON fails earlier, with the line and column of the offending byte.
 
 ## Worked document: an opener approval board
 
