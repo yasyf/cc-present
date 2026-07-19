@@ -27,6 +27,16 @@ extension EnvironmentValues {
     /// focusComposer is the open-composer signal ApprovalBlockView writes to while
     /// its feedback composer is up, so the focus deck can hold its auto-advance.
     @Entry var focusComposer: FocusComposer? = nil
+
+    /// focusHeadlineId names the decidable whose prompt the focus card hoisted into the
+    /// step headline, so ChoiceBlockView/ApprovalBlockView suppress the now-duplicate
+    /// inline prompt (keeping it as an accessibility label). nil in board mode.
+    @Entry var focusHeadlineId: String? = nil
+
+    /// inFocusCard is true for the focal block of a focus step, so CardView drops its
+    /// head — the card's title, status, and chips are hoisted into the deck's meta row.
+    /// false in board mode, where the card renders its head as authored.
+    @Entry var inFocusCard: Bool = false
 }
 
 /// FocusDeckModel owns the deck's position as an anchor block id (re-derived to an
@@ -109,15 +119,13 @@ final class FocusDeckModel {
         advance = nil
     }
 
-    /// reconcileAdvance arms or cancels the 450ms approval auto-advance from a change
-    /// in the swipeable step's decided-transition key, the way the web's advanceKey
-    /// effect does: an unchanged key — a redundant optimistic/SSE echo re-render —
-    /// leaves an armed timer running; any other change cancels it; and only a
-    /// same-step undecided→decided flip arms a fresh one. It is the whole schedule/
-    /// cancel decision, so it is exercised directly rather than through the View.
+    /// reconcileAdvance arms or cancels the 450ms auto-advance from a change in the
+    /// current step's decision signature, mirroring the web advanceKey effect: an echo
+    /// (unchanged key) keeps an armed timer, an emptied signature or step change cancels,
+    /// and a same-step move to a non-empty signature (a pick or re-pick) arms a fresh one.
     func reconcileAdvance(from old: AdvanceKey?, to new: AdvanceKey?) {
         guard old != new else { return }
-        guard let new, new.decided, let old, old.stepId == new.stepId, !old.decided else {
+        guard let new, !new.signature.isEmpty, let old, old.stepId == new.stepId else {
             cancelAdvance()
             return
         }
@@ -136,12 +144,14 @@ final class FocusDeckModel {
     }
 }
 
-/// AdvanceKey is the swipeable step's auto-advance trigger: the step's id and whether
-/// its lone approval is decided. A change from undecided to decided on the same step
-/// arms the timer; the deck feeds successive keys to `reconcileAdvance`.
+/// AdvanceKey is a lone-decidable step's auto-advance trigger: the step's id and its
+/// decision signature (empty = undecided) — the verdict for a lone approval, the joined
+/// option ids plus write-in for a lone single-select choice. A same-step move to a
+/// non-empty signature arms the timer; the deck feeds successive keys to
+/// `reconcileAdvance`.
 struct AdvanceKey: Equatable {
     let stepId: String
-    let decided: Bool
+    let signature: String
 }
 
 private struct FocusStageWidthKey: PreferenceKey {
@@ -194,6 +204,12 @@ struct FocusDeckView: View {
         store.state.interactions
     }
 
+    /// revisions is the store-owned seen store: the store feeds it per SSE frame, the
+    /// deck reads it read-only so marks survive view identity and mode switches.
+    private var revisions: RevisionState {
+        store.revisions
+    }
+
     private var round: Int {
         store.state.rounds.current
     }
@@ -211,8 +227,8 @@ struct FocusDeckView: View {
     }
 
     private var advanceKey: AdvanceKey? {
-        guard !store.isClosed, let step = currentStep, step.swipeable, let pid = step.primary?.id else { return nil }
-        return AdvanceKey(stepId: step.id, decided: interactions.decisions[pid] != nil)
+        guard !store.isClosed, let step = currentStep, autoAdvances(step) else { return nil }
+        return AdvanceKey(stepId: step.id, signature: advanceSignature(step, interactions))
     }
 
     var body: some View {
@@ -222,8 +238,12 @@ struct FocusDeckView: View {
                 index: index,
                 interactions: interactions,
                 packInteractive: packInteractive,
+                revisions: revisions,
                 onJump: jump
             )
+            if let note = revisions.docDraftingNote {
+                FocusDraftingLine(note: note)
+            }
             stage
             FocusNavView(
                 index: index,
@@ -240,6 +260,16 @@ struct FocusDeckView: View {
         .onChange(of: round) { _, _ in model.reset(steps) }
         .onChange(of: advanceKey) { old, new in model.reconcileAdvance(from: old, to: new) }
         .onChange(of: index) { _, _ in announceStep() }
+        .onChange(of: currentStep?.id) { old, _ in
+            if let old {
+                revisions.markSeen(old)
+            }
+        }
+        .onChange(of: steps.count) { old, new in
+            if new > old {
+                AccessibilityNotification.Announcement("Deck grew to \(new) steps").post()
+            }
+        }
     }
 
     /// announceStep speaks the new step and moves VoiceOver focus onto the freshly
@@ -262,8 +292,14 @@ struct FocusDeckView: View {
                     .accessibilityHidden(true)
             }
             if onSummary {
-                FocusSummaryView(steps: steps, interactions: interactions, packInteractive: packInteractive, onJump: jump)
-                    .accessibilityFocused($cardFocused)
+                FocusSummaryView(
+                    steps: steps,
+                    interactions: interactions,
+                    packInteractive: packInteractive,
+                    revisions: revisions,
+                    onJump: jump
+                )
+                .accessibilityFocused($cardFocused)
             } else if let step = currentStep {
                 card(step)
                     .id("\(round):\(step.id)")
@@ -287,12 +323,13 @@ struct FocusDeckView: View {
                 store: store,
                 client: client,
                 packContext: packContext,
+                revisions: revisions,
                 approvalId: approval.id,
                 stageWidth: stageWidth,
                 reduceMotion: reduceMotion
             )
         } else {
-            FocusCardView(step: step, store: store, client: client, packContext: packContext)
+            FocusCardView(step: step, store: store, client: client, packContext: packContext, revisions: revisions)
         }
     }
 
@@ -309,6 +346,7 @@ struct FocusProgressView: View {
     let index: Int
     let interactions: Interactions
     let packInteractive: Set<String>
+    let revisions: RevisionState
     let onJump: (String) -> Void
 
     private let railMax = 10
@@ -348,9 +386,12 @@ struct FocusProgressView: View {
         let status = stepStatus(step, interactions, packInteractive)
         let look = dotAppearance(status)
         let current = position == index
-        // Only the glyph resizes per status; the flexible ≥44pt cell is the tap
-        // target, and the current-step ring rides a fixed 9pt slot so it reads the
-        // same over a 4pt tick as over a 9pt decision dot.
+        let revState = revisionDotState(
+            isRevising: revisions.isRevising(step.id),
+            changeKind: revisions.mark(for: step.id)?.kind
+        )
+        // The current ring wins the 9pt slot; a non-current step shows its revision
+        // overlay there instead, so the two never stack.
         return Button { onJump(step.id) } label: {
             Circle()
                 .fill(look.fill)
@@ -364,6 +405,8 @@ struct FocusProgressView: View {
                 .overlay {
                     if current {
                         Circle().strokeBorder(BlockPalette.accentInk, lineWidth: 2)
+                    } else {
+                        RevisionDotOverlay(state: revState)
                     }
                 }
                 .frame(width: 22, height: 22)
@@ -371,13 +414,23 @@ struct FocusProgressView: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(dotLabel(step, position: position, status: status))
+        .accessibilityLabel(dotLabel(step, position: position, status: status, revision: revState))
         .accessibilityAddTraits(current ? [.isSelected] : [])
     }
 
-    private func dotLabel(_ step: FocusStep, position: Int, status: StepStatus?) -> String {
-        let base = "Step \(position + 1): \(stepTitle(step))"
-        return "\(base), \(status?.rawValue ?? "no decision")"
+    private func dotLabel(_ step: FocusStep, position: Int, status: StepStatus?, revision: RevisionDotState) -> String {
+        let base = "Step \(position + 1): \(stepTitle(step)), \(status?.rawValue ?? "no decision")"
+        guard let phrase = revisionPhrase(revision) else { return base }
+        return "\(base), \(phrase)"
+    }
+
+    private func revisionPhrase(_ state: RevisionDotState) -> String? {
+        switch state {
+        case .revising: "being revised"
+        case .added: "new step"
+        case .changed: "updated since you saw it"
+        case .none: nil
+        }
     }
 
     private func bar(shown: Int, total: Int) -> some View {
@@ -423,6 +476,143 @@ func dotAppearance(_ status: StepStatus?) -> DotAppearance {
     }
 }
 
+/// RevisionDotOverlay draws a non-current progress dot's live-revision ring: a pulsing
+/// ring while the step is being revised, a heavier ring plus an insert badge for an
+/// added step, a hairline ring for a changed-since-seen step. Reduce Motion drops the
+/// pulse. Mirrors the web rail's revising/added/changed dot forms.
+private struct RevisionDotOverlay: View {
+    let state: RevisionDotState
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var pulse = false
+
+    var body: some View {
+        switch state {
+        case .none:
+            EmptyView()
+        case .revising:
+            Circle()
+                .strokeBorder(BlockPalette.accentInk, lineWidth: 1.5)
+                .opacity(reduceMotion ? 1 : (pulse ? 0.3 : 1))
+                .animation(
+                    reduceMotion ? nil : .easeInOut(duration: 0.8).repeatForever(autoreverses: true),
+                    value: pulse
+                )
+                .onAppear { pulse = true }
+                .onDisappear { pulse = false }
+        case .added:
+            Circle()
+                .strokeBorder(BlockPalette.accentInk, lineWidth: 2)
+                .overlay(alignment: .topTrailing) {
+                    Circle()
+                        .fill(BlockPalette.accentInk)
+                        .frame(width: 4, height: 4)
+                        .offset(x: 1.5, y: -1.5)
+                }
+        case .changed:
+            Circle().strokeBorder(BlockPalette.accentInk, lineWidth: 1)
+        }
+    }
+}
+
+/// FocusDraftingLine is the quiet doc-level "working" note the deck shows under its
+/// progress header while the agent drafts a step that has no block to mark yet.
+private struct FocusDraftingLine: View {
+    let note: String
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "pencil.and.outline")
+                .font(.caption2)
+            Text(note)
+                .font(.footnote)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 0)
+        }
+        .foregroundStyle(BlockPalette.muted)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .combine)
+    }
+}
+
+/// RevisingBanner is the warn-only strip above a step the agent is rewriting: controls
+/// stay live, so it never disables anything. After 120s with no resolution it decays to
+/// a muted "may be out of date" line — the dead-agent fallback. Mirrors web RevisionCallout.
+private struct RevisingBanner: View {
+    let note: String?
+    let decayed: Bool
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+            if decayed {
+                Image(systemName: "clock.badge.questionmark")
+                    .font(.caption2)
+                Text("This step may be out of date")
+                    .font(.caption)
+            } else {
+                Image(systemName: "pencil.line")
+                    .font(.caption2)
+                Text(revisingBannerText(note: note))
+                    .font(.caption.weight(.medium))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 0)
+        }
+        .foregroundStyle(decayed ? BlockPalette.muted : BlockPalette.warn)
+        .padding(.vertical, 6)
+        .padding(.horizontal, 10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            decayed ? BlockPalette.chipBg : BlockPalette.warn.opacity(0.12),
+            in: RoundedRectangle(cornerRadius: 8)
+        )
+        .accessibilityElement(children: .combine)
+    }
+}
+
+/// RevisionCallout is the arrival notice on a step changed since it was last seen: a
+/// distinct lead-in for an added vs revised step, the working-set note appended when
+/// present — the formal replacement for the informal "Updated:" prefix.
+private struct RevisionCallout: View {
+    let mark: RevisionState.Mark
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+            Image(systemName: mark.kind == .added ? "plus.circle" : "arrow.triangle.2.circlepath")
+                .font(.caption2)
+            Text(revisionCalloutText(mark))
+                .font(.caption.weight(.medium))
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 0)
+        }
+        .foregroundStyle(BlockPalette.accentInk)
+        .padding(.vertical, 6)
+        .padding(.horizontal, 10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(BlockPalette.accentInk.opacity(0.1), in: RoundedRectangle(cornerRadius: 8))
+        .accessibilityElement(children: .combine)
+    }
+}
+
+/// revisingBannerText is the warn banner copy above a step being rewritten, appending
+/// the working-set note when present. Mirrors the web revising banner copy.
+func revisingBannerText(note: String?) -> String {
+    if let note, !note.isEmpty {
+        return "Claude is rewriting this step — \(note)"
+    }
+    return "Claude is rewriting this step"
+}
+
+/// revisionCalloutText is the arrival callout copy for a changed step: distinct lead-ins
+/// for an added vs revised step, the note appended when present. Mirrors the web callout.
+func revisionCalloutText(_ mark: RevisionState.Mark) -> String {
+    let lead = mark.kind == .added ? "Claude added this step" : "Updated after your earlier pick"
+    if let note = mark.note, !note.isEmpty {
+        return "\(lead) — \(note)"
+    }
+    return lead
+}
+
 /// FocusPeekView is the next card showing behind the current one — a facade of card
 /// chrome, tier, and title only. It must never mount BlockView: a real next card
 /// would register interactions and double-instantiate a pack's WKWebView. Mirrors
@@ -455,32 +645,65 @@ struct FocusPeekView: View {
     }
 }
 
-/// FocusCardView renders the live step body — its lead-in context then the focal
-/// block through the shared BlockView, so decidables stay interactive. The body
-/// scrolls inside a capped area when it overflows (including a PackBlockWebView
-/// whose self-reported height exceeds the card). Mirrors web/src/components/FocusCard.tsx.
+/// FocusCardView renders the step body question-first: a hoisted meta row and the step
+/// headline pinned above a capped scroll body of demoted context and the focal block.
+/// Suppressing the focal decidable's prompt (`focusHeadlineId`) and the focal card's head
+/// (`inFocusCard`) keeps the headline the one heading. Mirrors web FocusCard.tsx.
 struct FocusCardView: View {
     let step: FocusStep
     let store: BoardStore
     var client: APIClient?
     var packContext: PackContext?
+    let revisions: RevisionState
 
     private let cardMaxHeight: CGFloat = 480
     @State private var contentHeight: CGFloat = 260
 
+    private var headline: FocusHeadline {
+        stepHeadline(step)
+    }
+
+    private var card: Block.Card? {
+        if case let .card(card) = step.block {
+            return card
+        }
+        return nil
+    }
+
+    private var eyebrow: String? {
+        // The card title demotes to the eyebrow only when the headline isn't it.
+        headline.fromCard ? nil : card?.title
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            if let tier = step.tier, !tier.isEmpty {
-                Text(tier.uppercased())
-                    .font(.system(.caption2, design: .monospaced))
-                    .foregroundStyle(BlockPalette.accentInk)
+            metaRow
+            if let text = headline.text, !text.isEmpty {
+                Text(text)
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(BlockPalette.ink)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .accessibilityAddTraits(.isHeader)
+            }
+            if revisions.isRevising(step.id) {
+                RevisingBanner(note: revisions.revising.note, decayed: revisions.revisingDecayed)
+            }
+            if let mark = revisions.mark(for: step.id) {
+                RevisionCallout(mark: mark)
             }
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    ForEach(step.context, id: \.id) { block in
-                        BlockView(block: block, store: store, client: client, packContext: packContext)
+                    if !step.context.isEmpty {
+                        VStack(alignment: .leading, spacing: 12) {
+                            ForEach(step.context, id: \.id) { block in
+                                FocusContextBlock(block: block, store: store, client: client, packContext: packContext)
+                            }
+                        }
                     }
                     BlockView(block: step.block, store: store, client: client, packContext: packContext)
+                        .environment(\.focusHeadlineId, headline.suppressId)
+                        .environment(\.inFocusCard, true)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(
@@ -498,6 +721,123 @@ struct FocusCardView: View {
         .background(BlockPalette.monoBg, in: RoundedRectangle(cornerRadius: 12))
         .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(BlockPalette.line))
     }
+
+    @ViewBuilder
+    private var metaRow: some View {
+        let status = card?.status
+        let chips = card?.chips ?? []
+        let hasMeta = (eyebrow?.isEmpty == false) || (status?.isEmpty == false) || !chips.isEmpty
+        if hasMeta {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                if let eyebrow, !eyebrow.isEmpty {
+                    Text(eyebrow.uppercased())
+                        .font(.system(.caption2, design: .monospaced))
+                        .foregroundStyle(BlockPalette.accentInk)
+                        .lineLimit(1)
+                }
+                if let status, !status.isEmpty {
+                    FocusMetaStatus(status: status)
+                }
+                Spacer(minLength: 8)
+                if !chips.isEmpty {
+                    HStack(spacing: 4) {
+                        ForEach(Array(chips.enumerated()), id: \.offset) { _, chip in
+                            FocusMetaChip(chip: chip)
+                        }
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+}
+
+/// FocusContextBlock demotes a step's lead-in context: markdown clamps and dims, and a
+/// heavy block (code, diff, table, image, diagram) collapses to a one-line titled
+/// disclosure. Mirrors web/src/components/FocusCard.tsx `FocusContextBlock`.
+struct FocusContextBlock: View {
+    let block: Block
+    let store: BoardStore
+    var client: APIClient?
+    var packContext: PackContext?
+
+    @State private var expanded = false
+
+    var body: some View {
+        switch block {
+        case let .markdown(markdown):
+            MarkdownText(markdown.md, style: .clamped)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .opacity(0.8)
+        case .code, .diff, .table, .image, .diagram:
+            DisclosureGroup(isExpanded: $expanded) {
+                BlockView(block: block, store: store, client: client, packContext: packContext)
+                    .padding(.top, 8)
+            } label: {
+                Text(focusContextTitle(block))
+                    .font(.system(.caption, design: .monospaced))
+                    .foregroundStyle(BlockPalette.accentInk)
+                    .lineLimit(1)
+            }
+            .tint(BlockPalette.accentInk)
+        default:
+            BlockView(block: block, store: store, client: client, packContext: packContext)
+        }
+    }
+}
+
+/// focusContextTitle labels a demoted heavy context block's disclosure by its authored
+/// title, falling back to a type name. Mirrors web `contextTitle`.
+func focusContextTitle(_ block: Block) -> String {
+    switch block {
+    case let .code(code): code.title ?? code.lang
+    case let .diff(diff): diff.title ?? "Diff"
+    case let .diagram(diagram): diagram.title ?? "Diagram"
+    case let .image(image): image.caption ?? image.alt
+    case .table: "Table"
+    default: block.type
+    }
+}
+
+/// FocusMetaStatus renders the hoisted card status pill in the deck meta row, tinting
+/// resolved green and the rest accent, mirroring the card head status chip.
+private struct FocusMetaStatus: View {
+    let status: String
+
+    var body: some View {
+        let tint = status == "resolved" ? BlockPalette.approve : BlockPalette.accentInk
+        Text(status)
+            .font(.caption2)
+            .foregroundStyle(tint)
+            .padding(.vertical, 2)
+            .padding(.horizontal, 8)
+            .overlay(Capsule().strokeBorder(tint.opacity(0.45)))
+    }
+}
+
+/// FocusMetaChip renders one hoisted card chip in the deck meta row, toning `flag` red,
+/// `demo` accent, and the default muted, mirroring the card head chips.
+private struct FocusMetaChip: View {
+    let chip: Block.Chip
+
+    private var foreground: Color {
+        switch chip.tone {
+        case "flag": BlockPalette.reject
+        case "demo": BlockPalette.accentInk
+        default: BlockPalette.muted
+        }
+    }
+
+    var body: some View {
+        Text(chip.label)
+            .font(.caption2)
+            .foregroundStyle(foreground)
+            .padding(.vertical, 2)
+            .padding(.horizontal, 8)
+            .background(chip.tone == "flag" ? BlockPalette.reject.opacity(0.12) : BlockPalette.chipBg, in: Capsule())
+            .overlay(Capsule().strokeBorder(chip.tone == "flag" ? BlockPalette.reject.opacity(0.4) : BlockPalette.line))
+            .lineLimit(1)
+    }
 }
 
 /// SwipeableFocusCard wraps a lone-approval FocusCardView with a swipe-to-decide
@@ -512,6 +852,7 @@ struct SwipeableFocusCard: View {
     let store: BoardStore
     var client: APIClient?
     var packContext: PackContext?
+    let revisions: RevisionState
     let approvalId: String
     let stageWidth: CGFloat
     let reduceMotion: Bool
@@ -534,7 +875,7 @@ struct SwipeableFocusCard: View {
     }
 
     var body: some View {
-        FocusCardView(step: step, store: store, client: client, packContext: packContext)
+        FocusCardView(step: step, store: store, client: client, packContext: packContext, revisions: revisions)
             .overlay(alignment: .topLeading) {
                 verdictLabel("APPROVE", color: BlockPalette.approve, tilt: -12, magnitude: offset.width)
             }
@@ -658,13 +999,23 @@ struct FocusSummaryView: View {
     let steps: [FocusStep]
     let interactions: Interactions
     let packInteractive: Set<String>
+    let revisions: RevisionState
     let onJump: (String) -> Void
+
+    private var revisingCount: Int {
+        revisions.revising.blockIds.count
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("REVIEW")
                 .font(.system(.caption, design: .monospaced).weight(.semibold))
                 .foregroundStyle(BlockPalette.muted)
+            if revisingCount > 0 {
+                Label("Claude is still revising \(revisingCount) steps", systemImage: "pencil.line")
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(BlockPalette.warn)
+            }
             VStack(spacing: 0) {
                 ForEach(Array(steps.enumerated()), id: \.element.id) { position, step in
                     receipt(step)
@@ -682,24 +1033,65 @@ struct FocusSummaryView: View {
 
     private func receipt(_ step: FocusStep) -> some View {
         let status = stepStatus(step, interactions, packInteractive)
-        return HStack {
-            Text(stepTitle(step))
-                .font(.subheadline)
-                .foregroundStyle(BlockPalette.ink)
-                .lineLimit(1)
-            Spacer(minLength: 8)
-            if status == .undecided {
-                Button("Decide") { onJump(step.id) }
-                    .font(.system(.caption, design: .monospaced).weight(.semibold))
+        let answers = chosenAnswers(step)
+        return VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text(stepTitle(step))
+                    .font(.subheadline)
+                    .foregroundStyle(BlockPalette.ink)
+                    .lineLimit(1)
+                Spacer(minLength: 8)
+                if status == .undecided {
+                    Button("Decide") { onJump(step.id) }
+                        .font(.system(.caption, design: .monospaced).weight(.semibold))
+                        .foregroundStyle(BlockPalette.accentInk)
+                        .buttonStyle(.plain)
+                } else {
+                    Text((status?.rawValue ?? "—").uppercased())
+                        .font(.system(.caption2, design: .monospaced))
+                        .foregroundStyle(color(status))
+                }
+            }
+            if !answers.isEmpty {
+                Text(answers.joined(separator: " · "))
+                    .font(.footnote)
+                    .foregroundStyle(BlockPalette.muted)
+                    .lineLimit(2)
+            }
+            if hasNote(step) {
+                Label("note", systemImage: "text.bubble")
+                    .font(.caption2)
                     .foregroundStyle(BlockPalette.accentInk)
-                    .buttonStyle(.plain)
-            } else {
-                Text((status?.rawValue ?? "—").uppercased())
-                    .font(.system(.caption2, design: .monospaced))
-                    .foregroundStyle(color(status))
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.vertical, 10)
+    }
+
+    /// chosenAnswers reads back a step's decided choices for the receipt: each choice's
+    /// selected option labels, then its write-in quoted. Approvals surface as the row's
+    /// verdict status, so only choices contribute here.
+    private func chosenAnswers(_ step: FocusStep) -> [String] {
+        var out: [String] = []
+        for block in flatten([step.block]) {
+            guard case let .choice(choice) = block, let selection = interactions.choices[choice.id] else { continue }
+            var parts = selection.optionIds.compactMap { id in
+                choice.options.first { $0.id == id }?.label
+            }
+            if let other = selection.other, !other.isEmpty {
+                parts.append("“\(other)”")
+            }
+            if !parts.isEmpty {
+                out.append(parts.joined(separator: ", "))
+            }
+        }
+        return out
+    }
+
+    /// hasNote reports whether any decidable in the step carries human feedback, driving
+    /// the receipt's note marker.
+    private func hasNote(_ step: FocusStep) -> Bool {
+        flatten([step.block]).contains { !(interactions.feedback[$0.id] ?? []).isEmpty }
     }
 
     private func color(_ status: StepStatus?) -> Color {

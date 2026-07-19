@@ -141,6 +141,89 @@ func stepTitle(_ step: FocusStep) -> String {
     }
 }
 
+/// FocusHeadline is the hoisted step headline: `text` is the question the deck pins
+/// above the scroll body, `suppressId` the decidable whose inline prompt it replaces,
+/// `fromCard` whether the text is the step card's own title (so the meta row omits a
+/// duplicate eyebrow). Mirrors web/src/focus.ts `FocusHeadline`.
+struct FocusHeadline: Equatable {
+    let text: String?
+    let suppressId: String?
+    let fromCard: Bool
+}
+
+/// stepHeadline resolves the question a step leads with: a lone decidable's own prompt
+/// (hoisted, its inline copy suppressed), else a card's title (multi-decidable prompts
+/// stay inline as sub-headings), else nil for a bare content leaf. Mirrors
+/// web/src/focus.ts `stepHeadline`.
+func stepHeadline(_ step: FocusStep) -> FocusHeadline {
+    if step.decidables.count == 1, let primary = step.primary {
+        let text: String? = switch primary {
+        case let .input(input): input.label
+        case let .choice(choice): choice.prompt
+        case let .approval(approval): approval.prompt
+        default: nil
+        }
+        if let text, !text.isEmpty {
+            return FocusHeadline(text: text, suppressId: primary.id, fromCard: false)
+        }
+    }
+    if case let .card(card) = step.block {
+        return FocusHeadline(text: card.title, suppressId: nil, fromCard: true)
+    }
+    return FocusHeadline(text: nil, suppressId: nil, fromCard: false)
+}
+
+/// factAxes is the aligned-grid gate: the shared ordered label list when at least two
+/// fact-carrying options declare the same non-empty label sequence, else nil — any
+/// mismatch drops the comparison grid and the per-option fallback renders. Mirrors
+/// web/src/focus.ts `factAxes`.
+func factAxes(_ options: [Block.Option]) -> [String]? {
+    let withFacts = options.filter { !($0.facts ?? []).isEmpty }
+    guard withFacts.count >= 2 else { return nil }
+    let axes = (withFacts[0].facts ?? []).map { $0.label ?? "" }
+    if axes.contains(where: \.isEmpty) {
+        return nil
+    }
+    for option in withFacts {
+        let labels = (option.facts ?? []).map { $0.label ?? "" }
+        if labels != axes {
+            return nil
+        }
+    }
+    return axes
+}
+
+/// autoAdvances reports whether deciding this step arms the 450ms auto-advance: a lone
+/// approval or a lone single-select choice. Multi-decidable cards, multi-select
+/// choices, inputs, and packs stay explicit-Next. Mirrors web/src/focus.ts `autoAdvances`.
+func autoAdvances(_ step: FocusStep) -> Bool {
+    guard step.decidables.count == 1, let primary = step.primary else { return false }
+    switch primary {
+    case .approval:
+        return true
+    case let .choice(choice):
+        return !(choice.multi ?? false)
+    default:
+        return false
+    }
+}
+
+/// advanceSignature is the current lone decidable's decision as a string, empty when
+/// undecided: a lone approval's verdict, or a single-select choice's option ids joined
+/// then a space then its write-in (the space stops an id colliding with an equal
+/// write-in). Feedback never enters it. Mirrors the web `decisionSignature`.
+func advanceSignature(_ step: FocusStep, _ interactions: Interactions) -> String {
+    switch step.primary {
+    case let .approval(approval):
+        return interactions.decisions[approval.id]?.verdict ?? ""
+    case let .choice(choice):
+        guard let selection = interactions.choices[choice.id] else { return "" }
+        return selection.optionIds.joined(separator: ",") + " " + (selection.other ?? "")
+    default:
+        return ""
+    }
+}
+
 /// StepStatus classifies a step for the progress dots and summary receipts.
 enum StepStatus: String {
     case approved
@@ -191,6 +274,30 @@ func deckIndex(_ steps: [FocusStep], currentId: String, lastIndex: Int) -> Int {
         return idx
     }
     return min(lastIndex, steps.count - 1)
+}
+
+/// RevisionDotState is the live-revision overlay a progress dot carries, layered above
+/// the verdict fill but below the current-step ring: revising (pulsing), an added step,
+/// or a changed-since-seen step. Mirrors the web rail's changed/added/revising stack.
+enum RevisionDotState: Equatable {
+    case none
+    case revising
+    case added
+    case changed
+}
+
+/// revisionDotState resolves a step's revision overlay in priority order — revising
+/// wins, then an added step, then a changed one. The view layers the current-step ring
+/// above it and the verdict fill below. Mirrors web/src/components/FocusProgress.tsx.
+func revisionDotState(isRevising: Bool, changeKind: RevisionState.ChangeKind?) -> RevisionDotState {
+    if isRevising {
+        return .revising
+    }
+    switch changeKind {
+    case .added: return .added
+    case .revised: return .changed
+    case nil: return .none
+    }
 }
 
 /// ViewMode is the resolved board presentation: the tinder-style focus deck or the

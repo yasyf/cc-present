@@ -285,3 +285,212 @@ private let classifyCases: [ClassifyCase] = [
 private func interactivePackTypesClassifies(_ testCase: ClassifyCase) {
     #expect(interactivePackTypes(declared: testCase.declared, blocks: testCase.blocks) == testCase.expected, "case: \(testCase.name)")
 }
+
+// MARK: - Headline resolution
+
+private func promptedChoice(_ id: String, _ prompt: String?, multi: Bool = false) -> Block {
+    .choice(Block.Choice(id: id, prompt: prompt, multi: multi, options: [Block.Option(id: "\(id)o1", label: "one")]))
+}
+
+private func promptedApproval(_ id: String, _ prompt: String?) -> Block {
+    .approval(Block.Approval(id: id, prompt: prompt))
+}
+
+private struct HeadlineCase: CustomStringConvertible {
+    let name: String
+    let blocks: [Block]
+    let text: String?
+    let suppressId: String?
+    let fromCard: Bool
+
+    var description: String {
+        name
+    }
+}
+
+private let headlineCases: [HeadlineCase] = [
+    HeadlineCase(
+        name: "a lone choice prompt heads and suppresses its inline copy",
+        blocks: [promptedChoice("c1", "Pick one?")],
+        text: "Pick one?", suppressId: "c1", fromCard: false
+    ),
+    HeadlineCase(
+        name: "a lone approval prompt heads",
+        blocks: [promptedApproval("a1", "Ship it?")],
+        text: "Ship it?", suppressId: "a1", fromCard: false
+    ),
+    HeadlineCase(
+        name: "a lone input label heads",
+        blocks: [input("i1")],
+        text: "i1", suppressId: "i1", fromCard: false
+    ),
+    HeadlineCase(
+        name: "a multi-decidable card title heads without suppressing children",
+        blocks: [.card(Block.Card(id: "c1", title: "Rollout", children: [promptedApproval("a1", "A?"), promptedApproval("a2", "B?")]))],
+        text: "Rollout", suppressId: nil, fromCard: true
+    ),
+    HeadlineCase(
+        name: "a lone-decidable card demotes its title to the eyebrow",
+        blocks: [.card(Block.Card(id: "c1", title: "Card title", children: [promptedChoice("ch", "Which transport?")]))],
+        text: "Which transport?", suppressId: "ch", fromCard: false
+    ),
+    HeadlineCase(
+        name: "a promptless lone choice yields no headline",
+        blocks: [promptedChoice("c1", nil)],
+        text: nil, suppressId: nil, fromCard: false
+    ),
+    HeadlineCase(
+        name: "a content leaf yields no headline",
+        blocks: [markdown("m1")],
+        text: nil, suppressId: nil, fromCard: false
+    ),
+]
+
+@Test("stepHeadline mirrors the web resolution", arguments: headlineCases)
+private func stepHeadlineMatchesWeb(_ testCase: HeadlineCase) {
+    let headline = stepHeadline(focusSteps(testCase.blocks, [])[0])
+    #expect(headline.text == testCase.text, "case: \(testCase.name)")
+    #expect(headline.suppressId == testCase.suppressId, "case: \(testCase.name)")
+    #expect(headline.fromCard == testCase.fromCard, "case: \(testCase.name)")
+}
+
+// MARK: - Fact-axes gate
+
+private func opt(_ id: String, _ facts: [Block.Fact]? = nil) -> Block.Option {
+    Block.Option(id: id, label: id, facts: facts)
+}
+
+private func fact(_ label: String?, _ value: String) -> Block.Fact {
+    Block.Fact(label: label, value: value)
+}
+
+private struct AxesCase: CustomStringConvertible {
+    let name: String
+    let options: [Block.Option]
+    let expected: [String]?
+
+    var description: String {
+        name
+    }
+}
+
+private let axesCases: [AxesCase] = [
+    AxesCase(
+        name: "matching label sequences yield the axes",
+        options: [opt("a", [fact("Latency", "12ms"), fact("Cost", "$5")]), opt("b", [fact("Latency", "80ms"), fact("Cost", "$2")])],
+        expected: ["Latency", "Cost"]
+    ),
+    AxesCase(
+        name: "a mismatched label drops the grid",
+        options: [opt("a", [fact("Latency", "12ms")]), opt("b", [fact("Cost", "$2")])],
+        expected: nil
+    ),
+    AxesCase(
+        name: "differing fact counts drop the grid",
+        options: [opt("a", [fact("Latency", "12ms"), fact("Cost", "$5")]), opt("b", [fact("Latency", "80ms")])],
+        expected: nil
+    ),
+    AxesCase(
+        name: "an empty label drops the grid",
+        options: [opt("a", [fact(nil, "12ms")]), opt("b", [fact(nil, "80ms")])],
+        expected: nil
+    ),
+    AxesCase(
+        name: "fewer than two fact-carrying options drops the grid",
+        options: [opt("a", [fact("Latency", "12ms")]), opt("b")],
+        expected: nil
+    ),
+    AxesCase(
+        name: "a fact-free option is ignored when the rest align",
+        options: [opt("a", [fact("Latency", "12ms")]), opt("b", [fact("Latency", "80ms")]), opt("c")],
+        expected: ["Latency"]
+    ),
+]
+
+@Test("factAxes gates the aligned comparison grid", arguments: axesCases)
+private func factAxesGates(_ testCase: AxesCase) {
+    #expect(factAxes(testCase.options) == testCase.expected, "case: \(testCase.name)")
+}
+
+// MARK: - Auto-advance classifier + signature
+
+private struct AutoAdvanceCase: CustomStringConvertible {
+    let name: String
+    let blocks: [Block]
+    let expected: Bool
+
+    var description: String {
+        name
+    }
+}
+
+private let autoAdvanceCases: [AutoAdvanceCase] = [
+    AutoAdvanceCase(name: "a lone approval arms", blocks: [approval("a1")], expected: true),
+    AutoAdvanceCase(name: "a lone single-select choice arms", blocks: [promptedChoice("c1", "?")], expected: true),
+    AutoAdvanceCase(name: "a multi-select choice never arms", blocks: [promptedChoice("c1", "?", multi: true)], expected: false),
+    AutoAdvanceCase(name: "a multi-decidable card never arms", blocks: [card("c1", [approval("a"), approval("b")])], expected: false),
+    AutoAdvanceCase(name: "a lone input never arms", blocks: [input("i1")], expected: false),
+    AutoAdvanceCase(name: "a context step never arms", blocks: [markdown("m1")], expected: false),
+]
+
+@Test("autoAdvances mirrors the web classifier", arguments: autoAdvanceCases)
+private func autoAdvancesMatchesWeb(_ testCase: AutoAdvanceCase) {
+    #expect(autoAdvances(focusSteps(testCase.blocks, [])[0]) == testCase.expected, "case: \(testCase.name)")
+}
+
+@Test("advanceSignature reflects the decision and never counts feedback")
+private func advanceSignatureIgnoresFeedback() {
+    let step = focusSteps([promptedChoice("c1", "?")], [])[0]
+    #expect(advanceSignature(step, Interactions()) == "")
+    // The space namespaces ids from the write-in, mirroring web decisionSignature.
+    #expect(advanceSignature(step, Interactions(choices: ["c1": Selection(optionIds: ["c1o1"])])) == "c1o1 ")
+    #expect(advanceSignature(step, Interactions(choices: ["c1": Selection(optionIds: [], other: "custom")])) == " custom")
+    // A picked option id and a write-in of that same text sign differently, so
+    // switching between them still re-arms the auto-advance.
+    let asPick = advanceSignature(step, Interactions(choices: ["c1": Selection(optionIds: ["custom"])]))
+    let asWriteIn = advanceSignature(step, Interactions(choices: ["c1": Selection(optionIds: [], other: "custom")]))
+    #expect(asPick != asWriteIn)
+    // A note on the choice leaves the signature unchanged — feedback never arms.
+    let withNote = Interactions(choices: ["c1": Selection(optionIds: ["c1o1"])], feedback: ["c1": [Feedback(id: "f1", text: "but…")]])
+    #expect(advanceSignature(step, withNote) == "c1o1 ")
+    let approvalStep = focusSteps([approval("a1")], [])[0]
+    #expect(advanceSignature(approvalStep, Interactions(decisions: ["a1": Decision(verdict: "approved")])) == "approved")
+}
+
+// MARK: - Choice-selection payloads (escape hatch)
+
+@Test("a single-select tap replaces the pick and clears any write-in")
+private func singleSelectTogglePost() {
+    #expect(choiceTogglePost(multi: false, selectedIds: [], otherText: nil, optionId: "o1") == ChoicePost(optionIds: ["o1"], other: nil))
+    // Re-tapping the sole pick clears it.
+    #expect(choiceTogglePost(multi: false, selectedIds: ["o1"], otherText: nil, optionId: "o1") == ChoicePost(optionIds: [], other: nil))
+    // A prior write-in is dropped when an authored option is picked.
+    #expect(choiceTogglePost(multi: false, selectedIds: [], otherText: "custom", optionId: "o1") == ChoicePost(optionIds: ["o1"], other: nil))
+}
+
+@Test("a multi-select tap adds or removes and preserves the write-in")
+private func multiSelectTogglePost() {
+    #expect(choiceTogglePost(multi: true, selectedIds: ["o1"], otherText: "custom", optionId: "o2") == ChoicePost(optionIds: ["o1", "o2"], other: "custom"))
+    #expect(choiceTogglePost(multi: true, selectedIds: ["o1", "o2"], otherText: "custom", optionId: "o1") == ChoicePost(optionIds: ["o2"], other: "custom"))
+}
+
+@Test("committing a write-in replaces single-select picks and coexists on multi")
+private func writeInPost() {
+    // Single-select: the write-in replaces the authored pick (last-write-wins).
+    #expect(choiceOtherPost(multi: false, selectedIds: ["o1"], otherText: nil, draft: "  custom ") == ChoicePost(optionIds: [], other: "custom"))
+    // Multi-select: the write-in coexists with the picks.
+    #expect(choiceOtherPost(multi: true, selectedIds: ["o1"], otherText: nil, draft: "custom") == ChoicePost(optionIds: ["o1"], other: "custom"))
+    // An emptied field clears a prior write-in, keeping the picks.
+    #expect(choiceOtherPost(multi: false, selectedIds: ["o1"], otherText: "old", draft: "   ") == ChoicePost(optionIds: ["o1"], other: nil))
+    // An emptied field with no prior write-in is a no-op.
+    #expect(choiceOtherPost(multi: false, selectedIds: [], otherText: nil, draft: "") == nil)
+    // A zero-width-only draft reads as visually empty (mirroring the daemon), so it never
+    // posts the invisible text: a no-op with no prior write-in, a clear with one.
+    #expect(choiceOtherPost(multi: false, selectedIds: [], otherText: nil, draft: "\u{200b}\u{200b}") == nil)
+    #expect(choiceOtherPost(multi: false, selectedIds: ["o1"], otherText: "old", draft: "\u{200b}") == ChoicePost(optionIds: ["o1"], other: nil))
+    // An over-cap draft never posts, so no optimistic apply races the daemon's reject;
+    // a draft exactly at the 64 KiB cap is accepted.
+    let atCap = String(repeating: "a", count: 64 << 10)
+    #expect(choiceOtherPost(multi: false, selectedIds: [], otherText: nil, draft: atCap) == ChoicePost(optionIds: [], other: atCap))
+    #expect(choiceOtherPost(multi: false, selectedIds: [], otherText: nil, draft: atCap + "a") == nil)
+}

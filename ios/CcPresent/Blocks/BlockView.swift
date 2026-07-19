@@ -39,7 +39,7 @@ struct BlockView: View {
         case let .approval(approval):
             ApprovalBlockView(block: approval, store: store)
         case let .choice(choice):
-            ChoiceBlockView(block: choice, store: store)
+            ChoiceBlockView(block: choice, store: store, client: client, packContext: packContext)
         case let .input(input):
             InputBlockView(block: input, store: store)
         case let .markdown(markdown):
@@ -50,7 +50,7 @@ struct BlockView: View {
         case let .diff(diff):
             DiffBlockView(block: diff)
         case let .diagram(diagram):
-            DiagramBlockView(block: diagram)
+            DiagramBlockView(block: diagram, context: packContext)
         case let .image(image):
             ImageBlockView(block: image, client: client)
         case let .table(table):

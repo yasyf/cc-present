@@ -232,6 +232,28 @@ private func blockDecidedReceiptsFullyDecidedRows(_ testCase: BlockDecidedCase) 
     #expect(tally == RoundTally(approved: 0, rejected: 0, picks: 1, notes: 0))
 }
 
+@MainActor
+@Test func roundGroupSeedCarriesOtherSelections() {
+    let record = RoundRecord(
+        number: 5,
+        blocks: [
+            .choice(Block.Choice(id: "only", options: [Block.Option(id: "o1", label: "A")])),
+            .choice(Block.Choice(id: "both", options: [Block.Option(id: "m1", label: "M")])),
+        ],
+        choices: [
+            "only": Selection(optionIds: [], other: "hand-rolled"),
+            "both": Selection(optionIds: ["m1"], other: "and this"),
+        ]
+    )
+
+    let store = RoundGroupView.seed(record)
+
+    // An Other-only receipt keeps its write-in instead of vanishing.
+    #expect(store.state.interactions.choices["only"] == Selection(optionIds: [], other: "hand-rolled"))
+    // A multi-select receipt keeps both the authored picks and the write-in.
+    #expect(store.state.interactions.choices["both"] == Selection(optionIds: ["m1"], other: "and this"))
+}
+
 @Test func roundTallyCountsInteractedPackBlockAsPick() {
     let record = RoundRecord(
         number: 3,
@@ -260,7 +282,7 @@ private let replyThreadCases: [ReplyThreadCase] = [
     ReplyThreadCase(
         name: "choice",
         block: .choice(Block.Choice(id: "ch", options: [Block.Option(id: "o1", label: "A")])),
-        shows: true
+        shows: false
     ),
     ReplyThreadCase(name: "input", block: .input(Block.Input(id: "in", label: "Note")), shows: true),
     ReplyThreadCase(name: "markdown", block: .markdown(Block.Markdown(id: "md", md: "hi")), shows: true),
@@ -289,7 +311,7 @@ private let replyThreadCases: [ReplyThreadCase] = [
     ),
 ]
 
-@Test("showsNativeReplyThread hides the thread only for approval and pack", arguments: replyThreadCases)
+@Test("showsNativeReplyThread hides the thread only for approval, choice, and pack", arguments: replyThreadCases)
 private func showsNativeReplyThreadHidesOnlyApprovalAndPack(_ testCase: ReplyThreadCase) {
     #expect(showsNativeReplyThread(testCase.block) == testCase.shows, "case: \(testCase.name)")
 }

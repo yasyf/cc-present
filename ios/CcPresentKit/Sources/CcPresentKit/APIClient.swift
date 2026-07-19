@@ -15,7 +15,7 @@ import Foundation
 public enum Interaction: Encodable, Equatable, Sendable {
     case decision(blockId: String, verdict: Verdict, note: String? = nil)
     case feedback(id: String, blockId: String, text: String)
-    case choice(blockId: String, optionIds: [String])
+    case choice(blockId: String, optionIds: [String], other: String? = nil)
     case input(blockId: String, text: String)
     case submit(revision: Int)
 
@@ -36,14 +36,14 @@ public enum Interaction: Encodable, Equatable, Sendable {
         switch self {
         case let .decision(blockId, _, _): blockId
         case let .feedback(_, blockId, _): blockId
-        case let .choice(blockId, _): blockId
+        case let .choice(blockId, _, _): blockId
         case let .input(blockId, _): blockId
         case .submit: nil
         }
     }
 
     private enum CodingKeys: String, CodingKey {
-        case type, blockId, verdict, note, id, text, optionIds, revision
+        case type, blockId, verdict, note, id, text, optionIds, other, revision
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -58,9 +58,10 @@ public enum Interaction: Encodable, Equatable, Sendable {
             try container.encode(id, forKey: .id)
             try container.encode(blockId, forKey: .blockId)
             try container.encode(text, forKey: .text)
-        case let .choice(blockId, optionIds):
+        case let .choice(blockId, optionIds, other):
             try container.encode(blockId, forKey: .blockId)
             try container.encode(optionIds, forKey: .optionIds)
+            try container.encodeIfPresent(other, forKey: .other)
         case let .input(blockId, text):
             try container.encode(blockId, forKey: .blockId)
             try container.encode(text, forKey: .text)

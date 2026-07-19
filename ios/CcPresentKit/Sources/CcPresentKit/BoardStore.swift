@@ -35,6 +35,12 @@ public final class BoardStore {
         state.interactions.closed.value
     }
 
+    /// revisions is the client-local seen store, fed one frame at a time from the SSE
+    /// event-application path (not per SwiftUI render), so live-change marks and the
+    /// revising banner survive view identity and board/focus mode switches. The focus
+    /// deck reads it read-only.
+    public let revisions = RevisionState()
+
     public let subject: String
     @ObservationIgnored private let transport: any InteractionPoster
     @ObservationIgnored private var serverLog: [Event] = []
@@ -117,10 +123,12 @@ public final class BoardStore {
         send(.decision(blockId: blockId, verdict: verdict))
     }
 
-    /// choose submits the full next selection for a choice block.
+    /// choose submits the full next selection for a choice block. `other` is a
+    /// free-text write-in outside the authored option set; single-select replaces an
+    /// authored pick with the write-in (empty `optionIds`), multi-select carries both.
     @discardableResult
-    public func choose(blockId: String, optionIds: [String]) -> Task<Void, Never> {
-        send(.choice(blockId: blockId, optionIds: optionIds))
+    public func choose(blockId: String, optionIds: [String], other: String? = nil) -> Task<Void, Never> {
+        send(.choice(blockId: blockId, optionIds: optionIds, other: other))
     }
 
     /// feedback appends free-text feedback to a block, minting the idempotent id.
@@ -143,9 +151,8 @@ public final class BoardStore {
 
     // MARK: - Reconciliation
 
-    /// ingest folds one SSE message into the store: a `caught-up` boundary clears
-    /// loading; a frame joins the server log, drops the pending item it echoes, and
-    /// triggers a recompute.
+    /// ingest folds one SSE message into the store: `caught-up` clears loading; a
+    /// frame appends to the log, drops its echo, recomputes, and feeds `revisions`.
     func ingest(_ message: SSEClient.Message) {
         switch message {
         case .caughtUp:
@@ -153,7 +160,9 @@ public final class BoardStore {
         case let .frame(event):
             serverLog.append(event)
             dropEcho(of: event)
+            let prev = state
             recompute()
+            revisions.ingest(prev: prev, next: state, isLoading: isLoading)
         }
     }
 
@@ -233,8 +242,8 @@ private struct PendingInteraction {
             return echoed.blockId == blockId && echoed.verdict == verdict && echoed.note == note
         case let (.feedback(id, blockId, text), .feedbackCreated(echoed)):
             return echoed.id == id && echoed.blockId == blockId && echoed.text == text
-        case let (.choice(blockId, optionIds), .choiceSelected(echoed)):
-            return echoed.blockId == blockId && echoed.optionIds == optionIds
+        case let (.choice(blockId, optionIds, other), .choiceSelected(echoed)):
+            return echoed.blockId == blockId && echoed.optionIds == optionIds && echoed.other == other
         case let (.input(blockId, text), .inputSubmitted(echoed)):
             return echoed.blockId == blockId && echoed.text == text
         case let (.submit(revision), .submit(echoed)):

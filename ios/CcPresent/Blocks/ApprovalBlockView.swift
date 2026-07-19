@@ -16,6 +16,11 @@ struct ApprovalBlockView: View {
     @FocusState private var composerFocused: Bool
     @Environment(\.blockReplies) private var blockReplies
     @Environment(\.focusComposer) private var focusComposer
+    @Environment(\.focusHeadlineId) private var focusHeadlineId
+
+    private var suppressPrompt: Bool {
+        focusHeadlineId == block.id
+    }
 
     private var verdict: Verdict? {
         store.state.interactions.decisions[block.id].flatMap { Verdict(rawValue: $0.verdict) }
@@ -39,7 +44,7 @@ struct ApprovalBlockView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            if let prompt = block.prompt, !prompt.isEmpty {
+            if !suppressPrompt, let prompt = block.prompt, !prompt.isEmpty {
                 Text(prompt)
                     .font(.body)
                     .foregroundStyle(BlockPalette.ink)
@@ -83,7 +88,7 @@ struct ApprovalBlockView: View {
             verdictButton(.rejected, label: "Reject", glyph: "xmark", color: BlockPalette.reject)
         }
         .accessibilityElement(children: .contain)
-        .accessibilityLabel("Verdict")
+        .accessibilityLabel(suppressPrompt ? (block.prompt ?? "Verdict") : "Verdict")
     }
 
     private func verdictButton(_ target: Verdict, label: String, glyph: String, color: Color) -> some View {

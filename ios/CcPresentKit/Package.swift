@@ -10,8 +10,16 @@ let package = Package(
     products: [
         .library(name: "CcPresentKit", targets: ["CcPresentKit"]),
     ],
+    dependencies: [
+        .package(url: "https://github.com/raspu/Highlightr", from: "2.3.0"),
+    ],
     targets: [
-        .target(name: "CcPresentKit"),
+        .target(
+            name: "CcPresentKit",
+            dependencies: [
+                .product(name: "Highlightr", package: "Highlightr"),
+            ]
+        ),
         .testTarget(
             name: "CcPresentKitTests",
             dependencies: ["CcPresentKit"]

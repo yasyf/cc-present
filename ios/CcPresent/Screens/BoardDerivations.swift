@@ -15,17 +15,15 @@ func flatten(_ blocks: [Block]) -> [Block] {
     return out
 }
 
-/// showsNativeReplyThread reports whether BlockView renders a native agent reply
-/// thread beneath a block. Approval owns its integrated thread, and a pack block's
-/// thread renders inside its WKWebView (the web SingleBlockView), so native
-/// rendering would double it; every other block type shows the native thread. The
-/// switch is exhaustive with no default arm, so a new block type must classify
-/// itself. Mirrors web/src/components/BlockRenderer.tsx.
+/// showsNativeReplyThread reports whether BlockView renders a native reply thread below a
+/// block. Approval and choice own their integrated threads and a pack's renders in its
+/// WKWebView, so native rendering would double them; every other type shows it. The
+/// exhaustive switch forces a new block type to classify itself. Mirrors BlockRenderer.tsx.
 func showsNativeReplyThread(_ block: Block) -> Bool {
     switch block {
-    case .approval, .pack:
+    case .approval, .choice, .pack:
         false
-    case .section, .card, .choice, .input, .markdown, .code, .diff, .diagram, .image, .table, .progress:
+    case .section, .card, .input, .markdown, .code, .diff, .diagram, .image, .table, .progress:
         true
     }
 }

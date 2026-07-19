@@ -1,27 +1,42 @@
 import CcPresentKit
 import SwiftUI
 
-/// CodeHighlighter turns a code block's source into styled text. The v1 renderer
-/// ships `PlainCodeHighlighter`; a syntax highlighter conforms to this protocol and
-/// is injected into `CodeBlockView` to slot in without touching the view.
+/// CodeHighlighter turns a code block's source into styled text for the active color
+/// scheme; conformers are injected into `CodeBlockView` to slot in without touching it.
+@MainActor
 protocol CodeHighlighter {
-    func highlight(_ code: String, language: String) -> AttributedString
+    func highlight(_ code: String, language: String, colorScheme: ColorScheme) -> AttributedString
 }
 
-/// PlainCodeHighlighter is the v1 highlighter: it renders the source verbatim with
-/// no coloring. The monospaced font is applied by the view, not here.
+/// PlainCodeHighlighter renders the source verbatim with no coloring — the preview and
+/// test fallback. The monospaced font is applied by the view, not here.
 struct PlainCodeHighlighter: CodeHighlighter {
-    func highlight(_ code: String, language _: String) -> AttributedString {
+    func highlight(_ code: String, language _: String, colorScheme _: ColorScheme) -> AttributedString {
         AttributedString(code)
     }
 }
 
-/// CodeBlockView renders a code block as plain monospaced text inside a
-/// horizontally scrollable panel, tagged with a language chip. Highlighting is a
-/// seam: pass a `CodeHighlighter` to color the source; the default renders plain.
+/// HighlightrCodeHighlighter colors a code block through the CcPresentKit
+/// `CodeSyntaxHighlighter` (highlight.js via Highlightr); an unknown language renders
+/// plain, matching PlainCodeHighlighter.
+struct HighlightrCodeHighlighter: CodeHighlighter {
+    func highlight(_ code: String, language: String, colorScheme: ColorScheme) -> AttributedString {
+        CodeSyntaxHighlighter.shared.highlight(
+            code,
+            language: language,
+            scheme: colorScheme == .dark ? .dark : .light
+        )
+    }
+}
+
+/// CodeBlockView renders a code block in a horizontally scrollable monospaced panel,
+/// tagged with a language chip. Highlighting is a seam: the default colors the source
+/// through Highlightr; inject a `CodeHighlighter` to override it.
 struct CodeBlockView: View {
     let block: Block.Code
-    var highlighter: CodeHighlighter = PlainCodeHighlighter()
+    var highlighter: CodeHighlighter = HighlightrCodeHighlighter()
+
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -55,7 +70,7 @@ struct CodeBlockView: View {
 
     private var codePanel: some View {
         ScrollView(.horizontal, showsIndicators: true) {
-            Text(highlighter.highlight(block.code, language: block.lang))
+            Text(highlighter.highlight(block.code, language: block.lang, colorScheme: colorScheme))
                 .font(.system(size: 13, design: .monospaced))
                 .textSelection(.enabled)
                 .fixedSize(horizontal: true, vertical: false)

@@ -12,6 +12,10 @@ private func approval(_ id: String) -> Block {
     .approval(Block.Approval(id: id))
 }
 
+private func choice(_ id: String) -> Block {
+    .choice(Block.Choice(id: id, options: [Block.Option(id: "\(id)o1", label: "one")]))
+}
+
 private func reduced(_ events: [Event]) throws -> BoardState {
     try reduce(events: events)
 }
@@ -147,12 +151,12 @@ private func roundChangeResets() {
 // deck feeds successive AdvanceKey transitions to reconcileAdvance, so these exercise
 // the real guard rather than poking the private timer.
 
-private func armed(_ stepId: String) -> AdvanceKey {
-    AdvanceKey(stepId: stepId, decided: true)
+private func armed(_ stepId: String, _ signature: String = "approved") -> AdvanceKey {
+    AdvanceKey(stepId: stepId, signature: signature)
 }
 
 private func undecidedKey(_ stepId: String) -> AdvanceKey {
-    AdvanceKey(stepId: stepId, decided: false)
+    AdvanceKey(stepId: stepId, signature: "")
 }
 
 @MainActor
@@ -207,4 +211,44 @@ private func alreadyDecidedNeverAdvances() async {
     model.reconcileAdvance(from: armed("a1"), to: armed("a1"))
     try? await Task.sleep(for: .milliseconds(650))
     #expect(model.anchorId == "a1")
+}
+
+@MainActor
+@Test("a single-select choice pick arms the advance and lands on the next step")
+private func choicePickAdvances() async {
+    let steps = focusSteps([choice("c1"), approval("a2")], [])
+    let model = FocusDeckModel(anchorId: steps[0].id)
+    model.reconcile(steps)
+    // A pick signs the step non-empty and arms; a following note re-renders the same
+    // signature (feedback never arms), so the armed timer survives.
+    model.reconcileAdvance(from: undecidedKey("c1"), to: armed("c1", "c1o1"))
+    model.reconcileAdvance(from: armed("c1", "c1o1"), to: armed("c1", "c1o1"))
+    #expect(model.anchorId == "c1")
+    try? await Task.sleep(for: .milliseconds(650))
+    #expect(model.anchorId == "a2")
+}
+
+@MainActor
+@Test("re-picking a single-select choice re-arms toward the next step")
+private func choiceRepickReArms() async {
+    let steps = focusSteps([choice("c1"), approval("a2")], [])
+    let model = FocusDeckModel(anchorId: steps[0].id)
+    model.reconcile(steps)
+    model.reconcileAdvance(from: undecidedKey("c1"), to: armed("c1", "c1o1"))
+    // A re-pick changes the signature on the same step, re-arming a fresh timer.
+    model.reconcileAdvance(from: armed("c1", "c1o1"), to: armed("c1", "c1o2"))
+    try? await Task.sleep(for: .milliseconds(650))
+    #expect(model.anchorId == "a2")
+}
+
+@MainActor
+@Test("committing a write-in arms the auto-advance")
+private func choiceOtherArms() async {
+    let steps = focusSteps([choice("c1"), approval("a2")], [])
+    let model = FocusDeckModel(anchorId: steps[0].id)
+    model.reconcile(steps)
+    // The write-in signs the step by its text — an empty option set still arms.
+    model.reconcileAdvance(from: undecidedKey("c1"), to: armed("c1", "custom"))
+    try? await Task.sleep(for: .milliseconds(650))
+    #expect(model.anchorId == "a2")
 }

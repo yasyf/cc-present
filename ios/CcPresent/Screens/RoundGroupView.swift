@@ -91,14 +91,14 @@ struct RoundGroupView: View {
     /// back into a history block through the blockReplies environment BoardScreen
     /// injects at the board root, live-spliced beneath the frozen block.
     @MainActor
-    private static func seed(_ record: RoundRecord) -> BoardStore {
+    static func seed(_ record: RoundRecord) -> BoardStore {
         let store = BoardStore(subject: "history", transport: ReadOnlyPoster())
         for block in flatten(record.blocks) {
             if let decision = record.decisions[block.id], let verdict = Verdict(rawValue: decision.verdict) {
                 store.decide(blockId: block.id, verdict: verdict)
             }
-            if let selection = record.choices[block.id], !selection.optionIds.isEmpty {
-                store.choose(blockId: block.id, optionIds: selection.optionIds)
+            if let selection = record.choices[block.id], !selection.optionIds.isEmpty || selection.other != nil {
+                store.choose(blockId: block.id, optionIds: selection.optionIds, other: selection.other)
             }
             if let input = record.inputs[block.id] {
                 store.submitInput(blockId: block.id, text: input.text)

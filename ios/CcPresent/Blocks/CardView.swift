@@ -12,6 +12,8 @@ struct CardView: View {
     var client: APIClient?
     var packContext: PackContext?
 
+    @Environment(\.inFocusCard) private var inFocusCard
+
     private var flagged: Bool {
         block.flagged == true
     }
@@ -45,7 +47,9 @@ struct CardView: View {
 
     @ViewBuilder
     private var head: some View {
-        if block.title != nil || block.status != nil || !(block.chips ?? []).isEmpty {
+        // In a focus step the title, status, and chips are hoisted into the deck meta
+        // row, so the in-card head would duplicate them.
+        if !inFocusCard, block.title != nil || block.status != nil || !(block.chips ?? []).isEmpty {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 if let title = block.title, !title.isEmpty {
                     Text(title)
