@@ -110,12 +110,12 @@ func reconcileTailnetPass(ctx context.Context, srv *ccd.Server, tp *meshtrust.Pr
 
 // displayURLs composes an artifact's tailnet display URLs: the live extra legs
 // when any exist, else — under an unspecified bind — the primary port on each
-// self address, always as http on raw IPs (the primary listener has no TLS
-// sniffer; https URLs only ever name sniffer-wrapped extra legs). A specific
-// non-loopback bind serves only that address, so it advertises none.
-func displayURLs(certDomain string, minted bool, extra []string, selfAddrs []netip.Addr, bind string, port int, slug string) []string {
+// self address, never as https (the primary listener has no TLS sniffer; https
+// URLs only ever name sniffer-wrapped extra legs). A specific non-loopback bind
+// serves only that address, so it advertises none.
+func displayURLs(certDomain string, minted bool, hostLabel string, extra []string, selfAddrs []netip.Addr, bind string, port int, slug string) []string {
 	if len(extra) > 0 {
-		return tailnetURLs(certDomain, minted, extra, slug)
+		return tailnetURLs(certDomain, minted, hostLabel, extra, slug)
 	}
 	if !isUnspecifiedBind(bind) || port < 1 || port > math.MaxUint16 {
 		return nil
@@ -124,7 +124,7 @@ func displayURLs(certDomain string, minted bool, extra []string, selfAddrs []net
 	for _, a := range selfAddrs {
 		addrs = append(addrs, netip.AddrPortFrom(a.Unmap(), uint16(port)).String())
 	}
-	return tailnetURLs(certDomain, false, addrs, slug)
+	return tailnetURLs(certDomain, false, hostLabel, addrs, slug)
 }
 
 // isUnspecifiedBind reports whether bind is 0.0.0.0 or ::; the empty bind is
@@ -134,12 +134,12 @@ func isUnspecifiedBind(bind string) bool {
 	return err == nil && ip.IsUnspecified()
 }
 
-// tailnetURLs renders the browsable URLs for a tailnet-served artifact. With a
-// minted cert: https on the cert domain, one URL per distinct leg port (v4+v6
-// share a port, so collapse to one). Without: http on the raw leg addresses —
-// IP literals escape ts.net's HSTS preload, and every leg serves plaintext.
-// A MagicDNS name is never composed into an http URL. Empty addrs → nil.
-func tailnetURLs(certDomain string, minted bool, extraAddrs []string, slug string) []string {
+// tailnetURLs renders the browsable URLs for a tailnet-served artifact: https
+// on the cert domain when minted, else http on the bare machine label — the
+// ts.net FQDN would be HSTS-preload-forced to https; the bare label escapes it.
+// One URL per distinct leg port (v4+v6 collapse). Raw IPs only when no usable
+// name exists (tailscale down, or quarantined). Empty addrs → nil.
+func tailnetURLs(certDomain string, minted bool, hostLabel string, extraAddrs []string, slug string) []string {
 	var urls []string
 	if minted && certDomain != "" {
 		seen := make(map[uint16]bool, len(extraAddrs))
@@ -153,6 +153,21 @@ func tailnetURLs(certDomain string, minted bool, extraAddrs []string, slug strin
 			}
 			seen[ap.Port()] = true
 			urls = append(urls, fmt.Sprintf("https://%s:%d/p/%s", certDomain, ap.Port(), slug))
+		}
+		return urls
+	}
+	if hostLabel != "" {
+		seen := make(map[uint16]bool, len(extraAddrs))
+		for _, a := range extraAddrs {
+			ap, err := netip.ParseAddrPort(a)
+			if err != nil {
+				continue
+			}
+			if seen[ap.Port()] {
+				continue
+			}
+			seen[ap.Port()] = true
+			urls = append(urls, fmt.Sprintf("http://%s:%d/p/%s", hostLabel, ap.Port(), slug))
 		}
 		return urls
 	}

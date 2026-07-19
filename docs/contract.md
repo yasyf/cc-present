@@ -488,13 +488,16 @@ tailnet and no extra legs are bound.
 
 `start` and `push` results carry the composed display URLs for the live legs
 (`tailnetUrls`): `https://` on the daemon's MagicDNS name when tailscale
-publishes one and the daemon holds a certificate for it — deduped by port, so
-v4 and v6 legs on one port yield one URL — raw tailnet IPs over `http`
-otherwise. An `http` MagicDNS URL is never composed: `ts.net` is on the browser
-HSTS-preload list, so a browser rewrites such a URL to `https://` before
-connecting and the navigation can only fail. IP literals sit outside the
-preload list and open over plain `http`; WireGuard encrypts the path either
-way.
+publishes one and the daemon holds a certificate for it, else `http://` on the
+bare machine label (the MagicDNS name's first label, e.g. `yasyf-home`) — both
+deduped by port, so v4 and v6 legs on one port yield one URL. Raw tailnet IPs
+over `http` appear only when no usable name exists: tailscale down, or the
+name quarantined by a DNS collision. An `http` URL on the full MagicDNS name
+is never composed: `ts.net` is on the browser HSTS-preload list, so a browser
+rewrites such a URL to `https://` before connecting and the navigation can
+only fail. The bare label sits outside the preload list, resolves through
+MagicDNS search domains on every tailnet device, and is a trusted origin like
+the full name; WireGuard encrypts the path either way.
 
 Each tailnet leg serves both protocols on its one port by sniffing the first
 byte of every connection: a TLS ClientHello is terminated with the daemon's
@@ -505,7 +508,7 @@ HTTPS-certificates feature enabled, and is minted for the MagicDNS name
 asynchronously at daemon start, refreshed by the reconcile pass as expiry
 nears, and swapped in without rebinding. While no certificate is held — feature disabled, tailscale
 down, first mint still in flight — TLS handshakes on the legs fail and the
-composed URLs fall back to the IP form.
+composed URLs fall back to the label form (or IPs when no name is usable).
 
 `cc-present trust` is a read-only inspector: it reports whether synckit state
 was detected, each registered host with its resolved tailnet IPs (or that it is

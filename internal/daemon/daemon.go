@@ -74,7 +74,7 @@ func BuildServer(ctx context.Context, p paths.Paths, version, bind, token string
 		// during a tailnet-rename window the IP URLs print instead.
 		domain := mgr.mintedDomain()
 		minted := domain != "" && domain == tp.SelfCertDomain(ctx)
-		return displayURLs(domain, minted, srv.HTTPExtraAddrs(), tp.SelfAddrs(ctx), bind, port, slug)
+		return displayURLs(domain, minted, tp.SelfHostLabel(ctx), srv.HTTPExtraAddrs(), tp.SelfAddrs(ctx), bind, port, slug)
 	})
 	cfg := ccd.Config{
 		AppName:        appName,
