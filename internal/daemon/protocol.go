@@ -64,7 +64,8 @@ type body struct {
 // result is the domain payload a handler returns in Reply.Body. Envelope-level
 // outputs (subject id, http port) ride on the Reply itself.
 type result struct {
-	URL          string          `json:"url,omitempty"`          // start
+	URL          string          `json:"url,omitempty"`          // start | push
+	TailnetURLs  []string        `json:"tailnetUrls,omitempty"`  // start | push
 	Slug         string          `json:"slug,omitempty"`         // start | close
 	ChannelState string          `json:"channelState,omitempty"` // start
 	Revision     int             `json:"revision,omitempty"`     // push

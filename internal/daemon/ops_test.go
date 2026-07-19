@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -84,10 +85,20 @@ const approvalDoc = `{"version":1,"title":"Board","blocks":[{"id":"a1","type":"a
 // the top level, so a reply can target a card child and a leaf block alike.
 const cardDoc = `{"version":1,"title":"Board","blocks":[{"id":"c1","type":"card","children":[{"id":"in1","type":"input","label":"Name"}]},{"id":"m1","type":"markdown","md":"note"}]}`
 
+// nilDisplay is the no-trust display func the handler tests pass by default: a
+// start or push then carries no tailnet URLs.
+func nilDisplay(context.Context, string, int) []string { return nil }
+
+// fakeDisplay stands in for the mesh-trust display closure, echoing its slug so
+// a test can assert the URLs reached the reply.
+func fakeDisplay(_ context.Context, slug string, _ int) []string {
+	return []string{"http://host.ts.net:8080/p/" + slug}
+}
+
 func TestStart(t *testing.T) {
 	t.Run("fresh start reports url and inactive channel", func(t *testing.T) {
 		h := newHarness(t)
-		reply := handleStart(h.hc(body{Title: "My Board"}), doc.NoPacks)
+		reply := handleStart(h.hc(body{Title: "My Board"}), doc.NoPacks, nilDisplay)
 		if !reply.OK {
 			t.Fatalf("start not ok: %s", reply.Error)
 		}
@@ -111,7 +122,7 @@ func TestStart(t *testing.T) {
 
 	t.Run("start with a doc appends revision 1", func(t *testing.T) {
 		h := newHarness(t)
-		reply := handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks)
+		reply := handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks, nilDisplay)
 		if !reply.OK {
 			t.Fatalf("start not ok: %s", reply.Error)
 		}
@@ -126,11 +137,11 @@ func TestStart(t *testing.T) {
 
 	t.Run("start after close creates a fresh subject", func(t *testing.T) {
 		h := newHarness(t)
-		first := handleStart(h.hc(body{Title: "One"}), doc.NoPacks)
+		first := handleStart(h.hc(body{Title: "One"}), doc.NoPacks, nilDisplay)
 		if reply := handleClose(h.hc(body{}), h.assets); !reply.OK {
 			t.Fatalf("close not ok: %s", reply.Error)
 		}
-		second := handleStart(h.hc(body{Title: "One"}), doc.NoPacks)
+		second := handleStart(h.hc(body{Title: "One"}), doc.NoPacks, nilDisplay)
 		if !second.OK {
 			t.Fatalf("second start not ok: %s", second.Error)
 		}
@@ -138,12 +149,28 @@ func TestStart(t *testing.T) {
 			t.Fatal("start after close resumed the closed subject instead of creating fresh")
 		}
 	})
+
+	t.Run("mesh trust surfaces tailnet urls in the reply", func(t *testing.T) {
+		h := newHarness(t)
+		reply := handleStart(h.hc(body{Title: "Mesh"}), doc.NoPacks, fakeDisplay)
+		if !reply.OK {
+			t.Fatalf("start not ok: %s", reply.Error)
+		}
+		var res result
+		if err := json.Unmarshal(reply.Body, &res); err != nil {
+			t.Fatalf("decode result: %v", err)
+		}
+		want := []string{"http://host.ts.net:8080/p/" + res.Slug}
+		if !slices.Equal(res.TailnetURLs, want) {
+			t.Fatalf("tailnetUrls = %v, want %v", res.TailnetURLs, want)
+		}
+	})
 }
 
 func TestPush(t *testing.T) {
 	t.Run("push increments revision", func(t *testing.T) {
 		h := newHarness(t)
-		start := handleStart(h.hc(body{Title: "T"}), doc.NoPacks)
+		start := handleStart(h.hc(body{Title: "T"}), doc.NoPacks, nilDisplay)
 		if rev := pushRev(t, h, approvalDoc); rev != 1 {
 			t.Fatalf("first push revision = %d, want 1", rev)
 		}
@@ -155,9 +182,30 @@ func TestPush(t *testing.T) {
 		}
 	})
 
+	t.Run("push surfaces the loopback and tailnet urls", func(t *testing.T) {
+		h := newHarness(t)
+		handleStart(h.hc(body{Title: "T"}), doc.NoPacks, nilDisplay)
+		reply := handlePush(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks, fakeDisplay)
+		if !reply.OK {
+			t.Fatalf("push not ok: %s", reply.Error)
+		}
+		var res result
+		if err := json.Unmarshal(reply.Body, &res); err != nil {
+			t.Fatalf("decode result: %v", err)
+		}
+		const prefix = "http://127.0.0.1:8080/p/"
+		if !strings.HasPrefix(res.URL, prefix) {
+			t.Fatalf("url = %q, want prefix %q", res.URL, prefix)
+		}
+		want := []string{"http://host.ts.net:8080/p/" + strings.TrimPrefix(res.URL, prefix)}
+		if !slices.Equal(res.TailnetURLs, want) {
+			t.Fatalf("tailnetUrls = %v, want %v", res.TailnetURLs, want)
+		}
+	})
+
 	t.Run("push without a subject is rejected", func(t *testing.T) {
 		h := newHarness(t)
-		reply := handlePush(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks)
+		reply := handlePush(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks, nilDisplay)
 		if reply.OK || !strings.Contains(reply.Error, "no cc-present artifact") {
 			t.Fatalf("push without subject: ok=%v err=%q", reply.OK, reply.Error)
 		}
@@ -165,9 +213,9 @@ func TestPush(t *testing.T) {
 
 	t.Run("push to a closed artifact is rejected", func(t *testing.T) {
 		h := newHarness(t)
-		handleStart(h.hc(body{Title: "T"}), doc.NoPacks)
+		handleStart(h.hc(body{Title: "T"}), doc.NoPacks, nilDisplay)
 		handleClose(h.hc(body{}), h.assets)
-		reply := handlePush(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks)
+		reply := handlePush(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks, nilDisplay)
 		if reply.OK || !strings.Contains(reply.Error, "closed") {
 			t.Fatalf("push when closed: ok=%v err=%q", reply.OK, reply.Error)
 		}
@@ -175,8 +223,8 @@ func TestPush(t *testing.T) {
 
 	t.Run("push rejects an invalid document", func(t *testing.T) {
 		h := newHarness(t)
-		handleStart(h.hc(body{Title: "T"}), doc.NoPacks)
-		reply := handlePush(h.hc(body{Doc: json.RawMessage(`{"version":1,"title":"","blocks":[]}`)}), doc.NoPacks)
+		handleStart(h.hc(body{Title: "T"}), doc.NoPacks, nilDisplay)
+		reply := handlePush(h.hc(body{Doc: json.RawMessage(`{"version":1,"title":"","blocks":[]}`)}), doc.NoPacks, nilDisplay)
 		if reply.OK || !strings.Contains(reply.Error, "title") {
 			t.Fatalf("push invalid doc: ok=%v err=%q", reply.OK, reply.Error)
 		}
@@ -196,7 +244,7 @@ func TestUpsertBlock(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			h := newHarness(t)
-			start := handleStart(h.hc(body{Title: "T"}), doc.NoPacks)
+			start := handleStart(h.hc(body{Title: "T"}), doc.NoPacks, nilDisplay)
 			reply := handleUpsertBlock(h.hc(body{Block: json.RawMessage(tt.block)}), doc.NoPacks)
 			if tt.wantErr == "" {
 				if !reply.OK {
@@ -217,7 +265,7 @@ func TestUpsertBlock(t *testing.T) {
 func TestUpsertBlockDocValidation(t *testing.T) {
 	t.Run("option visual id colliding with an existing block id is rejected", func(t *testing.T) {
 		h := newHarness(t)
-		start := handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks)
+		start := handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks, nilDisplay)
 		// ch1's option visual reuses "a1", the existing top-level approval's id; the
 		// upserted document would carry two "a1"s, which the whole-doc check rejects.
 		dup := `{"id":"ch1","type":"choice","options":[{"id":"o1","label":"A","visual":{"id":"a1","type":"code","lang":"go","code":"x"}}]}`
@@ -234,7 +282,7 @@ func TestUpsertBlockDocValidation(t *testing.T) {
 		h := newHarness(t)
 		big := strings.Repeat("x", (doc.MaxDocBytes*3)/4)
 		seed := `{"version":1,"title":"Board","blocks":[{"id":"m1","type":"markdown","md":"` + big + `"}]}`
-		start := handleStart(h.hc(body{Doc: json.RawMessage(seed)}), doc.NoPacks)
+		start := handleStart(h.hc(body{Doc: json.RawMessage(seed)}), doc.NoPacks, nilDisplay)
 		if !start.OK {
 			t.Fatalf("seed start not ok: %s", start.Error)
 		}
@@ -250,7 +298,7 @@ func TestUpsertBlockDocValidation(t *testing.T) {
 
 	t.Run("same-id replacement upsert still passes", func(t *testing.T) {
 		h := newHarness(t)
-		start := handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks)
+		start := handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks, nilDisplay)
 		reply := handleUpsertBlock(h.hc(body{Block: json.RawMessage(`{"id":"a1","type":"markdown","md":"replaced"}`)}), doc.NoPacks)
 		if !reply.OK {
 			t.Fatalf("same-id replacement upsert not ok: %s", reply.Error)
@@ -274,7 +322,7 @@ func TestUpsertBlockPack(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			h := newHarness(t)
-			handleStart(h.hc(body{Title: "T"}), reg)
+			handleStart(h.hc(body{Title: "T"}), reg, nilDisplay)
 			reply := handleUpsertBlock(h.hc(body{Block: json.RawMessage(tt.block)}), reg)
 			if tt.wantErr == "" {
 				if !reply.OK {
@@ -292,13 +340,13 @@ func TestUpsertBlockPack(t *testing.T) {
 func TestPushPack(t *testing.T) {
 	reg := packLoader(t, writePackTree(t)).Current()
 	h := newHarness(t)
-	handleStart(h.hc(body{Title: "T"}), reg)
+	handleStart(h.hc(body{Title: "T"}), reg, nilDisplay)
 	declared := `{"version":1,"title":"T","blocks":[{"id":"c1","type":"example.callout","tone":"warn"}]}`
-	if reply := handlePush(h.hc(body{Doc: json.RawMessage(declared)}), reg); !reply.OK {
+	if reply := handlePush(h.hc(body{Doc: json.RawMessage(declared)}), reg, nilDisplay); !reply.OK {
 		t.Fatalf("push declared pack block: %s", reply.Error)
 	}
 	undeclared := `{"version":1,"title":"T","blocks":[{"id":"g1","type":"ghost.thing"}]}`
-	reply := handlePush(h.hc(body{Doc: json.RawMessage(undeclared)}), reg)
+	reply := handlePush(h.hc(body{Doc: json.RawMessage(undeclared)}), reg, nilDisplay)
 	if reply.OK || !strings.Contains(reply.Error, "not installed") {
 		t.Fatalf("push undeclared dotted type: ok=%v err=%q, want 'not installed'", reply.OK, reply.Error)
 	}
@@ -306,7 +354,7 @@ func TestPushPack(t *testing.T) {
 
 func TestClose(t *testing.T) {
 	h := newHarness(t)
-	start := handleStart(h.hc(body{Title: "T"}), doc.NoPacks)
+	start := handleStart(h.hc(body{Title: "T"}), doc.NoPacks, nilDisplay)
 	if reply := handleClose(h.hc(body{Summary: "done"}), h.assets); !reply.OK {
 		t.Fatalf("close not ok: %s", reply.Error)
 	}
@@ -346,7 +394,7 @@ func TestReply(t *testing.T) {
 			if tt.doc != "" {
 				seed = body{Doc: json.RawMessage(tt.doc)}
 			}
-			start := handleStart(h.hc(seed), doc.NoPacks)
+			start := handleStart(h.hc(seed), doc.NoPacks, nilDisplay)
 			if !start.OK {
 				t.Fatalf("start not ok: %s", start.Error)
 			}
@@ -389,7 +437,7 @@ func TestRound(t *testing.T) {
 		{
 			name: "advance on a dirty round",
 			setup: func(t *testing.T, h *harness) {
-				if r := handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks); !r.OK {
+				if r := handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks, nilDisplay); !r.OK {
 					t.Fatalf("start not ok: %s", r.Error)
 				}
 			},
@@ -398,7 +446,7 @@ func TestRound(t *testing.T) {
 		{
 			name: "title-only on a clean round after submit",
 			setup: func(t *testing.T, h *harness) {
-				start := handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks)
+				start := handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks, nilDisplay)
 				// A submit on the dirty round closes it and advances to round 2; the
 				// live block keeps its round-1 stamp, so round 2 is clean.
 				if _, err := h.cc.AppendEvent(context.Background(), &ccevent.Event{
@@ -414,7 +462,7 @@ func TestRound(t *testing.T) {
 		{
 			name: "rejected on a closed artifact",
 			setup: func(_ *testing.T, h *harness) {
-				handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks)
+				handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks, nilDisplay)
 				handleClose(h.hc(body{}), h.assets)
 			},
 			wantErr: "closed",
@@ -448,7 +496,7 @@ func TestRound(t *testing.T) {
 func TestRevising(t *testing.T) {
 	t.Run("announce top-level id records the working set", func(t *testing.T) {
 		h := newHarness(t)
-		start := handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks)
+		start := handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks, nilDisplay)
 		reply := handleRevising(h.hc(body{BlockIDs: []string{"a1"}, Note: "reworking"}))
 		if !reply.OK {
 			t.Fatalf("revising not ok: %s", reply.Error)
@@ -468,7 +516,7 @@ func TestRevising(t *testing.T) {
 
 	t.Run("unknown id is rejected", func(t *testing.T) {
 		h := newHarness(t)
-		handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks)
+		handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks, nilDisplay)
 		reply := handleRevising(h.hc(body{BlockIDs: []string{"nope"}}))
 		if reply.OK || !strings.Contains(reply.Error, "not a current top-level block") {
 			t.Fatalf("revising: ok=%v err=%q, want a top-level rejection", reply.OK, reply.Error)
@@ -477,7 +525,7 @@ func TestRevising(t *testing.T) {
 
 	t.Run("child id is rejected (only top-level blocks are addressable)", func(t *testing.T) {
 		h := newHarness(t)
-		handleStart(h.hc(body{Doc: json.RawMessage(cardDoc)}), doc.NoPacks)
+		handleStart(h.hc(body{Doc: json.RawMessage(cardDoc)}), doc.NoPacks, nilDisplay)
 		reply := handleRevising(h.hc(body{BlockIDs: []string{"in1"}}))
 		if reply.OK || !strings.Contains(reply.Error, "not a current top-level block") {
 			t.Fatalf("revising: ok=%v err=%q, want a top-level rejection", reply.OK, reply.Error)
@@ -486,7 +534,7 @@ func TestRevising(t *testing.T) {
 
 	t.Run("doc-level note with no ids skips id validation", func(t *testing.T) {
 		h := newHarness(t)
-		start := handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks)
+		start := handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks, nilDisplay)
 		reply := handleRevising(h.hc(body{Note: "drafting a new step"}))
 		if !reply.OK {
 			t.Fatalf("revising not ok: %s", reply.Error)
@@ -499,7 +547,7 @@ func TestRevising(t *testing.T) {
 
 	t.Run("rejected on a closed artifact", func(t *testing.T) {
 		h := newHarness(t)
-		handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks)
+		handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks, nilDisplay)
 		handleClose(h.hc(body{}), h.assets)
 		reply := handleRevising(h.hc(body{BlockIDs: []string{"a1"}}))
 		if reply.OK || !strings.Contains(reply.Error, "closed") {
@@ -523,7 +571,7 @@ func reduceSubject(t *testing.T, h *harness, subjectID string) state.State {
 
 func TestOutcomes(t *testing.T) {
 	h := newHarness(t)
-	start := handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks)
+	start := handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks, nilDisplay)
 	// A human decision lands directly on the log, as the REST plane would append it.
 	if _, err := h.cc.AppendEvent(context.Background(), &ccevent.Event{
 		SubjectID: start.SubjectID, Origin: ccevent.OriginHuman, Type: EventDecisionCreated,
@@ -553,7 +601,7 @@ func TestOutcomes(t *testing.T) {
 
 func pushRev(t *testing.T, h *harness, docJSON string) int {
 	t.Helper()
-	reply := handlePush(h.hc(body{Doc: json.RawMessage(docJSON)}), doc.NoPacks)
+	reply := handlePush(h.hc(body{Doc: json.RawMessage(docJSON)}), doc.NoPacks, nilDisplay)
 	if !reply.OK {
 		t.Fatalf("push not ok: %s", reply.Error)
 	}

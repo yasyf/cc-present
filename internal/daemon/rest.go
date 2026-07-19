@@ -41,6 +41,7 @@ type restServer struct {
 	assets  *assets.Store
 	packs   *packs.Loader
 	static  http.Handler
+	version string
 }
 
 // interactionReq is the POST /api/interactions body: which subject, the browser
@@ -70,7 +71,7 @@ type interaction struct {
 // asset store, the pack registry and bundle routes, and the SPA static handler
 // on the daemon's mux. Go's pattern mux gives the more specific /api, /assets,
 // and /packs routes precedence over the catch-all.
-func mountREST(s *ccd.Server, ast *assets.Store, loader *packs.Loader) {
+func mountREST(s *ccd.Server, ast *assets.Store, loader *packs.Loader, version string) {
 	rs := &restServer{
 		db:      s.DB(),
 		append:  s.Append,
@@ -78,15 +79,36 @@ func mountREST(s *ccd.Server, ast *assets.Store, loader *packs.Loader) {
 		assets:  ast,
 		packs:   loader,
 		static:  sse.StaticHandler(web.Dist()),
+		version: version,
 	}
-	mux := s.Mux()
+	rs.routes(s.Mux())
+}
+
+// routes registers every REST and static handler on mux. Go's pattern mux gives
+// the specific /api and /assets routes precedence over the /api/ catch-all and
+// the SPA catch-all, so an unknown /api path 404s instead of reaching the shell.
+func (rs *restServer) routes(mux *http.ServeMux) {
+	mux.HandleFunc("GET /api/health", rs.handleHealth)
 	mux.HandleFunc("GET /api/sessions", rs.handleSessions)
 	mux.HandleFunc("POST /api/interactions", rs.handleInteractions)
 	mux.HandleFunc("POST /api/assets", rs.handlePutAsset)
-	mux.HandleFunc("GET /assets/{sha}", rs.handleGetAsset)
 	mux.HandleFunc("GET /api/packs", rs.handlePacks)
 	mux.HandleFunc("GET /packs/{pack}/{file...}", rs.handlePackFile)
+	mux.HandleFunc("GET /assets/{sha}", rs.handleGetAsset)
+	mux.HandleFunc("/api/", rs.handleAPINotFound)
 	mux.Handle("/", rs.static)
+}
+
+// handleHealth reports the daemon's build version — a liveness probe for a
+// client that reached the HTTP plane.
+func (rs *restServer) handleHealth(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, http.StatusOK, map[string]string{"version": rs.version})
+}
+
+// handleAPINotFound 404s any /api path no specific route claimed, so an unknown
+// API call never falls through to the SPA shell and reads back as HTML.
+func (rs *restServer) handleAPINotFound(w http.ResponseWriter, _ *http.Request) {
+	http.Error(w, "not found", http.StatusNotFound)
 }
 
 // requireJSON rejects a request whose Content-Type is not application/json

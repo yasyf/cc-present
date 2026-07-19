@@ -168,6 +168,9 @@ func newStartCmd(d cmd.Deps) *cobra.Command {
 			out := c.OutOrStdout()
 			_, _ = fmt.Fprintf(out, "session: %s\n", res.SubjectID)
 			_, _ = fmt.Fprintf(out, "url: %s\n", res.URL)
+			for _, u := range res.TailnetURLs {
+				_, _ = fmt.Fprintf(out, "tailnet: %s\n", u)
+			}
 			_, _ = fmt.Fprintf(out, "channel: %s\n", res.ChannelState)
 			return nil
 		},
@@ -234,11 +237,16 @@ func newPushCmd(d cmd.Deps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			rev, err := cl.Push(ctx, sess, scope, pid, docJSON)
+			res, err := cl.Push(ctx, sess, scope, pid, docJSON)
 			if err != nil {
 				return err
 			}
-			_, _ = fmt.Fprintf(c.OutOrStdout(), "revision: %d\n", rev)
+			out := c.OutOrStdout()
+			_, _ = fmt.Fprintf(out, "revision: %d\n", res.Revision)
+			_, _ = fmt.Fprintf(out, "url: %s\n", res.URL)
+			for _, u := range res.TailnetURLs {
+				_, _ = fmt.Fprintf(out, "tailnet: %s\n", u)
+			}
 			return nil
 		},
 	}

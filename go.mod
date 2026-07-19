@@ -8,9 +8,9 @@ require (
 	github.com/pelletier/go-toml/v2 v2.4.3
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.2
 	github.com/spf13/cobra v1.10.2
-	github.com/yasyf/cc-interact v0.11.2-0.20260719051950-3cea78003d54
+	github.com/yasyf/cc-interact v0.12.0
 	github.com/yasyf/daemonkit v0.1.1-0.20260719051422-e93fc1280567
-	github.com/yasyf/synckit v0.19.1-0.20260719052548-c01d9f3b0076
+	github.com/yasyf/synckit v0.21.0
 )
 
 require (
@@ -19,7 +19,6 @@ require (
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/ebitengine/purego v0.10.1 // indirect
 	github.com/go-ole/go-ole v1.2.6 // indirect
-	github.com/gofrs/flock v0.13.0 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/lufia/plan9stats v0.0.0-20211012122336-39d0f177ccd0 // indirect

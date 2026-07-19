@@ -10,8 +10,10 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"testing/fstest"
 
 	ccevent "github.com/yasyf/cc-interact/event"
+	"github.com/yasyf/cc-interact/sse"
 	ccstore "github.com/yasyf/cc-interact/store"
 
 	"github.com/yasyf/cc-present/internal/assets"
@@ -68,7 +70,9 @@ func newRestHarnessWith(t *testing.T, docJSON string, loader *packs.Loader) *res
 		},
 		assets: ast,
 		packs:  loader,
-		static: http.NotFoundHandler(),
+		// The real scoped static handler over a stub shell, so fallthrough tests
+		// distinguish an honest 404 from the SPA index answering everything.
+		static: sse.StaticHandler(fstest.MapFS{"index.html": &fstest.MapFile{Data: []byte("<html>shell</html>")}}),
 	}
 	subs := ccstore.NewSubjectStore(cc.DB())
 	sub, err := subs.Create(context.Background(), "sub1", "board--abcd0000", "s1", "/repo", 100, "open")
@@ -504,15 +508,53 @@ func TestAssetCap(t *testing.T) {
 	}
 }
 
+// mux builds the full REST mux so a test can exercise route precedence: an
+// unknown /api path and an unknown /assets path both 404 rather than reaching
+// the SPA shell.
+func (h *restHarness) mux() http.Handler {
+	mux := http.NewServeMux()
+	h.rs.routes(mux)
+	return mux
+}
+
 func TestAssetGetUnknownFallsThrough(t *testing.T) {
 	h := newRestHarness(t)
 	sha := strings.Repeat("a", 64)
-	greq := httptest.NewRequest(http.MethodGet, "/assets/"+sha, nil)
-	greq.SetPathValue("sha", sha)
-	gw := httptest.NewRecorder()
-	h.rs.handleGetAsset(gw, greq)
-	if gw.Code != http.StatusNotFound {
-		t.Fatalf("status = %d, want 404 (static fallthrough)", gw.Code)
+	req := httptest.NewRequest(http.MethodGet, "/assets/"+sha, nil)
+	w := httptest.NewRecorder()
+	h.mux().ServeHTTP(w, req)
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404 (unknown asset 404s through the mux)", w.Code)
+	}
+}
+
+func TestHealthEndpoint(t *testing.T) {
+	h := newRestHarness(t)
+	h.rs.version = "9.9.9"
+	req := httptest.NewRequest(http.MethodGet, "/api/health", nil)
+	w := httptest.NewRecorder()
+	h.mux().ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 (%s)", w.Code, w.Body.String())
+	}
+	var got struct {
+		Version string `json:"version"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &got); err != nil {
+		t.Fatalf("decode health: %v", err)
+	}
+	if got.Version != "9.9.9" {
+		t.Errorf("version = %q, want 9.9.9", got.Version)
+	}
+}
+
+func TestAPICatchAll404(t *testing.T) {
+	h := newRestHarness(t)
+	req := httptest.NewRequest(http.MethodGet, "/api/nope", nil)
+	w := httptest.NewRecorder()
+	h.mux().ServeHTTP(w, req)
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404 (unknown /api path)", w.Code)
 	}
 }
 

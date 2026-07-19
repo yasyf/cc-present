@@ -12,6 +12,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/yasyf/cc-interact/channel"
@@ -60,6 +61,16 @@ var slugStrip = regexp.MustCompile(`[^a-z0-9]+`)
 // listens on its own tailnet addresses).
 func BuildServer(ctx context.Context, p paths.Paths, version, bind, token string, loader *packs.Loader, tp *meshtrust.Provider) (*ccd.Server, error) {
 	c := channel.Connectivity{}
+	bonjour := bonjourHook(bind)
+	// srv is late-bound: the reconcile hook needs the *ccd.Server, but OnHTTPStart
+	// only fires inside Serve, after ccd.New has returned it.
+	var srv *ccd.Server
+	display := displayFunc(func(ctx context.Context, slug string, port int) []string {
+		if tp == nil {
+			return nil
+		}
+		return displayURLs(tp.SelfDNSName(ctx), srv.HTTPExtraAddrs(), tp.SelfAddrs(ctx), isLoopbackBind(bind), port, slug)
+	})
 	cfg := ccd.Config{
 		AppName:        appName,
 		Paths:          p,
@@ -74,7 +85,7 @@ func BuildServer(ctx context.Context, p paths.Paths, version, bind, token string
 		// mDNS only when the bind is non-loopback (nil otherwise).
 		BindAddr:    bind,
 		HTTPToken:   token,
-		OnHTTPStart: bonjourHook(bind),
+		OnHTTPStart: bonjour,
 		// Gate nil → no edit gate; Migrate nil → no domain tables (document and
 		// interaction state are a pure reduction of the event log). ScopeResolve
 		// canonicalizes every raw cwd to the window sentinel.
@@ -84,17 +95,21 @@ func BuildServer(ctx context.Context, p paths.Paths, version, bind, token string
 		cfg.TrustedPeer = tp.TrustedPeer
 		cfg.TrustedOrigin = tp.TrustedOrigin
 		cfg.ExtraHTTPListeners = tailnetListeners(p, bind, tp.SelfAddrs(ctx))
+		cfg.OnHTTPStart = combineHooks(bonjour, func(ctx context.Context, _ int) {
+			reconcileTailnet(ctx, srv, tp, p, bind)
+		})
 	}
 	s, err := ccd.New(cfg)
 	if err != nil {
 		return nil, err
 	}
+	srv = s
 	ast, err := assets.New(filepath.Join(p.StateDir(), "assets"))
 	if err != nil {
 		return nil, err
 	}
-	s.Register(OpStart, func(hc ccd.HandlerCtx) ccd.Reply { return handleStart(hc, loader.Current()) })
-	s.Register(OpPush, func(hc ccd.HandlerCtx) ccd.Reply { return handlePush(hc, loader.Current()) })
+	s.Register(OpStart, func(hc ccd.HandlerCtx) ccd.Reply { return handleStart(hc, loader.Current(), display) })
+	s.Register(OpPush, func(hc ccd.HandlerCtx) ccd.Reply { return handlePush(hc, loader.Current(), display) })
 	s.Register(OpUpsertBlock, func(hc ccd.HandlerCtx) ccd.Reply { return handleUpsertBlock(hc, loader.Current()) })
 	s.Register(OpRemoveBlock, handleRemoveBlock)
 	s.Register(OpReply, handleReply)
@@ -102,8 +117,39 @@ func BuildServer(ctx context.Context, p paths.Paths, version, bind, token string
 	s.Register(OpRevising, handleRevising)
 	s.Register(OpClose, func(hc ccd.HandlerCtx) ccd.Reply { return handleClose(hc, ast) })
 	s.Register(OpOutcomes, handleOutcomes)
-	mountREST(s, ast, loader)
+	mountREST(s, ast, loader, version)
 	return s, nil
+}
+
+// displayFunc renders an artifact's tailnet display URLs from its slug and the
+// primary HTTP port, or nil when the daemon has no mesh trust. BuildServer
+// injects it into the start and push handlers.
+type displayFunc func(ctx context.Context, slug string, port int) []string
+
+// combineHooks folds several OnHTTPStart hooks into one that runs every non-nil
+// hook concurrently and returns once all have — so each hook's shutdown contract
+// (the substrate waits for OnHTTPStart before exiting) survives. nil when none.
+func combineHooks(hooks ...func(context.Context, int)) func(context.Context, int) {
+	var live []func(context.Context, int)
+	for _, h := range hooks {
+		if h != nil {
+			live = append(live, h)
+		}
+	}
+	if len(live) == 0 {
+		return nil
+	}
+	return func(ctx context.Context, port int) {
+		var wg sync.WaitGroup
+		wg.Add(len(live))
+		for _, h := range live {
+			go func() {
+				defer wg.Done()
+				h(ctx, port)
+			}()
+		}
+		wg.Wait()
+	}
 }
 
 // Serve builds the daemon and runs it until ctx is cancelled. bind is the HTTP
@@ -122,7 +168,7 @@ func Serve(ctx context.Context, p paths.Paths, version, bind, token string, load
 // appending an initial doc.replaced, and reports the URL and channel state. A
 // prior close is terminal, so a resume that would land on a closed subject is
 // forced fresh instead.
-func handleStart(hc ccd.HandlerCtx, pt doc.PackTypes) ccd.Reply {
+func handleStart(hc ccd.HandlerCtx, pt doc.PackTypes, display displayFunc) ccd.Reply {
 	b := decodeBody(hc.Env.Body)
 	var d *doc.Doc
 	if len(b.Doc) > 0 {
@@ -164,14 +210,14 @@ func handleStart(hc ccd.HandlerCtx, pt doc.PackTypes) ccd.Reply {
 		}
 	}
 	cs := channelState(hc.Activity, sub.ID, hc.Scope, hc.Window.ClaudePID)
-	res := result{URL: artifactURL(hc.HTTPPort, sub.Slug), Slug: sub.Slug, ChannelState: cs}
+	res := result{URL: artifactURL(hc.HTTPPort, sub.Slug), TailnetURLs: display(hc.Ctx, sub.Slug, hc.HTTPPort), Slug: sub.Slug, ChannelState: cs}
 	raw, _ := json.Marshal(res)
 	return ccd.Reply{OK: true, SubjectID: sub.ID, HTTPPort: hc.HTTPPort, Body: raw}
 }
 
 // handlePush validates the document, then replaces it with an incremented
 // revision. A closed artifact rejects the push.
-func handlePush(hc ccd.HandlerCtx, pt doc.PackTypes) ccd.Reply {
+func handlePush(hc ccd.HandlerCtx, pt doc.PackTypes, display displayFunc) ccd.Reply {
 	b := decodeBody(hc.Env.Body)
 	d := &doc.Doc{}
 	if err := json.Unmarshal(b.Doc, d); err != nil {
@@ -194,7 +240,7 @@ func handlePush(hc ccd.HandlerCtx, pt doc.PackTypes) ccd.Reply {
 	}); err != nil {
 		return errReply(err.Error())
 	}
-	return okReply(result{Revision: rev})
+	return okReply(result{Revision: rev, URL: artifactURL(hc.HTTPPort, sub.Slug), TailnetURLs: display(hc.Ctx, sub.Slug, hc.HTTPPort)})
 }
 
 // handleUpsertBlock inserts or replaces a single top-level block. An unknown

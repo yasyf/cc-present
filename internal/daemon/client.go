@@ -27,6 +27,14 @@ type StartResult struct {
 	SubjectID    string
 	URL          string
 	ChannelState string
+	TailnetURLs  []string
+}
+
+// PushResult is what a push reports back to the CLI.
+type PushResult struct {
+	Revision    int
+	URL         string
+	TailnetURLs []string
 }
 
 func (cl *Client) do(ctx context.Context, op ccd.Op, session, scope string, pid int, b body) (ccd.Reply, result, error) {
@@ -72,13 +80,17 @@ func (cl *Client) Start(ctx context.Context, session, scope string, pid int, fre
 	if err != nil {
 		return StartResult{}, err
 	}
-	return StartResult{SubjectID: reply.SubjectID, URL: res.URL, ChannelState: res.ChannelState}, nil
+	return StartResult{SubjectID: reply.SubjectID, URL: res.URL, ChannelState: res.ChannelState, TailnetURLs: res.TailnetURLs}, nil
 }
 
-// Push replaces the document and returns the new revision.
-func (cl *Client) Push(ctx context.Context, session, scope string, pid int, docJSON json.RawMessage) (int, error) {
+// Push replaces the document and returns the new revision plus the artifact's
+// display URLs.
+func (cl *Client) Push(ctx context.Context, session, scope string, pid int, docJSON json.RawMessage) (PushResult, error) {
 	_, res, err := cl.do(ctx, OpPush, session, scope, pid, body{Doc: docJSON})
-	return res.Revision, err
+	if err != nil {
+		return PushResult{}, err
+	}
+	return PushResult{Revision: res.Revision, URL: res.URL, TailnetURLs: res.TailnetURLs}, nil
 }
 
 // UpsertBlock inserts or replaces a single block, optionally after another.

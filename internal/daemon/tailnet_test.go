@@ -7,6 +7,7 @@ import (
 	"net/netip"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	ccd "github.com/yasyf/cc-interact/daemon"
@@ -58,6 +59,66 @@ func TestTailnetListenersUsesHandshakeHint(t *testing.T) {
 	defer func() { _ = ln.Close() }()
 	if got := ln.Addr().(*net.TCPAddr).Port; got != hint {
 		t.Errorf("bound port = %d, want handshake hint %d", got, hint)
+	}
+}
+
+func TestTailnetURLs(t *testing.T) {
+	tests := []struct {
+		name  string
+		dns   string
+		addrs []string
+		want  []string
+	}{
+		{
+			"dns dedupes v4 and v6 legs sharing a port",
+			"host.ts.net",
+			[]string{"100.1.2.3:8080", "[fd7a:115c:a1e0::1]:8080"},
+			[]string{"http://host.ts.net:8080/p/board"},
+		},
+		{
+			"dns emits one url per distinct port",
+			"host.ts.net",
+			[]string{"100.1.2.3:8080", "100.1.2.3:9090"},
+			[]string{"http://host.ts.net:8080/p/board", "http://host.ts.net:9090/p/board"},
+		},
+		{
+			"no dns falls back to raw ips, bracketing v6",
+			"",
+			[]string{"100.1.2.3:8080", "[fd7a:115c:a1e0::1]:9090"},
+			[]string{"http://100.1.2.3:8080/p/board", "http://[fd7a:115c:a1e0::1]:9090/p/board"},
+		},
+		{"empty addrs with dns yields nil", "host.ts.net", nil, nil},
+		{"empty addrs and no dns yields nil", "", nil, nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tailnetURLs(tt.dns, tt.addrs, "board")
+			if !slices.Equal(got, tt.want) {
+				t.Fatalf("tailnetURLs(%q, %v) = %v, want %v", tt.dns, tt.addrs, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestDisplayURLs(t *testing.T) {
+	self := []netip.Addr{netip.MustParseAddr("100.64.0.7"), netip.MustParseAddr("fd7a::7")}
+	tests := []struct {
+		name     string
+		extra    []string
+		loopback bool
+		want     []string
+	}{
+		{"extra legs win", []string{"100.64.0.7:62520"}, true, []string{"http://ts.example.ts.net:62520/p/s"}},
+		{"loopback bind without legs", nil, true, nil},
+		{"wildcard bind serves the primary port", nil, false, []string{"http://ts.example.ts.net:8080/p/s"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := displayURLs("ts.example.ts.net", tt.extra, self, tt.loopback, 8080, "s")
+			if !slices.Equal(got, tt.want) {
+				t.Errorf("displayURLs() = %v, want %v", got, tt.want)
+			}
+		})
 	}
 }
 
