@@ -65,11 +65,16 @@ func BuildServer(ctx context.Context, p paths.Paths, version, bind, token string
 	// srv is late-bound: the reconcile hook needs the *ccd.Server, but OnHTTPStart
 	// only fires inside Serve, after ccd.New has returned it.
 	var srv *ccd.Server
+	var mgr *certManager
 	display := displayFunc(func(ctx context.Context, slug string, port int) []string {
 		if tp == nil {
 			return nil
 		}
-		return displayURLs(tp.SelfDNSName(ctx), srv.HTTPExtraAddrs(), tp.SelfAddrs(ctx), isLoopbackBind(bind), port, slug)
+		// https URLs only when the served cert covers the live cert domain —
+		// during a tailnet-rename window the IP URLs print instead.
+		domain := mgr.mintedDomain()
+		minted := domain != "" && domain == tp.SelfCertDomain(ctx)
+		return displayURLs(domain, minted, srv.HTTPExtraAddrs(), tp.SelfAddrs(ctx), bind, port, slug)
 	})
 	cfg := ccd.Config{
 		AppName:        appName,
@@ -92,11 +97,13 @@ func BuildServer(ctx context.Context, p paths.Paths, version, bind, token string
 		ScopeResolve: resolveScope,
 	}
 	if tp != nil {
+		mgr = newCertManager(filepath.Join(p.StateDir(), "tls"))
+		go func() { mgr.ensure(ctx, tp.SelfCertDomain(ctx)) }()
 		cfg.TrustedPeer = tp.TrustedPeer
 		cfg.TrustedOrigin = tp.TrustedOrigin
-		cfg.ExtraHTTPListeners = tailnetListeners(p, bind, tp.SelfAddrs(ctx))
+		cfg.ExtraHTTPListeners = tailnetListeners(p, bind, tp.SelfAddrs(ctx), mgr)
 		cfg.OnHTTPStart = combineHooks(bonjour, func(ctx context.Context, _ int) {
-			reconcileTailnet(ctx, srv, tp, p, bind)
+			reconcileTailnet(ctx, srv, tp, p, bind, mgr)
 		})
 	}
 	s, err := ccd.New(cfg)

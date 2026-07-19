@@ -48,7 +48,7 @@ func TestTailnetListenersUsesHandshakeHint(t *testing.T) {
 	}
 	writeHandshake(t, p, hint)
 
-	factories := tailnetListeners(p, "", []netip.Addr{netip.MustParseAddr("127.0.0.1")})
+	factories := tailnetListeners(p, "", []netip.Addr{netip.MustParseAddr("127.0.0.1")}, newCertManager(t.TempDir()))
 	if len(factories) != 1 {
 		t.Fatalf("len(factories) = %d, want 1", len(factories))
 	}
@@ -64,37 +64,50 @@ func TestTailnetListenersUsesHandshakeHint(t *testing.T) {
 
 func TestTailnetURLs(t *testing.T) {
 	tests := []struct {
-		name  string
-		dns   string
-		addrs []string
-		want  []string
+		name       string
+		certDomain string
+		minted     bool
+		addrs      []string
+		want       []string
 	}{
 		{
-			"dns dedupes v4 and v6 legs sharing a port",
-			"host.ts.net",
+			"minted dedupes v4 and v6 legs sharing a port",
+			"host.ts.net", true,
 			[]string{"100.1.2.3:8080", "[fd7a:115c:a1e0::1]:8080"},
-			[]string{"http://host.ts.net:8080/p/board"},
+			[]string{"https://host.ts.net:8080/p/board"},
 		},
 		{
-			"dns emits one url per distinct port",
-			"host.ts.net",
+			"minted emits one https url per distinct port",
+			"host.ts.net", true,
 			[]string{"100.1.2.3:8080", "100.1.2.3:9090"},
-			[]string{"http://host.ts.net:8080/p/board", "http://host.ts.net:9090/p/board"},
+			[]string{"https://host.ts.net:8080/p/board", "https://host.ts.net:9090/p/board"},
 		},
 		{
-			"no dns falls back to raw ips, bracketing v6",
-			"",
+			"unminted with a known domain stays on raw ips, never http on the name",
+			"host.ts.net", false,
 			[]string{"100.1.2.3:8080", "[fd7a:115c:a1e0::1]:9090"},
 			[]string{"http://100.1.2.3:8080/p/board", "http://[fd7a:115c:a1e0::1]:9090/p/board"},
 		},
-		{"empty addrs with dns yields nil", "host.ts.net", nil, nil},
-		{"empty addrs and no dns yields nil", "", nil, nil},
+		{
+			"minted without a domain stays on raw ips",
+			"", true,
+			[]string{"100.1.2.3:8080"},
+			[]string{"http://100.1.2.3:8080/p/board"},
+		},
+		{
+			"no domain no cert falls back to raw ips, bracketing v6",
+			"", false,
+			[]string{"100.1.2.3:8080", "[fd7a:115c:a1e0::1]:9090"},
+			[]string{"http://100.1.2.3:8080/p/board", "http://[fd7a:115c:a1e0::1]:9090/p/board"},
+		},
+		{"empty addrs minted yields nil", "host.ts.net", true, nil, nil},
+		{"empty addrs unminted yields nil", "", false, nil, nil},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := tailnetURLs(tt.dns, tt.addrs, "board")
+			got := tailnetURLs(tt.certDomain, tt.minted, tt.addrs, "board")
 			if !slices.Equal(got, tt.want) {
-				t.Fatalf("tailnetURLs(%q, %v) = %v, want %v", tt.dns, tt.addrs, got, tt.want)
+				t.Fatalf("tailnetURLs(%q, %v, %v) = %v, want %v", tt.certDomain, tt.minted, tt.addrs, got, tt.want)
 			}
 		})
 	}
@@ -103,18 +116,36 @@ func TestTailnetURLs(t *testing.T) {
 func TestDisplayURLs(t *testing.T) {
 	self := []netip.Addr{netip.MustParseAddr("100.64.0.7"), netip.MustParseAddr("fd7a::7")}
 	tests := []struct {
-		name     string
-		extra    []string
-		loopback bool
-		want     []string
+		name   string
+		minted bool
+		extra  []string
+		bind   string
+		want   []string
 	}{
-		{"extra legs win", []string{"100.64.0.7:62520"}, true, []string{"http://ts.example.ts.net:62520/p/s"}},
-		{"loopback bind without legs", nil, true, nil},
-		{"wildcard bind serves the primary port", nil, false, []string{"http://ts.example.ts.net:8080/p/s"}},
+		{"extra legs minted", true, []string{"100.64.0.7:62520"}, "", []string{"https://ts.example.ts.net:62520/p/s"}},
+		{"extra legs unminted", false, []string{"100.64.0.7:62520"}, "", []string{"http://100.64.0.7:62520/p/s"}},
+		{"default loopback bind without legs", true, nil, "", nil},
+		{"explicit loopback bind without legs", true, nil, "127.0.0.1", nil},
+		{"specific non-loopback bind without legs", true, nil, "192.168.1.5", nil},
+		{
+			"unspecified bind unminted serves ip urls on the primary port",
+			false, nil, "0.0.0.0",
+			[]string{"http://100.64.0.7:8080/p/s", "http://[fd7a::7]:8080/p/s"},
+		},
+		{
+			"unspecified bind minted stays http: the primary leg has no sniffer",
+			true, nil, "0.0.0.0",
+			[]string{"http://100.64.0.7:8080/p/s", "http://[fd7a::7]:8080/p/s"},
+		},
+		{
+			"unspecified v6 bind minted stays http on raw ips",
+			true, nil, "::",
+			[]string{"http://100.64.0.7:8080/p/s", "http://[fd7a::7]:8080/p/s"},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := displayURLs("ts.example.ts.net", tt.extra, self, tt.loopback, 8080, "s")
+			got := displayURLs("ts.example.ts.net", tt.minted, tt.extra, self, tt.bind, 8080, "s")
 			if !slices.Equal(got, tt.want) {
 				t.Errorf("displayURLs() = %v, want %v", got, tt.want)
 			}

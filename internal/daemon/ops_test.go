@@ -92,7 +92,7 @@ func nilDisplay(context.Context, string, int) []string { return nil }
 // fakeDisplay stands in for the mesh-trust display closure, echoing its slug so
 // a test can assert the URLs reached the reply.
 func fakeDisplay(_ context.Context, slug string, _ int) []string {
-	return []string{"http://host.ts.net:8080/p/" + slug}
+	return []string{"https://host.ts.net:8080/p/" + slug}
 }
 
 func TestStart(t *testing.T) {
@@ -160,7 +160,7 @@ func TestStart(t *testing.T) {
 		if err := json.Unmarshal(reply.Body, &res); err != nil {
 			t.Fatalf("decode result: %v", err)
 		}
-		want := []string{"http://host.ts.net:8080/p/" + res.Slug}
+		want := []string{"https://host.ts.net:8080/p/" + res.Slug}
 		if !slices.Equal(res.TailnetURLs, want) {
 			t.Fatalf("tailnetUrls = %v, want %v", res.TailnetURLs, want)
 		}
@@ -197,7 +197,7 @@ func TestPush(t *testing.T) {
 		if !strings.HasPrefix(res.URL, prefix) {
 			t.Fatalf("url = %q, want prefix %q", res.URL, prefix)
 		}
-		want := []string{"http://host.ts.net:8080/p/" + strings.TrimPrefix(res.URL, prefix)}
+		want := []string{"https://host.ts.net:8080/p/" + strings.TrimPrefix(res.URL, prefix)}
 		if !slices.Equal(res.TailnetURLs, want) {
 			t.Fatalf("tailnetUrls = %v, want %v", res.TailnetURLs, want)
 		}

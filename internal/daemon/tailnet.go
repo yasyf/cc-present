@@ -22,8 +22,10 @@ const reconcileInterval = 30 * time.Second
 
 // tailnetListeners composes meshtrust.Listeners with the persisted handshake's
 // port-reuse hint, so a restarting daemon reclaims its previous tailnet port.
-func tailnetListeners(p paths.Paths, bind string, addrs []netip.Addr) []func(context.Context) (net.Listener, error) {
-	return meshtrust.Listeners(bind, addrs, lastHTTPPort(p))
+// Every leg is dual-mode: sniffFactories wraps it to serve TLS and plaintext
+// on the same port.
+func tailnetListeners(p paths.Paths, bind string, addrs []netip.Addr, mgr *certManager) []func(context.Context) (net.Listener, error) {
+	return sniffFactories(meshtrust.Listeners(bind, addrs, lastHTTPPort(p)), mgr)
 }
 
 // lastHTTPPort reads the previous boot's handshake as a port-reuse hint for
@@ -46,11 +48,14 @@ func lastHTTPPort(p paths.Paths) uint16 {
 // reconcileTailnet binds a leg for any tailnet address gained since boot, once
 // immediately then every reconcileInterval until ctx is cancelled — so a late
 // `tailscale up` is picked up without a daemon restart.
-func reconcileTailnet(ctx context.Context, srv *ccd.Server, tp *meshtrust.Provider, p paths.Paths, bind string) {
+func reconcileTailnet(ctx context.Context, srv *ccd.Server, tp *meshtrust.Provider, p paths.Paths, bind string, mgr *certManager) {
 	tick := time.NewTicker(reconcileInterval)
 	defer tick.Stop()
 	for {
-		reconcileTailnetPass(ctx, srv, tp, p, bind)
+		// Each pass doubles as the cert renewal tick; ensure runs off-loop so a
+		// slow `tailscale cert` issuance never delays leg binding.
+		go func() { mgr.ensure(ctx, tp.SelfCertDomain(ctx)) }()
+		reconcileTailnetPass(ctx, srv, tp, p, bind, mgr)
 		select {
 		case <-ctx.Done():
 			return
@@ -64,7 +69,7 @@ func reconcileTailnet(ctx context.Context, srv *ccd.Server, tp *meshtrust.Provid
 // first — re-passing it would bind ip:0 and double-leg on a fresh port; the port
 // hint reuses an existing leg's port (else the handshake) to keep every leg on
 // one restart-sticky port.
-func reconcileTailnetPass(ctx context.Context, srv *ccd.Server, tp *meshtrust.Provider, p paths.Paths, bind string) {
+func reconcileTailnetPass(ctx context.Context, srv *ccd.Server, tp *meshtrust.Provider, p paths.Paths, bind string, mgr *certManager) {
 	extra := srv.HTTPExtraAddrs()
 	bound := make(map[netip.Addr]bool, len(extra))
 	hint := lastHTTPPort(p)
@@ -90,7 +95,7 @@ func reconcileTailnetPass(ctx context.Context, srv *ccd.Server, tp *meshtrust.Pr
 	if len(missing) == 0 {
 		return
 	}
-	for _, factory := range meshtrust.Listeners(bind, missing, hint) {
+	for _, factory := range sniffFactories(meshtrust.Listeners(bind, missing, hint), mgr) {
 		ln, err := factory(ctx)
 		if err != nil {
 			slog.Warn("tailnet: bind listener", "err", err)
@@ -104,24 +109,39 @@ func reconcileTailnetPass(ctx context.Context, srv *ccd.Server, tp *meshtrust.Pr
 }
 
 // displayURLs composes an artifact's tailnet display URLs: the live extra legs
-// when any exist, else — under a non-loopback bind, where the primary listener
-// already serves the tailnet — the primary port on each self address.
-func displayURLs(dns string, extra []string, selfAddrs []netip.Addr, loopbackBind bool, port int, slug string) []string {
-	if len(extra) == 0 && !loopbackBind && port >= 1 && port <= math.MaxUint16 {
-		for _, a := range selfAddrs {
-			extra = append(extra, netip.AddrPortFrom(a.Unmap(), uint16(port)).String())
-		}
+// when any exist, else — under an unspecified bind — the primary port on each
+// self address, always as http on raw IPs (the primary listener has no TLS
+// sniffer; https URLs only ever name sniffer-wrapped extra legs). A specific
+// non-loopback bind serves only that address, so it advertises none.
+func displayURLs(certDomain string, minted bool, extra []string, selfAddrs []netip.Addr, bind string, port int, slug string) []string {
+	if len(extra) > 0 {
+		return tailnetURLs(certDomain, minted, extra, slug)
 	}
-	return tailnetURLs(dns, extra, slug)
+	if !isUnspecifiedBind(bind) || port < 1 || port > math.MaxUint16 {
+		return nil
+	}
+	addrs := make([]string, 0, len(selfAddrs))
+	for _, a := range selfAddrs {
+		addrs = append(addrs, netip.AddrPortFrom(a.Unmap(), uint16(port)).String())
+	}
+	return tailnetURLs(certDomain, false, addrs, slug)
 }
 
-// tailnetURLs renders the browsable http URLs for a tailnet-served artifact —
-// always http (plaintext behind tailnet encryption). A MagicDNS name yields one
-// http://dns:PORT/p/slug per distinct leg port (v4+v6 share a port, so collapse
-// to one); no name falls back to one URL per raw leg address. Empty addrs → nil.
-func tailnetURLs(dns string, extraAddrs []string, slug string) []string {
+// isUnspecifiedBind reports whether bind is 0.0.0.0 or ::; the empty bind is
+// the loopback default, not unspecified.
+func isUnspecifiedBind(bind string) bool {
+	ip, err := netip.ParseAddr(bind)
+	return err == nil && ip.IsUnspecified()
+}
+
+// tailnetURLs renders the browsable URLs for a tailnet-served artifact. With a
+// minted cert: https on the cert domain, one URL per distinct leg port (v4+v6
+// share a port, so collapse to one). Without: http on the raw leg addresses —
+// IP literals escape ts.net's HSTS preload, and every leg serves plaintext.
+// A MagicDNS name is never composed into an http URL. Empty addrs → nil.
+func tailnetURLs(certDomain string, minted bool, extraAddrs []string, slug string) []string {
 	var urls []string
-	if dns != "" {
+	if minted && certDomain != "" {
 		seen := make(map[uint16]bool, len(extraAddrs))
 		for _, a := range extraAddrs {
 			ap, err := netip.ParseAddrPort(a)
@@ -132,7 +152,7 @@ func tailnetURLs(dns string, extraAddrs []string, slug string) []string {
 				continue
 			}
 			seen[ap.Port()] = true
-			urls = append(urls, fmt.Sprintf("http://%s:%d/p/%s", dns, ap.Port(), slug))
+			urls = append(urls, fmt.Sprintf("https://%s:%d/p/%s", certDomain, ap.Port(), slug))
 		}
 		return urls
 	}
