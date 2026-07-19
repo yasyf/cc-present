@@ -181,6 +181,16 @@
   max-height: 62vh;
   overflow-y: auto;
   overscroll-behavior: contain;
+  /* Soft edges so content scrolling under the top/bottom reads as intentional
+     rather than clipped; the question is already hoisted clear of this box. */
+  --focus-fade: var(--space-3);
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    #000 var(--focus-fade),
+    #000 calc(100% - var(--focus-fade)),
+    transparent 100%
+  );
 }
 /* Rotated swipe affordances — the stamp aesthetic, revealed as the card is dragged
    (opacity is driven inline by the drag position). */
@@ -211,12 +221,51 @@
   border-color: var(--reject);
   transform: rotate(12deg);
 }
-.focus-tier {
+/* Hoisted step head: the meta row, a reserved revision line, and the pinned
+   question, all above the scroll boundary so a long body never clips the title. */
+.focus-meta {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-1);
+}
+.focus-meta-eyebrow {
   font-family: var(--font-stamp);
-  font-size: var(--text-sm);
+  text-transform: uppercase;
+  letter-spacing: var(--track-caps);
+  font-size: var(--text-2xs);
   font-weight: 600;
-  color: var(--accent-ink);
-  margin-bottom: var(--space-2);
+  color: var(--muted);
+}
+/* Reserved landing zone for the live-revision callout (Phase 3); collapses empty. */
+.focus-revision {
+  font-family: var(--font-stamp);
+  font-size: var(--text-2xs);
+}
+.focus-revision:empty {
+  display: none;
+}
+.focus-question {
+  font-family: var(--font-prose);
+  font-size: var(--text-lg);
+  font-weight: 650;
+  line-height: var(--leading-tight);
+  letter-spacing: -0.01em;
+  color: var(--ink);
+  margin: 0 0 var(--space-3);
+}
+/* Lead-in context, demoted below the question: dim, and markdown clamps in place
+   while heavy blocks collapse to titled disclosures (rendered in FocusCard). */
+.focus-context {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  color: var(--dim);
+}
+/* Reserved visual-stage slot (Phase 3); collapses until an option visual mounts. */
+.focus-media:empty {
+  display: none;
 }
 
 /* Prev / next controls: real buttons so a click commits a focused input. */

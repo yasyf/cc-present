@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { focusSteps, stepStatus, stepTitle, swipeVerdict } from './focus';
+import { factAxes, focusSteps, stepHeadline, stepStatus, stepTitle, swipeVerdict } from './focus';
 import type { FocusStep } from './focus';
-import type { Block } from './schema';
+import type { Block, ChoiceOption } from './schema';
 import type { Interactions } from './events';
 
 const approval = (id: string): Block => ({ id, type: 'approval' });
@@ -244,4 +244,103 @@ describe('swipeVerdict', () => {
       expect(swipeVerdict(c.offset, c.velocity)).toBe(c.expected);
     });
   }
+});
+
+describe('stepHeadline', () => {
+  const step = (blocks: Block[], index = 0): FocusStep => focusSteps(blocks, new Set())[index]!;
+  const choiceB = (id: string, prompt: string): Block => ({
+    id,
+    type: 'choice',
+    prompt,
+    options: [{ id: `${id}o`, label: 'one' }],
+  });
+
+  it('hoists a lone choice prompt and marks its id for suppression', () => {
+    expect(stepHeadline(step([choiceB('c1', 'Which transport?')]))).toEqual({
+      text: 'Which transport?',
+      suppressId: 'c1',
+      fromCard: false,
+    });
+  });
+
+  it('hoists a lone approval prompt', () => {
+    expect(stepHeadline(step([{ id: 'a1', type: 'approval', prompt: 'Ship it?' }]))).toEqual({
+      text: 'Ship it?',
+      suppressId: 'a1',
+      fromCard: false,
+    });
+  });
+
+  it('heads a single-decidable card with the child prompt, not the title', () => {
+    const s = step([{ id: 'k1', type: 'card', title: 'Transport', children: [choiceB('c1', 'Which?')] as never }]);
+    expect(stepHeadline(s)).toEqual({ text: 'Which?', suppressId: 'c1', fromCard: false });
+  });
+
+  it('heads a multi-decidable card with its title and suppresses nothing', () => {
+    const s = step([
+      { id: 'k1', type: 'card', title: 'Two calls', children: [choiceB('c1', 'First?'), choiceB('c2', 'Second?')] as never },
+    ]);
+    expect(stepHeadline(s)).toEqual({ text: 'Two calls', suppressId: null, fromCard: true });
+  });
+
+  it('yields no headline for a bare content leaf', () => {
+    expect(stepHeadline(step([{ id: 'm1', type: 'markdown', md: 'x' }]))).toEqual({
+      text: null,
+      suppressId: null,
+      fromCard: false,
+    });
+  });
+});
+
+describe('factAxes', () => {
+  const opt = (id: string, facts?: ChoiceOption['facts']): ChoiceOption => ({ id, label: id, facts });
+
+  it('returns the shared label sequence when every fact-carrying option matches', () => {
+    const axes = factAxes([
+      opt('a', [{ label: 'Latency', value: '12ms' }, { label: 'Cost', value: '$5' }]),
+      opt('b', [{ label: 'Latency', value: '80ms' }, { label: 'Cost', value: '$2' }]),
+    ]);
+    expect(axes).toEqual(['Latency', 'Cost']);
+  });
+
+  it('tolerates a factless option alongside two aligned ones', () => {
+    const axes = factAxes([
+      opt('a', [{ label: 'Latency', value: '12ms' }]),
+      opt('b', [{ label: 'Latency', value: '80ms' }]),
+      opt('c'),
+    ]);
+    expect(axes).toEqual(['Latency']);
+  });
+
+  it('falls back on a label mismatch', () => {
+    expect(
+      factAxes([
+        opt('a', [{ label: 'Latency', value: '12ms' }]),
+        opt('b', [{ label: 'Speed', value: '80ms' }]),
+      ]),
+    ).toBeNull();
+  });
+
+  it('falls back when label sequences differ in length', () => {
+    expect(
+      factAxes([
+        opt('a', [{ label: 'Latency', value: '12ms' }, { label: 'Cost', value: '$5' }]),
+        opt('b', [{ label: 'Latency', value: '80ms' }]),
+      ]),
+    ).toBeNull();
+  });
+
+  it('falls back when any label is empty', () => {
+    expect(
+      factAxes([
+        opt('a', [{ value: '12ms' }]),
+        opt('b', [{ value: '80ms' }]),
+      ]),
+    ).toBeNull();
+  });
+
+  it('falls back with fewer than two fact-carrying options', () => {
+    expect(factAxes([opt('a', [{ label: 'Latency', value: '12ms' }]), opt('b')])).toBeNull();
+    expect(factAxes([opt('a'), opt('b')])).toBeNull();
+  });
 });

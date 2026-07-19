@@ -7,7 +7,6 @@ import { stepTitle } from '../focus';
 export function FocusPeek({ step }: { step: FocusStep }) {
   return (
     <div className="focus-peek" aria-hidden>
-      {step.tier && <div className="focus-tier">{step.tier}</div>}
       <div className="focus-peek-title">{stepTitle(step)}</div>
     </div>
   );

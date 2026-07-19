@@ -1,13 +1,55 @@
 import { forwardRef, useCallback, useEffect, useRef } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
+import { CollapsedGroup } from '@cc-interact/react';
 import { m, useDragControls, useIsPresent, useMotionValue, useReducedMotion, useTransform } from 'motion/react';
 import type { MotionValue, PanInfo } from 'motion/react';
 import type { FocusStep } from '../focus';
-import { swipeVerdict } from '../focus';
+import { stepHeadline, swipeVerdict } from '../focus';
+import type { Block } from '../schema';
 import type { Interaction, Interactions } from '../events';
 import { usePresent } from '../present';
+import { useExpandAll } from '../expand';
+import { renderMarkdown } from '../markdown';
 import { BlockRenderer } from './BlockRenderer';
+import { Clamped } from './Clamped';
+import { FocusStepContext } from './focusStep';
 import { cardVariants } from './focusMotion';
+
+// Heavy lead-in blocks collapse to a one-line titled disclosure; markdown stays
+// visible but clamped; everything else renders in place.
+const HEAVY_CONTEXT = new Set(['code', 'diff', 'table', 'image', 'diagram']);
+
+function contextTitle(block: Block): string {
+  switch (block.type) {
+    case 'code':
+      return block.title ?? block.lang;
+    case 'diff':
+      return block.title ?? 'Diff';
+    case 'diagram':
+      return block.title ?? 'Diagram';
+    case 'image':
+      return block.caption ?? block.alt;
+    case 'table':
+      return 'Table';
+    default:
+      return block.type;
+  }
+}
+
+function FocusContextBlock({ block, interactions }: { block: Block; interactions: Interactions }) {
+  const { epoch, expanded } = useExpandAll();
+  if (block.type === 'markdown') {
+    return <Clamped html={renderMarkdown(block.md)} lines={6} className="prose markdown-block focus-context-md" />;
+  }
+  if (HEAVY_CONTEXT.has(block.type)) {
+    return (
+      <CollapsedGroup key={epoch} defaultExpanded={expanded} header={contextTitle(block)}>
+        <BlockRenderer block={block} interactions={interactions} />
+      </CollapsedGroup>
+    );
+  }
+  return <BlockRenderer block={block} interactions={interactions} />;
+}
 
 // A drag starts only off a non-interactive part of the card: elements that are
 // focusable ([tabindex] other than the card's own -1), links/buttons (native or
@@ -125,35 +167,71 @@ export const FocusCard = forwardRef<HTMLDivElement, { step: FocusStep; interacti
       }
     : {};
 
+  const headline = stepHeadline(step);
+  const headingId = `focus-q-${step.id}`;
+  const card = step.block.type === 'card' ? step.block : null;
+  const eyebrow = card && !headline.fromCard ? card.title : undefined;
+  const status = card?.status;
+  const chips = card?.chips;
+  const hasMeta = eyebrow !== undefined || status !== undefined || (chips?.length ?? 0) > 0;
+
   return (
-    <m.div
-      ref={ref}
-      className="focus-card"
-      tabIndex={-1}
-      data-exiting={!present || undefined}
-      variants={cardVariants}
-      initial="enter"
-      animate="center"
-      exit="exit"
-      {...dragProps}
-    >
-      {swipeable && (
-        <>
-          <m.div className="swipe-label approve" aria-hidden style={{ opacity: approveOpacity }}>
-            Approve
-          </m.div>
-          <m.div className="swipe-label reject" aria-hidden style={{ opacity: rejectOpacity }}>
-            Reject
-          </m.div>
-        </>
-      )}
-      {step.tier && <div className="focus-tier">{step.tier}</div>}
-      <div className="focus-card-body">
-        {step.context.map((block) => (
-          <BlockRenderer key={block.id} block={block} interactions={interactions} />
-        ))}
-        <BlockRenderer key={step.block.id} block={step.block} interactions={interactions} />
-      </div>
-    </m.div>
+    <FocusStepContext.Provider value={{ headlineId: headline.suppressId }}>
+      <m.div
+        ref={ref}
+        className="focus-card"
+        tabIndex={-1}
+        data-exiting={!present || undefined}
+        aria-labelledby={headline.text ? headingId : undefined}
+        variants={cardVariants}
+        initial="enter"
+        animate="center"
+        exit="exit"
+        {...dragProps}
+      >
+        {swipeable && (
+          <>
+            <m.div className="swipe-label approve" aria-hidden style={{ opacity: approveOpacity }}>
+              Approve
+            </m.div>
+            <m.div className="swipe-label reject" aria-hidden style={{ opacity: rejectOpacity }}>
+              Reject
+            </m.div>
+          </>
+        )}
+        {hasMeta && (
+          <div className="focus-meta">
+            {eyebrow !== undefined && <span className="focus-meta-eyebrow">{eyebrow}</span>}
+            {status && <span className={`status status-${status}`}>{status}</span>}
+            {chips && chips.length > 0 && (
+              <span className="chips">
+                {chips.map((chip, i) => (
+                  <span key={i} className={`chip chip-${chip.tone ?? 'default'}`}>
+                    {chip.label}
+                  </span>
+                ))}
+              </span>
+            )}
+          </div>
+        )}
+        <div className="focus-revision" />
+        {headline.text && (
+          <h2 id={headingId} className="focus-question">
+            {headline.text}
+          </h2>
+        )}
+        <div className="focus-card-body">
+          {step.context.length > 0 && (
+            <div className="focus-context">
+              {step.context.map((block) => (
+                <FocusContextBlock key={block.id} block={block} interactions={interactions} />
+              ))}
+            </div>
+          )}
+          <div className="focus-media" />
+          <BlockRenderer key={step.block.id} block={step.block} interactions={interactions} />
+        </div>
+      </m.div>
+    </FocusStepContext.Provider>
   );
 });

@@ -114,7 +114,7 @@ function render(props: DeckProps): void {
 // AnimatePresence keeps the outgoing card mounted (marked data-exiting) while it
 // flies off, so every current-card query targets the live, non-exiting card.
 const currentPrompt = (): string | undefined =>
-  container.querySelector('.focus-card:not([data-exiting]) .approval-prompt')?.textContent ?? undefined;
+  container.querySelector('.focus-card:not([data-exiting]) .focus-question')?.textContent ?? undefined;
 const peekTitle = (): string | undefined => container.querySelector('.focus-peek-title')?.textContent ?? undefined;
 function clickNext(): void {
   act(() => (container.querySelector('.focus-nav-btn.primary') as HTMLButtonElement).click());
@@ -139,11 +139,17 @@ describe('FocusDeck navigation', () => {
     expect(container.querySelector('.focus-peek .approval')).toBeNull();
   });
 
-  it('advances to the next step on Next', () => {
-    render({ blocks: three, interactions: empty() });
-    clickNext();
-    expect(currentPrompt()).toBe('Ship two');
-  });
+  // Raised timeout: the AnimatePresence card swap runs on real timers, so under
+  // full-suite parallel load this step-advance can edge past the 5s default.
+  it(
+    'advances to the next step on Next',
+    () => {
+      render({ blocks: three, interactions: empty() });
+      clickNext();
+      expect(currentPrompt()).toBe('Ship two');
+    },
+    15000,
+  );
 
   it('routes the j key to the deck instead of the ring', () => {
     render({ blocks: three, interactions: empty() });

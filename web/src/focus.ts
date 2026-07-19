@@ -5,7 +5,7 @@
 // off these; iOS mirrors this walk in FocusSteps.swift.
 
 import { decidableIds, flatten, submitItems } from './decide';
-import type { Block } from './schema';
+import type { Block, ChoiceOption } from './schema';
 import type { Interactions } from './events';
 
 export type FocusStepKind = 'decision' | 'context';
@@ -118,6 +118,44 @@ export function stepTitle(step: FocusStep): string {
     default:
       return 'Details';
   }
+}
+
+// The hoisted step headline: text is the <h2> the deck pins above the scroll body,
+// suppressId the decidable whose inline prompt it replaces, fromCard whether the
+// text is the step card's own title (so the meta row omits a duplicate eyebrow).
+export interface FocusHeadline {
+  text: string | null;
+  suppressId: string | null;
+  fromCard: boolean;
+}
+
+// stepHeadline resolves the question a step leads with: a lone decidable's own
+// prompt (hoisted, its inline copy suppressed), else a card's title (multi-decidable
+// prompts stay inline as sub-headings), else null for a bare content leaf.
+export function stepHeadline(step: FocusStep): FocusHeadline {
+  const p = step.primary;
+  if (step.decidables.length === 1 && p) {
+    const text = p.type === 'input' ? p.label : p.type === 'choice' || p.type === 'approval' ? p.prompt ?? null : null;
+    if (text) return { text, suppressId: p.id, fromCard: false };
+  }
+  if (step.block.type === 'card') return { text: step.block.title ?? null, suppressId: null, fromCard: true };
+  return { text: null, suppressId: null, fromCard: false };
+}
+
+// factAxes is the aligned-grid gate: the shared ordered label list when at least
+// two fact-carrying options declare the same non-empty label sequence, else null —
+// any mismatch drops the comparison grid and the per-option fallback renders.
+export function factAxes(options: ChoiceOption[]): string[] | null {
+  const withFacts = options.filter((o) => o.facts && o.facts.length > 0);
+  if (withFacts.length < 2) return null;
+  const labelsOf = (o: ChoiceOption) => o.facts!.map((f) => f.label ?? '');
+  const axes = labelsOf(withFacts[0]!);
+  if (axes.some((l) => l === '')) return null;
+  for (const o of withFacts) {
+    const labels = labelsOf(o);
+    if (labels.length !== axes.length || labels.some((l, i) => l !== axes[i])) return null;
+  }
+  return axes;
 }
 
 export type StepStatus = 'approved' | 'rejected' | 'decided' | 'undecided' | null;

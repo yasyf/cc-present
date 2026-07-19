@@ -59,6 +59,41 @@ describe('swipeCommit', () => {
 
 const approval = (id: string, prompt: string): Block => ({ id, type: 'approval', prompt });
 const input = (id: string): Block => ({ id, type: 'input', label: id });
+const choice = (id: string, prompt: string, labels: string[]): Block => ({
+  id,
+  type: 'choice',
+  prompt,
+  options: labels.map((label, i) => ({ id: `${id}o${i}`, label })),
+});
+const markdown = (id: string, md: string): Block => ({ id, type: 'markdown', md });
+const code = (id: string): Block => ({ id, type: 'code', lang: 'go', code: 'package main' });
+const card = (id: string, title: string, children: Block[]): Block => ({
+  id,
+  type: 'card',
+  title,
+  children: children as never,
+});
+
+// renderStep renders the step focusSteps derives at `index` from a block run, so a
+// step's demoted lead-in context (the run before its anchor) can be exercised.
+function renderStep(blocks: Block[], index = 0): void {
+  const step = focusSteps(blocks, new Set())[index]!;
+  const interactions = emptyState().interactions;
+  const present: PresentApi = { post: async () => true, closed: false, currentRound: 1 };
+  act(() =>
+    root.render(
+      <LazyMotion features={domMax} strict>
+        <MotionConfig reducedMotion="user">
+          <PresentContext.Provider value={present}>
+            <KeyboardProvider blocks={blocks} interactions={interactions} closed={false} round={1}>
+              <FocusCard step={step} interactions={interactions} />
+            </KeyboardProvider>
+          </PresentContext.Provider>
+        </MotionConfig>
+      </LazyMotion>,
+    ),
+  );
+}
 
 let container: HTMLDivElement;
 let root: Root;
@@ -97,7 +132,9 @@ describe('FocusCard swipe affordances', () => {
   it('renders the swipe labels on a lone approval', () => {
     renderCard(approval('a1', 'Ship it'));
     expect(container.querySelector('.focus-card')).not.toBeNull();
-    expect(container.querySelector('.approval-prompt')?.textContent).toBe('Ship it');
+    // The prompt is hoisted into the pinned question, not the in-body approval prompt.
+    expect(container.querySelector('.focus-question')?.textContent).toBe('Ship it');
+    expect(container.querySelector('.approval-prompt')).toBeNull();
     expect(container.querySelector('.swipe-label.approve')).not.toBeNull();
     expect(container.querySelector('.swipe-label.reject')).not.toBeNull();
   });
@@ -106,6 +143,11 @@ describe('FocusCard swipe affordances', () => {
     renderCard(input('i1'));
     expect(container.querySelector('.focus-card')).not.toBeNull();
     expect(container.querySelector('.swipe-label')).toBeNull();
+  });
+
+  it('never renders the deleted focus-tier eyebrow', () => {
+    renderCard(approval('a1', 'Ship it'));
+    expect(container.querySelector('.focus-tier')).toBeNull();
   });
 });
 
@@ -170,5 +212,55 @@ describe('NO_DRAG selector', () => {
   it('never blocks the card root, whose own tabindex is -1', () => {
     expect(el('<div tabindex="-1">card</div>').matches(NO_DRAG)).toBe(false);
     expect(el('<p>plain content</p>').matches(NO_DRAG)).toBe(false);
+  });
+});
+
+describe('FocusCard question-first anatomy', () => {
+  it('hoists a lone choice prompt into the question and suppresses the in-body copy', () => {
+    renderStep([choice('c1', 'Which transport?', ['A', 'B'])]);
+    const q = container.querySelector('.focus-question');
+    expect(q?.textContent).toBe('Which transport?');
+    expect(container.querySelector('.choice-prompt')).toBeNull();
+    // a11y survives the suppression: the options group carries the prompt.
+    expect(container.querySelector('.options')?.getAttribute('aria-label')).toBe('Which transport?');
+    // The card is labelled by the hoisted heading.
+    expect(container.querySelector('.focus-card')?.getAttribute('aria-labelledby')).toBe(q?.id);
+  });
+
+  it('reserves the empty revision and media landing slots', () => {
+    renderStep([choice('c1', 'Which transport?', ['A', 'B'])]);
+    expect(container.querySelector('.focus-revision')).not.toBeNull();
+    expect(container.querySelector('.focus-media')).not.toBeNull();
+  });
+
+  it('heads a single-decidable card with the prompt and demotes the title to the meta eyebrow', () => {
+    renderStep([card('k1', 'Transport choice', [choice('c1', 'Which transport?', ['A', 'B'])])]);
+    expect(container.querySelector('.focus-question')?.textContent).toBe('Which transport?');
+    expect(container.querySelector('.focus-meta-eyebrow')?.textContent).toBe('Transport choice');
+    // The in-body card head is hoisted out, not duplicated.
+    expect(container.querySelector('.card-head')).toBeNull();
+    expect(container.querySelector('.choice-prompt')).toBeNull();
+  });
+
+  it('heads a multi-decidable card with its title and keeps the child prompts inline', () => {
+    renderStep([
+      card('k1', 'Two calls', [choice('c1', 'First?', ['A', 'B']), choice('c2', 'Second?', ['C', 'D'])]),
+    ]);
+    expect(container.querySelector('.focus-question')?.textContent).toBe('Two calls');
+    expect(container.querySelector('.focus-meta-eyebrow')).toBeNull();
+    expect(container.querySelector('.card-head')).toBeNull();
+    const prompts = [...container.querySelectorAll('.choice-prompt')].map((p) => p.textContent);
+    expect(prompts).toEqual(['First?', 'Second?']);
+  });
+
+  it('demotes markdown lead-in to a clamped block and heavy blocks to titled disclosures', () => {
+    renderStep([markdown('m1', 'lead-in prose'), code('code1'), approval('a1', 'Ship it?')], 0);
+    const context = container.querySelector('.focus-context');
+    expect(context).not.toBeNull();
+    expect(context?.querySelector('.markdown-block.focus-context-md')).not.toBeNull();
+    // The code block collapses behind a disclosure titled by its language.
+    const header = context?.querySelector('.cc-group-header');
+    expect(header?.textContent).toContain('go');
+    expect(container.querySelector('.focus-question')?.textContent).toBe('Ship it?');
   });
 });

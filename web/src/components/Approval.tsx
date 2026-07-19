@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useContext, useEffect, useRef, useState } from 'react';
 import { useGroupReadOnly } from '@cc-interact/react';
 import type { Approval as ApprovalBlock } from '../schema';
 import type { Interactions } from '../events';
@@ -8,10 +8,13 @@ import { useDecidable } from '../keyboard';
 import { Mark } from './Mark';
 import { ReplyItem } from './ReplyThread';
 import { DetailDisclosure } from './Detail';
+import { FocusStepContext } from './focusStep';
 
 export function Approval({ block, interactions }: { block: ApprovalBlock; interactions: Interactions }) {
   const { post, closed } = usePresent();
   const readOnly = useGroupReadOnly();
+  const focus = useContext(FocusStepContext);
+  const suppressPrompt = focus?.headlineId === block.id;
   const [composing, setComposing] = useState(false);
   const [draft, setDraft] = useState('');
   // Feedback is append-only and echoes back through the stream; a pending item
@@ -55,9 +58,9 @@ export function Approval({ block, interactions }: { block: ApprovalBlock; intera
 
   return (
     <div className="approval" ref={ref} data-kbd-cursor={cursor || undefined} data-composing={composing || undefined}>
-      {block.prompt && <p className="approval-prompt">{block.prompt}</p>}
+      {!suppressPrompt && block.prompt && <p className="approval-prompt">{block.prompt}</p>}
       {block.detail && <DetailDisclosure detail={block.detail} />}
-      <div className="verdict-pair" role="radiogroup" aria-label="verdict">
+      <div className="verdict-pair" role="radiogroup" aria-label={suppressPrompt && block.prompt ? block.prompt : 'verdict'}>
         <button
           type="button"
           role="radio"

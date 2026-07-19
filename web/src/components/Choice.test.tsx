@@ -217,3 +217,74 @@ describe('Choice detail disclosure', () => {
     expect(container.querySelector('.option-detail .cc-group')).toBeNull();
   });
 });
+
+describe('Choice aligned fact grid', () => {
+  const aligned = (): ChoiceBlock => ({
+    id: 'c1',
+    type: 'choice',
+    multi: false,
+    options: [
+      { id: 'o0', label: 'A', facts: [{ label: 'Latency', value: '12ms', tone: 'good' }, { label: 'Cost', value: '$5' }] },
+      { id: 'o1', label: 'B', facts: [{ label: 'Latency', value: '80ms' }, { label: 'Cost', value: '$2', tone: 'bad' }] },
+    ],
+  });
+
+  it('renders one axis header and aligns fact values into cells when labels match', () => {
+    render(aligned(), empty());
+    const options = container.querySelector('.options') as HTMLElement;
+    expect(options.hasAttribute('data-facts-aligned')).toBe(true);
+    expect(options.style.getPropertyValue('--fact-count')).toBe('2');
+    const axes = [...container.querySelectorAll('.fact-axes .fact-axis')].map((a) => a.textContent);
+    expect(axes).toEqual(['Latency', 'Cost']);
+    // Values render as aligned cells, not the per-option stack.
+    expect(container.querySelector('.option-facts')).toBeNull();
+    const cells = [...container.querySelectorAll('.option .fact-cell .fact-cell-value')].map((c) => c.textContent);
+    expect(cells).toEqual(['12ms', '$5', '80ms', '$2']);
+    // Tone survives onto the cell.
+    expect(container.querySelector('.fact-cell.fact-good .fact-cell-value')?.textContent).toBe('12ms');
+    expect(container.querySelector('.fact-cell.fact-bad .fact-cell-value')?.textContent).toBe('$2');
+  });
+
+  it('falls back to byte-identical per-option markup on any label mismatch', () => {
+    const mismatch: ChoiceBlock = {
+      id: 'c1',
+      type: 'choice',
+      multi: false,
+      options: [
+        { id: 'o0', label: 'A', facts: [{ label: 'Latency', value: '12ms' }] },
+        { id: 'o1', label: 'B', facts: [{ label: 'Speed', value: '80ms' }] },
+      ],
+    };
+    render(mismatch, empty());
+    const options = container.querySelector('.options') as HTMLElement;
+    expect(options.hasAttribute('data-facts-aligned')).toBe(false);
+    expect(container.querySelector('.fact-axes')).toBeNull();
+    expect(container.querySelector('.fact-cell')).toBeNull();
+    // The current per-option stack renders unchanged.
+    const stacks = container.querySelectorAll('.option-facts');
+    expect(stacks.length).toBe(2);
+    expect(container.querySelector('.option-facts .fact .fact-value')?.textContent).toBe('12ms');
+    expect(container.querySelector('.option-facts .fact .fact-label')?.textContent).toBe('Latency');
+  });
+});
+
+describe('Choice recommended badge', () => {
+  it('stamps the recommended option and marks the row', () => {
+    const block: ChoiceBlock = {
+      id: 'c1',
+      type: 'choice',
+      multi: false,
+      options: [
+        { id: 'o0', label: 'A', recommended: true },
+        { id: 'o1', label: 'B' },
+      ],
+    };
+    render(block, empty());
+    const rows = container.querySelectorAll('.option');
+    expect(rows[0]!.classList.contains('recommended')).toBe(true);
+    expect(rows[1]!.classList.contains('recommended')).toBe(false);
+    const reco = rows[0]!.querySelector('.option-label .option-reco');
+    expect(reco).not.toBeNull();
+    expect(rows[1]!.querySelector('.option-reco')).toBeNull();
+  });
+});
