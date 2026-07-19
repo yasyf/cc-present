@@ -1,3 +1,4 @@
+import { writeFileSync } from 'node:fs';
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
@@ -8,7 +9,17 @@ const devPort = process.env.CC_PRESENT_DEV_PORT ?? '8790';
 const devTarget = `http://127.0.0.1:${devPort}`;
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [
+    react(),
+    {
+      // emptyOutDir wipes dist on every build; restore the tracked .gitkeep
+      // that keeps //go:embed all:dist compiling on web-less checkouts.
+      name: 'restore-gitkeep',
+      closeBundle() {
+        writeFileSync(new URL('../internal/web/dist/.gitkeep', import.meta.url), '');
+      },
+    },
+  ],
   // Absolute asset URLs (/assets/...) so the SPA loads under deep links like /p/<ref>.
   base: '/',
   build: {

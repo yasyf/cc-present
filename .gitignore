@@ -35,10 +35,10 @@ examples/packs/example/node_modules/
 examples/packs/example/dist/
 examples/packs/example/bun.lock
 
-# Embedded SPA build output — rebuilt by the web build; keep only the committed
-# placeholder so a clean tree compiles with no web toolchain.
+# Embedded SPA build output — rebuilt by the web build; keep only .gitkeep so
+# //go:embed all:dist compiles in a clean tree.
 internal/web/dist/*
-!internal/web/dist/index.html
+!internal/web/dist/.gitkeep
 
 # bootstrap verify binary smoke test
 .go-smoke/

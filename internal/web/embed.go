@@ -9,9 +9,8 @@ import (
 //go:embed all:dist
 var dist embed.FS
 
-// Dist is the built SPA rooted at the dist directory. It always contains at
-// least the committed placeholder index.html so a clean tree compiles; a real
-// web build replaces it with hashed assets.
+// Dist is the build-output-only SPA rooted at the dist directory. The tracked
+// .gitkeep lets the embed compile before the web toolchain has produced a build.
 func Dist() fs.FS {
 	sub, err := fs.Sub(dist, "dist")
 	if err != nil {

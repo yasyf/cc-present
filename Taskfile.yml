@@ -1,10 +1,10 @@
 version: '3'
 
-# The web SPA MUST be built before the Go binary: //go:embed all:internal/web/dist
-# reads at compile time, so a stale or empty dist gets baked into the binary
-# otherwise. `build` runs build-web then build-go so the order is enforced. A
-# clean tree still compiles against the committed placeholder index.html when the
-# web toolchain is absent.
+# The web SPA MUST be built before the Go binary: //go:embed all:dist reads at
+# compile time, so a stale or empty dist gets baked into the binary otherwise.
+# `build` runs build-web then build-go so the order is enforced. dist is
+# build-output-only; its tracked .gitkeep keeps clean clones compiling, while the
+# daemon refuses to start without a real, internally consistent web build.
 
 vars:
   VERSION:

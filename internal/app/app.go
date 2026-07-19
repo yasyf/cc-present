@@ -6,6 +6,7 @@ package app
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/yasyf/cc-interact/channel"
 	"github.com/yasyf/cc-interact/cmd"
@@ -18,6 +19,7 @@ import (
 	ccdaemon "github.com/yasyf/cc-present/internal/daemon"
 	"github.com/yasyf/cc-present/internal/packs"
 	"github.com/yasyf/cc-present/internal/version"
+	"github.com/yasyf/cc-present/internal/web"
 )
 
 const (
@@ -84,6 +86,9 @@ func serve(ctx context.Context) error {
 		return err
 	}
 	loader := packs.NewLoader(cfg.PackDirs, cfg.DisabledPacks)
+	if err := web.Validate(); err != nil {
+		return fmt.Errorf("validate embedded web build: %w", err)
+	}
 	return ccdaemon.Serve(ctx, Paths(), version.String(), cfg.Bind, token, loader, meshtrust.Detect())
 }
 
