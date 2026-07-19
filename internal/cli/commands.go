@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -100,6 +101,34 @@ func dryRunReport(dd *doc.Doc, pt doc.PackTypes) (string, bool) {
 		return err.Error(), false
 	}
 	return "ok", true
+}
+
+// visualNudge returns a single-line, non-blocking reminder naming every choice
+// whose options carry no visual, or "" when every choice ships at least one. push
+// writes it to stderr: a prose-only decision is allowed, but the default is a
+// picture of the tradeoff, so the CLI flags choices that ship without one.
+func visualNudge(dd *doc.Doc) string {
+	var proseOnly []string
+	scan := func(b doc.Block) {
+		if c, ok := b.(*doc.Choice); ok && len(doc.Visuals(c)) == 0 {
+			proseOnly = append(proseOnly, c.ID)
+		}
+	}
+	for _, b := range dd.Blocks {
+		scan(b)
+		for _, child := range doc.Children(b) {
+			scan(child)
+		}
+	}
+	if len(proseOnly) == 0 {
+		return ""
+	}
+	subject := "choice ships"
+	if len(proseOnly) > 1 {
+		subject = "choices ship"
+	}
+	return fmt.Sprintf("hint: %d %s without a visual (%s); attach an option.visual or lead the card with a diagram",
+		len(proseOnly), subject, strings.Join(proseOnly, ", "))
 }
 
 // blockDoc wraps a lone block in a minimal envelope so update-block --dry-run
@@ -206,6 +235,9 @@ func newPushCmd(d cmd.Deps) *cobra.Command {
 				if err != nil {
 					return err
 				}
+				if hint := visualNudge(dd); hint != "" {
+					_, _ = fmt.Fprintln(c.ErrOrStderr(), hint)
+				}
 				msg, ok := dryRunReport(dd, packs.Load(cfg.PackDirs, cfg.DisabledPacks))
 				_, _ = fmt.Fprintln(c.OutOrStdout(), msg)
 				if !ok {
@@ -246,6 +278,9 @@ func newPushCmd(d cmd.Deps) *cobra.Command {
 			_, _ = fmt.Fprintf(out, "url: %s\n", res.URL)
 			for _, u := range res.TailnetURLs {
 				_, _ = fmt.Fprintf(out, "tailnet: %s\n", u)
+			}
+			if hint := visualNudge(dd); hint != "" {
+				_, _ = fmt.Fprintln(c.ErrOrStderr(), hint)
 			}
 			return nil
 		},

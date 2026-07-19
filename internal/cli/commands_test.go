@@ -124,6 +124,47 @@ func mustBlock(t *testing.T, s string) doc.Block {
 	return b
 }
 
+func TestVisualNudge(t *testing.T) {
+	tests := []struct {
+		name string
+		raw  string
+		want string
+	}{
+		{
+			name: "no choices",
+			raw:  `{"version":1,"title":"T","blocks":[{"id":"m1","type":"markdown","md":"hi"}]}`,
+			want: "",
+		},
+		{
+			name: "every option carries a visual",
+			raw:  `{"version":1,"title":"T","blocks":[{"id":"ch1","type":"choice","options":[{"id":"o1","label":"A","visual":{"id":"v1","type":"code","lang":"go","code":"x"}}]}]}`,
+			want: "",
+		},
+		{
+			name: "one option with a visual is enough",
+			raw:  `{"version":1,"title":"T","blocks":[{"id":"ch1","type":"choice","options":[{"id":"o1","label":"A","visual":{"id":"v1","type":"code","lang":"go","code":"x"}},{"id":"o2","label":"B"}]}]}`,
+			want: "",
+		},
+		{
+			name: "prose-only top-level choice",
+			raw:  `{"version":1,"title":"T","blocks":[{"id":"ch1","type":"choice","options":[{"id":"o1","label":"A"}]}]}`,
+			want: "hint: 1 choice ships without a visual (ch1); attach an option.visual or lead the card with a diagram",
+		},
+		{
+			name: "prose-only choices at top level and inside a card",
+			raw:  `{"version":1,"title":"T","blocks":[{"id":"ch1","type":"choice","options":[{"id":"o1","label":"A"}]},{"id":"c1","type":"card","children":[{"id":"ch2","type":"choice","options":[{"id":"o2","label":"B"}]}]}]}`,
+			want: "hint: 2 choices ship without a visual (ch1, ch2); attach an option.visual or lead the card with a diagram",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := visualNudge(mustDoc(t, tt.raw)); got != tt.want {
+				t.Fatalf("visualNudge() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestDryRunReport(t *testing.T) {
 	tests := []struct {
 		name    string
