@@ -19,6 +19,9 @@ type Client struct{ c *ccd.Client }
 // NewClient wraps a substrate control client.
 func NewClient(c *ccd.Client) *Client { return &Client{c: c} }
 
+// CloseSession closes the persistent control session.
+func (cl *Client) CloseSession() error { return cl.c.Close() }
+
 // StartResult is what a start reports back to the CLI.
 type StartResult struct {
 	SubjectID    string

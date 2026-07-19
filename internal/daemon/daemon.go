@@ -17,8 +17,8 @@ import (
 	"github.com/yasyf/cc-interact/channel"
 	ccd "github.com/yasyf/cc-interact/daemon"
 	ccevent "github.com/yasyf/cc-interact/event"
-	"github.com/yasyf/cc-interact/paths"
 	"github.com/yasyf/cc-interact/subject"
+	"github.com/yasyf/daemonkit/paths"
 	"github.com/yasyf/synckit/meshtrust"
 
 	"github.com/yasyf/cc-present/internal/assets"

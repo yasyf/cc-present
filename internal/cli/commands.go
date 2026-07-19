@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -46,7 +47,13 @@ func readInput(arg string, in io.Reader) ([]byte, error) {
 	return os.ReadFile(arg)
 }
 
-func client(d cmd.Deps) *ccdaemon.Client { return ccdaemon.NewClient(d.NewClient()) }
+func client(ctx context.Context, d cmd.Deps) (*ccdaemon.Client, error) {
+	raw, err := d.NewClient(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return ccdaemon.NewClient(raw), nil
+}
 
 // jsonErrorAt annotates a JSON syntax error with the line and column of the
 // offending byte in raw; any other error passes through unchanged. A nested
@@ -127,7 +134,11 @@ func newStartCmd(d cmd.Deps) *cobra.Command {
 			if err := d.EnsureCurrent(ctx); err != nil {
 				return err
 			}
-			cl := client(d)
+			cl, err := client(ctx, d)
+			if err != nil {
+				return err
+			}
+			defer func() { _ = cl.CloseSession() }()
 			sess, scope, pid := sessionOr(session), mustCwd(cwd), d.ClaudePID()
 			var docJSON json.RawMessage
 			if docPath != "" {
@@ -203,7 +214,11 @@ func newPushCmd(d cmd.Deps) *cobra.Command {
 			if err := d.EnsureCurrent(ctx); err != nil {
 				return err
 			}
-			cl := client(d)
+			cl, err := client(ctx, d)
+			if err != nil {
+				return err
+			}
+			defer func() { _ = cl.CloseSession() }()
 			sess, scope, pid := sessionOr(session), mustCwd(cwd), d.ClaudePID()
 			subjectID, port, err := cl.Resolve(ctx, sess, scope, pid)
 			if err != nil {
@@ -266,7 +281,11 @@ func newUpdateBlockCmd(d cmd.Deps) *cobra.Command {
 			if err := d.EnsureCurrent(ctx); err != nil {
 				return err
 			}
-			cl := client(d)
+			cl, err := client(ctx, d)
+			if err != nil {
+				return err
+			}
+			defer func() { _ = cl.CloseSession() }()
 			sess, scope, pid := sessionOr(session), mustCwd(cwd), d.ClaudePID()
 			subjectID, port, err := cl.Resolve(ctx, sess, scope, pid)
 			if err != nil {
@@ -304,7 +323,12 @@ func newRemoveBlockCmd(d cmd.Deps) *cobra.Command {
 			if err := d.EnsureCurrent(ctx); err != nil {
 				return err
 			}
-			return client(d).RemoveBlock(ctx, sessionOr(session), mustCwd(cwd), d.ClaudePID(), args[0])
+			cl, err := client(ctx, d)
+			if err != nil {
+				return err
+			}
+			defer func() { _ = cl.CloseSession() }()
+			return cl.RemoveBlock(ctx, sessionOr(session), mustCwd(cwd), d.ClaudePID(), args[0])
 		},
 	}
 	c.Flags().StringVar(&session, "session", "", "Claude session id (defaults to $CLAUDE_CODE_SESSION_ID)")
@@ -330,7 +354,12 @@ func newReplyCmd(d cmd.Deps) *cobra.Command {
 			if err := d.EnsureCurrent(ctx); err != nil {
 				return err
 			}
-			if err := client(d).Reply(ctx, sessionOr(session), mustCwd(cwd), d.ClaudePID(), block, bodyMd); err != nil {
+			cl, err := client(ctx, d)
+			if err != nil {
+				return err
+			}
+			defer func() { _ = cl.CloseSession() }()
+			if err := cl.Reply(ctx, sessionOr(session), mustCwd(cwd), d.ClaudePID(), block, bodyMd); err != nil {
 				return err
 			}
 			_, _ = fmt.Fprintf(c.OutOrStdout(), "replied: %s\n", block)
@@ -357,7 +386,12 @@ func newRoundCmd(d cmd.Deps) *cobra.Command {
 			if err := d.EnsureCurrent(ctx); err != nil {
 				return err
 			}
-			n, err := client(d).Round(ctx, sessionOr(session), mustCwd(cwd), d.ClaudePID(), title)
+			cl, err := client(ctx, d)
+			if err != nil {
+				return err
+			}
+			defer func() { _ = cl.CloseSession() }()
+			n, err := cl.Round(ctx, sessionOr(session), mustCwd(cwd), d.ClaudePID(), title)
 			if err != nil {
 				return err
 			}
@@ -385,7 +419,12 @@ func newRevisingCmd(d cmd.Deps) *cobra.Command {
 			if err := d.EnsureCurrent(ctx); err != nil {
 				return err
 			}
-			return client(d).Revising(ctx, sessionOr(session), mustCwd(cwd), d.ClaudePID(), args, note)
+			cl, err := client(ctx, d)
+			if err != nil {
+				return err
+			}
+			defer func() { _ = cl.CloseSession() }()
+			return cl.Revising(ctx, sessionOr(session), mustCwd(cwd), d.ClaudePID(), args, note)
 		},
 	}
 	c.Flags().StringVar(&note, "note", "", "note shown with the revising announcement")
@@ -408,7 +447,12 @@ func newOutcomesCmd(d cmd.Deps) *cobra.Command {
 			if err := d.EnsureCurrent(ctx); err != nil {
 				return err
 			}
-			raw, err := client(d).Outcomes(ctx, sessionOr(session), mustCwd(cwd), d.ClaudePID())
+			cl, err := client(ctx, d)
+			if err != nil {
+				return err
+			}
+			defer func() { _ = cl.CloseSession() }()
+			raw, err := cl.Outcomes(ctx, sessionOr(session), mustCwd(cwd), d.ClaudePID())
 			if err != nil {
 				return err
 			}
@@ -444,7 +488,12 @@ func newCloseCmd(d cmd.Deps) *cobra.Command {
 			if err := d.EnsureCurrent(ctx); err != nil {
 				return err
 			}
-			slug, err := client(d).Close(ctx, sessionOr(session), mustCwd(cwd), d.ClaudePID(), summary)
+			cl, err := client(ctx, d)
+			if err != nil {
+				return err
+			}
+			defer func() { _ = cl.CloseSession() }()
+			slug, err := cl.Close(ctx, sessionOr(session), mustCwd(cwd), d.ClaudePID(), summary)
 			if err != nil {
 				return err
 			}

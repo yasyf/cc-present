@@ -8,7 +8,7 @@ import (
 	"time"
 
 	ccd "github.com/yasyf/cc-interact/daemon"
-	"github.com/yasyf/cc-interact/paths"
+	"github.com/yasyf/daemonkit/paths"
 
 	"github.com/yasyf/cc-present/internal/packs"
 )
@@ -44,16 +44,20 @@ func startTestDaemon(ctx context.Context, t *testing.T) *Client {
 		<-errCh
 	})
 
-	raw := ccd.NewClient(p.SocketPath())
 	deadline := time.Now().Add(5 * time.Second)
-	for time.Now().Before(deadline) {
+	for {
 		select {
 		case err := <-errCh:
 			t.Fatalf("daemon exited before becoming healthy: %v", err)
 		default:
 		}
-		if r, err := raw.Health(); err == nil && r.OK {
+		raw, err := ccd.NewClient(ctx, ccd.ClientConfig{Socket: p.SocketPath(), Build: "v1.0.0"})
+		if err == nil {
+			t.Cleanup(func() { _ = raw.Close() })
 			return NewClient(raw)
+		}
+		if time.Now().After(deadline) {
+			break
 		}
 		time.Sleep(20 * time.Millisecond)
 	}

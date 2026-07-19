@@ -39,7 +39,12 @@ func runTrust(ctx context.Context, out io.Writer, d cmd.Deps) error {
 		_, _ = fmt.Fprintf(out, "synckit not detected (no %s); tailnet trust off\n", path)
 		return nil
 	}
-	renderTrust(out, path, tp.Mesh(ctx), readHTTPInfo(d.Paths), d.NewClient().Available())
+	client, err := d.NewClient(ctx)
+	live := err == nil
+	if live {
+		defer func() { _ = client.Close() }()
+	}
+	renderTrust(out, path, tp.Mesh(ctx), readHTTPInfo(d.Paths), live)
 	return nil
 }
 

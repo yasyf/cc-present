@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	ccd "github.com/yasyf/cc-interact/daemon"
-	"github.com/yasyf/cc-interact/paths"
+	"github.com/yasyf/daemonkit/paths"
 )
 
 func testPaths(t *testing.T) paths.Paths {

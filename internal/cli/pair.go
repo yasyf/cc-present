@@ -14,7 +14,7 @@ import (
 
 	"github.com/yasyf/cc-interact/cmd"
 	ccd "github.com/yasyf/cc-interact/daemon"
-	"github.com/yasyf/cc-interact/paths"
+	"github.com/yasyf/daemonkit/paths"
 
 	"github.com/yasyf/cc-present/internal/app"
 )
@@ -139,32 +139,34 @@ func setBind(bind string) error {
 // published handshake. A running daemon is restarted when its effective bind
 // differs or the token changed; otherwise a stopped daemon is cold-started.
 func ensureDaemon(ctx context.Context, d cmd.Deps, desiredBind string, tokenChanged bool) (ccd.HTTPInfo, error) {
-	client := d.NewClient()
-	if client.Available() {
-		info := readHTTPInfo(d.Paths)
-		if tokenChanged || effectiveBind(info.Bind) != desiredBind {
-			if err := restartDaemon(ctx, d, client); err != nil {
-				return ccd.HTTPInfo{}, err
-			}
-		}
-	} else if err := d.EnsureCurrent(ctx); err != nil {
+	if err := d.EnsureCurrent(ctx); err != nil {
 		return ccd.HTTPInfo{}, err
 	}
 	info := readHTTPInfo(d.Paths)
+	if tokenChanged || effectiveBind(info.Bind) != desiredBind {
+		client, err := d.NewClient(ctx)
+		if err != nil {
+			return ccd.HTTPInfo{}, err
+		}
+		if err := restartDaemon(ctx, d, client); err != nil {
+			return ccd.HTTPInfo{}, err
+		}
+		info = readHTTPInfo(d.Paths)
+	}
 	if info.Port == 0 {
 		return ccd.HTTPInfo{}, errors.New("daemon did not publish its HTTP port")
 	}
 	return info, nil
 }
 
-// restartDaemon steps the running daemon down, waits for it to release the
-// socket, then respawns one that re-reads the host config.
+// restartDaemon retires the running daemon session, then lets EnsureCurrent
+// replace it with an exact-build daemon that re-reads the host config.
 func restartDaemon(ctx context.Context, d cmd.Deps, client *ccd.Client) error {
-	if _, err := client.Shutdown(); err != nil {
+	if err := client.Shutdown(ctx); err != nil {
 		return fmt.Errorf("shut down daemon: %w", err)
 	}
-	if !client.WaitGone(ccd.UpgradeTimeout) {
-		return errors.New("daemon did not release the socket after shutdown")
+	if err := client.Close(); err != nil {
+		return fmt.Errorf("close daemon session: %w", err)
 	}
 	return d.EnsureCurrent(ctx)
 }
