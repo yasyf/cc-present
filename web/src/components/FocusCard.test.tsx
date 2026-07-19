@@ -272,6 +272,39 @@ describe('FocusCard question-first anatomy', () => {
     expect(container.querySelector('.focus-media .code-block')).not.toBeNull();
   });
 
+  it('collapses the option-visual stage to a titled disclosure at the compact breakpoint', () => {
+    const original = window.matchMedia;
+    window.matchMedia = ((query: string) => ({
+      matches: query.includes('440px'),
+      media: query,
+      onchange: null,
+      addEventListener() {},
+      removeEventListener() {},
+      addListener() {},
+      removeListener() {},
+      dispatchEvent: () => false,
+    })) as typeof window.matchMedia;
+    try {
+      const withVisual: Block = {
+        id: 'c1',
+        type: 'choice',
+        prompt: 'Which transport?',
+        options: [
+          { id: 'o0', label: 'A', visual: { id: 'o0v', type: 'code', lang: 'go', code: 'package main' } },
+          { id: 'o1', label: 'B' },
+        ],
+      } as Block;
+      renderStep([withVisual]);
+      const media = container.querySelector('.focus-media');
+      expect(media?.tagName).toBe('DETAILS');
+      expect(media?.querySelector('summary.focus-media-summary')?.textContent).toBe('go');
+      // The visual still mounts, now inside the disclosure body.
+      expect(container.querySelector('.focus-media .code-block')).not.toBeNull();
+    } finally {
+      window.matchMedia = original;
+    }
+  });
+
   it('demotes markdown lead-in to a clamped block and heavy blocks to titled disclosures', () => {
     renderStep([markdown('m1', 'lead-in prose'), code('code1'), approval('a1', 'Ship it?')], 0);
     const context = container.querySelector('.focus-context');

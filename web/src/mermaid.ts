@@ -15,17 +15,28 @@ function currentThemeKey(): string {
   return window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
 }
 
-// themeVariables resolves the mermaid 'base' knobs to concrete colors — mermaid
-// rejects var() strings, so the tokens are read off the document element.
+// resolveColor forces a token to a concrete rgb: a custom property's own computed
+// value keeps its unresolved light-dark()/color-mix() string, which mermaid rejects.
+function resolveColor(probe: HTMLElement, token: string, fallback: string): string {
+  probe.style.color = `var(${token}, ${fallback})`;
+  return getComputedStyle(probe).color || fallback;
+}
+
+// themeVariables resolves the mermaid 'base' knobs to concrete colors through a probe
+// span (attached for the read); it inherits color-scheme so light-dark() picks a side.
 function themeVariables(): Record<string, string> {
-  const s = getComputedStyle(document.documentElement);
-  const read = (name: string, fallback: string) => s.getPropertyValue(name).trim() || fallback;
-  const surface = read('--surface', '#ffffff');
-  const text = read('--text', '#1a1a1a');
-  const border = read('--border', '#cccccc');
-  const dim = read('--dim', '#666666');
-  const accent = read('--accent', '#3b5bdb');
-  const font = read('--font-prose', 'system-ui, sans-serif');
+  const probe = document.createElement('span');
+  probe.style.cssText = 'position:absolute;width:0;height:0;overflow:hidden;visibility:hidden';
+  document.body.appendChild(probe);
+  const color = (token: string, fallback: string) => resolveColor(probe, token, fallback);
+  const surface = color('--surface', '#ffffff');
+  const text = color('--text', '#1a1a1a');
+  const border = color('--border', '#cccccc');
+  const dim = color('--dim', '#666666');
+  const accent = color('--accent', '#3b5bdb');
+  const font =
+    getComputedStyle(document.documentElement).getPropertyValue('--font-prose').trim() || 'system-ui, sans-serif';
+  probe.remove();
   return {
     background: surface,
     primaryColor: surface,

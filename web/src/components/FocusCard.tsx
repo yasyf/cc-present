@@ -53,6 +53,42 @@ function FocusContextBlock({ block, interactions }: { block: Block; interactions
   return <BlockRenderer block={block} interactions={interactions} />;
 }
 
+// useCompact tracks the --bp-compact (440px) breakpoint, mirroring useTheme's
+// media-query subscription, so the stage can collapse on a phone.
+function useCompact(): boolean {
+  const [compact, setCompact] = useState(() => window.matchMedia('(max-width: 440px)').matches);
+  useEffect(() => {
+    const mql = window.matchMedia('(max-width: 440px)');
+    const onChange = (e: MediaQueryListEvent) => setCompact(e.matches);
+    mql.addEventListener('change', onChange);
+    return () => mql.removeEventListener('change', onChange);
+  }, []);
+  return compact;
+}
+
+// StageMedia is the option-visual stage. It always mounts the .focus-media slot
+// (empty until an option publishes a visual); at --bp-compact a present visual
+// collapses to a titled <details> so it never crowds the options, expanding inline.
+function StageMedia({ visual, interactions }: { visual: OptionVisual | null; interactions: Interactions }) {
+  const compact = useCompact();
+  if (!visual) return <div className="focus-media" />;
+  if (compact) {
+    return (
+      <details className="focus-media focus-media-disclosure">
+        <summary className="focus-media-summary">{contextTitle(visual)}</summary>
+        <div className="focus-media-body">
+          <BlockBody block={visual} interactions={interactions} />
+        </div>
+      </details>
+    );
+  }
+  return (
+    <div className="focus-media">
+      <BlockBody block={visual} interactions={interactions} />
+    </div>
+  );
+}
+
 // RevisionCallout fills the reserved .focus-revision slot: a warn banner while the
 // step is being revised (passive after the 120s decay), else its changed-since-seen
 // note. Controls stay live throughout — this is warn-only.
@@ -270,9 +306,7 @@ export const FocusCard = forwardRef<HTMLDivElement, { step: FocusStep; interacti
               ))}
             </div>
           )}
-          <div className="focus-media">
-            {activeVisual && <BlockBody block={activeVisual} interactions={interactions} />}
-          </div>
+          <StageMedia visual={activeVisual} interactions={interactions} />
           <BlockRenderer key={step.block.id} block={step.block} interactions={interactions} />
         </div>
       </m.div>

@@ -374,6 +374,25 @@
 .focus-media:empty {
   display: none;
 }
+/* At --bp-compact FocusCard mounts the stage as a <details> so the demonstration
+   collapses to a titled row and expands inline; the height cap moves to the body. */
+.focus-media-disclosure {
+  max-height: none;
+  overflow: visible;
+}
+.focus-media-summary {
+  cursor: pointer;
+  font-family: var(--font-stamp);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  letter-spacing: var(--track-caps);
+  color: var(--muted);
+  padding: var(--space-2) 0;
+}
+.focus-media-body {
+  max-height: 42vh;
+  overflow: auto;
+}
 
 /* Prev / next controls: real buttons so a click commits a focused input. */
 .focus-nav {
@@ -477,7 +496,8 @@
 .focus-receipt {
   display: flex;
   align-items: baseline;
-  gap: var(--space-3);
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
   padding: var(--space-2) 0;
   border-bottom: 1px solid var(--line);
   border-left: 3px solid var(--line);
@@ -505,6 +525,14 @@
   letter-spacing: var(--track-caps);
   font-size: var(--text-2xs);
   color: var(--muted);
+}
+/* The committed value, wrapped to its own full-width row under the title. */
+.focus-receipt-answer {
+  flex-basis: 100%;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--dim);
+  overflow-wrap: anywhere;
 }
 
 /* --- Responsive: at --bp-compact the deck's prev/next controls become
