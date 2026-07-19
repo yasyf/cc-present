@@ -9,6 +9,7 @@ import { undecidedKey } from '../submit';
 import { submitItems } from '../decide';
 import type { SubmitItem } from '../decide';
 import { useKeyboardApi } from '../keyboard';
+import { useRevisionSummary } from '../revision';
 import { useInteractivePackTypes } from '../packs/registry';
 
 export interface SubmitBarProps {
@@ -55,6 +56,16 @@ export function SubmitBar({ blocks, showTally, doc, interactions, subject, hasHi
   const undecidedApprovalIds = items.filter((i) => i.kind === 'approval' && !i.decided).map((i) => i.id);
   const undecidedApprovals = undecidedApprovalIds.length;
   const armedKey = undecidedKey(undecidedApprovalIds);
+
+  // The agent's declared revising set surfaces here as a warning: submit stays
+  // enabled (human sovereignty), but the reviewer is told work is still in flight.
+  const revising = useRevisionSummary();
+  const revisingLine =
+    revising.revisingCount > 0
+      ? `Claude is still revising ${revising.revisingCount} ${revising.revisingCount === 1 ? 'step' : 'steps'}`
+      : revising.drafting
+        ? 'Claude is still drafting a step'
+        : null;
 
   const label = doc.submit?.label ?? 'Submit';
   // The confirm is derived, never synced: it keys on the exact set of undecided
@@ -143,6 +154,11 @@ export function SubmitBar({ blocks, showTally, doc, interactions, subject, hasHi
         {confirming && (
           <span className="submit-warn" role="status">
             {undecidedApprovals} {undecidedApprovals === 1 ? 'approval' : 'approvals'} still undecided
+          </span>
+        )}
+        {revisingLine && (
+          <span className="submit-revising" role="status">
+            {revisingLine}
           </span>
         )}
         {doc.submit?.note && <span className="submit-note">{doc.submit.note}</span>}

@@ -270,9 +270,9 @@ export function KeyboardProvider({ blocks, interactions, closed, round, onViewTo
           }
           break;
         case 'engage':
-          if (handle && (handle.kind === 'approval' || handle.kind === 'input' || handle.kind === 'pack')) {
+          if (handle?.specRef.current.engage) {
             e.preventDefault();
-            handle.specRef.current.engage?.();
+            handle.specRef.current.engage();
           }
           break;
         case 'submit':

@@ -3,7 +3,7 @@
 // block renders off that one cache. Interactions flow through usePostInteraction
 // and the FLIP hook animates top-level reorders on block.upserted.
 
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { AppShell, ToastStack, useFlip } from '@cc-interact/react';
 import { EventStreamProvider, useEventStream } from './stream';
@@ -114,6 +114,13 @@ function PresentView({ subject }: { subject: string }) {
   const toggleView = useCallback(() => setView(mode === 'focus' ? 'board' : 'focus'), [mode, setView]);
   const expandAll = useExpandAll();
 
+  // In focus mode the SubmitBar mounts only at the Review summary the deck reports;
+  // reset outside focus-live so a new round never flashes it mid-deck.
+  const [focusAtEnd, setFocusAtEnd] = useState(false);
+  useEffect(() => {
+    if (mode !== 'focus' || phase.kind !== 'live') setFocusAtEnd(false);
+  }, [mode, phase.kind]);
+
   const listRef = useRef<HTMLDivElement>(null);
   useFlip(listRef);
 
@@ -138,6 +145,7 @@ function PresentView({ subject }: { subject: string }) {
               interactions={state.interactions}
               round={currentRound}
               closed={closed}
+              onEndChange={setFocusAtEnd}
             />
           )}
         </>
@@ -167,7 +175,7 @@ function PresentView({ subject }: { subject: string }) {
           {phase.kind === 'waiting' && <WaitingPanel round={currentRound} lastRound={phase.lastRound} />}
         </>
       )}
-      {phase.kind === 'live' && (
+      {phase.kind === 'live' && (mode !== 'focus' || focusAtEnd) && (
         <SubmitBar
           blocks={liveBlocks}
           doc={state.doc}

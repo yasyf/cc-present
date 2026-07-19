@@ -1395,3 +1395,69 @@
     flex-basis: 100%;
   }
 }
+
+/* Diagram block: the client-rendered mermaid SVG, its skeleton, or an error card
+   over the raw source when rendering fails. */
+.diagram-block {
+  margin: 0;
+  border: 1px solid var(--line);
+  background: var(--card);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+}
+.diagram-title {
+  font-family: var(--font-stamp);
+  font-size: var(--text-2xs);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  margin-bottom: var(--space-2);
+}
+.diagram-svg {
+  display: flex;
+  justify-content: center;
+}
+.diagram-svg svg {
+  max-width: 100%;
+  height: auto;
+}
+.diagram-skeleton {
+  height: 140px;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--mono-bg) 60%, transparent);
+}
+.diagram-error {
+  margin: 0 0 var(--space-2);
+  font-family: var(--font-stamp);
+  font-size: var(--text-2xs);
+  color: var(--reject);
+}
+.diagram-source {
+  margin: 0;
+  overflow-x: auto;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--text);
+}
+
+/* Universal write-in row: an always-present chrome option beneath the authored
+   set, its inline field the escape hatch every choice guarantees. */
+.option-other {
+  margin-top: var(--space-2);
+  cursor: default;
+}
+.option-other-input {
+  width: 100%;
+  margin-top: var(--space-1);
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--card);
+  color: var(--text);
+  font: inherit;
+  resize: vertical;
+}
+.option-other-input:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
+}

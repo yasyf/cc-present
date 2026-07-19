@@ -646,6 +646,12 @@
   font-weight: 700;
   color: var(--reject);
 }
+/* The agent's revising set is still in flight; submit stays enabled beside it. */
+.submit-revising {
+  font-family: var(--font-stamp);
+  font-size: var(--text-2xs);
+  color: var(--accent-ink);
+}
 .submit-btn.confirm,
 .submit-btn.confirm:hover:not(:disabled) {
   background: var(--reject);

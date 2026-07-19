@@ -11,7 +11,8 @@ import { KeyboardProvider } from '../keyboard';
 import { FocusCard, NO_DRAG, resolveDragEnd, swipeCommit } from './FocusCard';
 import { focusSteps } from '../focus';
 import { emptyState } from '../reduce';
-import type { Interaction } from '../events';
+import { DECAY_MS, revisionStore } from '../revision';
+import type { Interaction, PresentState, Revising, WireFrame } from '../events';
 import type { Block } from '../schema';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -99,6 +100,7 @@ let container: HTMLDivElement;
 let root: Root;
 
 beforeEach(() => {
+  revisionStore.reset();
   container = document.createElement('div');
   document.body.appendChild(container);
   root = createRoot(container);
@@ -107,6 +109,8 @@ beforeEach(() => {
 afterEach(() => {
   act(() => root.unmount());
   container.remove();
+  vi.useRealTimers();
+  revisionStore.reset();
 });
 
 function renderCard(block: Block): void {
@@ -253,6 +257,21 @@ describe('FocusCard question-first anatomy', () => {
     expect(prompts).toEqual(['First?', 'Second?']);
   });
 
+  it('mounts the active option visual in the focus-media stage', () => {
+    const withVisual: Block = {
+      id: 'c1',
+      type: 'choice',
+      prompt: 'Which transport?',
+      options: [
+        { id: 'o0', label: 'A', visual: { id: 'o0v', type: 'code', lang: 'go', code: 'package main' } },
+        { id: 'o1', label: 'B' },
+      ],
+    } as Block;
+    renderStep([withVisual]);
+    // The first option is active at rest, so its visual mounts in the stage.
+    expect(container.querySelector('.focus-media .code-block')).not.toBeNull();
+  });
+
   it('demotes markdown lead-in to a clamped block and heavy blocks to titled disclosures', () => {
     renderStep([markdown('m1', 'lead-in prose'), code('code1'), approval('a1', 'Ship it?')], 0);
     const context = container.querySelector('.focus-context');
@@ -262,5 +281,74 @@ describe('FocusCard question-first anatomy', () => {
     const header = context?.querySelector('.cc-group-header');
     expect(header?.textContent).toContain('go');
     expect(container.querySelector('.focus-question')?.textContent).toBe('Ship it?');
+  });
+});
+
+function docState(ids: string[], revising: Revising = { blockIds: [] }): PresentState {
+  const base = emptyState();
+  return { ...base, doc: { ...base.doc, blocks: ids.map((id) => markdown(id, id)) }, revising };
+}
+const upsertFrame = (id: string): WireFrame => ({ type: 'block.upserted', block: markdown(id, id) });
+const revisingFrame = (ids: string[], note?: string): WireFrame => ({
+  type: 'revising.changed',
+  blockIds: ids,
+  ...(note !== undefined ? { note } : {}),
+});
+const revisionLine = (): { cls: string; text: string } => {
+  const el = container.querySelector('.focus-revision-line');
+  if (!el) throw new Error('no .focus-revision-line rendered');
+  return { cls: el.className, text: el.textContent ?? '' };
+};
+
+describe('FocusCard live-revision callout', () => {
+  it('warns while the step is being revised (controls stay live)', () => {
+    revisionStore.ingest(revisingFrame(['b1'], 'reworking per your pick'), docState(['b1']), {
+      blockIds: ['b1'],
+      note: 'reworking per your pick',
+    });
+    renderCard(markdown('b1', 'body'));
+    const l = revisionLine();
+    expect(l.cls).toContain('revising');
+    expect(l.text).toBe('Claude is rewriting this step — reworking per your pick');
+  });
+
+  it('drops the banner to a passive line after the 120s decay', () => {
+    vi.useFakeTimers();
+    revisionStore.ingest(revisingFrame(['b1'], 'reworking'), docState(['b1']), { blockIds: ['b1'], note: 'reworking' });
+    renderCard(markdown('b1', 'body'));
+    expect(revisionLine().cls).toContain('revising');
+    act(() => vi.advanceTimersByTime(DECAY_MS));
+    const l = revisionLine();
+    expect(l.cls).toContain('passive');
+    expect(l.text).toBe('Claude may still be revising this step');
+  });
+
+  it('shows the revised callout on arrival at a changed step', () => {
+    revisionStore.markLive();
+    revisionStore.ingest(upsertFrame('b1'), docState(['b1'], { blockIds: ['b1'], note: 'updated for step 1' }), {
+      blockIds: [],
+    });
+    renderCard(markdown('b1', 'body'));
+    const l = revisionLine();
+    expect(l.cls).toContain('callout');
+    expect(l.text).toBe('Updated after your earlier pick — updated for step 1');
+  });
+
+  it('shows the added callout, note omitted gracefully', () => {
+    revisionStore.markLive();
+    revisionStore.ingest(upsertFrame('b2'), docState(['b1']), { blockIds: [] });
+    renderCard(markdown('b2', 'body'));
+    const l = revisionLine();
+    expect(l.cls).toContain('callout');
+    expect(l.text).toBe('Claude added this step');
+  });
+
+  it('marks a step seen when the human leaves it', () => {
+    revisionStore.markLive();
+    revisionStore.ingest(upsertFrame('b1'), docState(['b1']), { blockIds: [] });
+    renderCard(markdown('b1', 'body'));
+    expect(revisionStore.unseenChange('b1')).not.toBeNull();
+    renderCard(markdown('b2', 'body'));
+    expect(revisionStore.unseenChange('b1')).toBeNull();
   });
 });

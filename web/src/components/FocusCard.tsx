@@ -1,18 +1,20 @@
-import { forwardRef, useCallback, useEffect, useRef } from 'react';
+import { forwardRef, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
 import { CollapsedGroup } from '@cc-interact/react';
 import { m, useDragControls, useIsPresent, useMotionValue, useReducedMotion, useTransform } from 'motion/react';
 import type { MotionValue, PanInfo } from 'motion/react';
 import type { FocusStep } from '../focus';
 import { stepHeadline, swipeVerdict } from '../focus';
-import type { Block } from '../schema';
+import type { Block, OptionVisual } from '../schema';
 import type { Interaction, Interactions } from '../events';
 import { usePresent } from '../present';
+import { revisionStore, useRevisingBanner, useUnseenChange } from '../revision';
 import { useExpandAll } from '../expand';
 import { renderMarkdown } from '../markdown';
-import { BlockRenderer } from './BlockRenderer';
+import { BlockBody, BlockRenderer } from './BlockRenderer';
 import { Clamped } from './Clamped';
-import { FocusStepContext } from './focusStep';
+import { FocusStageContext, FocusStepContext } from './focusStep';
+import type { FocusStageValue } from './focusStep';
 import { cardVariants } from './focusMotion';
 
 // Heavy lead-in blocks collapse to a one-line titled disclosure; markdown stays
@@ -49,6 +51,34 @@ function FocusContextBlock({ block, interactions }: { block: Block; interactions
     );
   }
   return <BlockRenderer block={block} interactions={interactions} />;
+}
+
+// RevisionCallout fills the reserved .focus-revision slot: a warn banner while the
+// step is being revised (passive after the 120s decay), else its changed-since-seen
+// note. Controls stay live throughout — this is warn-only.
+function RevisionCallout({ stepId }: { stepId: string }) {
+  const banner = useRevisingBanner(stepId);
+  const change = useUnseenChange(stepId);
+  if (banner) {
+    if (banner.passive) {
+      return <p className="focus-revision-line passive">Claude may still be revising this step</p>;
+    }
+    return (
+      <p className="focus-revision-line revising">
+        Claude is rewriting this step{banner.note ? ` — ${banner.note}` : ''}
+      </p>
+    );
+  }
+  if (change) {
+    const lead = change.kind === 'added' ? 'Claude added this step' : 'Updated after your earlier pick';
+    return (
+      <p className="focus-revision-line callout">
+        {lead}
+        {change.note ? ` — ${change.note}` : ''}
+      </p>
+    );
+  }
+  return null;
 }
 
 // A drag starts only off a non-interactive part of the card: elements that are
@@ -118,6 +148,11 @@ export const FocusCard = forwardRef<HTMLDivElement, { step: FocusStep; interacti
   const approveOpacity = useTransform(x, [30, 130], [0, 1]);
   const rejectOpacity = useTransform(x, [-130, -30], [1, 0]);
 
+  // The active option's visual, published by the step's Choice; rendered in the
+  // stage above the controls. Resets with the step (this card remounts per step).
+  const [activeVisual, setActiveVisual] = useState<OptionVisual | null>(null);
+  const stageValue = useMemo<FocusStageValue>(() => ({ setVisual: setActiveVisual }), []);
+
   const primaryId = step.primary?.id;
   const swipeable = step.swipeable && primaryId !== undefined && !closed;
   // The primary a live drag began against; a same-id card upsert can swap the
@@ -129,6 +164,10 @@ export const FocusCard = forwardRef<HTMLDivElement, { step: FocusStep; interacti
   useEffect(() => {
     x.set(0);
   }, [primaryId, x]);
+
+  // Mark the step seen on departure — this keyed card unmounts on a step change — so
+  // its badge and callout clear once viewed but persist while the human is here.
+  useEffect(() => () => revisionStore.markSeen(step.id), [step.id]);
 
   const onPointerDown = useCallback(
     (e: ReactPointerEvent<HTMLDivElement>) => {
@@ -177,6 +216,7 @@ export const FocusCard = forwardRef<HTMLDivElement, { step: FocusStep; interacti
 
   return (
     <FocusStepContext.Provider value={{ headlineId: headline.suppressId }}>
+      <FocusStageContext.Provider value={stageValue}>
       <m.div
         ref={ref}
         className="focus-card"
@@ -214,7 +254,9 @@ export const FocusCard = forwardRef<HTMLDivElement, { step: FocusStep; interacti
             )}
           </div>
         )}
-        <div className="focus-revision" />
+        <div className="focus-revision">
+          <RevisionCallout stepId={step.id} />
+        </div>
         {headline.text && (
           <h2 id={headingId} className="focus-question">
             {headline.text}
@@ -228,10 +270,13 @@ export const FocusCard = forwardRef<HTMLDivElement, { step: FocusStep; interacti
               ))}
             </div>
           )}
-          <div className="focus-media" />
+          <div className="focus-media">
+            {activeVisual && <BlockBody block={activeVisual} interactions={interactions} />}
+          </div>
           <BlockRenderer key={step.block.id} block={step.block} interactions={interactions} />
         </div>
       </m.div>
+      </FocusStageContext.Provider>
     </FocusStepContext.Provider>
   );
 });

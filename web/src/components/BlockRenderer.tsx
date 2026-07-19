@@ -45,11 +45,12 @@ const BUILTIN: { [T in BuiltinBlockType]: BuiltinRenderer<T> } = {
 };
 
 // BlockRenderer dispatches on the block's type, then threads the agent's replies
-// beneath it. Approval renders its replies inline, so it is returned bare; every
-// other block — built-in or pack — gets the shared ReplyThread.
+// beneath it. Approvals and choices thread their own replies inline (beside the
+// note channel), so they are returned bare; every other block gets the shared
+// ReplyThread.
 export function BlockRenderer({ block, interactions }: BlockProps) {
-  const inner = renderInner(block, interactions);
-  if (block.type === 'approval') return inner;
+  const inner = <BlockBody block={block} interactions={interactions} />;
+  if (block.type === 'approval' || block.type === 'choice') return inner;
   return (
     <>
       {inner}
@@ -58,7 +59,9 @@ export function BlockRenderer({ block, interactions }: BlockProps) {
   );
 }
 
-function renderInner(block: Block, interactions: Interactions) {
+// BlockBody dispatches a block to its renderer without the shared ReplyThread — the
+// focus-mode visual stage and option drill-downs render a block bare.
+export function BlockBody({ block, interactions }: BlockProps) {
   if (isPackBlock(block)) return <PackBlockView block={block} interactions={interactions} />;
   const Renderer = BUILTIN[block.type] as ComponentType<BlockProps>;
   return <Renderer block={block} interactions={interactions} />;

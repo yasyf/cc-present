@@ -98,8 +98,11 @@ describe('Choice keyboard index tags', () => {
   it('tags each option 1..n once the choice is cursored', () => {
     render(choice('c1', ['A', 'B', 'C']), empty());
     cursorOntoChoice();
-    const tags = [...container.querySelectorAll('.option-index')];
+    // The write-in row rides index n+1, so scope to the authored options.
+    const tags = [...container.querySelectorAll('.options .option-index')];
     expect(tags.map((t) => t.textContent)).toEqual(['1', '2', '3']);
+    // The chrome write-in row takes the next index (4) so a key lands the composer.
+    expect(container.querySelector('.option-other .option-index')?.textContent).toBe('4');
   });
 
   it('caps the index tags at the 1-9 keymap', () => {
@@ -265,6 +268,34 @@ describe('Choice aligned fact grid', () => {
     expect(stacks.length).toBe(2);
     expect(container.querySelector('.option-facts .fact .fact-value')?.textContent).toBe('12ms');
     expect(container.querySelector('.option-facts .fact .fact-label')?.textContent).toBe('Latency');
+  });
+});
+
+describe('Choice universal escape hatch', () => {
+  it('always renders a write-in row with an inline field', () => {
+    render(choice('c1', ['A', 'B']), empty());
+    const row = container.querySelector('.option-other');
+    expect(row).not.toBeNull();
+    expect(row?.querySelector('.option-label')?.textContent).toBe('Other');
+    expect(container.querySelector('.focus-card .choice input, .choice .option-other textarea')).not.toBeNull();
+  });
+
+  it('commits a single-select write-in as the sole answer, clearing authored picks', () => {
+    const posted = renderCapturing(choice('c1', ['A', 'B']), {
+      ...empty(),
+      choices: { c1: { optionIds: ['o0'] } },
+    });
+    // The field reads its value off the commit event, so seed it and blur (mirrors Input).
+    const field = container.querySelector('.option-other textarea') as HTMLTextAreaElement;
+    field.value = 'roll our own';
+    act(() => field.dispatchEvent(new FocusEvent('focusout', { bubbles: true })));
+    expect(posted).toContainEqual({ type: 'choice.selected', blockId: 'c1', optionIds: [], other: 'roll our own' });
+  });
+
+  it('renders an Add-note affordance whose feedback posts against the choice', () => {
+    render(choice('c1', ['A', 'B']), empty());
+    const link = container.querySelector('.feedback-affordance .link-btn');
+    expect(link?.textContent).toBe('Add note');
   });
 });
 

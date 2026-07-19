@@ -9,7 +9,8 @@ import type { PresentApi } from '../present';
 import { KeyboardProvider } from '../keyboard';
 import { SubmitBar } from './SubmitBar';
 import { emptyState } from '../reduce';
-import type { Interactions, Verdict } from '../events';
+import { revisionStore } from '../revision';
+import type { Interactions, Verdict, WireFrame } from '../events';
 import type { Approval, Block, Choice, Doc } from '../schema';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -56,6 +57,7 @@ let container: HTMLDivElement;
 let root: Root;
 
 beforeEach(() => {
+  revisionStore.reset();
   container = document.createElement('div');
   document.body.appendChild(container);
   root = createRoot(container);
@@ -63,6 +65,7 @@ beforeEach(() => {
 afterEach(() => {
   act(() => root.unmount());
   container.remove();
+  revisionStore.reset();
 });
 
 function render(props: { blocks: Block[]; interactions: Interactions; showTally?: boolean }): void {
@@ -134,6 +137,15 @@ describe('SubmitBar armed confirm', () => {
     act(() => (container.querySelector('.submit-actions .link-btn') as HTMLButtonElement).click());
     expect(btn().textContent).toBe('Submit');
     expect(container.querySelector('.submit-warn')).toBeNull();
+  });
+
+  it('warns that the agent is still revising while keeping submit enabled', () => {
+    revisionStore.ingest({ type: 'revising.changed', blockIds: ['a1'] } as WireFrame, undefined, {
+      blockIds: ['a1'],
+    });
+    render({ blocks: [approval('a1')], interactions: empty() });
+    expect(container.querySelector('.submit-revising')?.textContent).toBe('Claude is still revising 1 step');
+    expect((container.querySelector('.submit-btn') as HTMLButtonElement).disabled).toBe(false);
   });
 
   it('clears the arm on Escape while focus sits on the body', () => {

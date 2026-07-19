@@ -30,15 +30,30 @@ declare global {
   }
 }
 
+// findIn resolves an id against a block set plus every option visual: a visual is a
+// real doc-unique block the iOS client addresses in this view, so the walk descends
+// into choice options as well as card children.
+function findIn(blocks: Block[], blockId: string): Block | undefined {
+  for (const b of flatten(blocks)) {
+    if (b.id === blockId) return b;
+    if (b.type === 'choice') {
+      for (const o of b.options) {
+        if (o.visual?.id === blockId) return o.visual;
+      }
+    }
+  }
+  return undefined;
+}
+
 // A block id absent from the live doc may still belong to a closed round: the
 // iOS client loads this view for a historical pack block whose id a later
 // doc.replaced dropped, and its agent replies must still render somewhere. Fall
 // back to the frozen blocks of closed rounds, newest first.
 function findBlock(state: PresentState, blockId: string): Block | undefined {
-  const live = flatten(state.doc.blocks).find((b) => b.id === blockId);
+  const live = findIn(state.doc.blocks, blockId);
   if (live) return live;
   for (let i = state.rounds.history.length - 1; i >= 0; i--) {
-    const frozen = flatten(state.rounds.history[i]!.blocks).find((b) => b.id === blockId);
+    const frozen = findIn(state.rounds.history[i]!.blocks, blockId);
     if (frozen) return frozen;
   }
   return undefined;

@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest';
-import { TOAST_TEXT } from './stream';
+// @vitest-environment jsdom
+import { afterEach, describe, expect, it } from 'vitest';
+import { TOAST_TEXT, toastFor } from './stream';
 import type { WireFrame } from './events';
 
 // The wire union as data. `satisfies` proves every member is real; the key-set
@@ -56,5 +57,37 @@ describe('TOAST_TEXT', () => {
     ] as const) {
       expect(TOAST_TEXT[type]).toBeNull();
     }
+  });
+});
+
+describe('toastFor focus-mode suppression', () => {
+  const upserted: WireFrame = { type: 'block.upserted', block: { id: 'b1', type: 'markdown', md: 'x' } };
+
+  afterEach(() => {
+    document.body.innerHTML = '';
+  });
+
+  it('keeps the block.upserted toast in board mode (no focus deck mounted)', () => {
+    expect(toastFor(upserted)).toEqual({ kind: 'info', text: 'A block was updated' });
+  });
+
+  it('drops the block.upserted toast in focus mode — the per-step callout replaces it', () => {
+    const deck = document.createElement('div');
+    deck.className = 'focus-deck';
+    document.body.appendChild(deck);
+    expect(toastFor(upserted)).toBeNull();
+  });
+
+  it('still fires other agent toasts in focus mode', () => {
+    const deck = document.createElement('div');
+    deck.className = 'focus-deck';
+    document.body.appendChild(deck);
+    const replaced: WireFrame = { type: 'doc.replaced', doc: { version: 1, title: '', blocks: [] }, revision: 1 };
+    expect(toastFor(replaced)).toEqual({ kind: 'info', text: 'The board was redrafted' });
+  });
+
+  it('never toasts a human echo, focus or board', () => {
+    const choice: WireFrame = { type: 'choice.selected', blockId: 'c1', optionIds: ['o1'] };
+    expect(toastFor(choice)).toBeNull();
   });
 });
