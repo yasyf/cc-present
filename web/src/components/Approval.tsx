@@ -42,7 +42,7 @@ export function Approval({ block, interactions }: { block: ApprovalBlock; intera
   return (
     <div className="approval" ref={ref} data-kbd-cursor={cursor || undefined} data-composing={composing || undefined}>
       {!suppressPrompt && block.prompt && <p className="approval-prompt">{block.prompt}</p>}
-      {block.detail && <DetailDisclosure detail={block.detail} />}
+      {block.detail && <DetailDisclosure detail={block.detail} interactions={interactions} />}
       <div className="verdict-pair" role="radiogroup" aria-label={suppressPrompt && block.prompt ? block.prompt : 'verdict'}>
         <button
           type="button"

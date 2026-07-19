@@ -29,7 +29,12 @@ import { FocusDeck } from './components/FocusDeck';
 import { WaitingPanel } from './components/WaitingPanel';
 import { BoardSkeleton } from './components/BoardSkeleton';
 import { ClosedBanner } from './components/ClosedBanner';
+import { ConnectError } from './components/ConnectError';
 import { SingleBlockView } from './components/SingleBlockView';
+
+// A dead EventSource never retries and never flips connected/caughtUp, so a
+// stuck connect gets a visible error after this long.
+const CONNECT_TIMEOUT_MS = 8000;
 
 function subjectFromPath(): string | null {
   const match = /^\/p\/(.+)$/.exec(window.location.pathname);
@@ -90,6 +95,13 @@ function PresentView({ subject }: { subject: string }) {
   // StrictMode, subject remount) that resets caughtUp: the skeleton shows only
   // for a genuinely empty board that has not caught up yet.
   const hasContent = state.doc.blocks.length > 0 || hasHistory || closed;
+
+  const [connectTimedOut, setConnectTimedOut] = useState(false);
+  useEffect(() => {
+    if (stream.caughtUp || hasContent) return;
+    const timer = setTimeout(() => setConnectTimedOut(true), CONNECT_TIMEOUT_MS);
+    return () => clearTimeout(timer);
+  }, [stream.caughtUp, hasContent]);
 
   const api = useMemo<PresentApi>(
     () => ({
@@ -209,7 +221,7 @@ function PresentView({ subject }: { subject: string }) {
               onSetView={setView}
             />
           }
-          main={stream.caughtUp || hasContent ? board : <BoardSkeleton />}
+          main={stream.caughtUp || hasContent ? board : connectTimedOut ? <ConnectError /> : <BoardSkeleton />}
         />
         <ToastStack notifications={stream.notifications} onDismiss={stream.dismiss} />
       </KeyboardProvider>

@@ -24,7 +24,8 @@ export function RoundGroup({ record, interactions }: { record: RoundRecord; inte
   const rejected = all.filter((b) => b.type === 'approval' && record.decisions[b.id]?.verdict === 'rejected').length;
   const picks = all.filter(
     (b) =>
-      (b.type === 'choice' && (record.choices[b.id]?.optionIds.length ?? 0) > 0) ||
+      (b.type === 'choice' &&
+        ((record.choices[b.id]?.optionIds.length ?? 0) > 0 || record.choices[b.id]?.other !== undefined)) ||
       (isPackBlock(b) && record.packs[b.id] !== undefined),
   ).length;
   const filledInputs = all.filter((b) => b.type === 'input' && (record.inputs[b.id]?.text.trim() ?? '') !== '').length;

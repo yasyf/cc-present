@@ -134,4 +134,61 @@ describe('revisionStore decay', () => {
     expect(revisionStore.revisingView('b1')).toBeNull();
     expect(revisionStore.unseenChange('b1')).toEqual({ kind: 'revised', note: 'rewriting' });
   });
+
+  it('un-sticks a decayed revising id when the agent re-announces it with a fresh note', () => {
+    vi.useFakeTimers();
+    revisionStore.ingest(revisingFrame(['b1'], 'rewriting'), state(['b1']), { blockIds: ['b1'], note: 'rewriting' });
+    vi.advanceTimersByTime(DECAY_MS);
+    expect(revisionStore.revisingView('b1')).toEqual({ note: 'rewriting', passive: true });
+    // The re-announcement re-arms the window and drops passivity, so the fresh note shows.
+    revisionStore.ingest(revisingFrame(['b1'], 'rewriting, take 2'), state(['b1']), {
+      blockIds: ['b1'],
+      note: 'rewriting, take 2',
+    });
+    expect(revisionStore.revisingView('b1')).toEqual({ note: 'rewriting, take 2', passive: false });
+    // The new window still decays on its own 120s clock.
+    vi.advanceTimersByTime(DECAY_MS);
+    expect(revisionStore.revisingView('b1')).toEqual({ note: 'rewriting, take 2', passive: true });
+  });
+
+  it('keeps a decayed revising id passive across an unrelated frame that leaves the note', () => {
+    vi.useFakeTimers();
+    revisionStore.markLive();
+    revisionStore.ingest(revisingFrame(['b1'], 'rewriting'), state(['b1']), { blockIds: ['b1'], note: 'rewriting' });
+    vi.advanceTimersByTime(DECAY_MS);
+    expect(revisionStore.revisingView('b1')).toEqual({ note: 'rewriting', passive: true });
+    // An unrelated upsert arrives with b1 still revising under the same note: the
+    // decayed state must not silently re-arm.
+    revisionStore.ingest(upsert('b2'), state(['b1', 'b2'], { blockIds: ['b1'], note: 'rewriting' }), {
+      blockIds: ['b1'],
+      note: 'rewriting',
+    });
+    expect(revisionStore.revisingView('b1')).toEqual({ note: 'rewriting', passive: true });
+  });
+
+  it('decays each revising id on its own clock when a sibling joins mid-window', () => {
+    vi.useFakeTimers();
+    revisionStore.ingest(revisingFrame(['b1'], 'reworking'), state(['b1']), { blockIds: ['b1'], note: 'reworking' });
+    vi.advanceTimersByTime(DECAY_MS / 2);
+    // b2 joins under the same note; b1's clock must not restart.
+    revisionStore.ingest(revisingFrame(['b1', 'b2'], 'reworking'), state(['b1', 'b2']), {
+      blockIds: ['b1', 'b2'],
+      note: 'reworking',
+    });
+    vi.advanceTimersByTime(DECAY_MS / 2);
+    expect(revisionStore.revisingView('b1')?.passive).toBe(true);
+    expect(revisionStore.revisingView('b2')?.passive).toBe(false);
+  });
+
+  it('restarts the drafting window and un-sticks it when the doc-level note changes', () => {
+    vi.useFakeTimers();
+    revisionStore.ingest(revisingFrame([], 'drafting one'), state(['b1']), { blockIds: [], note: 'drafting one' });
+    vi.advanceTimersByTime(DECAY_MS);
+    expect(revisionStore.draftingView()).toEqual({ note: 'drafting one', passive: true });
+    // A fresh drafting note re-announces the work: it shows on a new, non-passive window.
+    revisionStore.ingest(revisingFrame([], 'drafting two'), state(['b1']), { blockIds: [], note: 'drafting two' });
+    expect(revisionStore.draftingView()).toEqual({ note: 'drafting two', passive: false });
+    vi.advanceTimersByTime(DECAY_MS);
+    expect(revisionStore.draftingView()).toEqual({ note: 'drafting two', passive: true });
+  });
 });

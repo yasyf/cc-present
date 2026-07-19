@@ -63,7 +63,9 @@ function configure(mermaid: Mermaid): void {
     securityLevel: 'strict',
     theme: 'base',
     themeVariables: themeVariables(),
-    flowchart: { htmlLabels: false },
+    // Top-level, not flowchart.htmlLabels (which mermaid ignores): HTML labels emit
+    // <foreignObject> that DiagramView's SVG-profile sanitize strips to empty boxes.
+    htmlLabels: false,
   });
   themeKey = currentThemeKey();
 }

@@ -633,6 +633,28 @@
   }
 }
 
+.connect-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-7) var(--space-6);
+  margin-top: var(--space-4);
+  text-align: center;
+}
+.connect-error-title {
+  font-family: var(--font-stamp);
+  font-size: var(--text-md);
+  font-weight: 700;
+  color: var(--danger);
+  letter-spacing: 0.01em;
+}
+.connect-error-sub {
+  font-family: var(--font-stamp);
+  font-size: var(--text-sm);
+  color: var(--muted);
+}
+
 .submit-actions {
   display: flex;
   align-items: center;

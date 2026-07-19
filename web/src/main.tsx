@@ -6,9 +6,16 @@ import '@fontsource/barlow-condensed/latin-500.css';
 import '@fontsource/barlow-condensed/latin-700.css';
 import { queryClient } from './api';
 import { App } from './app';
+import { applyUrlTheme } from './theme';
 import { installHost } from './packs/host';
 import { loadPacks } from './packs/load';
 import './domain.css';
+
+// Only the single-block route a native WKWebView loads carries ?theme; the board
+// view has no theme param and is untouched.
+if (new URLSearchParams(window.location.search).has('block')) {
+  applyUrlTheme(window.location.search);
+}
 
 // Publish the host before any pack bundle imports, then kick the load off the
 // first-paint path — placeholders swap live as bundles resolve.

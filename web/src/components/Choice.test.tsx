@@ -7,9 +7,10 @@ import { PresentContext } from '../present';
 import type { PresentApi } from '../present';
 import { KeyboardProvider } from '../keyboard';
 import { Choice } from './Choice';
+import { FocusStageContext } from './focusStep';
 import { emptyState } from '../reduce';
 import type { Interactions } from '../events';
-import type { Choice as ChoiceBlock } from '../schema';
+import type { Choice as ChoiceBlock, OptionVisual } from '../schema';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 Element.prototype.scrollIntoView = () => {};
@@ -80,6 +81,23 @@ function renderCapturing(block: ChoiceBlock, interactions: Interactions): unknow
     ),
   );
   return posted;
+}
+
+// renderWithStage mounts the choice under a FocusStageContext, so `stage` is
+// non-null and the component is in focus mode — the stage owns option visuals.
+function renderWithStage(block: ChoiceBlock, interactions: Interactions): void {
+  const present: PresentApi = { post: async () => true, closed: false, currentRound: 1 };
+  act(() =>
+    root.render(
+      <PresentContext.Provider value={present}>
+        <FocusStageContext.Provider value={{ setVisual: () => {} }}>
+          <KeyboardProvider blocks={[block]} interactions={interactions} closed={false} round={1}>
+            <Choice block={block} interactions={interactions} />
+          </KeyboardProvider>
+        </FocusStageContext.Provider>
+      </PresentContext.Provider>,
+    ),
+  );
 }
 
 // Landing the cursor on the block: focusing an option bubbles a focusin the
@@ -296,6 +314,48 @@ describe('Choice universal escape hatch', () => {
     render(choice('c1', ['A', 'B']), empty());
     const link = container.querySelector('.feedback-affordance .link-btn');
     expect(link?.textContent).toBe('Add note');
+  });
+});
+
+describe('Choice board-mode option visual', () => {
+  const imageVisual: OptionVisual = { id: 'v0', type: 'image', src: 'data:,x', alt: 'chart-a' };
+  const withVisual = (detail?: ChoiceBlock['options'][number]['detail']): ChoiceBlock => ({
+    id: 'c1',
+    type: 'choice',
+    multi: false,
+    options: [{ id: 'o0', label: 'A', visual: imageVisual, detail }],
+  });
+
+  it('mounts a visual-only option visual in its detail drill-down in board mode', () => {
+    render(withVisual(), empty());
+    const detail = container.querySelector('.option-detail') as HTMLElement;
+    // The disclosure exists purely because the option carries a visual.
+    expect(detail).not.toBeNull();
+    act(() => (detail.querySelector('.cc-group-header') as HTMLElement).click());
+    expect(detail.querySelector('.detail-visual .image-block img')).not.toBeNull();
+    expect(detail.querySelector<HTMLImageElement>('.detail-visual img')?.alt).toBe('chart-a');
+  });
+
+  it('renders the visual alongside detail content in the same drill-down', () => {
+    render(withVisual({ pros: ['fast'] }), empty());
+    const detail = container.querySelector('.option-detail') as HTMLElement;
+    act(() => (detail.querySelector('.cc-group-header') as HTMLElement).click());
+    expect(detail.querySelector('.detail-visual .image-block')).not.toBeNull();
+    expect(detail.querySelector('.detail-pros')?.textContent).toContain('fast');
+  });
+
+  it('leaves a visual-only option to the stage in focus mode — no disclosure', () => {
+    renderWithStage(withVisual(), empty());
+    expect(container.querySelector('.option-detail')).toBeNull();
+  });
+
+  it('shows only detail in the focus-mode disclosure, never double-rendering the visual', () => {
+    renderWithStage(withVisual({ pros: ['fast'] }), empty());
+    const detail = container.querySelector('.option-detail') as HTMLElement;
+    expect(detail).not.toBeNull();
+    act(() => (detail.querySelector('.cc-group-header') as HTMLElement).click());
+    expect(detail.querySelector('.detail-pros')?.textContent).toContain('fast');
+    expect(detail.querySelector('.detail-visual')).toBeNull();
   });
 });
 

@@ -186,7 +186,13 @@ export function Choice({ block, interactions }: { block: ChoiceBlock; interactio
                       ))}
                     </span>
                   )}
-              {option.detail && <DetailDisclosure detail={option.detail} />}
+              {(option.detail || (!stage && option.visual)) && (
+                <DetailDisclosure
+                  detail={option.detail}
+                  visual={stage ? undefined : option.visual}
+                  interactions={interactions}
+                />
+              )}
             </div>
           );
         })}

@@ -1,13 +1,16 @@
 import { useEffect, useState } from 'react';
 import DOMPurify from 'dompurify';
 import type { Diagram } from '../schema';
+import { useResolvedTheme } from '../theme';
 
 // DiagramView renders a mermaid source client-side: a skeleton while the lazily
 // imported renderer resolves, the sanitized SVG on success, or an error banner over
-// the raw source when parsing or rendering fails.
+// the raw source when parsing or rendering fails. It re-renders on a theme flip so a
+// mounted diagram's baked palette follows the surface.
 export function DiagramView({ block }: { block: Diagram }) {
   const [svg, setSvg] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
+  const theme = useResolvedTheme();
 
   useEffect(() => {
     let alive = true;
@@ -26,7 +29,7 @@ export function DiagramView({ block }: { block: Diagram }) {
     return () => {
       alive = false;
     };
-  }, [block.source]);
+  }, [block.source, theme]);
 
   return (
     <figure className="diagram-block">

@@ -118,26 +118,36 @@ class RevisionStore {
     const nextIds = next.blockIds ?? [];
     const nextNote = next.note;
     const nextSet = new Set(nextIds);
+    const prevNote = this.revisingNote;
     let changed = false;
 
-    for (const id of [...this.decayTimers.keys()]) {
+    // Ids that left the set: cancel the window and clear passivity. A fired window is
+    // tracked only by its `passive` flag, so the scan unions the timer keys with it.
+    for (const id of new Set([...this.decayTimers.keys(), ...this.passive])) {
       if (!nextSet.has(id)) {
-        clearTimeout(this.decayTimers.get(id)!);
+        const timer = this.decayTimers.get(id);
+        if (timer) clearTimeout(timer);
         this.decayTimers.delete(id);
         this.passive.delete(id);
         changed = true;
       }
     }
+    // A newly-revising id opens its own window; an id still counting down or already
+    // passive keeps its clock, so a sibling joining never restarts it.
     for (const id of nextIds) {
-      if (!this.decayTimers.has(id)) {
-        this.decayTimers.set(
-          id,
-          setTimeout(() => {
-            this.passive.add(id);
-            this.emit();
-          }, DECAY_MS),
-        );
+      if (!this.decayTimers.has(id) && !this.passive.has(id)) {
+        this.armRevisingDecay(id);
         changed = true;
+      }
+    }
+    // A changed working-set note is a fresh announcement: un-stick any passive id and
+    // restart its window. A note-only change before decay leaves the clock be.
+    if (nextNote !== prevNote) {
+      for (const id of nextIds) {
+        if (this.passive.has(id)) {
+          this.armRevisingDecay(id);
+          changed = true;
+        }
       }
     }
     if (!sameIds(this.revisingIds, nextIds)) {
@@ -152,11 +162,12 @@ class RevisionStore {
     const draft = nextIds.length === 0 && nextNote !== undefined && nextNote !== '';
     if (draft && !this.draftingActive) {
       this.draftingActive = true;
-      this.draftPassive = false;
-      this.draftTimer = setTimeout(() => {
-        this.draftPassive = true;
-        this.emit();
-      }, DECAY_MS);
+      this.armDraftDecay();
+      changed = true;
+    } else if (draft && this.draftingActive && nextNote !== prevNote) {
+      // A changed drafting note re-announces the doc-level work: restart the window
+      // and un-stick passivity so the fresh note surfaces.
+      this.armDraftDecay();
       changed = true;
     } else if (!draft && this.draftingActive) {
       this.draftingActive = false;
@@ -168,6 +179,30 @@ class RevisionStore {
       changed = true;
     }
     return changed;
+  }
+
+  private armRevisingDecay(id: string): void {
+    const existing = this.decayTimers.get(id);
+    if (existing) clearTimeout(existing);
+    this.passive.delete(id);
+    this.decayTimers.set(
+      id,
+      setTimeout(() => {
+        this.decayTimers.delete(id);
+        this.passive.add(id);
+        this.emit();
+      }, DECAY_MS),
+    );
+  }
+
+  private armDraftDecay(): void {
+    if (this.draftTimer) clearTimeout(this.draftTimer);
+    this.draftPassive = false;
+    this.draftTimer = setTimeout(() => {
+      this.draftTimer = null;
+      this.draftPassive = true;
+      this.emit();
+    }, DECAY_MS);
   }
 
   // markSeen clears a step's mark once viewed, so its rail badge drops and returning

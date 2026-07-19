@@ -487,9 +487,25 @@ construction. With `pair`'s `0.0.0.0` bind the primary already covers the
 tailnet and no extra legs are bound.
 
 `start` and `push` results carry the composed display URLs for the live legs
-(`tailnetUrls`): the daemon's MagicDNS name when tailscale publishes one —
-deduped by port, so v4 and v6 legs on one port yield one URL — raw tailnet IPs
-otherwise. The scheme is `http`; WireGuard encrypts the path underneath.
+(`tailnetUrls`): `https://` on the daemon's MagicDNS name when tailscale
+publishes one and the daemon holds a certificate for it — deduped by port, so
+v4 and v6 legs on one port yield one URL — raw tailnet IPs over `http`
+otherwise. An `http` MagicDNS URL is never composed: `ts.net` is on the browser
+HSTS-preload list, so a browser rewrites such a URL to `https://` before
+connecting and the navigation can only fail. IP literals sit outside the
+preload list and open over plain `http`; WireGuard encrypts the path either
+way.
+
+Each tailnet leg serves both protocols on its one port by sniffing the first
+byte of every connection: a TLS ClientHello is terminated with the daemon's
+certificate, anything else is served as plain HTTP. Mesh clients keep dialing
+the `extra_addrs` IPs over `http` unchanged; browsers land on the `https` name
+URL. The certificate comes from `tailscale cert`, which needs the tailnet's
+HTTPS-certificates feature enabled, and is minted for the MagicDNS name
+asynchronously at daemon start, refreshed by the reconcile pass as expiry
+nears, and swapped in without rebinding. While no certificate is held — feature disabled, tailscale
+down, first mint still in flight — TLS handshakes on the legs fail and the
+composed URLs fall back to the IP form.
 
 `cc-present trust` is a read-only inspector: it reports whether synckit state
 was detected, each registered host with its resolved tailnet IPs (or that it is

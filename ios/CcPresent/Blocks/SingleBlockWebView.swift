@@ -1,3 +1,4 @@
+import CcPresentKit
 import SwiftUI
 import WebKit
 
@@ -11,12 +12,18 @@ enum WebViewLoadPhase: Equatable {
 
 /// SingleBlockWebView hosts the SPA's single-block page in a WKWebView sized to its
 /// content via the `ccPresentHeight` message (KVO fallback on the scroll content size).
-/// An optional `phase` binding reports the navigation lifecycle; pack blocks omit it
-/// and render exactly as before.
+/// It carries the app's appearance to the page as a `theme` query param and reloads on
+/// a mid-session flip. An optional `phase` binding reports the navigation lifecycle;
+/// pack blocks omit it and render exactly as before.
 struct SingleBlockWebView: UIViewRepresentable {
     let url: URL
     @Binding var height: CGFloat
     var phase: Binding<WebViewLoadPhase>?
+    @Environment(\.colorScheme) private var colorScheme
+
+    private var themedURL: URL {
+        url.appendingTheme(dark: colorScheme == .dark)
+    }
 
     func makeCoordinator() -> Coordinator {
         Coordinator(height: $height, phase: phase)
@@ -36,11 +43,13 @@ struct SingleBlockWebView: UIViewRepresentable {
         webView.backgroundColor = .clear
         webView.scrollView.backgroundColor = .clear
         context.coordinator.observe(webView)
-        webView.load(URLRequest(url: url))
+        context.coordinator.load(webView, url: themedURL)
         return webView
     }
 
-    func updateUIView(_: WKWebView, context _: Context) {}
+    func updateUIView(_ webView: WKWebView, context: Context) {
+        context.coordinator.load(webView, url: themedURL)
+    }
 
     static func dismantleUIView(_ webView: WKWebView, coordinator: Coordinator) {
         coordinator.tearDown(webView)
@@ -51,10 +60,20 @@ struct SingleBlockWebView: UIViewRepresentable {
         private let height: Binding<CGFloat>
         private let phase: Binding<WebViewLoadPhase>?
         private var observation: NSKeyValueObservation?
+        private var loadedURL: URL?
 
         init(height: Binding<CGFloat>, phase: Binding<WebViewLoadPhase>?) {
             self.height = height
             self.phase = phase
+        }
+
+        /// load points the web view at `url`, skipping the load when it already holds
+        /// that URL so a SwiftUI update (a height change) never re-fetches — only an
+        /// appearance flip, which flips the `theme` query, reloads.
+        func load(_ webView: WKWebView, url: URL) {
+            guard loadedURL != url else { return }
+            loadedURL = url
+            webView.load(URLRequest(url: url))
         }
 
         func observe(_ webView: WKWebView) {
