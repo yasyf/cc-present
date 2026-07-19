@@ -107,7 +107,7 @@ func reconcileTailnetPass(ctx context.Context, srv *ccd.Server, tp *meshtrust.Pr
 // when any exist, else — under a non-loopback bind, where the primary listener
 // already serves the tailnet — the primary port on each self address.
 func displayURLs(dns string, extra []string, selfAddrs []netip.Addr, loopbackBind bool, port int, slug string) []string {
-	if len(extra) == 0 && !loopbackBind {
+	if len(extra) == 0 && !loopbackBind && port >= 1 && port <= math.MaxUint16 {
 		for _, a := range selfAddrs {
 			extra = append(extra, netip.AddrPortFrom(a.Unmap(), uint16(port)).String())
 		}
