@@ -1,0 +1,62 @@
+{
+  "name": "choice-other-single-write-in",
+  "events": [
+    {
+      "origin": "agent",
+      "type": "doc.replaced",
+      "seq": 1,
+      "payload": {
+        "revision": 1,
+        "doc": {
+          "version": 1,
+          "title": "T",
+          "blocks": [
+            {
+              "id": "c1",
+              "type": "card",
+              "children": [
+                {
+                  "id": "ch1",
+                  "type": "choice",
+                  "prompt": "Which approach?",
+                  "options": [
+                    { "id": "o1", "label": "Streaming" },
+                    { "id": "o2", "label": "Polling" }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    { "origin": "human", "type": "choice.selected", "seq": 2, "payload": { "blockId": "ch1", "optionIds": [], "other": "Roll our own transport" } }
+  ],
+  "expected": {
+    "doc": {
+      "version": 1,
+      "title": "T",
+      "blocks": [
+        {
+          "id": "c1",
+          "type": "card",
+          "children": [
+            {
+              "id": "ch1",
+              "type": "choice",
+              "prompt": "Which approach?",
+              "options": [
+                { "id": "o1", "label": "Streaming" },
+                { "id": "o2", "label": "Polling" }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "interactions": {
+      "choices": { "ch1": { "optionIds": [], "other": "Roll our own transport" } }
+    },
+    "rounds": { "current": 1, "blockRounds": { "c1": 1 }, "history": [] }
+  }
+}

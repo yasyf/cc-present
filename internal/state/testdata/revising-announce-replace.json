@@ -1,0 +1,35 @@
+{
+  "name": "revising-second-announce-replaces-whole-set",
+  "events": [
+    {
+      "origin": "agent",
+      "type": "doc.replaced",
+      "seq": 1,
+      "payload": {
+        "revision": 1,
+        "doc": {
+          "version": 1,
+          "title": "T",
+          "blocks": [
+            { "id": "b1", "type": "markdown", "md": "step one" },
+            { "id": "b2", "type": "markdown", "md": "step two" }
+          ]
+        }
+      }
+    },
+    { "origin": "agent", "type": "revising.changed", "seq": 2, "payload": { "blockIds": ["b1"], "note": "first pass" } },
+    { "origin": "agent", "type": "revising.changed", "seq": 3, "payload": { "blockIds": ["b2"], "note": "second pass" } }
+  ],
+  "expected": {
+    "doc": {
+      "version": 1,
+      "title": "T",
+      "blocks": [
+        { "id": "b1", "type": "markdown", "md": "step one" },
+        { "id": "b2", "type": "markdown", "md": "step two" }
+      ]
+    },
+    "rounds": { "current": 1, "blockRounds": { "b1": 1, "b2": 1 }, "history": [] },
+    "revising": { "blockIds": ["b2"], "note": "second pass" }
+  }
+}

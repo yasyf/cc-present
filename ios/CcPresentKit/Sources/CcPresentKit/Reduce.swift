@@ -19,11 +19,14 @@ public struct Decision: Decodable, Equatable, Sendable {
 }
 
 /// Selection is a human's last-write-wins option selection on a choice block.
+/// Other is a free-text write-in outside the authored option set.
 public struct Selection: Decodable, Equatable, Sendable {
     public var optionIds: [String]
+    public var other: String?
 
-    public init(optionIds: [String]) {
+    public init(optionIds: [String], other: String? = nil) {
         self.optionIds = optionIds
+        self.other = other
     }
 }
 
@@ -236,22 +239,46 @@ public struct Rounds: Decodable, Equatable, Sendable {
     }
 }
 
+/// Revising is the agent's declared working set: the top-level block ids being
+/// rewritten plus an optional shared note. Mirrors the Go `state.Revising`.
+public struct Revising: Decodable, Equatable, Sendable {
+    public var blockIds: [String]
+    public var note: String?
+
+    public init(blockIds: [String] = [], note: String? = nil) {
+        self.blockIds = blockIds
+        self.note = note
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case blockIds, note
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        blockIds = try container.decodeIfPresent([String].self, forKey: .blockIds) ?? []
+        note = try container.decodeIfPresent(String.self, forKey: .note)
+    }
+}
+
 /// BoardState is the full reduction: the current document, the human
-/// interactions, and the round partition. It is the Swift analogue of the Go
-/// `state.State`.
+/// interactions, the round partition, and the agent's revising working set. It is
+/// the Swift analogue of the Go `state.State`.
 public struct BoardState: Decodable, Equatable, Sendable {
     public var doc: Doc
     public var interactions: Interactions
     public var rounds: Rounds
+    public var revising: Revising
 
-    public init(doc: Doc, interactions: Interactions, rounds: Rounds) {
+    public init(doc: Doc, interactions: Interactions, rounds: Rounds, revising: Revising = Revising()) {
         self.doc = doc
         self.interactions = interactions
         self.rounds = rounds
+        self.revising = revising
     }
 
     private enum CodingKeys: String, CodingKey {
-        case doc, interactions, rounds
+        case doc, interactions, rounds, revising
     }
 
     public init(from decoder: Decoder) throws {
@@ -259,6 +286,7 @@ public struct BoardState: Decodable, Equatable, Sendable {
         doc = try container.decodeIfPresent(Doc.self, forKey: .doc) ?? Doc(version: 1, title: "", blocks: [])
         interactions = try container.decodeIfPresent(Interactions.self, forKey: .interactions) ?? Interactions()
         rounds = try container.decodeIfPresent(Rounds.self, forKey: .rounds) ?? Rounds()
+        revising = try container.decodeIfPresent(Revising.self, forKey: .revising) ?? Revising()
     }
 
     static var initial: BoardState {
@@ -293,12 +321,15 @@ private extension BoardState {
             for block in doc.blocks {
                 rounds.blockRounds[block.id] = rounds.current
             }
+            revising = Revising()
         case let .blockUpserted(payload):
             upsert(payload.block, after: payload.after)
             rounds.blockRounds[payload.block.id] = rounds.current
+            revisingOnUpsert(payload.block.id)
         case let .blockRemoved(payload):
             remove(payload.id)
             rounds.blockRounds.removeValue(forKey: payload.id)
+            revisingOnRemove(payload.id)
         case let .replyCreated(payload):
             interactions.replies[payload.blockId, default: []].append(Reply(id: payload.id, md: payload.md))
         case let .presentClosed(payload):
@@ -313,7 +344,7 @@ private extension BoardState {
                 )
             }
         case let .choiceSelected(payload):
-            interactions.choices[payload.blockId] = Selection(optionIds: payload.optionIds)
+            interactions.choices[payload.blockId] = Selection(optionIds: payload.optionIds, other: payload.other)
         case let .packInteraction(payload):
             interactions.packs[payload.blockId] = PackValue(payload: payload.payload)
         case let .feedbackCreated(payload):
@@ -333,8 +364,31 @@ private extension BoardState {
                 rounds.current += 1
             }
             rounds.currentTitle = payload.title ?? ""
+        case let .revisingChanged(payload):
+            revising = Revising(blockIds: payload.blockIds, note: payload.note)
         case .channelChanged:
             return
+        }
+    }
+
+    /// revisingOnUpsert drops id as its revision lands, draining the note whenever
+    /// the set empties — including an upsert while already empty, the doc-level
+    /// note's completion signal.
+    mutating func revisingOnUpsert(_ id: String) {
+        revising.blockIds.removeAll { $0 == id }
+        if revising.blockIds.isEmpty {
+            revising = Revising()
+        }
+    }
+
+    /// revisingOnRemove drops id as its block is removed, draining the note only
+    /// when removing a tracked id empties the set; a removal while already empty
+    /// leaves a doc-level note untouched.
+    mutating func revisingOnRemove(_ id: String) {
+        let had = revising.blockIds.contains(id)
+        revising.blockIds.removeAll { $0 == id }
+        if had, revising.blockIds.isEmpty {
+            revising = Revising()
         }
     }
 

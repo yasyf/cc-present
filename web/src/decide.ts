@@ -26,6 +26,7 @@ const BUILTIN_DECIDABLE = {
   markdown: false,
   code: false,
   diff: false,
+  diagram: false,
   image: false,
   table: false,
   progress: false,
@@ -40,6 +41,7 @@ const BUILTIN_TALLIED = {
   markdown: null,
   code: null,
   diff: null,
+  diagram: null,
   image: null,
   table: null,
   progress: null,
@@ -68,15 +70,17 @@ export function decidableIds(blocks: Block[], packInteractive: ReadonlySet<strin
 
 // isDecided mirrors the SubmitBar tally for one block: an approval with any
 // verdict (reduce.ts deletes cleared decisions, so presence is decidedness), a
-// choice with at least one selected option, or a pack block with a stored
-// interaction. Every other block is never decided.
+// choice with at least one selected option or an other write-in, or a pack block
+// with a stored interaction. Every other block is never decided.
 export function isDecided(block: Block, interactions: Interactions): boolean {
   if (isPackBlock(block)) return interactions.packs[block.id] !== undefined;
   switch (block.type) {
     case 'approval':
       return interactions.decisions[block.id] !== undefined;
-    case 'choice':
-      return (interactions.choices[block.id]?.optionIds.length ?? 0) > 0;
+    case 'choice': {
+      const selection = interactions.choices[block.id];
+      return selection !== undefined && (selection.optionIds.length > 0 || selection.other !== undefined);
+    }
     default:
       return false;
   }

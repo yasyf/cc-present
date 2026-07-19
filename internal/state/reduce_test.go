@@ -179,6 +179,9 @@ func initMaps(s *state.State) {
 	if s.Rounds.History == nil {
 		s.Rounds.History = []state.RoundRecord{}
 	}
+	if s.Revising.BlockIDs == nil {
+		s.Revising.BlockIDs = []string{}
+	}
 	for i := range s.Rounds.History {
 		if s.Rounds.History[i].Packs == nil {
 			s.Rounds.History[i].Packs = map[string]state.PackValue{}

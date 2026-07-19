@@ -214,6 +214,53 @@ func TestUpsertBlock(t *testing.T) {
 	}
 }
 
+func TestUpsertBlockDocValidation(t *testing.T) {
+	t.Run("option visual id colliding with an existing block id is rejected", func(t *testing.T) {
+		h := newHarness(t)
+		start := handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks)
+		// ch1's option visual reuses "a1", the existing top-level approval's id; the
+		// upserted document would carry two "a1"s, which the whole-doc check rejects.
+		dup := `{"id":"ch1","type":"choice","options":[{"id":"o1","label":"A","visual":{"id":"a1","type":"code","lang":"go","code":"x"}}]}`
+		reply := handleUpsertBlock(h.hc(body{Block: json.RawMessage(dup)}), doc.NoPacks)
+		if reply.OK || !strings.Contains(reply.Error, "duplicate block id") {
+			t.Fatalf("dup visual id: ok=%v err=%q, want a duplicate-id rejection", reply.OK, reply.Error)
+		}
+		if got := h.eventsOfType(t, start.SubjectID, EventBlockUpserted); len(got) != 0 {
+			t.Fatalf("rejected upsert appended %d block.upserted, want 0", len(got))
+		}
+	})
+
+	t.Run("upsert growing the doc past the size cap is rejected", func(t *testing.T) {
+		h := newHarness(t)
+		big := strings.Repeat("x", (doc.MaxDocBytes*3)/4)
+		seed := `{"version":1,"title":"Board","blocks":[{"id":"m1","type":"markdown","md":"` + big + `"}]}`
+		start := handleStart(h.hc(body{Doc: json.RawMessage(seed)}), doc.NoPacks)
+		if !start.OK {
+			t.Fatalf("seed start not ok: %s", start.Error)
+		}
+		block := `{"id":"m2","type":"markdown","md":"` + big + `"}`
+		reply := handleUpsertBlock(h.hc(body{Block: json.RawMessage(block)}), doc.NoPacks)
+		if reply.OK || !strings.Contains(reply.Error, "exceeds") {
+			t.Fatalf("oversized upsert: ok=%v err=%q, want a size rejection", reply.OK, reply.Error)
+		}
+		if got := h.eventsOfType(t, start.SubjectID, EventBlockUpserted); len(got) != 0 {
+			t.Fatalf("rejected upsert appended %d block.upserted, want 0", len(got))
+		}
+	})
+
+	t.Run("same-id replacement upsert still passes", func(t *testing.T) {
+		h := newHarness(t)
+		start := handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks)
+		reply := handleUpsertBlock(h.hc(body{Block: json.RawMessage(`{"id":"a1","type":"markdown","md":"replaced"}`)}), doc.NoPacks)
+		if !reply.OK {
+			t.Fatalf("same-id replacement upsert not ok: %s", reply.Error)
+		}
+		if got := h.eventsOfType(t, start.SubjectID, EventBlockUpserted); len(got) != 1 {
+			t.Fatalf("got %d block.upserted, want 1", len(got))
+		}
+	})
+}
+
 func TestUpsertBlockPack(t *testing.T) {
 	reg := packLoader(t, writePackTree(t)).Current()
 	tests := []struct {
@@ -396,6 +443,82 @@ func TestRound(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestRevising(t *testing.T) {
+	t.Run("announce top-level id records the working set", func(t *testing.T) {
+		h := newHarness(t)
+		start := handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks)
+		reply := handleRevising(h.hc(body{BlockIDs: []string{"a1"}, Note: "reworking"}))
+		if !reply.OK {
+			t.Fatalf("revising not ok: %s", reply.Error)
+		}
+		evs := h.eventsOfType(t, start.SubjectID, EventRevisingChanged)
+		if len(evs) != 1 {
+			t.Fatalf("revising.changed events = %d, want 1", len(evs))
+		}
+		st := reduceSubject(t, h, start.SubjectID)
+		if got := st.Revising.BlockIDs; len(got) != 1 || got[0] != "a1" {
+			t.Fatalf("revising.blockIds = %v, want [a1]", got)
+		}
+		if st.Revising.Note != "reworking" {
+			t.Fatalf("revising.note = %q, want reworking", st.Revising.Note)
+		}
+	})
+
+	t.Run("unknown id is rejected", func(t *testing.T) {
+		h := newHarness(t)
+		handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks)
+		reply := handleRevising(h.hc(body{BlockIDs: []string{"nope"}}))
+		if reply.OK || !strings.Contains(reply.Error, "not a current top-level block") {
+			t.Fatalf("revising: ok=%v err=%q, want a top-level rejection", reply.OK, reply.Error)
+		}
+	})
+
+	t.Run("child id is rejected (only top-level blocks are addressable)", func(t *testing.T) {
+		h := newHarness(t)
+		handleStart(h.hc(body{Doc: json.RawMessage(cardDoc)}), doc.NoPacks)
+		reply := handleRevising(h.hc(body{BlockIDs: []string{"in1"}}))
+		if reply.OK || !strings.Contains(reply.Error, "not a current top-level block") {
+			t.Fatalf("revising: ok=%v err=%q, want a top-level rejection", reply.OK, reply.Error)
+		}
+	})
+
+	t.Run("doc-level note with no ids skips id validation", func(t *testing.T) {
+		h := newHarness(t)
+		start := handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks)
+		reply := handleRevising(h.hc(body{Note: "drafting a new step"}))
+		if !reply.OK {
+			t.Fatalf("revising not ok: %s", reply.Error)
+		}
+		st := reduceSubject(t, h, start.SubjectID)
+		if len(st.Revising.BlockIDs) != 0 || st.Revising.Note != "drafting a new step" {
+			t.Fatalf("revising = %+v, want empty ids + doc-level note", st.Revising)
+		}
+	})
+
+	t.Run("rejected on a closed artifact", func(t *testing.T) {
+		h := newHarness(t)
+		handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks)
+		handleClose(h.hc(body{}), h.assets)
+		reply := handleRevising(h.hc(body{BlockIDs: []string{"a1"}}))
+		if reply.OK || !strings.Contains(reply.Error, "closed") {
+			t.Fatalf("revising: ok=%v err=%q, want closed", reply.OK, reply.Error)
+		}
+	})
+}
+
+func reduceSubject(t *testing.T, h *harness, subjectID string) state.State {
+	t.Helper()
+	events, err := loadEvents(context.Background(), h.cc.DB(), subjectID)
+	if err != nil {
+		t.Fatalf("load events: %v", err)
+	}
+	st, err := state.Reduce(events)
+	if err != nil {
+		t.Fatalf("reduce: %v", err)
+	}
+	return st
 }
 
 func TestOutcomes(t *testing.T) {

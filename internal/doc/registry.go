@@ -6,12 +6,14 @@ import (
 )
 
 // spec is the per-type behavior a block registers: how to decode it, how to
-// validate it, its nested children (card only), pointers to its asset srcs
-// (image only), and whether it is confined to the top level (section, card).
+// validate it, its nested children (card only), its option visuals (choice only),
+// pointers to its asset srcs (image only), and whether it is confined to the top
+// level (section, card).
 type spec struct {
 	decode    func(json.RawMessage) (Block, error)
 	validate  func(Block) error
 	children  func(Block) []Block
+	visuals   func(Block) []Block
 	assetSrcs func(Block) []*string
 	topOnly   bool
 }
@@ -35,6 +37,7 @@ var registry = map[string]spec{
 	"choice": {
 		decode:   func(data json.RawMessage) (Block, error) { return decodeInto(data, &Choice{}) },
 		validate: func(b Block) error { return validateChoice(b.(*Choice)) },
+		visuals:  func(b Block) []Block { return choiceVisuals(b.(*Choice)) },
 	},
 	"input": {
 		decode:   func(data json.RawMessage) (Block, error) { return decodeInto(data, &Input{}) },
@@ -51,6 +54,10 @@ var registry = map[string]spec{
 	"diff": {
 		decode:   func(data json.RawMessage) (Block, error) { return decodeInto(data, &Diff{}) },
 		validate: func(b Block) error { return validateDiff(b.(*Diff)) },
+	},
+	"diagram": {
+		decode:   func(data json.RawMessage) (Block, error) { return decodeInto(data, &Diagram{}) },
+		validate: func(b Block) error { return validateDiagram(b.(*Diagram)) },
 	},
 	"image": {
 		decode:    func(data json.RawMessage) (Block, error) { return decodeInto(data, &Image{}) },
@@ -75,6 +82,26 @@ func Children(b Block) []Block {
 		return nil
 	}
 	return sp.children(b)
+}
+
+// Visuals returns the option-visual leaf blocks carried by b — a choice's
+// per-option visuals, and nil for every other block type.
+func Visuals(b Block) []Block {
+	sp := registry[b.BlockType()]
+	if sp.visuals == nil {
+		return nil
+	}
+	return sp.visuals(b)
+}
+
+func choiceVisuals(c *Choice) []Block {
+	var vs []Block
+	for i := range c.Options {
+		if c.Options[i].Visual != nil {
+			vs = append(vs, c.Options[i].Visual)
+		}
+	}
+	return vs
 }
 
 // AssetRefs returns the sha256 digest of every asset:<sha256> image reference in
@@ -107,6 +134,9 @@ func assetSrcPtrs(b Block) []*string {
 	var ptrs []*string
 	if sp.assetSrcs != nil {
 		ptrs = append(ptrs, sp.assetSrcs(b)...)
+	}
+	for _, v := range Visuals(b) {
+		ptrs = append(ptrs, assetSrcPtrs(v)...)
 	}
 	for _, child := range Children(b) {
 		ptrs = append(ptrs, assetSrcPtrs(child)...)

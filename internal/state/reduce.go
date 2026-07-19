@@ -8,6 +8,7 @@ package state
 import (
 	"encoding/json"
 	"fmt"
+	"slices"
 	"sort"
 
 	"github.com/yasyf/cc-present/internal/doc"
@@ -31,8 +32,11 @@ type Decision struct {
 }
 
 // Selection is a human's last-write-wins option selection on a choice block.
+// Other is a free-text write-in outside the authored option set; it may stand
+// alone (single-select write-in) or coexist with OptionIDs (multi-select).
 type Selection struct {
 	OptionIDs []string `json:"optionIds"`
+	Other     string   `json:"other,omitempty"`
 }
 
 // InputValue is a human's last-write-wins text entry on an input block. Round is
@@ -114,12 +118,22 @@ type Rounds struct {
 	History      []RoundRecord  `json:"history"`
 }
 
-// State is the full reduction: the current document, the human interactions, and
-// the round partition.
+// Revising is the agent's declared working set: the top-level block ids being
+// rewritten plus an optional shared note. revising.changed replaces it wholesale;
+// a block.upserted or block.removed drops its id, draining the note when the set
+// empties; doc.replaced clears everything. It never stamps rounds.
+type Revising struct {
+	BlockIDs []string `json:"blockIds"`
+	Note     string   `json:"note,omitempty"`
+}
+
+// State is the full reduction: the current document, the human interactions, the
+// round partition, and the agent's declared revising working set.
 type State struct {
 	Doc          *doc.Doc     `json:"doc"`
 	Interactions Interactions `json:"interactions"`
 	Rounds       Rounds       `json:"rounds"`
+	Revising     Revising     `json:"revising"`
 }
 
 // Reduce folds the log into a State. Events are processed in ascending Seq
@@ -145,6 +159,7 @@ func Reduce(events []Event) (State, error) {
 			BlockRounds: map[string]int{},
 			History:     []RoundRecord{},
 		},
+		Revising: Revising{BlockIDs: []string{}},
 	}
 	ordered := append([]Event(nil), events...)
 	sort.SliceStable(ordered, func(i, j int) bool { return ordered[i].Seq < ordered[j].Seq })
@@ -175,6 +190,7 @@ func (s *State) apply(ev Event) error {
 		for _, b := range s.Doc.Blocks {
 			s.Rounds.BlockRounds[b.BlockID()] = s.Rounds.Current
 		}
+		s.Revising = Revising{BlockIDs: []string{}}
 		return nil
 	case "block.upserted":
 		var p struct {
@@ -190,6 +206,7 @@ func (s *State) apply(ev Event) error {
 		}
 		s.upsert(b, p.After)
 		s.Rounds.BlockRounds[b.BlockID()] = s.Rounds.Current
+		s.revisingOnUpsert(b.BlockID())
 		return nil
 	case "block.removed":
 		var p struct {
@@ -200,6 +217,7 @@ func (s *State) apply(ev Event) error {
 		}
 		s.remove(p.ID)
 		delete(s.Rounds.BlockRounds, p.ID)
+		s.revisingOnRemove(p.ID)
 		return nil
 	case "reply.created":
 		var p struct {
@@ -243,6 +261,7 @@ func (s *State) apply(ev Event) error {
 		var p struct {
 			BlockID   string   `json:"blockId"`
 			OptionIDs []string `json:"optionIds"`
+			Other     string   `json:"other"`
 		}
 		if err := json.Unmarshal(ev.Payload, &p); err != nil {
 			return err
@@ -250,7 +269,20 @@ func (s *State) apply(ev Event) error {
 		if p.OptionIDs == nil {
 			p.OptionIDs = []string{}
 		}
-		s.Interactions.Choices[p.BlockID] = Selection{OptionIDs: p.OptionIDs}
+		s.Interactions.Choices[p.BlockID] = Selection{OptionIDs: p.OptionIDs, Other: p.Other}
+		return nil
+	case "revising.changed":
+		var p struct {
+			BlockIDs []string `json:"blockIds"`
+			Note     string   `json:"note"`
+		}
+		if err := json.Unmarshal(ev.Payload, &p); err != nil {
+			return err
+		}
+		if p.BlockIDs == nil {
+			p.BlockIDs = []string{}
+		}
+		s.Revising = Revising{BlockIDs: p.BlockIDs, Note: p.Note}
 		return nil
 	case "feedback.created":
 		var p struct {
@@ -357,6 +389,37 @@ func (s *State) remove(id string) {
 			return
 		}
 	}
+}
+
+// revisingOnUpsert drops id from the working set as its revision lands. When the
+// set empties the shared note drains too — including an upsert landing while the
+// set is already empty, the doc-level note's completion signal.
+func (s *State) revisingOnUpsert(id string) {
+	s.dropRevising(id)
+	if len(s.Revising.BlockIDs) == 0 {
+		s.Revising = Revising{BlockIDs: []string{}}
+	}
+}
+
+// revisingOnRemove drops id from the working set as its block is removed, draining
+// the shared note only when removing a tracked id empties the set (a removal while
+// the set is already empty leaves a doc-level note untouched).
+func (s *State) revisingOnRemove(id string) {
+	had := slices.Contains(s.Revising.BlockIDs, id)
+	s.dropRevising(id)
+	if had && len(s.Revising.BlockIDs) == 0 {
+		s.Revising = Revising{BlockIDs: []string{}}
+	}
+}
+
+func (s *State) dropRevising(id string) {
+	filtered := make([]string, 0, len(s.Revising.BlockIDs))
+	for _, bid := range s.Revising.BlockIDs {
+		if bid != id {
+			filtered = append(filtered, bid)
+		}
+	}
+	s.Revising.BlockIDs = filtered
 }
 
 func (s *State) dirty() bool {

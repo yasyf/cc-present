@@ -21,6 +21,8 @@ export const TOAST_TEXT = {
   'block.removed': 'A block was removed',
   'reply.created': 'The agent replied',
   'round.started': 'A new round started',
+  // Per-step revision markers replace toast noise; the announcement never toasts.
+  'revising.changed': null,
   'present.closed': 'The session closed',
   'decision.created': null,
   'choice.selected': null,

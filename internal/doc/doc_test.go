@@ -54,6 +54,7 @@ func TestValidate(t *testing.T) {
 	bigData := "data:image/png;base64," + strings.Repeat("A", doc.MaxDataURIBytes)
 	okData := "data:image/png;base64," + strings.Repeat("A", 100)
 	bigMd := strings.Repeat("x", doc.MaxDocBytes+1)
+	bigSource := strings.Repeat("x", doc.MaxDiagramBytes+1)
 
 	tests := []struct {
 		name    string
@@ -131,6 +132,24 @@ func TestValidate(t *testing.T) {
 		{"card summary with newline", docWith(`{"id":"c1","type":"card","summary":"line1\nline2","children":[]}`), "summary must be a single line"},
 		{"card bad status", docWith(`{"id":"c1","type":"card","status":"pending","children":[]}`), "invalid status"},
 		{"card bad chip tone", docWith(`{"id":"c1","type":"card","chips":[{"label":"x","tone":"loud"}],"children":[]}`), "invalid chip tone"},
+
+		{"diagram at top level", docWith(`{"id":"dg1","type":"diagram","kind":"mermaid","source":"graph TD; A-->B"}`), ""},
+		{"diagram in card with title", docWith(card("c1", `{"id":"dg1","type":"diagram","kind":"mermaid","source":"graph LR; A-->B","title":"Flow"}`)), ""},
+		{"diagram bad kind", docWith(card("c1", `{"id":"dg1","type":"diagram","kind":"d2","source":"x"}`)), "kind must be mermaid"},
+		{"diagram empty source", docWith(card("c1", `{"id":"dg1","type":"diagram","kind":"mermaid","source":""}`)), "source must not be empty"},
+		{"diagram oversized source", docWith(card("c1", fmt.Sprintf(`{"id":"dg1","type":"diagram","kind":"mermaid","source":%q}`, bigSource))), "exceeds"},
+		{"diagram multiline title", docWith(card("c1", `{"id":"dg1","type":"diagram","kind":"mermaid","source":"x","title":"a\nb"}`)), "title must be a single line"},
+
+		{"choice one recommended single-select", docWith(card("c1", `{"id":"ch1","type":"choice","options":[{"id":"o1","label":"A","recommended":true},{"id":"o2","label":"B"}]}`)), ""},
+		{"choice two recommended single-select", docWith(card("c1", `{"id":"ch1","type":"choice","options":[{"id":"o1","label":"A","recommended":true},{"id":"o2","label":"B","recommended":true}]}`)), "at most one recommended"},
+		{"choice two recommended multi-select", docWith(card("c1", `{"id":"ch1","type":"choice","multi":true,"options":[{"id":"o1","label":"A","recommended":true},{"id":"o2","label":"B","recommended":true}]}`)), ""},
+
+		{"option visual code", docWith(card("c1", `{"id":"ch1","type":"choice","options":[{"id":"o1","label":"A","visual":{"id":"v1","type":"code","lang":"go","code":"x"}}]}`)), ""},
+		{"option visual diagram", docWith(card("c1", `{"id":"ch1","type":"choice","options":[{"id":"o1","label":"A","visual":{"id":"v1","type":"diagram","kind":"mermaid","source":"graph TD; A-->B"}}]}`)), ""},
+		{"option visual disallowed type", docWith(card("c1", `{"id":"ch1","type":"choice","options":[{"id":"o1","label":"A","visual":{"id":"v1","type":"approval"}}]}`)), "not an allowed visual"},
+		{"option visual unknown type", docWith(card("c1", `{"id":"ch1","type":"choice","options":[{"id":"o1","label":"A","visual":{"id":"v1","type":"frobnicate"}}]}`)), `unknown type "frobnicate"`},
+		{"option visual invalid leaf", docWith(card("c1", `{"id":"ch1","type":"choice","options":[{"id":"o1","label":"A","visual":{"id":"v1","type":"diagram","kind":"d2","source":"x"}}]}`)), "kind must be mermaid"},
+		{"duplicate id via visual", docWith(card("c1", `{"id":"ch1","type":"choice","options":[{"id":"o1","label":"A","visual":{"id":"ch1","type":"code","lang":"go","code":"x"}}]}`)), `duplicate block id "ch1"`},
 
 		{"doc too big", docWith(card("c1", fmt.Sprintf(`{"id":"m1","type":"markdown","md":%q}`, bigMd))), "exceeds"},
 	}
@@ -286,6 +305,27 @@ func TestFieldRoundTrip(t *testing.T) {
 				}
 			},
 		},
+		{
+			name: "option recommended and visual survive marshal",
+			doc:  docWith(card("c1", `{"id":"ch1","type":"choice","options":[{"id":"o1","label":"A","recommended":true,"visual":{"id":"v1","type":"diagram","kind":"mermaid","source":"graph TD; A-->B"}}]}`)),
+			check: func(t *testing.T, c *doc.Card) {
+				ch, ok := c.Children[0].(*doc.Choice)
+				if !ok {
+					t.Fatalf("child[0] type = %T, want *doc.Choice", c.Children[0])
+				}
+				o := ch.Options[0]
+				if !o.Recommended {
+					t.Fatal("recommended = false, want true")
+				}
+				dg, ok := o.Visual.(*doc.Diagram)
+				if !ok {
+					t.Fatalf("visual type = %T, want *doc.Diagram", o.Visual)
+				}
+				if dg.ID != "v1" || dg.Kind != "mermaid" || dg.Source != "graph TD; A-->B" {
+					t.Fatalf("visual = %+v, want {v1 mermaid graph TD; A-->B}", dg)
+				}
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -307,6 +347,23 @@ func TestFieldRoundTrip(t *testing.T) {
 			}
 			tt.check(t, c)
 		})
+	}
+}
+
+// TestVisualAssetRefs pins the registry visuals hook: an asset image carried as an
+// option.visual is reachable by AssetRefs, so CLI image inlining and the GC keep
+// set see it. Missing the hook silently strands the ref.
+func TestVisualAssetRefs(t *testing.T) {
+	const sha = "asset:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	raw := card("c1", fmt.Sprintf(`{"id":"ch1","type":"choice","options":[{"id":"o1","label":"A","visual":{"id":"v1","type":"image","src":%q,"alt":"x"}}]}`, sha))
+	var d doc.Doc
+	if err := json.Unmarshal([]byte(docWith(raw)), &d); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	refs := doc.AssetRefs(d.Blocks[0])
+	want := sha[len("asset:"):]
+	if len(refs) != 1 || refs[0] != want {
+		t.Fatalf("AssetRefs = %v, want [%s]", refs, want)
 	}
 }
 

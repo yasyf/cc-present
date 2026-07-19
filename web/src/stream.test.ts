@@ -10,6 +10,7 @@ const ALL_WIRE_TYPES = [
   'block.removed',
   'reply.created',
   'round.started',
+  'revising.changed',
   'present.closed',
   'decision.created',
   'choice.selected',
@@ -37,6 +38,10 @@ describe('TOAST_TEXT', () => {
     expect(TOAST_TEXT['reply.created']).toBe('The agent replied');
     expect(TOAST_TEXT['round.started']).toBe('A new round started');
     expect(TOAST_TEXT['present.closed']).toBe('The session closed');
+  });
+
+  it('stays silent on the agent’s revising announcement (per-step markers replace it)', () => {
+    expect(TOAST_TEXT['revising.changed']).toBeNull();
   });
 
   it('stays silent on the browser’s own human echoes and channel presence', () => {

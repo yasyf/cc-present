@@ -10,14 +10,14 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { applyEvent, applyInteraction, reduce } from './reduce';
 import type { Doc } from './schema';
-import type { Interactions, PresentEvent, PresentState, Rounds } from './events';
+import type { Interactions, PresentEvent, PresentState, Revising, Rounds } from './events';
 
 const testdataDir = fileURLToPath(new URL('../../internal/state/testdata/', import.meta.url));
 
 interface Fixture {
   name: string;
   events: PresentEvent[];
-  expected: { doc: Doc; interactions?: Partial<Interactions>; rounds?: Partial<Rounds> };
+  expected: { doc: Doc; interactions?: Partial<Interactions>; rounds?: Partial<Rounds>; revising?: Revising };
 }
 
 function normalizeInteractions(i: Partial<Interactions> | undefined): Interactions {
@@ -45,6 +45,12 @@ function normalizeRounds(r: Partial<Rounds> | undefined): Rounds {
   };
 }
 
+// normalizeRevising fills the empty working set a fixture omits, the same way the
+// Go test's initMaps normalizes State.Revising.
+function normalizeRevising(r: Revising | undefined): Revising {
+  return { blockIds: r?.blockIds ?? [], note: r?.note };
+}
+
 function canonical(state: PresentState): unknown {
   return JSON.parse(JSON.stringify(state)) as unknown;
 }
@@ -70,6 +76,7 @@ describe('reduce fixture parity', () => {
         doc: fx.expected.doc,
         interactions: normalizeInteractions(fx.expected.interactions),
         rounds: normalizeRounds(fx.expected.rounds),
+        revising: normalizeRevising(fx.expected.revising),
       };
       expect(canonical(got)).toEqual(canonical(want));
     });
@@ -84,6 +91,11 @@ describe('applyInteraction optimistic path', () => {
   it('applies a decision optimistically before the echo', () => {
     const next = applyInteraction(base, { type: 'decision.created', blockId: 'a1', verdict: 'approved' });
     expect(next.interactions.decisions.a1).toEqual({ verdict: 'approved' });
+  });
+
+  it('carries an other write-in through the optimistic choice echo', () => {
+    const next = applyInteraction(base, { type: 'choice.selected', blockId: 'ch1', optionIds: [], other: 'custom' });
+    expect(next.interactions.choices.ch1).toEqual({ optionIds: [], other: 'custom' });
   });
 
   it('defers submit to the echo, leaving the cache unchanged', () => {

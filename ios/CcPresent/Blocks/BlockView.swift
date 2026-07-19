@@ -49,6 +49,8 @@ struct BlockView: View {
             CodeBlockView(block: code)
         case let .diff(diff):
             DiffBlockView(block: diff)
+        case let .diagram(diagram):
+            DiagramBlockView(block: diagram)
         case let .image(image):
             ImageBlockView(block: image, client: client)
         case let .table(table):

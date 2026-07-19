@@ -1,0 +1,66 @@
+{
+  "name": "feedback-threads-on-a-choice-target",
+  "events": [
+    {
+      "origin": "agent",
+      "type": "doc.replaced",
+      "seq": 1,
+      "payload": {
+        "revision": 1,
+        "doc": {
+          "version": 1,
+          "title": "T",
+          "blocks": [
+            {
+              "id": "c1",
+              "type": "card",
+              "children": [
+                {
+                  "id": "ch1",
+                  "type": "choice",
+                  "options": [
+                    { "id": "o1", "label": "One" },
+                    { "id": "o2", "label": "Two" }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    { "origin": "human", "type": "feedback.created", "seq": 2, "payload": { "id": "f1", "blockId": "ch1", "text": "none of these fit" } },
+    { "origin": "human", "type": "feedback.created", "seq": 3, "payload": { "id": "f2", "blockId": "ch1", "text": "second thought too" } }
+  ],
+  "expected": {
+    "doc": {
+      "version": 1,
+      "title": "T",
+      "blocks": [
+        {
+          "id": "c1",
+          "type": "card",
+          "children": [
+            {
+              "id": "ch1",
+              "type": "choice",
+              "options": [
+                { "id": "o1", "label": "One" },
+                { "id": "o2", "label": "Two" }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "interactions": {
+      "feedback": {
+        "ch1": [
+          { "id": "f1", "text": "none of these fit" },
+          { "id": "f2", "text": "second thought too" }
+        ]
+      }
+    },
+    "rounds": { "current": 1, "blockRounds": { "c1": 1 }, "history": [] }
+  }
+}

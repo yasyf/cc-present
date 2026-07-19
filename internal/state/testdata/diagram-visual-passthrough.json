@@ -1,0 +1,82 @@
+{
+  "name": "diagram-option-visual-recommended-passthrough",
+  "events": [
+    {
+      "origin": "agent",
+      "type": "doc.replaced",
+      "seq": 1,
+      "payload": {
+        "revision": 1,
+        "doc": {
+          "version": 1,
+          "title": "T",
+          "blocks": [
+            {
+              "id": "c1",
+              "type": "card",
+              "children": [
+                { "id": "dg1", "type": "diagram", "kind": "mermaid", "source": "graph TD; A-->B", "title": "Overview" },
+                {
+                  "id": "ch1",
+                  "type": "choice",
+                  "prompt": "Transport?",
+                  "options": [
+                    {
+                      "id": "o1",
+                      "label": "Streaming",
+                      "recommended": true,
+                      "visual": { "id": "v1", "type": "code", "lang": "go", "code": "stream(ctx)" }
+                    },
+                    {
+                      "id": "o2",
+                      "label": "Polling",
+                      "visual": { "id": "v2", "type": "diagram", "kind": "mermaid", "source": "graph LR; poll-->resume" }
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    { "origin": "human", "type": "choice.selected", "seq": 2, "payload": { "blockId": "ch1", "optionIds": ["o1"] } }
+  ],
+  "expected": {
+    "doc": {
+      "version": 1,
+      "title": "T",
+      "blocks": [
+        {
+          "id": "c1",
+          "type": "card",
+          "children": [
+            { "id": "dg1", "type": "diagram", "kind": "mermaid", "source": "graph TD; A-->B", "title": "Overview" },
+            {
+              "id": "ch1",
+              "type": "choice",
+              "prompt": "Transport?",
+              "options": [
+                {
+                  "id": "o1",
+                  "label": "Streaming",
+                  "recommended": true,
+                  "visual": { "id": "v1", "type": "code", "lang": "go", "code": "stream(ctx)" }
+                },
+                {
+                  "id": "o2",
+                  "label": "Polling",
+                  "visual": { "id": "v2", "type": "diagram", "kind": "mermaid", "source": "graph LR; poll-->resume" }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "interactions": {
+      "choices": { "ch1": { "optionIds": ["o1"] } }
+    },
+    "rounds": { "current": 1, "blockRounds": { "c1": 1 }, "history": [] }
+  }
+}

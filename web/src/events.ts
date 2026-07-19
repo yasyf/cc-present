@@ -53,6 +53,9 @@ export interface DecisionCreatedPayload {
 export interface ChoiceSelectedPayload {
   blockId: string;
   optionIds: string[];
+  // A free-text write-in outside the authored option set; may stand alone
+  // (single-select) or coexist with optionIds (multi-select).
+  other?: string;
 }
 
 export interface FeedbackCreatedPayload {
@@ -78,6 +81,12 @@ export interface SubmitPayload {
   revision: number;
 }
 
+// revising.changed replaces the agent's declared revising working set wholesale.
+export interface RevisingChangedPayload {
+  blockIds: string[];
+  note?: string;
+}
+
 // --- System lifecycle (recorded with a `system` origin) ---
 
 // channel.changed is the cc-interact Connectivity presence frame. The framework
@@ -97,6 +106,7 @@ export type PresentEvent =
   | { origin: 'agent'; type: 'block.removed'; seq: number; payload: BlockRemovedPayload }
   | { origin: 'agent'; type: 'reply.created'; seq: number; payload: ReplyCreatedPayload }
   | { origin: 'agent'; type: 'round.started'; seq: number; payload: RoundStartedPayload }
+  | { origin: 'agent'; type: 'revising.changed'; seq: number; payload: RevisingChangedPayload }
   | { origin: 'system'; type: 'present.closed'; seq: number; payload: PresentClosedPayload }
   | { origin: 'human'; type: 'decision.created'; seq: number; payload: DecisionCreatedPayload }
   | { origin: 'human'; type: 'choice.selected'; seq: number; payload: ChoiceSelectedPayload }
@@ -126,6 +136,7 @@ export type WireFrame =
   | ({ type: 'block.removed' } & BlockRemovedPayload)
   | ({ type: 'reply.created' } & ReplyCreatedPayload)
   | ({ type: 'round.started' } & RoundStartedPayload)
+  | ({ type: 'revising.changed' } & RevisingChangedPayload)
   | ({ type: 'present.closed' } & PresentClosedPayload)
   | ({ type: 'decision.created' } & DecisionCreatedPayload)
   | ({ type: 'choice.selected' } & ChoiceSelectedPayload)
@@ -159,6 +170,8 @@ export interface Decision {
 
 export interface Selection {
   optionIds: string[];
+  // A free-text write-in outside the authored option set.
+  other?: string;
 }
 
 export interface InputValue {
@@ -231,10 +244,17 @@ export interface Rounds {
   history: RoundRecord[];
 }
 
-// The full reduction: the current document, the keyed human interactions, and
-// the round partition.
+// The agent's declared revising working set. Mirrors internal/state.Revising.
+export interface Revising {
+  blockIds: string[];
+  note?: string;
+}
+
+// The full reduction: the current document, the keyed human interactions, the
+// round partition, and the agent's declared revising working set.
 export interface PresentState {
   doc: Doc;
   interactions: Interactions;
   rounds: Rounds;
+  revising: Revising;
 }

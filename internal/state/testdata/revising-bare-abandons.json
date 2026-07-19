@@ -1,0 +1,29 @@
+{
+  "name": "revising-bare-announce-abandons",
+  "events": [
+    {
+      "origin": "agent",
+      "type": "doc.replaced",
+      "seq": 1,
+      "payload": {
+        "revision": 1,
+        "doc": {
+          "version": 1,
+          "title": "T",
+          "blocks": [{ "id": "b1", "type": "markdown", "md": "step one" }]
+        }
+      }
+    },
+    { "origin": "agent", "type": "revising.changed", "seq": 2, "payload": { "blockIds": ["b1"], "note": "mid-rework" } },
+    { "origin": "agent", "type": "revising.changed", "seq": 3, "payload": { "blockIds": [] } }
+  ],
+  "expected": {
+    "doc": {
+      "version": 1,
+      "title": "T",
+      "blocks": [{ "id": "b1", "type": "markdown", "md": "step one" }]
+    },
+    "rounds": { "current": 1, "blockRounds": { "b1": 1 }, "history": [] },
+    "revising": { "blockIds": [] }
+  }
+}

@@ -73,10 +73,12 @@ public struct DecisionCreatedPayload: Decodable, Equatable, Sendable {
     public var note: String?
 }
 
-/// ChoiceSelectedPayload records a last-write-wins option selection.
+/// ChoiceSelectedPayload records a last-write-wins option selection. `other` is a
+/// free-text write-in outside the authored option set.
 public struct ChoiceSelectedPayload: Decodable, Equatable, Sendable {
     public var blockId: String
     public var optionIds: [String]
+    public var other: String?
 }
 
 /// FeedbackCreatedPayload appends to a block's feedback list.
@@ -105,6 +107,12 @@ public struct SubmitPayload: Decodable, Equatable, Sendable {
     public var revision: Int
 }
 
+/// RevisingChangedPayload replaces the agent's declared revising working set.
+public struct RevisingChangedPayload: Decodable, Equatable, Sendable {
+    public var blockIds: [String]
+    public var note: String?
+}
+
 /// EventPayload is an event's decoded, type-specific payload. `channelChanged` is
 /// the presence frame the reducer skips; every other case folds into state.
 public enum EventPayload: Equatable, Sendable {
@@ -120,6 +128,7 @@ public enum EventPayload: Equatable, Sendable {
     case inputSubmitted(InputSubmittedPayload)
     case packInteraction(PackInteractionPayload)
     case submit(SubmitPayload)
+    case revisingChanged(RevisingChangedPayload)
     case channelChanged(ChannelChangedPayload)
 }
 
@@ -158,6 +167,7 @@ public struct Event: Decodable, Equatable, Sendable {
             case "input.submitted": return try .inputSubmitted(rawPayload.decode(InputSubmittedPayload.self))
             case "pack.interaction": return try .packInteraction(rawPayload.decode(PackInteractionPayload.self))
             case "submit": return try .submit(rawPayload.decode(SubmitPayload.self))
+            case "revising.changed": return try .revisingChanged(rawPayload.decode(RevisingChangedPayload.self))
             case "channel.changed": return try .channelChanged(rawPayload.decode(ChannelChangedPayload.self))
             default: throw EventError.unknownType(type)
             }

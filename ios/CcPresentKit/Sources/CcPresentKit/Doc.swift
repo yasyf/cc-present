@@ -77,6 +77,7 @@ public enum Block: Codable, Equatable, Sendable {
     case markdown(Markdown)
     case code(Code)
     case diff(Diff)
+    case diagram(Diagram)
     case image(Image)
     case table(Table)
     case progress(Progress)
@@ -186,7 +187,8 @@ public enum Block: Codable, Equatable, Sendable {
     }
 
     /// Option is one selectable entry within a Choice block. Facts is the Tier-1
-    /// up-front cluster; detail is the optional Tier-2 drill-down.
+    /// up-front cluster; detail is the optional Tier-2 drill-down. Recommended marks
+    /// the author's suggested pick; visual is the option's restricted visual leaf.
     public struct Option: Codable, Equatable, Sendable {
         public var id: String
         public var label: String
@@ -194,6 +196,8 @@ public enum Block: Codable, Equatable, Sendable {
         public var md: String?
         public var facts: [Fact]?
         public var detail: Detail?
+        public var recommended: Bool?
+        public var visual: OptionVisual?
 
         public init(
             id: String,
@@ -201,7 +205,9 @@ public enum Block: Codable, Equatable, Sendable {
             hint: String? = nil,
             md: String? = nil,
             facts: [Fact]? = nil,
-            detail: Detail? = nil
+            detail: Detail? = nil,
+            recommended: Bool? = nil,
+            visual: OptionVisual? = nil
         ) {
             self.id = id
             self.label = label
@@ -209,6 +215,8 @@ public enum Block: Codable, Equatable, Sendable {
             self.md = md
             self.facts = facts
             self.detail = detail
+            self.recommended = recommended
+            self.visual = visual
         }
     }
 
@@ -279,6 +287,21 @@ public enum Block: Codable, Equatable, Sendable {
         public init(id: String, diff: String, title: String? = nil) {
             self.id = id
             self.diff = diff
+            self.title = title
+        }
+    }
+
+    /// Diagram is a text-to-diagram block rendered client-side; kind is `mermaid`.
+    public struct Diagram: Codable, Equatable, Sendable {
+        public var id: String
+        public var kind: String
+        public var source: String
+        public var title: String?
+
+        public init(id: String, kind: String, source: String, title: String? = nil) {
+            self.id = id
+            self.kind = kind
+            self.source = source
             self.title = title
         }
     }
@@ -369,6 +392,7 @@ public enum Block: Codable, Equatable, Sendable {
         case let .markdown(block): block.id
         case let .code(block): block.id
         case let .diff(block): block.id
+        case let .diagram(block): block.id
         case let .image(block): block.id
         case let .table(block): block.id
         case let .progress(block): block.id
@@ -387,6 +411,7 @@ public enum Block: Codable, Equatable, Sendable {
         case .markdown: "markdown"
         case .code: "code"
         case .diff: "diff"
+        case .diagram: "diagram"
         case .image: "image"
         case .table: "table"
         case .progress: "progress"
@@ -411,6 +436,7 @@ public enum Block: Codable, Equatable, Sendable {
         case "markdown": self = try .markdown(Markdown(from: decoder))
         case "code": self = try .code(Code(from: decoder))
         case "diff": self = try .diff(Diff(from: decoder))
+        case "diagram": self = try .diagram(Diagram(from: decoder))
         case "image": self = try .image(Image(from: decoder))
         case "table": self = try .table(Table(from: decoder))
         case "progress": self = try .progress(Progress(from: decoder))
@@ -448,10 +474,62 @@ public enum Block: Codable, Equatable, Sendable {
         case let .markdown(block): try block.encode(to: encoder)
         case let .code(block): try block.encode(to: encoder)
         case let .diff(block): try block.encode(to: encoder)
+        case let .diagram(block): try block.encode(to: encoder)
         case let .image(block): try block.encode(to: encoder)
         case let .table(block): try block.encode(to: encoder)
         case let .progress(block): try block.encode(to: encoder)
         case .pack: break
+        }
+    }
+}
+
+/// OptionVisual is the restricted leaf visual an option may carry. The four cases
+/// encode the allowlist in the type system: a recursive `Block?` cannot compile
+/// (Block → Choice → Option → Block), so the visual is this narrow enum instead.
+/// Its discriminator init/encode mirror Block's, but only these four types decode.
+public enum OptionVisual: Codable, Equatable, Sendable {
+    case code(Block.Code)
+    case diagram(Block.Diagram)
+    case image(Block.Image)
+    case diff(Block.Diff)
+
+    private enum Discriminator: String, CodingKey {
+        case type
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: Discriminator.self)
+        let type = try container.decode(String.self, forKey: .type)
+        switch type {
+        case "code": self = try .code(Block.Code(from: decoder))
+        case "diagram": self = try .diagram(Block.Diagram(from: decoder))
+        case "image": self = try .image(Block.Image(from: decoder))
+        case "diff": self = try .diff(Block.Diff(from: decoder))
+        default:
+            throw DecodingError.dataCorrupted(
+                DecodingError.Context(
+                    codingPath: decoder.codingPath,
+                    debugDescription: "option visual: type \"\(type)\" is not an allowed visual (code, diagram, image, diff)"
+                )
+            )
+        }
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: Discriminator.self)
+        switch self {
+        case let .code(block):
+            try container.encode("code", forKey: .type)
+            try block.encode(to: encoder)
+        case let .diagram(block):
+            try container.encode("diagram", forKey: .type)
+            try block.encode(to: encoder)
+        case let .image(block):
+            try container.encode("image", forKey: .type)
+            try block.encode(to: encoder)
+        case let .diff(block):
+            try container.encode("diff", forKey: .type)
+            try block.encode(to: encoder)
         }
     }
 }

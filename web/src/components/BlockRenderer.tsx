@@ -9,6 +9,7 @@ import { Input } from './Input';
 import { Markdown } from './Markdown';
 import { Code } from './Code';
 import { DiffView } from './DiffView';
+import { DiagramView } from './DiagramView';
 import { ImageView } from './ImageView';
 import { TableView } from './TableView';
 import { ProgressView } from './ProgressView';
@@ -37,6 +38,7 @@ const BUILTIN: { [T in BuiltinBlockType]: BuiltinRenderer<T> } = {
   markdown: Markdown,
   code: Code,
   diff: DiffView,
+  diagram: DiagramView,
   image: ImageView,
   table: TableView,
   progress: ProgressView,

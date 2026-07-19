@@ -1,0 +1,32 @@
+{
+  "name": "revising-doc-level-note-cleared-by-next-upsert",
+  "events": [
+    {
+      "origin": "agent",
+      "type": "doc.replaced",
+      "seq": 1,
+      "payload": {
+        "revision": 1,
+        "doc": {
+          "version": 1,
+          "title": "T",
+          "blocks": [{ "id": "b1", "type": "markdown", "md": "step one" }]
+        }
+      }
+    },
+    { "origin": "agent", "type": "revising.changed", "seq": 2, "payload": { "blockIds": [], "note": "Drafting a comparison step from your pick" } },
+    { "origin": "agent", "type": "block.upserted", "seq": 3, "payload": { "block": { "id": "b2", "type": "markdown", "md": "the new comparison step" } } }
+  ],
+  "expected": {
+    "doc": {
+      "version": 1,
+      "title": "T",
+      "blocks": [
+        { "id": "b1", "type": "markdown", "md": "step one" },
+        { "id": "b2", "type": "markdown", "md": "the new comparison step" }
+      ]
+    },
+    "rounds": { "current": 1, "blockRounds": { "b1": 1, "b2": 1 }, "history": [] },
+    "revising": { "blockIds": [] }
+  }
+}

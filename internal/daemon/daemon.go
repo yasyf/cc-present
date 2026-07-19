@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 
@@ -98,6 +99,7 @@ func BuildServer(ctx context.Context, p paths.Paths, version, bind, token string
 	s.Register(OpRemoveBlock, handleRemoveBlock)
 	s.Register(OpReply, handleReply)
 	s.Register(OpRound, handleRound)
+	s.Register(OpRevising, handleRevising)
 	s.Register(OpClose, func(hc ccd.HandlerCtx) ccd.Reply { return handleClose(hc, ast) })
 	s.Register(OpOutcomes, handleOutcomes)
 	mountREST(s, ast, loader)
@@ -196,8 +198,10 @@ func handlePush(hc ccd.HandlerCtx, pt doc.PackTypes) ccd.Reply {
 }
 
 // handleUpsertBlock inserts or replaces a single top-level block. An unknown
-// block type or a block that fails per-type validation is rejected; a closed
-// artifact rejects the upsert.
+// type or a block failing per-type validation is rejected, as is a closed
+// artifact. The resulting document is validated whole, so an upsert duplicating
+// a block id (its own or an option visual's) or growing the doc past
+// MaxDocBytes is rejected before it is appended.
 func handleUpsertBlock(hc ccd.HandlerCtx, pt doc.PackTypes) ccd.Reply {
 	b := decodeBody(hc.Env.Body)
 	blk, err := doc.DecodeBlock(b.Block)
@@ -211,6 +215,17 @@ func handleUpsertBlock(hc ccd.HandlerCtx, pt doc.PackTypes) ccd.Reply {
 	if err != nil {
 		return errReply(err.Error())
 	}
+	events, err := loadEvents(hc.Ctx, hc.DB, sub.ID)
+	if err != nil {
+		return errReply(err.Error())
+	}
+	st, err := state.Reduce(events)
+	if err != nil {
+		return errReply(err.Error())
+	}
+	if err := upsertedDoc(st.Doc, blk, b.After).Validate(pt); err != nil {
+		return errReply(err.Error())
+	}
 	if _, err := appendEvent(hc.Ctx, hc.Append, &ccevent.Event{
 		SubjectID: sub.ID, Origin: ccevent.OriginAgent, Type: EventBlockUpserted,
 		Payload: blockUpsertedPayload(b.Block, b.After),
@@ -218,6 +233,38 @@ func handleUpsertBlock(hc ccd.HandlerCtx, pt doc.PackTypes) ccd.Reply {
 		return errReply(err.Error())
 	}
 	return okReply(result{})
+}
+
+// upsertedDoc returns the document the upsert of blk (after `after`) produces
+// over cur, mirroring state.upsert so the whole-doc validation sees exactly what
+// the reducer will build. An untitled bootstrap doc borrows a placeholder title,
+// since the upsert never owns the doc title.
+func upsertedDoc(cur *doc.Doc, blk doc.Block, after string) *doc.Doc {
+	next := *cur
+	if next.Title == "" {
+		next.Title = "block"
+	}
+	next.Blocks = upsertInto(cur.Blocks, blk, after)
+	return &next
+}
+
+func upsertInto(blocks []doc.Block, blk doc.Block, after string) []doc.Block {
+	out := append([]doc.Block(nil), blocks...)
+	id := blk.BlockID()
+	for i, existing := range out {
+		if existing.BlockID() == id {
+			out[i] = blk
+			return out
+		}
+	}
+	if after != "" {
+		for i, existing := range out {
+			if existing.BlockID() == after {
+				return slices.Insert(out, i+1, blk)
+			}
+		}
+	}
+	return append(out, blk)
 }
 
 // handleRemoveBlock removes a top-level block by id. A closed artifact rejects
@@ -309,6 +356,49 @@ func handleRound(hc ccd.HandlerCtx) ccd.Reply {
 		return errReply(err.Error())
 	}
 	return okReply(result{Round: st.Rounds.Current})
+}
+
+// handleRevising records the agent's declared revising working set: the top-level
+// block ids being rewritten plus an optional shared note. Every announced id must
+// name a current top-level block; an empty set — a bare clear or a doc-level note
+// — skips id validation. It appends an agent-origin revising.changed event. A
+// closed artifact rejects it.
+func handleRevising(hc ccd.HandlerCtx) ccd.Reply {
+	b := decodeBody(hc.Env.Body)
+	sub, err := resolveOpen(hc)
+	if err != nil {
+		return errReply(err.Error())
+	}
+	if len(b.BlockIDs) > 0 {
+		events, err := loadEvents(hc.Ctx, hc.DB, sub.ID)
+		if err != nil {
+			return errReply(err.Error())
+		}
+		st, err := state.Reduce(events)
+		if err != nil {
+			return errReply(err.Error())
+		}
+		top := map[string]bool{}
+		for _, blk := range st.Doc.Blocks {
+			top[blk.BlockID()] = true
+		}
+		for _, id := range b.BlockIDs {
+			if !top[id] {
+				return errReply(fmt.Sprintf("revising names %q, not a current top-level block", id))
+			}
+		}
+	}
+	ids := b.BlockIDs
+	if ids == nil {
+		ids = []string{}
+	}
+	if _, err := appendEvent(hc.Ctx, hc.Append, &ccevent.Event{
+		SubjectID: sub.ID, Origin: ccevent.OriginAgent, Type: EventRevisingChanged,
+		Payload: revisingChangedPayload(ids, b.Note),
+	}); err != nil {
+		return errReply(err.Error())
+	}
+	return okReply(result{})
 }
 
 // handleClose terminally closes the window's artifact: it appends present.closed
@@ -432,6 +522,13 @@ func blockUpsertedPayload(rawBlock json.RawMessage, after string) json.RawMessag
 		p.After = &after
 	}
 	return mustJSON(p)
+}
+
+func revisingChangedPayload(blockIDs []string, note string) json.RawMessage {
+	return mustJSON(struct {
+		BlockIDs []string `json:"blockIds"`
+		Note     string   `json:"note,omitempty"`
+	}{blockIDs, note})
 }
 
 func mustJSON(v any) json.RawMessage {

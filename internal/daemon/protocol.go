@@ -19,6 +19,7 @@ const (
 	OpRemoveBlock ccd.Op = "remove-block"
 	OpReply       ccd.Op = "reply"
 	OpRound       ccd.Op = "round"
+	OpRevising    ccd.Op = "revising"
 	OpClose       ccd.Op = "close"
 	OpOutcomes    ccd.Op = "outcomes"
 )
@@ -40,21 +41,24 @@ const (
 	EventInputSubmitted  = "input.submitted"
 	EventPackInteraction = "pack.interaction"
 	EventSubmit          = "submit"
+	EventRevisingChanged = "revising.changed"
 )
 
 // body is the domain payload carried in an Envelope.Body; each handler reads
 // only the fields its op uses. The window (session, pid) and scope ride on the
 // envelope itself.
 type body struct {
-	New     bool            `json:"new,omitempty"`     // start
-	Title   string          `json:"title,omitempty"`   // start | round
-	Doc     json.RawMessage `json:"doc,omitempty"`     // start | push
-	Block   json.RawMessage `json:"block,omitempty"`   // upsert-block
-	After   string          `json:"after,omitempty"`   // upsert-block
-	ID      string          `json:"id,omitempty"`      // remove-block | reply
-	BlockID string          `json:"blockId,omitempty"` // reply
-	Md      string          `json:"md,omitempty"`      // reply
-	Summary string          `json:"summary,omitempty"` // close
+	New      bool            `json:"new,omitempty"`      // start
+	Title    string          `json:"title,omitempty"`    // start | round
+	Doc      json.RawMessage `json:"doc,omitempty"`      // start | push
+	Block    json.RawMessage `json:"block,omitempty"`    // upsert-block
+	After    string          `json:"after,omitempty"`    // upsert-block
+	ID       string          `json:"id,omitempty"`       // remove-block | reply
+	BlockID  string          `json:"blockId,omitempty"`  // reply
+	Md       string          `json:"md,omitempty"`       // reply
+	Summary  string          `json:"summary,omitempty"`  // close
+	BlockIDs []string        `json:"blockIds,omitempty"` // revising
+	Note     string          `json:"note,omitempty"`     // revising
 }
 
 // result is the domain payload a handler returns in Reply.Body. Envelope-level

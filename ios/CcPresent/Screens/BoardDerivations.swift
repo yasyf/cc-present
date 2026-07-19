@@ -25,7 +25,7 @@ func showsNativeReplyThread(_ block: Block) -> Bool {
     switch block {
     case .approval, .pack:
         false
-    case .section, .card, .choice, .input, .markdown, .code, .diff, .image, .table, .progress:
+    case .section, .card, .choice, .input, .markdown, .code, .diff, .diagram, .image, .table, .progress:
         true
     }
 }
@@ -119,14 +119,18 @@ func submitItems(_ blocks: [Block], _ interactions: Interactions, _ packInteract
 
 /// isDecided mirrors the SubmitBar tally for one block: an approval with any verdict
 /// (cleared decisions are removed, so presence is decidedness), a choice with at
-/// least one selected option, or a pack block with a stored interaction. Every other
-/// block is never decided. Mirrors web/src/decide.ts `isDecided`.
+/// least one selected option or an other write-in, or a pack block with a stored
+/// interaction. Every other block is never decided. Mirrors web/src/decide.ts `isDecided`.
 func isDecided(_ block: Block, _ interactions: Interactions) -> Bool {
     switch block {
     case let .approval(approval):
         interactions.decisions[approval.id] != nil
     case let .choice(choice):
-        !(interactions.choices[choice.id]?.optionIds.isEmpty ?? true)
+        if let selection = interactions.choices[choice.id] {
+            !selection.optionIds.isEmpty || selection.other != nil
+        } else {
+            false
+        }
     case let .pack(pack):
         interactions.packs[pack.id] != nil
     default:
@@ -170,7 +174,7 @@ func roundTally(_ record: RoundRecord) -> RoundTally {
             default: break
             }
         case let .choice(choice):
-            if !(record.choices[choice.id]?.optionIds.isEmpty ?? true) {
+            if let selection = record.choices[choice.id], !selection.optionIds.isEmpty || selection.other != nil {
                 picks += 1
             }
         case let .input(input):

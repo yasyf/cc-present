@@ -1,0 +1,29 @@
+{
+  "name": "revising-last-id-upserted-drains-whole-struct",
+  "events": [
+    {
+      "origin": "agent",
+      "type": "doc.replaced",
+      "seq": 1,
+      "payload": {
+        "revision": 1,
+        "doc": {
+          "version": 1,
+          "title": "T",
+          "blocks": [{ "id": "b1", "type": "markdown", "md": "step one v1" }]
+        }
+      }
+    },
+    { "origin": "agent", "type": "revising.changed", "seq": 2, "payload": { "blockIds": ["b1"], "note": "tweaking b1" } },
+    { "origin": "agent", "type": "block.upserted", "seq": 3, "payload": { "block": { "id": "b1", "type": "markdown", "md": "step one v2" } } }
+  ],
+  "expected": {
+    "doc": {
+      "version": 1,
+      "title": "T",
+      "blocks": [{ "id": "b1", "type": "markdown", "md": "step one v2" }]
+    },
+    "rounds": { "current": 1, "blockRounds": { "b1": 1 }, "history": [] },
+    "revising": { "blockIds": [] }
+  }
+}

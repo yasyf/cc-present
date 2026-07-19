@@ -12,6 +12,7 @@ export type BuiltinBlockType =
   | 'markdown'
   | 'code'
   | 'diff'
+  | 'diagram'
   | 'image'
   | 'table'
   | 'progress';
@@ -88,6 +89,10 @@ export interface Detail {
   mode?: DetailMode;
 }
 
+// A restricted leaf an option may carry, rendered in the option's visual stage
+// rather than inside the row.
+export type OptionVisual = Code | Diagram | Image | Diff;
+
 export interface ChoiceOption {
   id: string;
   label: string;
@@ -98,6 +103,10 @@ export interface ChoiceOption {
   facts?: Fact[];
   // Drill-down tradeoffs and rationale behind a "Details" affordance.
   detail?: Detail;
+  // The author's suggested pick; at most one per single-select choice.
+  recommended?: boolean;
+  // A single visual leaf rendered in the option's visual stage.
+  visual?: OptionVisual;
 }
 
 export interface Choice {
@@ -137,6 +146,15 @@ export interface Diff {
   id: string;
   type: 'diff';
   diff: string;
+  title?: string;
+}
+
+// A text-to-diagram block rendered client-side; kind is `mermaid`.
+export interface Diagram {
+  id: string;
+  type: 'diagram';
+  kind: 'mermaid';
+  source: string;
   title?: string;
 }
 
@@ -198,7 +216,7 @@ export interface PackBlock {
 
 export type StructuralBlock = Section | Card;
 export type InteractiveBlock = Approval | Choice | Input;
-export type ContentBlock = Markdown | Code | Diff | Image | Table | Progress;
+export type ContentBlock = Markdown | Code | Diff | Diagram | Image | Table | Progress;
 
 // A card nests exactly one level of these leaf blocks; it cannot nest a section
 // or another card. Pack blocks are leaves and join the child set.

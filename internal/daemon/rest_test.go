@@ -22,6 +22,7 @@ const seedDoc = `{"version":1,"title":"T","blocks":[
   {"id":"a1","type":"approval","allowFeedback":false},
   {"id":"a2","type":"approval"},
   {"id":"ch1","type":"choice","options":[{"id":"o1","label":"A"},{"id":"o2","label":"B"}]},
+  {"id":"ch2","type":"choice","multi":true,"options":[{"id":"m1","label":"A"},{"id":"m2","label":"B"}]},
   {"id":"in1","type":"input","label":"Name"}
 ]}`
 
@@ -149,6 +150,8 @@ func TestInteractionValidation(t *testing.T) {
 		{"single-select overload", `{"subject":"board--abcd0000","nonce":"n8","interaction":{"type":"choice.selected","blockId":"ch1","optionIds":["o1","o2"]}}`, 400, "single-select"},
 		{"feedback forbidden", `{"subject":"board--abcd0000","nonce":"n9","interaction":{"type":"feedback.created","blockId":"a1","text":"hi"}}`, 400, "does not allow feedback"},
 		{"note forbidden", `{"subject":"board--abcd0000","nonce":"n10","interaction":{"type":"decision.created","blockId":"a1","verdict":"approved","note":"x"}}`, 400, "does not allow feedback"},
+		{"oversized decision note", `{"subject":"board--abcd0000","nonce":"n12","interaction":{"type":"decision.created","blockId":"a2","verdict":"approved","note":"` + strings.Repeat("a", maxHumanTextBytes+1) + `"}}`, 400, "exceeds"},
+		{"duplicate optionIds", `{"subject":"board--abcd0000","nonce":"n13","interaction":{"type":"choice.selected","blockId":"ch2","optionIds":["m1","m1"]}}`, 400, "more than once"},
 		{"missing nonce", `{"subject":"board--abcd0000","interaction":{"type":"decision.created","blockId":"a2","verdict":"approved"}}`, 400, "nonce"},
 		{"unknown subject", `{"subject":"nope","nonce":"n11","interaction":{"type":"decision.created","blockId":"a2","verdict":"approved"}}`, 404, "unknown subject"},
 	}
@@ -161,6 +164,130 @@ func TestInteractionValidation(t *testing.T) {
 			}
 			if tt.wantErr != "" && !strings.Contains(w.Body.String(), tt.wantErr) {
 				t.Fatalf("body = %q, want %q", w.Body.String(), tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestInteractionChoiceOtherAndFeedback(t *testing.T) {
+	tests := []struct {
+		name             string
+		body             string
+		wantCode         int
+		wantErr          string
+		checkChoice      bool
+		wantOptionIDs    []string
+		wantOther        string
+		wantOtherPresent bool
+	}{
+		{
+			name:     "single-select pick and other rejected",
+			body:     `{"subject":"board--abcd0000","nonce":"other1","interaction":{"type":"choice.selected","blockId":"ch1","optionIds":["o1"],"other":"custom"}}`,
+			wantCode: http.StatusBadRequest,
+			wantErr:  "single-select",
+		},
+		{
+			name:             "other-only accepted and trimmed",
+			body:             `{"subject":"board--abcd0000","nonce":"other2","interaction":{"type":"choice.selected","blockId":"ch1","optionIds":[],"other":"  custom  "}}`,
+			wantCode:         http.StatusOK,
+			checkChoice:      true,
+			wantOptionIDs:    []string{},
+			wantOther:        "custom",
+			wantOtherPresent: true,
+		},
+		{
+			name:             "multi-select pick and other accepted",
+			body:             `{"subject":"board--abcd0000","nonce":"other-multi","interaction":{"type":"choice.selected","blockId":"ch2","optionIds":["m1"],"other":"custom"}}`,
+			wantCode:         http.StatusOK,
+			checkChoice:      true,
+			wantOptionIDs:    []string{"m1"},
+			wantOther:        "custom",
+			wantOtherPresent: true,
+		},
+		{
+			name:     "oversized other rejected",
+			body:     `{"subject":"board--abcd0000","nonce":"other3","interaction":{"type":"choice.selected","blockId":"ch1","optionIds":[],"other":"` + strings.Repeat("a", maxHumanTextBytes+1) + `"}}`,
+			wantCode: http.StatusBadRequest,
+			wantErr:  "exceeds",
+		},
+		{
+			name:          "whitespace-only other treated as absent",
+			body:          `{"subject":"board--abcd0000","nonce":"other4","interaction":{"type":"choice.selected","blockId":"ch1","optionIds":["o1"],"other":" \t\n "}}`,
+			wantCode:      http.StatusOK,
+			checkChoice:   true,
+			wantOptionIDs: []string{"o1"},
+		},
+		{
+			name:          "zero-width-only other treated as absent",
+			body:          `{"subject":"board--abcd0000","nonce":"other5","interaction":{"type":"choice.selected","blockId":"ch1","optionIds":["o1"],"other":"\u200b\u200b"}}`,
+			wantCode:      http.StatusOK,
+			checkChoice:   true,
+			wantOptionIDs: []string{"o1"},
+		},
+		{
+			name:     "format-char-only feedback rejected",
+			body:     `{"subject":"board--abcd0000","nonce":"feedback-cf","interaction":{"type":"feedback.created","blockId":"ch1","text":"\u200d\ufeff"}}`,
+			wantCode: http.StatusBadRequest,
+			wantErr:  "feedback requires text",
+		},
+		{
+			name:     "feedback on choice accepted",
+			body:     `{"subject":"board--abcd0000","nonce":"feedback1","interaction":{"type":"feedback.created","blockId":"ch1","text":"try another option"}}`,
+			wantCode: http.StatusOK,
+		},
+		{
+			name:     "oversized feedback rejected",
+			body:     `{"subject":"board--abcd0000","nonce":"feedback-big","interaction":{"type":"feedback.created","blockId":"ch1","text":"` + strings.Repeat("a", maxHumanTextBytes+1) + `"}}`,
+			wantCode: http.StatusBadRequest,
+			wantErr:  "exceeds",
+		},
+		{
+			name:     "feedback on unknown block rejected",
+			body:     `{"subject":"board--abcd0000","nonce":"feedback2","interaction":{"type":"feedback.created","blockId":"zzz","text":"hello"}}`,
+			wantCode: http.StatusBadRequest,
+			wantErr:  "unknown block",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := newRestHarness(t)
+			w := h.post(t, tt.body)
+			if w.Code != tt.wantCode {
+				t.Fatalf("status = %d, want %d (body %q)", w.Code, tt.wantCode, w.Body.String())
+			}
+			if tt.wantErr != "" && !strings.Contains(w.Body.String(), tt.wantErr) {
+				t.Fatalf("body = %q, want %q", w.Body.String(), tt.wantErr)
+			}
+			if !tt.checkChoice {
+				return
+			}
+			events, err := h.cc.EventsSince(context.Background(), h.id, 0, "")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(events) != 2 {
+				t.Fatalf("events = %d, want 2", len(events))
+			}
+			var payload struct {
+				OptionIDs []string `json:"optionIds"`
+				Other     *string  `json:"other"`
+			}
+			if err := json.Unmarshal(events[1].Payload, &payload); err != nil {
+				t.Fatalf("decode payload: %v", err)
+			}
+			if len(payload.OptionIDs) != len(tt.wantOptionIDs) {
+				t.Fatalf("optionIds = %v, want %v", payload.OptionIDs, tt.wantOptionIDs)
+			}
+			for i := range payload.OptionIDs {
+				if payload.OptionIDs[i] != tt.wantOptionIDs[i] {
+					t.Fatalf("optionIds = %v, want %v", payload.OptionIDs, tt.wantOptionIDs)
+				}
+			}
+			if (payload.Other != nil) != tt.wantOtherPresent {
+				t.Fatalf("other present = %t, want %t", payload.Other != nil, tt.wantOtherPresent)
+			}
+			if payload.Other != nil && *payload.Other != tt.wantOther {
+				t.Fatalf("other = %q, want %q", *payload.Other, tt.wantOther)
 			}
 		})
 	}
@@ -246,6 +373,37 @@ func TestInteractionDedup(t *testing.T) {
 	}
 	if n != 1 {
 		t.Fatalf("got %d decision.created, want 1 (deduped)", n)
+	}
+}
+
+func TestInteractionDuplicateFeedbackID(t *testing.T) {
+	h := newRestHarness(t)
+	first := `{"subject":"board--abcd0000","nonce":"fb1","interaction":{"type":"feedback.created","blockId":"ch1","text":"first","id":"f1"}}`
+	if w := h.post(t, first); w.Code != http.StatusOK {
+		t.Fatalf("first feedback status = %d (%s)", w.Code, w.Body.String())
+	}
+	// A fresh request (new nonce) reusing the id already on the thread collides
+	// with the key the browser lists feedback under, and is rejected.
+	dup := `{"subject":"board--abcd0000","nonce":"fb2","interaction":{"type":"feedback.created","blockId":"ch1","text":"second","id":"f1"}}`
+	w := h.post(t, dup)
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("duplicate feedback id status = %d, want 400 (%s)", w.Code, w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), "already exists") {
+		t.Fatalf("body = %q, want 'already exists'", w.Body.String())
+	}
+	all, err := h.cc.EventsSince(context.Background(), h.id, 0, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	n := 0
+	for _, e := range all {
+		if e.Type == EventFeedbackCreated {
+			n++
+		}
+	}
+	if n != 1 {
+		t.Fatalf("got %d feedback.created, want 1 (duplicate rejected)", n)
 	}
 }
 

@@ -1,0 +1,61 @@
+{
+  "name": "choice-other-lww-repick-drops-other",
+  "events": [
+    {
+      "origin": "agent",
+      "type": "doc.replaced",
+      "seq": 1,
+      "payload": {
+        "revision": 1,
+        "doc": {
+          "version": 1,
+          "title": "T",
+          "blocks": [
+            {
+              "id": "c1",
+              "type": "card",
+              "children": [
+                {
+                  "id": "ch1",
+                  "type": "choice",
+                  "options": [
+                    { "id": "o1", "label": "One" },
+                    { "id": "o2", "label": "Two" }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    { "origin": "human", "type": "choice.selected", "seq": 2, "payload": { "blockId": "ch1", "optionIds": [], "other": "A write-in first" } },
+    { "origin": "human", "type": "choice.selected", "seq": 3, "payload": { "blockId": "ch1", "optionIds": ["o1"] } }
+  ],
+  "expected": {
+    "doc": {
+      "version": 1,
+      "title": "T",
+      "blocks": [
+        {
+          "id": "c1",
+          "type": "card",
+          "children": [
+            {
+              "id": "ch1",
+              "type": "choice",
+              "options": [
+                { "id": "o1", "label": "One" },
+                { "id": "o2", "label": "Two" }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "interactions": {
+      "choices": { "ch1": { "optionIds": ["o1"] } }
+    },
+    "rounds": { "current": 1, "blockRounds": { "c1": 1 }, "history": [] }
+  }
+}

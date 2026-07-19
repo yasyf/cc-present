@@ -1,0 +1,35 @@
+{
+  "name": "revising-upsert-drops-its-id-keeps-note",
+  "events": [
+    {
+      "origin": "agent",
+      "type": "doc.replaced",
+      "seq": 1,
+      "payload": {
+        "revision": 1,
+        "doc": {
+          "version": 1,
+          "title": "T",
+          "blocks": [
+            { "id": "b1", "type": "markdown", "md": "step one v1" },
+            { "id": "b2", "type": "markdown", "md": "step two v1" }
+          ]
+        }
+      }
+    },
+    { "origin": "agent", "type": "revising.changed", "seq": 2, "payload": { "blockIds": ["b1", "b2"], "note": "Reworking both after your pick" } },
+    { "origin": "agent", "type": "block.upserted", "seq": 3, "payload": { "block": { "id": "b1", "type": "markdown", "md": "step one v2" } } }
+  ],
+  "expected": {
+    "doc": {
+      "version": 1,
+      "title": "T",
+      "blocks": [
+        { "id": "b1", "type": "markdown", "md": "step one v2" },
+        { "id": "b2", "type": "markdown", "md": "step two v1" }
+      ]
+    },
+    "rounds": { "current": 1, "blockRounds": { "b1": 1, "b2": 1 }, "history": [] },
+    "revising": { "blockIds": ["b2"], "note": "Reworking both after your pick" }
+  }
+}

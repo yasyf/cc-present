@@ -115,6 +115,7 @@ struct DocCodableTests {
             .markdown(Block.Markdown(id: "md", md: "hello", struck: nil)),
             .code(Block.Code(id: "co", lang: "bash", code: "echo hi", title: "Run")),
             .diff(Block.Diff(id: "df", diff: "--- a\n+++ b\n", title: "Change")),
+            .diagram(Block.Diagram(id: "dg", kind: "mermaid", source: "graph TD; A-->B", title: "Flow")),
             .image(Block.Image(id: "im", src: "https://example.com/x.png", alt: "x", caption: "cap")),
             .table(Block.Table(
                 id: "tb",
@@ -176,6 +177,9 @@ struct DocCodableTests {
         #expect(try block(#"{"id":"d","type":"diff","diff":"-a\n+b","title":"T"}"#)
             == .diff(Block.Diff(id: "d", diff: "-a\n+b", title: "T")))
 
+        #expect(try block(#"{"id":"dg","type":"diagram","kind":"mermaid","source":"graph TD; A-->B"}"#)
+            == .diagram(Block.Diagram(id: "dg", kind: "mermaid", source: "graph TD; A-->B")))
+
         #expect(try block(#"{"id":"i","type":"image","src":"asset:abc","alt":"a"}"#)
             == .image(Block.Image(id: "i", src: "asset:abc", alt: "a")))
 
@@ -189,6 +193,61 @@ struct DocCodableTests {
 
         #expect(try block(#"{"id":"p","type":"progress","label":"L","value":2,"max":5,"state":"done"}"#)
             == .progress(Block.Progress(id: "p", label: "L", value: 2, max: 5, state: "done")))
+    }
+
+    @Test("an option's recommended flag and each visual kind decode and round-trip")
+    func optionRecommendedAndVisualsRoundTrip() throws {
+        let choice = Block.choice(Block.Choice(
+            id: "ch",
+            options: [
+                Block.Option(
+                    id: "o1",
+                    label: "Streaming",
+                    recommended: true,
+                    visual: .code(Block.Code(id: "v1", lang: "go", code: "stream(ctx)"))
+                ),
+                Block.Option(
+                    id: "o2",
+                    label: "Polling",
+                    visual: .diagram(Block.Diagram(id: "v2", kind: "mermaid", source: "graph LR; P-->Q"))
+                ),
+                Block.Option(
+                    id: "o3",
+                    label: "Image",
+                    visual: .image(Block.Image(id: "v3", src: "asset:abc", alt: "shot"))
+                ),
+                Block.Option(
+                    id: "o4",
+                    label: "Diff",
+                    visual: .diff(Block.Diff(id: "v4", diff: "-a\n+b"))
+                ),
+            ]
+        ))
+        #expect(try roundTrip(choice) == choice)
+
+        // A hand-written option carrying recommended + a diagram visual decodes.
+        let decoded = try decoder.decode(Block.self, from: Data(#"""
+        {"id":"ch","type":"choice","options":[
+          {"id":"o1","label":"Streaming","recommended":true,
+           "visual":{"id":"v1","type":"diagram","kind":"mermaid","source":"graph TD; A-->B"}}]}
+        """#.utf8))
+        guard case let .choice(ch) = decoded else {
+            Issue.record("decoded block is not a choice")
+            return
+        }
+        #expect(ch.options[0].recommended == true)
+        #expect(ch.options[0].visual == .diagram(Block.Diagram(id: "v1", kind: "mermaid", source: "graph TD; A-->B")))
+    }
+
+    @Test("an option visual of a disallowed type is a thrown decode error")
+    func optionVisualAllowlistThrows() {
+        let json = Data(#"""
+        {"id":"ch","type":"choice","options":[
+          {"id":"o1","label":"A","visual":{"id":"v1","type":"approval"}}]}
+        """#.utf8)
+        #expect(throws: DecodingError.self) {
+            _ = try decoder.decode(Block.self, from: json)
+        }
     }
 
     @Test("the presentation hint decodes to its enum, is nil when absent, and rejects an unknown value")

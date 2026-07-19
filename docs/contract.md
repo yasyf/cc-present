@@ -35,11 +35,12 @@ toggle overrides it.
 | `section` | top | `id`, `type`, `title`, `md?` | Header marker with optional prose. |
 | `card` | top | `id`, `type`, `title?`, `chips?`, `flagged?`, `status?`, `children` | `chips[].tone` is one of `default`, `flag`, `demo`. `status` is one of `open`, `resolved`, `redrafted` and is agent-owned. `children` nests one level of leaf blocks. |
 | `approval` | top or child | `id`, `type`, `prompt?`, `allowFeedback?`, `detail?` | `allowFeedback` defaults to true at render time. `detail` is a `Detail` (see Validation). |
-| `choice` | top or child | `id`, `type`, `prompt?`, `multi?`, `options` | `options[]` is `{id, label, hint?, md?, facts?, detail?}`; option ids are unique within the block. `facts` is `Fact[]`, `detail` a `Detail` (see Validation). |
+| `choice` | top or child | `id`, `type`, `prompt?`, `multi?`, `options` | `options[]` is `{id, label, hint?, md?, facts?, detail?, recommended?, visual?}`; option ids are unique within the block. `facts` is `Fact[]`, `detail` a `Detail` (see Validation). `recommended` marks the author's suggested pick (at most one per single-select). `visual` is a restricted leaf (`code`, `diagram`, `image`, or `diff`) with its own doc-unique id. |
 | `input` | top or child | `id`, `type`, `label`, `placeholder?`, `multiline?` | Free-text field. |
 | `markdown` | top or child | `id`, `type`, `md`, `struck?` | `struck` applies the "was:" treatment. |
 | `code` | top or child | `id`, `type`, `lang`, `code`, `title?` | |
 | `diff` | top or child | `id`, `type`, `diff`, `title?` | Unified diff text. |
+| `diagram` | top or child | `id`, `type`, `kind`, `source`, `title?` | Text-to-diagram block rendered client-side. `kind` is `mermaid`; `source` is at most **8 KiB**. Also usable as an `option.visual`. |
 | `image` | top or child | `id`, `type`, `src`, `alt`, `caption?` | `src` is `https://…`, `asset:<sha256>`, or `data:…`. |
 | `table` | top or child | `id`, `type`, `columns`, `rows` | `columns[]` is `{key, label, align?}` where `align` is `left` or `right`; `rows[]` is a `Record<string,string>` of inline-markdown cells. |
 | `progress` | top or child | `id`, `type`, `label`, `value`, `max`, `state?` | `state` is one of `active`, `done`, `error` and is agent-owned. |
@@ -60,6 +61,12 @@ toggle overrides it.
 - On `progress`, `max` is greater than 0 and `value` is within `[0, max]`.
 - `image.src` is `https://…`, `asset:` followed by 64 lowercase hex characters, or
   `data:…`. A `data:` URI is at most **32 KiB**.
+- On `diagram`, `kind` is `mermaid`, `source` is non-empty and at most **8 KiB**, and
+  `title`, when set, is single-line.
+- A choice option's `visual`, when set, decodes to a `code`, `diagram`, `image`, or
+  `diff` block; any other type is rejected at decode time. A visual carries its own
+  doc-unique block id, so it is addressable in single-block mode.
+- A single-select choice (`multi` unset or false) has at most one `recommended` option.
 - The serialized document is at most **1 MiB**.
 
 `Fact` and `Detail` are the option-context shapes — `facts` and `detail` on a choice
@@ -276,11 +283,12 @@ columns below omit that injected field; both reducers tolerate it.
 | agent | `round.started` | `{title?}` | When the round is dirty (a live top-level block is stamped with the current round), snapshot it into `rounds.history` without a `submittedRevision` and advance `rounds.current`; then set the current round's title. When clean, only the title changes — so a `round.started` right after a submit names the round the submit already opened. Never bumps the revision, which counts `doc.replaced` events only. |
 | system | `present.closed` | `{summary?}` | Set closed. Terminal for the reduction: any event ordered after it is a no-op (see below). Recorded with a `system` origin, not `agent`, so it survives the agent-side `watch`/channel `exclude_origin=agent` filter — `watch` terminates on it. |
 | human | `decision.created` | `{blockId, verdict, note?}` | Last-write-wins per block. `verdict` is one of `approved`, `rejected`, `cleared`; `cleared` removes the decision, returning the block to undecided. |
-| human | `choice.selected` | `{blockId, optionIds}` | Last-write-wins per block. |
-| human | `feedback.created` | `{id, blockId, text}` | Append to the block's feedback list. |
+| human | `choice.selected` | `{blockId, optionIds, other?}` | Last-write-wins per block. `other` is a free-text write-in outside the authored option set; it may stand alone (single-select write-in, empty `optionIds`) or coexist with `optionIds` (multi-select). A re-pick replaces the whole selection, so it drops a prior `other`. |
+| human | `feedback.created` | `{id, blockId, text}` | Append to the block's feedback list. Targets any block — approval or choice alike — so a choice carries an append-only note thread beside its selection. |
 | human | `input.submitted` | `{blockId, text}` | Last-write-wins per block. |
 | human | `pack.interaction` | `{blockId, payload}` | Last-write-wins per block. `payload` is the pack-defined interaction object, stored opaquely — the reducer never inspects its shape. The REST edge validates it against the block's declared interaction schema before appending. |
 | human | `submit` | `{revision}` | Set submitted with the revision. When the round is dirty, additionally snapshot the current round into `rounds.history` with `submittedRevision` set, advance `rounds.current`, and clear the title; a clean submit records only the revision. Does not close the document, so rounds continue. The REST plane rejects a revision the log never produced (below 0 or past the current revision). |
+| agent | `revising.changed` | `{blockIds, note?}` | Replace the revising working set wholesale (last-write-wins). Each id names a current top-level block; a `block.upserted` or `block.removed` drops its id, and draining the last id clears the shared `note` too. `doc.replaced` clears everything. An empty set with a `note` is the doc-level drafting state, while an empty set with no `note` abandons the announcement. Announcing never stamps rounds (see Live revision). |
 
 Post-close events are no-ops, not errors, by design. A human click can race an
 agent's close, with the browser POSTing an interaction at the same moment
@@ -297,14 +305,14 @@ other unknown event type is still an error.
 
 ### Reduced state
 
-`internal/state.State` holds the document, the keyed human interactions, and the
-round partition:
+`internal/state.State` holds the document, the keyed human interactions, the
+round partition, and the agent's revising working set:
 
 ```
-State = { doc, interactions, rounds }
+State = { doc, interactions, rounds, revising }
 interactions = {
   decisions: { [blockId]: {verdict, note?} },     // last-write-wins
-  choices:   { [blockId]: {optionIds} },          // last-write-wins
+  choices:   { [blockId]: {optionIds, other?} },  // last-write-wins
   inputs:    { [blockId]: {text, round} },        // last-write-wins; round-stamped
   packs:     { [blockId]: {payload} },            // last-write-wins; opaque payload
   feedback:  { [blockId]: {id, text}[] },         // append-only
@@ -319,6 +327,7 @@ rounds = {
   history: RoundRecord[]                          // closed rounds, ascending
 }
 RoundRecord = { number, title?, blocks, decisions, choices, inputs, packs, feedback, submittedRevision? }
+revising = { blockIds: string[], note?: string }  // agent's declared working set
 ```
 
 `Reduce` starts from an empty document with `version 1`, no title, and no blocks, so
@@ -354,7 +363,28 @@ one level of card children. `submittedRevision` is set only when a submit closed
 **Revision is not round.** The revision counts `doc.replaced` events only;
 `round.started` never bumps it, and a round can span many revisions or none.
 
-## REST surface
+## Live revision
+
+`revising` is the agent's declared working set: the top-level block ids it is
+rewriting plus an optional shared `note`, a sibling of `interactions` and `rounds`
+in the reduced state. It is warn-only — no lock semantics live in the wire or the
+reducers; staleness and decay are client presentation.
+
+`revising.changed` replaces the whole set (last-write-wins). Completion is implicit:
+a `block.upserted` or `block.removed` drops its id, and draining the last id clears
+the shared `note` too, so the common path is announce-once then upsert-N-times with
+no terminal call. `doc.replaced` clears everything; `present.closed` no-ops it like
+every post-close event. An empty set with a `note` (`blockIds: []` + `note`) is the
+doc-level drafting state — work with no existing block to mark yet — cleared by the
+next `block.upserted`. An empty set with no `note` abandons the announcement.
+
+`revising.changed` never stamps `blockRounds`: announcing is not touching. The
+reducers stay pure — no wall clock — so a mark persists until an upsert, removal, or
+replacement clears it; client-side decay of a stale mark is presentation only.
+
+The daemon edge validates each announced id names a current top-level block (child
+ids and unknown ids are rejected); an empty set skips id validation. The agent sends
+it with `cc-present revising [blockId...] [--note "…"]` — a bare call abandons.
 
 | Method | Path | Body | Purpose |
 |---|---|---|---|

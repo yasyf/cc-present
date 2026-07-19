@@ -371,6 +371,29 @@ func newRoundCmd(d cmd.Deps) *cobra.Command {
 	return c
 }
 
+// newRevisingCmd declares the top-level block ids the agent is revising, with an
+// optional note. No ids and no note abandons the announcement; no ids with a note
+// is the doc-level drafting state.
+func newRevisingCmd(d cmd.Deps) *cobra.Command {
+	var session, cwd, note string
+	c := &cobra.Command{
+		Use:   "revising [blockId...]",
+		Short: "Declare the block ids the agent is revising, with an optional note",
+		Args:  cobra.ArbitraryArgs,
+		RunE: func(c *cobra.Command, args []string) error {
+			ctx := c.Context()
+			if err := d.EnsureCurrent(ctx); err != nil {
+				return err
+			}
+			return client(d).Revising(ctx, sessionOr(session), mustCwd(cwd), d.ClaudePID(), args, note)
+		},
+	}
+	c.Flags().StringVar(&note, "note", "", "note shown with the revising announcement")
+	c.Flags().StringVar(&session, "session", "", "Claude session id (defaults to $CLAUDE_CODE_SESSION_ID)")
+	c.Flags().StringVar(&cwd, "cwd", "", "working directory (recorded on the request; artifacts are per-window, not resolved by directory)")
+	return c
+}
+
 // newOutcomesCmd prints the artifact's reduced state as JSON — the post-submit
 // drain.
 func newOutcomesCmd(d cmd.Deps) *cobra.Command {

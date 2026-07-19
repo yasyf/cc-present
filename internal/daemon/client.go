@@ -103,6 +103,14 @@ func (cl *Client) Round(ctx context.Context, session, scope string, pid int, tit
 	return res.Round, err
 }
 
+// Revising declares the agent's revising working set: the top-level block ids
+// being rewritten plus an optional shared note. No ids and no note abandons the
+// announcement; no ids with a note is the doc-level drafting state.
+func (cl *Client) Revising(ctx context.Context, session, scope string, pid int, blockIDs []string, note string) error {
+	_, _, err := cl.do(ctx, OpRevising, session, scope, pid, body{BlockIDs: blockIDs, Note: note})
+	return err
+}
+
 // Close terminally closes the window's artifact and returns its slug.
 func (cl *Client) Close(ctx context.Context, session, scope string, pid int, summary string) (string, error) {
 	_, res, err := cl.do(ctx, OpClose, session, scope, pid, body{Summary: summary})

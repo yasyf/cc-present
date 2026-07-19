@@ -79,6 +79,12 @@ private func approval(_ id: String) -> Block {
     #expect(isDecided(choice, Interactions(choices: ["ch": Selection(optionIds: ["o1"])])) == true)
 }
 
+@Test func isDecidedTreatsOtherOnlyChoiceSelectionAsDecided() {
+    let choice = Block.choice(Block.Choice(id: "ch", options: [Block.Option(id: "o1", label: "A")]))
+
+    #expect(isDecided(choice, Interactions(choices: ["ch": Selection(optionIds: [], other: "custom")])) == true)
+}
+
 @Test func isDecidedTreatsStoredPackInteractionAsDecided() {
     let block = pack("pk", "ex.rating")
 
@@ -120,6 +126,13 @@ private let blockDecidedCases: [BlockDecidedCase] = [
         name: "picked choice",
         block: .choice(Block.Choice(id: "ch", options: [Block.Option(id: "o1", label: "A")])),
         interactions: Interactions(choices: ["ch": Selection(optionIds: ["o1"])]),
+        packInteractive: [],
+        decided: true
+    ),
+    BlockDecidedCase(
+        name: "other-only choice selection",
+        block: .choice(Block.Choice(id: "ch", options: [Block.Option(id: "o1", label: "A")])),
+        interactions: Interactions(choices: ["ch": Selection(optionIds: [], other: "custom")]),
         packInteractive: [],
         decided: true
     ),
@@ -205,6 +218,20 @@ private func blockDecidedReceiptsFullyDecidedRows(_ testCase: BlockDecidedCase) 
     #expect(tally == RoundTally(approved: 1, rejected: 1, picks: 1, notes: 3))
 }
 
+@Test func roundTallyCountsOtherOnlyChoiceSelectionAsPick() {
+    let record = RoundRecord(
+        number: 4,
+        blocks: [
+            .choice(Block.Choice(id: "ch1", options: [Block.Option(id: "o1", label: "A")])),
+        ],
+        choices: ["ch1": Selection(optionIds: [], other: "custom")]
+    )
+
+    let tally = roundTally(record)
+
+    #expect(tally == RoundTally(approved: 0, rejected: 0, picks: 1, notes: 0))
+}
+
 @Test func roundTallyCountsInteractedPackBlockAsPick() {
     let record = RoundRecord(
         number: 3,
@@ -239,6 +266,11 @@ private let replyThreadCases: [ReplyThreadCase] = [
     ReplyThreadCase(name: "markdown", block: .markdown(Block.Markdown(id: "md", md: "hi")), shows: true),
     ReplyThreadCase(name: "code", block: .code(Block.Code(id: "cd", lang: "swift", code: "let x = 1")), shows: true),
     ReplyThreadCase(name: "diff", block: .diff(Block.Diff(id: "df", diff: "@@ -1 +1 @@")), shows: true),
+    ReplyThreadCase(
+        name: "diagram",
+        block: .diagram(Block.Diagram(id: "dg", kind: "mermaid", source: "graph TD; A-->B")),
+        shows: true
+    ),
     ReplyThreadCase(name: "image", block: .image(Block.Image(id: "im", src: "https://example.com/a.png", alt: "alt")), shows: true),
     ReplyThreadCase(
         name: "table",

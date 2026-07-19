@@ -71,7 +71,7 @@ describe('isDecided', () => {
   const decided: Interactions = {
     ...base,
     decisions: { a1: { verdict: 'approved' } },
-    choices: { ch1: { optionIds: ['ch1o1'] }, ch2: { optionIds: [] } },
+    choices: { ch1: { optionIds: ['ch1o1'] }, ch2: { optionIds: [] }, ch3: { optionIds: [], other: 'custom' } },
     packs: { r1: { payload: { value: 4 } } },
   };
   const cases: { name: string; block: Block; interactions: Interactions; expected: boolean }[] = [
@@ -79,6 +79,7 @@ describe('isDecided', () => {
     { name: 'approval with no verdict is undecided', block: approval('a2'), interactions: decided, expected: false },
     { name: 'choice with a selection is decided', block: choice('ch1'), interactions: decided, expected: true },
     { name: 'choice with an empty selection is undecided', block: choice('ch2'), interactions: decided, expected: false },
+    { name: 'choice with an other write-in is decided', block: choice('ch3'), interactions: decided, expected: true },
     { name: 'input is never decided', block: input('in1'), interactions: decided, expected: false },
     { name: 'pack with a stored interaction is decided', block: pack('r1'), interactions: decided, expected: true },
     { name: 'pack with no interaction is undecided', block: pack('r2'), interactions: decided, expected: false },

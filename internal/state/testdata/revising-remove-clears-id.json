@@ -1,0 +1,32 @@
+{
+  "name": "revising-block-removed-drops-its-id",
+  "events": [
+    {
+      "origin": "agent",
+      "type": "doc.replaced",
+      "seq": 1,
+      "payload": {
+        "revision": 1,
+        "doc": {
+          "version": 1,
+          "title": "T",
+          "blocks": [
+            { "id": "b1", "type": "markdown", "md": "step one" },
+            { "id": "b2", "type": "markdown", "md": "step two" }
+          ]
+        }
+      }
+    },
+    { "origin": "agent", "type": "revising.changed", "seq": 2, "payload": { "blockIds": ["b1", "b2"], "note": "reworking both" } },
+    { "origin": "agent", "type": "block.removed", "seq": 3, "payload": { "id": "b1" } }
+  ],
+  "expected": {
+    "doc": {
+      "version": 1,
+      "title": "T",
+      "blocks": [{ "id": "b2", "type": "markdown", "md": "step two" }]
+    },
+    "rounds": { "current": 1, "blockRounds": { "b2": 1 }, "history": [] },
+    "revising": { "blockIds": ["b2"], "note": "reworking both" }
+  }
+}

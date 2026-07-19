@@ -1,0 +1,64 @@
+{
+  "name": "choice-other-multi-coexists-with-options",
+  "events": [
+    {
+      "origin": "agent",
+      "type": "doc.replaced",
+      "seq": 1,
+      "payload": {
+        "revision": 1,
+        "doc": {
+          "version": 1,
+          "title": "T",
+          "blocks": [
+            {
+              "id": "c1",
+              "type": "card",
+              "children": [
+                {
+                  "id": "ch1",
+                  "type": "choice",
+                  "multi": true,
+                  "options": [
+                    { "id": "o1", "label": "One" },
+                    { "id": "o2", "label": "Two" },
+                    { "id": "o3", "label": "Three" }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    { "origin": "human", "type": "choice.selected", "seq": 2, "payload": { "blockId": "ch1", "optionIds": ["o1", "o3"], "other": "plus a custom one" } }
+  ],
+  "expected": {
+    "doc": {
+      "version": 1,
+      "title": "T",
+      "blocks": [
+        {
+          "id": "c1",
+          "type": "card",
+          "children": [
+            {
+              "id": "ch1",
+              "type": "choice",
+              "multi": true,
+              "options": [
+                { "id": "o1", "label": "One" },
+                { "id": "o2", "label": "Two" },
+                { "id": "o3", "label": "Three" }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "interactions": {
+      "choices": { "ch1": { "optionIds": ["o1", "o3"], "other": "plus a custom one" } }
+    },
+    "rounds": { "current": 1, "blockRounds": { "c1": 1 }, "history": [] }
+  }
+}

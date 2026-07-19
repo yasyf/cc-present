@@ -1,0 +1,44 @@
+{
+  "name": "revising-doc-replaced-clears-everything",
+  "events": [
+    {
+      "origin": "agent",
+      "type": "doc.replaced",
+      "seq": 1,
+      "payload": {
+        "revision": 1,
+        "doc": {
+          "version": 1,
+          "title": "T",
+          "blocks": [
+            { "id": "b1", "type": "markdown", "md": "step one" },
+            { "id": "b2", "type": "markdown", "md": "step two" }
+          ]
+        }
+      }
+    },
+    { "origin": "agent", "type": "revising.changed", "seq": 2, "payload": { "blockIds": ["b1", "b2"], "note": "reworking" } },
+    {
+      "origin": "agent",
+      "type": "doc.replaced",
+      "seq": 3,
+      "payload": {
+        "revision": 2,
+        "doc": {
+          "version": 1,
+          "title": "T2",
+          "blocks": [{ "id": "b3", "type": "markdown", "md": "fresh board" }]
+        }
+      }
+    }
+  ],
+  "expected": {
+    "doc": {
+      "version": 1,
+      "title": "T2",
+      "blocks": [{ "id": "b3", "type": "markdown", "md": "fresh board" }]
+    },
+    "rounds": { "current": 1, "blockRounds": { "b3": 1 }, "history": [] },
+    "revising": { "blockIds": [] }
+  }
+}

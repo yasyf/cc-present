@@ -10,6 +10,7 @@ import (
 	"mime"
 	"net/http"
 	"strings"
+	"unicode"
 
 	ccd "github.com/yasyf/cc-interact/daemon"
 	ccevent "github.com/yasyf/cc-interact/event"
@@ -27,6 +28,8 @@ var validVerdict = map[string]bool{"approved": true, "rejected": true, "cleared"
 // maxInteractionBytes caps the POST /api/interactions body so an oversized
 // payload can't be decoded into memory or persisted to the event log.
 const maxInteractionBytes = 256 << 10
+
+const maxHumanTextBytes = 64 << 10
 
 // restServer holds the REST plane's shared state: the event-log connection, the
 // Append chokepoint, the subject resolver, the asset store, and the SPA handler
@@ -56,6 +59,7 @@ type interaction struct {
 	Verdict   string          `json:"verdict"`
 	Note      string          `json:"note"`
 	OptionIDs []string        `json:"optionIds"`
+	Other     string          `json:"other"`
 	Text      string          `json:"text"`
 	ID        string          `json:"id"`
 	Revision  int             `json:"revision"`
@@ -199,6 +203,9 @@ func validateInteraction(st *state.State, revision int, it *interaction, reg *pa
 		if it.Note != "" && !allowsFeedback(ap) {
 			return nil, fmt.Errorf("block %q does not allow feedback", it.BlockID)
 		}
+		if len(it.Note) > maxHumanTextBytes {
+			return nil, fmt.Errorf("decision %q note exceeds %d bytes", it.BlockID, maxHumanTextBytes)
+		}
 		p := map[string]string{"blockId": it.BlockID, "verdict": it.Verdict}
 		if it.Note != "" {
 			p["note"] = it.Note
@@ -216,32 +223,70 @@ func validateInteraction(st *state.State, revision int, it *interaction, reg *pa
 		for _, o := range ch.Options {
 			valid[o.ID] = true
 		}
+		seen := map[string]bool{}
 		for _, oid := range it.OptionIDs {
 			if !valid[oid] {
 				return nil, fmt.Errorf("choice %q has no option %q", it.BlockID, oid)
 			}
+			if seen[oid] {
+				return nil, fmt.Errorf("choice %q selects option %q more than once", it.BlockID, oid)
+			}
+			seen[oid] = true
 		}
-		if !ch.Multi && len(it.OptionIDs) > 1 {
-			return nil, fmt.Errorf("choice %q is single-select but %d options were chosen", it.BlockID, len(it.OptionIDs))
+		other := strings.TrimSpace(it.Other)
+		if visuallyEmpty(other) {
+			other = ""
+		}
+		if len(other) > maxHumanTextBytes {
+			return nil, fmt.Errorf("choice %q other text exceeds %d bytes", it.BlockID, maxHumanTextBytes)
+		}
+		arity := len(it.OptionIDs)
+		if other != "" {
+			arity++
+		}
+		if !ch.Multi && arity > 1 {
+			return nil, fmt.Errorf("choice %q is single-select but %d options were chosen", it.BlockID, arity)
 		}
 		ids := it.OptionIDs
 		if ids == nil {
 			ids = []string{}
 		}
-		return mustJSON(map[string]any{"blockId": it.BlockID, "optionIds": ids}), nil
+		p := map[string]any{"blockId": it.BlockID, "optionIds": ids}
+		if other != "" {
+			p["other"] = other
+		}
+		return mustJSON(p), nil
 	case EventFeedbackCreated:
-		ap, topID, err := requireApproval(st, it.BlockID)
-		if err != nil {
-			return nil, err
+		b, topID, ok := findBlock(st.Doc, it.BlockID)
+		if !ok {
+			return nil, fmt.Errorf("unknown block %q", it.BlockID)
+		}
+		var ap *doc.Approval
+		switch target := b.(type) {
+		case *doc.Approval:
+			ap = target
+		case *doc.Choice:
+		default:
+			return nil, fmt.Errorf("block %q is a %s, not an approval or choice", it.BlockID, b.BlockType())
 		}
 		if err := requireCurrentRound(st, it.BlockID, topID); err != nil {
 			return nil, err
 		}
-		if !allowsFeedback(ap) {
+		if ap != nil && !allowsFeedback(ap) {
 			return nil, fmt.Errorf("block %q does not allow feedback", it.BlockID)
 		}
-		if it.Text == "" {
+		if visuallyEmpty(it.Text) {
 			return nil, fmt.Errorf("feedback requires text")
+		}
+		if len(it.Text) > maxHumanTextBytes {
+			return nil, fmt.Errorf("feedback exceeds %d bytes", maxHumanTextBytes)
+		}
+		if it.ID != "" {
+			for _, f := range st.Interactions.Feedback[it.BlockID] {
+				if f.ID == it.ID {
+					return nil, fmt.Errorf("feedback %q already exists on block %q", it.ID, it.BlockID)
+				}
+			}
 		}
 		id := it.ID
 		if id == "" {
@@ -358,6 +403,19 @@ func findBlock(d *doc.Doc, id string) (doc.Block, string, bool) {
 // allowFeedback defaults to true when unset.
 func allowsFeedback(ap *doc.Approval) bool {
 	return ap.AllowFeedback == nil || *ap.AllowFeedback
+}
+
+// visuallyEmpty reports whether s carries no visible content: once outer
+// whitespace is trimmed, every remaining rune is a Unicode space or format (Cf)
+// character — a zero-width space or joiner, say — so the string reads as blank
+// to a human even though it is not "".
+func visuallyEmpty(s string) bool {
+	for _, r := range strings.TrimSpace(s) {
+		if !unicode.IsSpace(r) && !unicode.Is(unicode.Cf, r) {
+			return false
+		}
+	}
+	return true
 }
 
 // requireAssetType is requireJSON's CSRF gate for the raw-bytes asset upload:

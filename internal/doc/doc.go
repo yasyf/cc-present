@@ -18,6 +18,7 @@ import (
 const (
 	MaxDocBytes     = 1 << 20  // 1 MiB
 	MaxDataURIBytes = 32 << 10 // 32 KiB
+	MaxDiagramBytes = 8 << 10  // 8 KiB
 )
 
 var (
@@ -27,6 +28,7 @@ var (
 	validDetailMode    = map[string]bool{"inline": true, "modal": true}
 	validProgressState = map[string]bool{"active": true, "done": true, "error": true}
 	validPresentation  = map[string]bool{"focus": true, "board": true}
+	validVisualType    = map[string]bool{"code": true, "diagram": true, "image": true, "diff": true}
 	assetSHAPattern    = regexp.MustCompile(`^asset:[0-9a-f]{64}$`)
 	errEmptyBlockID    = errors.New("block id must not be empty")
 	errEmptyTitle      = errors.New("doc title must not be empty")
@@ -123,14 +125,58 @@ type Detail struct {
 	Mode string   `json:"mode,omitempty"` // inline|modal (default inline)
 }
 
-// Option is one selectable choice within a Choice block.
+// Option is one selectable choice within a Choice block. Recommended marks the
+// author's suggested pick (at most one per single-select choice). Visual is an
+// optional restricted leaf — a code, diagram, image, or diff block — rendered in
+// the option's visual stage rather than inside the row.
 type Option struct {
-	ID     string  `json:"id"`
-	Label  string  `json:"label"`
-	Hint   string  `json:"hint,omitempty"`
-	Md     string  `json:"md,omitempty"`
-	Facts  []Fact  `json:"facts,omitempty"`
-	Detail *Detail `json:"detail,omitempty"`
+	ID          string  `json:"id"`
+	Label       string  `json:"label"`
+	Hint        string  `json:"hint,omitempty"`
+	Md          string  `json:"md,omitempty"`
+	Facts       []Fact  `json:"facts,omitempty"`
+	Detail      *Detail `json:"detail,omitempty"`
+	Recommended bool    `json:"recommended,omitempty"`
+	Visual      Block   `json:"visual,omitempty"`
+}
+
+// UnmarshalJSON decodes an option, dispatching its optional visual through
+// DecodeBlock and rejecting any type outside the {code, diagram, image, diff}
+// allowlist so a disallowed visual fails loudly at decode. Marshaling needs no
+// custom path: the concrete visual block marshals naturally and a nil interface
+// omits.
+func (o *Option) UnmarshalJSON(data []byte) error {
+	var raw struct {
+		ID          string          `json:"id"`
+		Label       string          `json:"label"`
+		Hint        string          `json:"hint"`
+		Md          string          `json:"md"`
+		Facts       []Fact          `json:"facts"`
+		Detail      *Detail         `json:"detail"`
+		Recommended bool            `json:"recommended"`
+		Visual      json.RawMessage `json:"visual"`
+	}
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return fmt.Errorf("unmarshal option: %w", err)
+	}
+	o.ID = raw.ID
+	o.Label = raw.Label
+	o.Hint = raw.Hint
+	o.Md = raw.Md
+	o.Facts = raw.Facts
+	o.Detail = raw.Detail
+	o.Recommended = raw.Recommended
+	if len(raw.Visual) > 0 && string(raw.Visual) != "null" {
+		v, err := DecodeBlock(raw.Visual)
+		if err != nil {
+			return fmt.Errorf("option %q visual: %w", raw.ID, err)
+		}
+		if !validVisualType[v.BlockType()] {
+			return fmt.Errorf("option %q visual: type %q is not an allowed visual (code, diagram, image, diff)", raw.ID, v.BlockType())
+		}
+		o.Visual = v
+	}
+	return nil
 }
 
 // Choice is a single- or multi-select control; selecting an option approves it.
@@ -169,6 +215,14 @@ type Diff struct {
 	base
 	Diff  string `json:"diff"`
 	Title string `json:"title,omitempty"`
+}
+
+// Diagram is a text-to-diagram block rendered client-side; Kind is "mermaid".
+type Diagram struct {
+	base
+	Kind   string `json:"kind"`
+	Source string `json:"source"`
+	Title  string `json:"title,omitempty"`
 }
 
 // Image is an image reference; Src is an https:, asset:<sha256>, or data: URI.
@@ -349,12 +403,22 @@ func (d *Doc) Validate(pt PackTypes) error {
 		if err := validateBlock(b, pt); err != nil {
 			errs = append(errs, err)
 		}
+		for _, v := range Visuals(b) {
+			if err := registerID(seen, v.BlockID()); err != nil {
+				errs = append(errs, err)
+			}
+		}
 		for _, child := range Children(b) {
 			if err := registerID(seen, child.BlockID()); err != nil {
 				errs = append(errs, err)
 			}
 			if err := validateChild(b, child, pt); err != nil {
 				errs = append(errs, err)
+			}
+			for _, v := range Visuals(child) {
+				if err := registerID(seen, v.BlockID()); err != nil {
+					errs = append(errs, err)
+				}
 			}
 		}
 	}
@@ -492,11 +556,46 @@ func validateDiff(d *Diff) error {
 	return nil
 }
 
+// validateVisual validates an option-visual leaf against its own rules. The
+// allowlist is enforced at decode (Option.UnmarshalJSON); the default arm guards
+// a visual constructed outside the JSON path.
+func validateVisual(b Block) error {
+	switch v := b.(type) {
+	case *Code:
+		return validateCode(v)
+	case *Diagram:
+		return validateDiagram(v)
+	case *Image:
+		return validateImage(v)
+	case *Diff:
+		return validateDiff(v)
+	default:
+		return fmt.Errorf("type %q is not an allowed visual (code, diagram, image, diff)", b.BlockType())
+	}
+}
+
+func validateDiagram(d *Diagram) error {
+	if d.Kind != "mermaid" {
+		return fmt.Errorf("diagram %q: kind must be mermaid, got %q", d.ID, d.Kind)
+	}
+	if d.Source == "" {
+		return fmt.Errorf("diagram %q: source must not be empty", d.ID)
+	}
+	if len(d.Source) > MaxDiagramBytes {
+		return fmt.Errorf("diagram %q: source is %d bytes, exceeds %d", d.ID, len(d.Source), MaxDiagramBytes)
+	}
+	if strings.Contains(d.Title, "\n") {
+		return fmt.Errorf("diagram %q: title must be a single line", d.ID)
+	}
+	return nil
+}
+
 func validateChoice(c *Choice) error {
 	if len(c.Options) == 0 {
 		return fmt.Errorf("choice %q: must have at least one option", c.ID)
 	}
 	optSeen := map[string]bool{}
+	recommended := 0
 	for _, o := range c.Options {
 		if o.ID == "" {
 			return fmt.Errorf("choice %q: option id must not be empty", c.ID)
@@ -519,6 +618,17 @@ func validateChoice(c *Choice) error {
 		if err := validateDetail(o.Detail); err != nil {
 			return fmt.Errorf("choice %q: option %q: %w", c.ID, o.ID, err)
 		}
+		if o.Visual != nil {
+			if err := validateVisual(o.Visual); err != nil {
+				return fmt.Errorf("choice %q: option %q visual: %w", c.ID, o.ID, err)
+			}
+		}
+		if o.Recommended {
+			recommended++
+		}
+	}
+	if !c.Multi && recommended > 1 {
+		return fmt.Errorf("choice %q: single-select allows at most one recommended option, got %d", c.ID, recommended)
 	}
 	return nil
 }

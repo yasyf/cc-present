@@ -14,8 +14,10 @@ import type {
   Interactions,
   PresentEvent,
   PresentState,
+  Revising,
   RoundRecord,
   Rounds,
+  Selection,
   Verdict,
 } from './events';
 
@@ -39,6 +41,7 @@ export function emptyState(): PresentState {
       closed: { value: false },
     },
     rounds: { current: 1, blockRounds: {}, history: [] },
+    revising: { blockIds: [] },
   };
 }
 
@@ -64,18 +67,20 @@ export function applyEvent(state: PresentState, ev: PresentEvent): PresentState 
       const doc = ev.payload.doc;
       const blockRounds: Record<string, number> = {};
       for (const b of doc.blocks) blockRounds[b.id] = state.rounds.current;
-      return { ...state, doc, rounds: { ...state.rounds, blockRounds } };
+      return { ...state, doc, rounds: { ...state.rounds, blockRounds }, revising: { blockIds: [] } };
     }
     case 'block.upserted': {
       const blocks = upsert(state.doc.blocks, ev.payload.block, ev.payload.after);
       const blockRounds = { ...state.rounds.blockRounds, [ev.payload.block.id]: state.rounds.current };
-      return { ...state, doc: { ...state.doc, blocks }, rounds: { ...state.rounds, blockRounds } };
+      const revising = revisingOnUpsert(state.revising, ev.payload.block.id);
+      return { ...state, doc: { ...state.doc, blocks }, rounds: { ...state.rounds, blockRounds }, revising };
     }
     case 'block.removed': {
       const blocks = remove(state.doc.blocks, ev.payload.id);
       const blockRounds = { ...state.rounds.blockRounds };
       delete blockRounds[ev.payload.id];
-      return { ...state, doc: { ...state.doc, blocks }, rounds: { ...state.rounds, blockRounds } };
+      const revising = revisingOnRemove(state.revising, ev.payload.id);
+      return { ...state, doc: { ...state.doc, blocks }, rounds: { ...state.rounds, blockRounds }, revising };
     }
     case 'reply.created': {
       const { blockId, id, md } = ev.payload;
@@ -108,10 +113,10 @@ export function applyEvent(state: PresentState, ev: PresentEvent): PresentState 
       return withInteractions(state, { decisions });
     }
     case 'choice.selected': {
-      const { blockId, optionIds } = ev.payload;
-      return withInteractions(state, {
-        choices: { ...state.interactions.choices, [blockId]: { optionIds: optionIds ?? [] } },
-      });
+      const { blockId, optionIds, other } = ev.payload;
+      const selection: Selection = { optionIds: optionIds ?? [] };
+      if (other) selection.other = other;
+      return withInteractions(state, { choices: { ...state.interactions.choices, [blockId]: selection } });
     }
     case 'feedback.created': {
       const { blockId, id, text } = ev.payload;
@@ -137,6 +142,12 @@ export function applyEvent(state: PresentState, ev: PresentEvent): PresentState 
       const rounds = { ...closed.rounds };
       delete rounds.currentTitle;
       return { ...closed, rounds };
+    }
+    case 'revising.changed': {
+      const { blockIds, note } = ev.payload;
+      const revising: Revising = { blockIds: blockIds ?? [] };
+      if (note) revising.note = note;
+      return { ...state, revising };
     }
     case 'channel.changed':
       return state;
@@ -174,7 +185,7 @@ function interactionEvent(interaction: Interaction): HumanEvent {
         origin: 'human',
         type: 'choice.selected',
         seq,
-        payload: { blockId: interaction.blockId, optionIds: interaction.optionIds },
+        payload: { blockId: interaction.blockId, optionIds: interaction.optionIds, other: interaction.other },
       };
     case 'feedback.created':
       return {
@@ -204,6 +215,25 @@ function interactionEvent(interaction: Interaction): HumanEvent {
 
 function withInteractions(state: PresentState, patch: Partial<Interactions>): PresentState {
   return { ...state, interactions: { ...state.interactions, ...patch } };
+}
+
+// revisingOnUpsert drops id as its revision lands, draining the note whenever the
+// set empties — including an upsert while the set is already empty, the doc-level
+// note's completion signal.
+function revisingOnUpsert(revising: Revising, id: string): Revising {
+  const blockIds = revising.blockIds.filter((b) => b !== id);
+  if (blockIds.length === 0) return { blockIds: [] };
+  return revising.note ? { blockIds, note: revising.note } : { blockIds };
+}
+
+// revisingOnRemove drops id as its block is removed, draining the note only when
+// removing a tracked id empties the set; a removal while the set is already empty
+// leaves a doc-level note untouched.
+function revisingOnRemove(revising: Revising, id: string): Revising {
+  const had = revising.blockIds.includes(id);
+  const blockIds = revising.blockIds.filter((b) => b !== id);
+  if (had && blockIds.length === 0) return { blockIds: [] };
+  return revising.note ? { blockIds, note: revising.note } : { blockIds };
 }
 
 function append<T>(map: Record<string, T[]>, key: string, item: T): Record<string, T[]> {
