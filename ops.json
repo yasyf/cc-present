@@ -1,1 +1,1 @@
-{"v":1,"lamport":5,"session":"e27488f6-e2c0-46f0-9f89-ca688d126718","ops":[{"kind":"set_criterion_status","id":"aa9cd024dc90aac61e23fa6315e0e578","status":"met","note":"v0.12.0 tagged on main chore commit 0dbbb4bb (2026-07-20); goreleaser run 29697677935 green — GitHub release with 9 assets, tap cask verified at 0.12.0; TestFlight run 29697685524 green (cloud-signed archive uploaded)."}]}
+{"v":1,"lamport":6,"session":"e27488f6-e2c0-46f0-9f89-ca688d126718","ops":[{"kind":"set_status","status":"done"},{"kind":"link_commit","sha":"0dbbb4bbcf8ad5093b222dbab9c469d51111a469"}]}
