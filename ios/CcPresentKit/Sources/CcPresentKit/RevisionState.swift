@@ -42,16 +42,13 @@ public final class RevisionState {
     /// tab opened mid-rewrite still shows the banner.
     public private(set) var revising: Revising = .init()
 
-    /// revisingSince is when the current non-empty revising set was first announced —
-    /// the decay clock's start. nil when the set is empty.
-    public private(set) var revisingSince: Date?
-
-    /// revisingDecayed is true once the current revising set has outlived the decay
-    /// window without resolving (the agent likely died): the banner turns passive.
-    public private(set) var revisingDecayed: Bool = false
+    /// passive names the revising ids whose decay window has elapsed without resolving
+    /// (the agent likely died): their banner turns muted. Per-id, so one stale step
+    /// never bleeds its passivity onto another. Read it through `revisingPassive`.
+    private(set) var passive: Set<String> = []
 
     @ObservationIgnored private let decayInterval: TimeInterval
-    @ObservationIgnored private(set) var decayTask: Task<Void, Never>?
+    @ObservationIgnored private(set) var decayTasks: [String: Task<Void, Never>] = [:]
 
     /// Creates a seen store. `decayInterval` is the orphaned-revising decay window,
     /// 120s in production; tests shorten it.
@@ -60,15 +57,19 @@ public final class RevisionState {
     }
 
     deinit {
-        decayTask?.cancel()
+        for task in decayTasks.values {
+            task.cancel()
+        }
     }
 
-    /// ingest folds one frame's before/after reductions into the store. `prev` and
-    /// `next` are the reductions immediately around a single SSE frame. Marks are
-    /// recorded only past the caught-up boundary (`isLoading` false) so replayed
-    /// history never badges; the revising banner tracks `next.revising` every frame.
-    public func ingest(prev: BoardState, next: BoardState, isLoading: Bool, now: Date = Date()) {
-        if !isLoading {
+    /// ingest folds one frame's before/after reductions into the store. A `docReplaced`
+    /// frame clears every mark — a wholesale swap is a fresh slate, not a per-block
+    /// change; otherwise marks record only past the caught-up boundary (`isLoading`
+    /// false) so replayed history never badges. The banner tracks `next.revising`.
+    public func ingest(prev: BoardState, next: BoardState, isLoading: Bool, docReplaced: Bool = false, now: Date = Date()) {
+        if docReplaced {
+            marks = [:]
+        } else if !isLoading {
             recordChanges(prev: prev, next: next, now: now)
         }
         syncRevising(next.revising, now: now)
@@ -103,6 +104,12 @@ public final class RevisionState {
         revising.blockIds.isEmpty ? revising.note : nil
     }
 
+    /// revisingPassive reports whether a revising id's own decay window has elapsed, so
+    /// its banner reads muted. Per-id: one step's staleness never marks another.
+    public func revisingPassive(_ id: String) -> Bool {
+        passive.contains(id)
+    }
+
     private func recordChanges(prev: BoardState, next: BoardState, now: Date) {
         let prevById = Dictionary(prev.doc.blocks.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         let nextIds = Set(next.doc.blocks.map(\.id))
@@ -123,28 +130,43 @@ public final class RevisionState {
         }
     }
 
-    private func syncRevising(_ newRevising: Revising, now: Date) {
+    private func syncRevising(_ newRevising: Revising, now _: Date) {
         guard newRevising != revising else { return }
+        let prevNote = revising.note
         revising = newRevising
-        let active = !newRevising.blockIds.isEmpty || newRevising.note != nil
-        revisingDecayed = false
-        if active {
-            revisingSince = now
-            scheduleDecay()
-        } else {
-            revisingSince = nil
-            decayTask?.cancel()
-            decayTask = nil
+        let nextIds = newRevising.blockIds
+        let nextSet = Set(nextIds)
+
+        // Ids that left the set: cancel their window and clear passivity. The union
+        // reaches ids whose window already fired (task removed, passive flag set).
+        for id in Set(decayTasks.keys).union(passive) where !nextSet.contains(id) {
+            decayTasks[id]?.cancel()
+            decayTasks[id] = nil
+            passive.remove(id)
+        }
+        // A newly-revising id opens its own window; an id still counting down or
+        // already passive keeps its clock, so a sibling joining never restarts it.
+        for id in nextIds where decayTasks[id] == nil && !passive.contains(id) {
+            armDecay(id)
+        }
+        // A changed working-set note is a fresh announcement: un-stick any passive id
+        // and restart its window. A note-only change before decay leaves the clock be.
+        if newRevising.note != prevNote {
+            for id in nextIds where passive.contains(id) {
+                armDecay(id)
+            }
         }
     }
 
-    private func scheduleDecay() {
-        decayTask?.cancel()
+    private func armDecay(_ id: String) {
+        decayTasks[id]?.cancel()
+        passive.remove(id)
         let interval = decayInterval
-        decayTask = Task { @MainActor [weak self] in
+        decayTasks[id] = Task { @MainActor [weak self] in
             try? await Task.sleep(for: .seconds(interval))
-            guard let self, !Task.isCancelled, revisingSince != nil else { return }
-            revisingDecayed = true
+            guard let self, !Task.isCancelled else { return }
+            passive.insert(id)
+            decayTasks[id] = nil
         }
     }
 }

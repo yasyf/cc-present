@@ -162,7 +162,11 @@ public final class BoardStore {
             dropEcho(of: event)
             let prev = state
             recompute()
-            revisions.ingest(prev: prev, next: state, isLoading: isLoading)
+            var docReplaced = false
+            if case .docReplaced? = try? event.payload {
+                docReplaced = true
+            }
+            revisions.ingest(prev: prev, next: state, isLoading: isLoading, docReplaced: docReplaced)
         }
     }
 

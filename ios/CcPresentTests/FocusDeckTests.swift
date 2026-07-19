@@ -113,10 +113,10 @@ private func nextUndecidedWraps() {
         "a1": Decision(verdict: "approved"),
         "a2": Decision(verdict: "approved"),
     ])
-    model.next(steps, interactions, [])
+    model.next(steps, interactions, [], [])
     #expect(model.anchorId == "a3")
     // From a3 with a3 still undecided, next wraps forward and stays on a3.
-    model.next(steps, interactions, [])
+    model.next(steps, interactions, [], [])
     #expect(model.anchorId == "a3")
 }
 
@@ -130,8 +130,32 @@ private func nextLandsOnSummary() {
         "a1": Decision(verdict: "approved"),
         "a2": Decision(verdict: "rejected"),
     ])
-    model.next(steps, interactions, [])
+    model.next(steps, interactions, [], [])
     #expect(model.anchorId == deckEnd)
+}
+
+@MainActor
+@Test("next skips a revising step on the momentum pass, preferring a settled one")
+private func nextSkipsRevisingFirst() {
+    let steps = focusSteps([approval("a1"), approval("a2"), approval("a3")], [])
+    let model = FocusDeckModel(anchorId: steps[0].id)
+    model.reconcile(steps)
+    // a1 decided; a2 undecided but under a live rewrite; a3 undecided and settled.
+    let interactions = Interactions(decisions: ["a1": Decision(verdict: "approved")])
+    model.next(steps, interactions, [], ["a2"])
+    #expect(model.anchorId == "a3")
+}
+
+@MainActor
+@Test("next falls back to a revising step when it is the only undecided one")
+private func nextFallsBackToRevising() {
+    let steps = focusSteps([approval("a1"), approval("a2")], [])
+    let model = FocusDeckModel(anchorId: steps[0].id)
+    model.reconcile(steps)
+    // a1 decided; only a2 is undecided, and it is being revised — never locked out.
+    let interactions = Interactions(decisions: ["a1": Decision(verdict: "approved")])
+    model.next(steps, interactions, [], ["a2"])
+    #expect(model.anchorId == "a2")
 }
 
 @MainActor
@@ -251,4 +275,20 @@ private func choiceOtherArms() async {
     model.reconcileAdvance(from: undecidedKey("c1"), to: armed("c1", "custom"))
     try? await Task.sleep(for: .milliseconds(650))
     #expect(model.anchorId == "a2")
+}
+
+@MainActor
+@Test("clearing a pick signs the step empty, so the deck cancels instead of advancing")
+private func clearingPickCancelsAdvance() async {
+    let steps = focusSteps([choice("c1"), approval("a2")], [])
+    let model = FocusDeckModel(anchorId: steps[0].id)
+    model.reconcile(steps)
+    // An existing-but-empty selection ({optionIds: [], other: nil}) is undecided, so
+    // advanceSignature signs empty — a cleared pick must not auto-advance.
+    let cleared = Interactions(choices: ["c1": Selection(optionIds: [], other: nil)])
+    #expect(advanceSignature(steps[0], cleared) == "")
+    // A decided step cleared back to empty cancels the armed timer, holding the step.
+    model.reconcileAdvance(from: armed("c1", "c1o1"), to: undecidedKey("c1"))
+    try? await Task.sleep(for: .milliseconds(650))
+    #expect(model.anchorId == "c1")
 }

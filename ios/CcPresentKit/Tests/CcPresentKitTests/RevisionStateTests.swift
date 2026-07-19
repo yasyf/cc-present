@@ -115,26 +115,81 @@ struct RevisionStateTests {
         #expect(store.docDraftingNote == "drafting")
     }
 
-    @Test("an orphaned revising set decays passive after its window")
-    func decayFlips() async {
-        let store = RevisionState(decayInterval: 0.05)
-        store.ingest(prev: state([]), next: state([], revising: Revising(blockIds: ["x"], note: "n")), isLoading: false)
-        #expect(store.revisingSince != nil)
-        #expect(!store.revisingDecayed)
+    @Test("a live doc.replaced clears every mark and seeds none from the new doc")
+    func docReplacedClearsMarks() {
+        let store = RevisionState()
+        store.ingest(prev: state([md("x", "old")]), next: state([md("x", "new")]), isLoading: false)
+        #expect(store.mark(for: "x") != nil)
 
-        // Await the flip's own task, not a wall clock a starved main actor can outlast.
-        await store.decayTask?.value
-        #expect(store.revisingDecayed)
+        // A wholesale re-push past the boundary is a fresh slate: clear marks, and do
+        // not re-badge the swapped-in doc (neither the changed x nor the fresh y).
+        store.ingest(
+            prev: state([md("x", "new")]),
+            next: state([md("x", "fresh"), md("y", "brand new")]),
+            isLoading: false,
+            docReplaced: true
+        )
+        #expect(store.mark(for: "x") == nil)
+        #expect(store.mark(for: "y") == nil)
     }
 
-    @Test("resolving the revising set stops the decay clock")
-    func resolvingClearsDecay() async throws {
+    @Test("each revising id opens its own decay window and goes passive independently")
+    func perIdDecay() async {
+        let store = RevisionState(decayInterval: 0.05)
+        store.ingest(prev: state([]), next: state([], revising: Revising(blockIds: ["x", "y"], note: "n")), isLoading: false)
+        #expect(store.decayTasks["x"] != nil)
+        #expect(store.decayTasks["y"] != nil)
+        #expect(!store.revisingPassive("x"))
+
+        // Await each id's own window, not a shared clock.
+        await store.decayTasks["x"]?.value
+        await store.decayTasks["y"]?.value
+        #expect(store.revisingPassive("x"))
+        #expect(store.revisingPassive("y"))
+    }
+
+    @Test("a note-only re-announcement does not restart an id's decay window")
+    func noteOnlyKeepsWindow() async {
+        let store = RevisionState(decayInterval: 0.05)
+        store.ingest(prev: state([]), next: state([], revising: Revising(blockIds: ["x"], note: "first")), isLoading: false)
+        let window = store.decayTasks["x"]
+
+        // Same id, new note, before decay: the window is the very same task — not reset.
+        store.ingest(prev: state([]), next: state([], revising: Revising(blockIds: ["x"], note: "second")), isLoading: false)
+        #expect(store.decayTasks["x"] == window)
+        #expect(store.revisingNote(for: "x") == "second")
+        #expect(!store.revisingPassive("x"))
+
+        await store.decayTasks["x"]?.value
+        #expect(store.revisingPassive("x"))
+    }
+
+    @Test("re-announcing a decayed id resets its window and clears its passive flag")
+    func reAnnounceResetsAfterDecay() async {
+        let store = RevisionState(decayInterval: 0.05)
+        store.ingest(prev: state([]), next: state([], revising: Revising(blockIds: ["x"], note: "first")), isLoading: false)
+        await store.decayTasks["x"]?.value
+        #expect(store.revisingPassive("x"))
+
+        // A fresh announcement un-sticks the decayed id and restarts its clock.
+        store.ingest(prev: state([]), next: state([], revising: Revising(blockIds: ["x"], note: "second")), isLoading: false)
+        #expect(!store.revisingPassive("x"))
+        #expect(store.decayTasks["x"] != nil)
+
+        await store.decayTasks["x"]?.value
+        #expect(store.revisingPassive("x"))
+    }
+
+    @Test("resolving the revising set cancels every decay window")
+    func resolvingCancelsDecay() async throws {
         let store = RevisionState(decayInterval: 0.05)
         store.ingest(prev: state([]), next: state([], revising: Revising(blockIds: ["x"], note: "n")), isLoading: false)
-        store.ingest(prev: state([]), next: state([], revising: Revising()), isLoading: false)
-        #expect(store.revisingSince == nil)
+        #expect(store.decayTasks["x"] != nil)
 
-        try await Task.sleep(for: .seconds(0.15))
-        #expect(!store.revisingDecayed)
+        store.ingest(prev: state([]), next: state([], revising: Revising()), isLoading: false)
+        #expect(store.decayTasks["x"] == nil)
+
+        try await Task.sleep(for: .seconds(0.1))
+        #expect(!store.revisingPassive("x"))
     }
 }

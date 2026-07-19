@@ -73,12 +73,20 @@ final class FocusDeckModel {
         go(steps, to: index(steps) + delta)
     }
 
-    /// next lands on the nearest undecided step after the cursor, wrapping across
-    /// the deck (mirroring nextUndecided); it settles on the summary only when
-    /// nothing is undecided.
-    func next(_ steps: [FocusStep], _ interactions: Interactions, _ packInteractive: Set<String>) {
+    /// next lands on the nearest undecided step after the cursor, wrapping across the
+    /// deck. A momentum first pass prefers steps the agent is not actively `revising`;
+    /// a revising step stays reachable on the fallback pass, never locked out. It
+    /// settles on the summary only when nothing is undecided. Mirrors the web next().
+    func next(_ steps: [FocusStep], _ interactions: Interactions, _ packInteractive: Set<String>, _ revising: Set<String>) {
         guard !steps.isEmpty else { return }
         let from = index(steps)
+        for hop in 1 ... steps.count {
+            let idx = (from + hop) % steps.count
+            if stepUndecided(steps[idx], interactions, packInteractive), !revising.contains(steps[idx].id) {
+                go(steps, to: idx)
+                return
+            }
+        }
         for hop in 1 ... steps.count {
             let idx = (from + hop) % steps.count
             if stepUndecided(steps[idx], interactions, packInteractive) {
@@ -250,7 +258,7 @@ struct FocusDeckView: View {
                 total: steps.count,
                 onBack: { model.move(steps, -1) },
                 onSkip: { model.move(steps, 1) },
-                onNext: { model.next(steps, interactions, packInteractive) }
+                onNext: { model.next(steps, interactions, packInteractive, Set(revisions.revising.blockIds)) }
             )
         }
         .frame(maxWidth: .infinity)
@@ -687,7 +695,7 @@ struct FocusCardView: View {
                     .accessibilityAddTraits(.isHeader)
             }
             if revisions.isRevising(step.id) {
-                RevisingBanner(note: revisions.revising.note, decayed: revisions.revisingDecayed)
+                RevisingBanner(note: revisions.revising.note, decayed: revisions.revisingPassive(step.id))
             }
             if let mark = revisions.mark(for: step.id) {
                 RevisionCallout(mark: mark)

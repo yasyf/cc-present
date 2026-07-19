@@ -209,15 +209,17 @@ func autoAdvances(_ step: FocusStep) -> Bool {
 }
 
 /// advanceSignature is the current lone decidable's decision as a string, empty when
-/// undecided: a lone approval's verdict, or a single-select choice's option ids joined
-/// then a space then its write-in (the space stops an id colliding with an equal
-/// write-in). Feedback never enters it. Mirrors the web `decisionSignature`.
+/// undecided (an existing-but-empty selection, a cleared pick, included): a lone
+/// approval's verdict, or a single-select choice's option ids joined then a space then
+/// its write-in (the space stops an id colliding with an equal write-in). Feedback
+/// never enters it. Mirrors the web `decisionSignature`.
 func advanceSignature(_ step: FocusStep, _ interactions: Interactions) -> String {
     switch step.primary {
     case let .approval(approval):
         return interactions.decisions[approval.id]?.verdict ?? ""
     case let .choice(choice):
-        guard let selection = interactions.choices[choice.id] else { return "" }
+        guard let selection = interactions.choices[choice.id],
+              !(selection.optionIds.isEmpty && selection.other == nil) else { return "" }
         return selection.optionIds.joined(separator: ",") + " " + (selection.other ?? "")
     default:
         return ""

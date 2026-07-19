@@ -198,6 +198,27 @@ struct BoardStoreTests {
         try store.ingest(frame(type: "block.upserted", seq: 2, ["block": ["id": "y", "type": "markdown", "md": "fresh"]]))
         #expect(store.revisions.mark(for: "y")?.kind == .added)
     }
+
+    @Test("a live doc.replaced frame clears marks instead of re-badging the whole board")
+    func docReplacedClearsRevisionMarks() throws {
+        let store = BoardStore(subject: "s", transport: ScriptedTransport(seqs: []))
+        let firstDoc: [String: Any] = ["version": 1, "title": "", "blocks": [["id": "x", "type": "markdown", "md": "old"]]]
+        try store.ingest(frame(type: "doc.replaced", seq: 1, ["doc": firstDoc, "revision": 0]))
+        store.ingest(.caughtUp(seq: 1))
+        // A live rewrite marks x past the caught-up boundary.
+        try store.ingest(frame(type: "block.upserted", seq: 2, ["block": ["id": "x", "type": "markdown", "md": "new"]]))
+        #expect(store.revisions.mark(for: "x") != nil)
+
+        // A wholesale re-push is a fresh slate: marks clear, and neither the changed x
+        // nor the fresh y is re-badged.
+        let nextDoc: [String: Any] = ["version": 2, "title": "", "blocks": [
+            ["id": "x", "type": "markdown", "md": "fresh"],
+            ["id": "y", "type": "markdown", "md": "added"],
+        ]]
+        try store.ingest(frame(type: "doc.replaced", seq: 3, ["doc": nextDoc, "revision": 1]))
+        #expect(store.revisions.mark(for: "x") == nil)
+        #expect(store.revisions.mark(for: "y") == nil)
+    }
 }
 
 /// FailingTransport always throws, to exercise optimistic rollback.
