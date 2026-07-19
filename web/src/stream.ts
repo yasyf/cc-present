@@ -10,7 +10,6 @@
 import { createEventStream } from '@cc-interact/react';
 import { applyEvent } from './reduce';
 import { presentKey, revisionKey } from './api';
-import { revisionStore } from './revision';
 import { withToken } from './token';
 import type { PresentEvent, PresentState, WireFrame } from './events';
 
@@ -34,21 +33,6 @@ export const TOAST_TEXT = {
   'channel.changed': null,
 } satisfies Record<WireFrame['type'], string | null>;
 
-// inFocusMode is true while the focus deck is mounted — its `.focus-deck` root
-// exists only in focus mode's live phase; board mode has no such node.
-export function inFocusMode(): boolean {
-  return typeof document !== 'undefined' && document.querySelector('.focus-deck') !== null;
-}
-
-// toastFor is the per-frame toast, or null. Focus mode drops the generic
-// block.upserted toast — the per-step revision callout replaces it; board keeps it.
-export function toastFor(frame: WireFrame): { kind: 'info'; text: string } | null {
-  const text = TOAST_TEXT[frame.type];
-  if (text === null) return null;
-  if (frame.type === 'block.upserted' && inFocusMode()) return null;
-  return { kind: 'info', text };
-}
-
 // frameToEvent lifts a flat self-describing wire frame into the reducer's
 // PresentEvent envelope. applyEvent reads only `type` and `payload`, and the flat
 // frame carries the payload fields at top level, so the frame is its own payload;
@@ -61,30 +45,21 @@ export const { EventStreamProvider, useEventStream } = createEventStream<WireFra
   queryKey: (subject) => presentKey(subject),
   // Mirror the library's default `/events?session=<subject>`, then carry the page
   // token so an off-loopback EventSource authenticates; loopback stays byte-identical.
-  url: (subject) => {
-    // Called just before each (re)connection, where the library resets its
-    // caught-up seq: close the revision store's live gate for the coming replay.
-    revisionStore.beginConnection();
-    return withToken(`/events?session=${encodeURIComponent(subject)}`);
-  },
+  url: (subject) => withToken(`/events?session=${encodeURIComponent(subject)}`),
   reduce: (cache, frame) => applyEvent(cache, frameToEvent(frame)),
-  toast: (frame) => toastFor(frame),
+  toast: (frame) => {
+    const text = TOAST_TEXT[frame.type];
+    return text === null ? null : { kind: 'info', text };
+  },
   // The pre-marker fallback: a threshold above every seq means no replayed frame
   // clears it, so the whole from-zero replay (and any Last-Event-ID resume) stays
   // silent. Once the caught-up marker arrives the library ignores this and gates
   // on the exact boundary seq, so only the live tail (seq > marker) toasts.
   highWaterSeq: () => Number.POSITIVE_INFINITY,
   peerPresence: (frame) => (frame.type === 'channel.changed' ? frame.connected : null),
-  // Opens the revision store's live gate at the replay/live boundary, mirroring the
-  // toast gate: only frames past this record changed badges.
-  onCaughtUp: () => revisionStore.markLive(),
   onEvent: (frame, ctx) => {
     if (frame.type === 'doc.replaced') {
       ctx.queryClient.setQueryData(revisionKey(ctx.subject), frame.revision);
     }
-    // ctx.cache is the pre-reduce state (note lift); the reduced revising set the
-    // mirror syncs to is read back post-reduce.
-    const post = ctx.queryClient.getQueryData<PresentState>(presentKey(ctx.subject));
-    revisionStore.ingest(frame, ctx.cache, post?.revising ?? { blockIds: [] });
   },
 });

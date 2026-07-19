@@ -14,7 +14,7 @@ import { focusSteps } from '../focus';
 import { loadView, saveView } from '../viewmode';
 import { emptyState } from '../reduce';
 import type { Interactions, Verdict } from '../events';
-import type { Approval, Block, Choice, Doc } from '../schema';
+import type { Approval, Block, Doc } from '../schema';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -64,17 +64,6 @@ const withVerdict = (id: string, verdict: Verdict): Interactions => ({
 const withVerdicts = (over: Record<string, Verdict>): Interactions => ({
   ...empty(),
   decisions: Object.fromEntries(Object.entries(over).map(([id, verdict]) => [id, { verdict }])),
-});
-const choice = (id: string, prompt: string, options: string[], multi = false): Choice => ({
-  id,
-  type: 'choice',
-  prompt,
-  ...(multi ? { multi: true } : {}),
-  options: options.map((o) => ({ id: o, label: o })),
-});
-const withChoice = (id: string, optionIds: string[], other?: string): Interactions => ({
-  ...empty(),
-  choices: { [id]: { optionIds, ...(other !== undefined ? { other } : {}) } },
 });
 
 const three = [approval('a1', 'Ship one'), approval('a2', 'Ship two'), approval('a3', 'Ship three')];
@@ -340,140 +329,6 @@ describe('FocusDeck advance cue', () => {
     render({ blocks: three, interactions: withVerdict('a1', 'approved') });
     expect(container.querySelector('.focus-advance-text')?.textContent).toBe('next in a moment');
     act(() => vi.advanceTimersByTime(AUTO_ADVANCE_MS));
-  });
-});
-
-describe('FocusDeck choice auto-advance', () => {
-  const liveCard = (): Element => container.querySelector('.focus-card:not([data-exiting])')!;
-  const liveOption = (): HTMLElement =>
-    container.querySelector('.focus-card:not([data-exiting]) .option') as HTMLElement;
-  const advancing = (): Element | null => container.querySelector('.focus-nav-btn.advancing');
-  const twoStep: Block[] = [choice('c1', 'Pick one', ['o1', 'o2']), approval('a2', 'Ship two')];
-
-  it('arms and advances a lone single-select choice on a pick', () => {
-    vi.useFakeTimers();
-    render({ blocks: twoStep, interactions: empty() });
-    render({ blocks: twoStep, interactions: withChoice('c1', ['o1']) });
-    expect(advancing()).not.toBeNull();
-    act(() => vi.advanceTimersByTime(AUTO_ADVANCE_MS));
-    expect(currentPrompt()).toBe('Ship two');
-  });
-
-  it('cancels the choice cue on stray input in the deck', () => {
-    vi.useFakeTimers();
-    render({ blocks: twoStep, interactions: empty() });
-    render({ blocks: twoStep, interactions: withChoice('c1', ['o1']) });
-    act(() => liveCard().dispatchEvent(new KeyboardEvent('keydown', { key: 'x', bubbles: true })));
-    expect(advancing()).toBeNull();
-    act(() => vi.advanceTimersByTime(AUTO_ADVANCE_MS));
-    expect(currentPrompt()).toBe('Pick one');
-  });
-
-  it('exempts a pointerdown inside the picked option row from cancelling its cue', () => {
-    vi.useFakeTimers();
-    render({ blocks: twoStep, interactions: empty() });
-    render({ blocks: twoStep, interactions: withChoice('c1', ['o1']) });
-    expect(advancing()).not.toBeNull();
-    act(() => liveOption().dispatchEvent(new Event('pointerdown', { bubbles: true })));
-    expect(advancing()).not.toBeNull();
-    act(() => vi.advanceTimersByTime(AUTO_ADVANCE_MS));
-    expect(currentPrompt()).toBe('Ship two');
-  });
-
-  it('re-arms from a fresh deadline when the pick changes to another option', () => {
-    vi.useFakeTimers();
-    render({ blocks: twoStep, interactions: empty() });
-    render({ blocks: twoStep, interactions: withChoice('c1', ['o1']) });
-    act(() => vi.advanceTimersByTime(300));
-    // Re-pick before the first window closes: the old timer is discarded, a fresh
-    // 450ms window opens.
-    render({ blocks: twoStep, interactions: withChoice('c1', ['o2']) });
-    act(() => vi.advanceTimersByTime(200));
-    // The original deadline (450) has passed; only the re-armed timer can fire.
-    expect(currentPrompt()).toBe('Pick one');
-    act(() => vi.advanceTimersByTime(300));
-    expect(currentPrompt()).toBe('Ship two');
-  });
-
-  it('does not reset the deadline on the SSE echo of the same pick', () => {
-    vi.useFakeTimers();
-    render({ blocks: twoStep, interactions: empty() });
-    render({ blocks: twoStep, interactions: withChoice('c1', ['o1']) });
-    act(() => vi.advanceTimersByTime(300));
-    // The echo carries the same selection: the original 450 deadline must hold.
-    render({ blocks: twoStep, interactions: withChoice('c1', ['o1']) });
-    act(() => vi.advanceTimersByTime(200));
-    expect(currentPrompt()).toBe('Ship two');
-  });
-
-  it('arms on an other write-in and re-arms when the other value changes', () => {
-    vi.useFakeTimers();
-    render({ blocks: twoStep, interactions: empty() });
-    render({ blocks: twoStep, interactions: withChoice('c1', [], 'foo') });
-    expect(advancing()).not.toBeNull();
-    act(() => vi.advanceTimersByTime(300));
-    render({ blocks: twoStep, interactions: withChoice('c1', [], 'foobar') });
-    act(() => vi.advanceTimersByTime(200));
-    expect(currentPrompt()).toBe('Pick one');
-    act(() => vi.advanceTimersByTime(300));
-    expect(currentPrompt()).toBe('Ship two');
-  });
-
-  it('a feedback thread neither arms nor cancels the choice cue', () => {
-    vi.useFakeTimers();
-    render({ blocks: twoStep, interactions: empty() });
-    // A feedback thread alone never arms.
-    render({ blocks: twoStep, interactions: { ...empty(), feedback: { c1: [{ id: 'f1', text: 'hmm' }] } } });
-    expect(advancing()).toBeNull();
-    // Once armed, a later feedback thread on the same block never retracts the cue.
-    render({ blocks: twoStep, interactions: withChoice('c1', ['o1']) });
-    expect(advancing()).not.toBeNull();
-    render({
-      blocks: twoStep,
-      interactions: { ...withChoice('c1', ['o1']), feedback: { c1: [{ id: 'f1', text: 'hmm' }] } },
-    });
-    expect(advancing()).not.toBeNull();
-    act(() => vi.advanceTimersByTime(AUTO_ADVANCE_MS));
-    expect(currentPrompt()).toBe('Ship two');
-  });
-
-  it('never arms a multi-select choice', () => {
-    vi.useFakeTimers();
-    const multi: Block[] = [choice('c1', 'Pick some', ['o1', 'o2'], true), approval('a2', 'Ship two')];
-    render({ blocks: multi, interactions: empty() });
-    render({ blocks: multi, interactions: withChoice('c1', ['o1']) });
-    expect(advancing()).toBeNull();
-    render({ blocks: multi, interactions: withChoice('c1', ['o1', 'o2']) });
-    expect(advancing()).toBeNull();
-    act(() => vi.advanceTimersByTime(AUTO_ADVANCE_MS));
-    expect(currentPrompt()).toBe('Pick some');
-  });
-
-  it('advances to the plain next step, not the next undecided', () => {
-    vi.useFakeTimers();
-    const blocks: Block[] = [
-      choice('c1', 'Pick one', ['o1', 'o2']),
-      approval('a2', 'Ship two'),
-      approval('a3', 'Ship three'),
-    ];
-    // a2 is already decided and a3 is not; a +1 advance still lands on a2.
-    render({ blocks, interactions: withVerdict('a2', 'approved') });
-    render({
-      blocks,
-      interactions: { ...withVerdict('a2', 'approved'), choices: { c1: { optionIds: ['o1'] } } },
-    });
-    act(() => vi.advanceTimersByTime(AUTO_ADVANCE_MS));
-    expect(currentPrompt()).toBe('Ship two');
-  });
-
-  it('advances a lone choice at the deck end into the review summary', () => {
-    vi.useFakeTimers();
-    const blocks: Block[] = [choice('c1', 'Pick one', ['o1', 'o2'])];
-    render({ blocks, interactions: empty() });
-    render({ blocks, interactions: withChoice('c1', ['o1']) });
-    act(() => vi.advanceTimersByTime(AUTO_ADVANCE_MS));
-    expect(container.querySelector('.focus-card:not([data-exiting])')).toBeNull();
-    expect(container.querySelector('.focus-summary-head')?.textContent).toBe('Review');
   });
 });
 

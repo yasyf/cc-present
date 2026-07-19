@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { autoAdvances, factAxes, focusSteps, stepHeadline, stepStatus, stepTitle, swipeVerdict } from './focus';
+import { factAxes, focusSteps, stepHeadline, stepStatus, stepTitle, swipeVerdict } from './focus';
 import type { FocusStep } from './focus';
 import type { Block, ChoiceOption } from './schema';
 import type { Interactions } from './events';
@@ -220,41 +220,6 @@ describe('stepStatus', () => {
   for (const c of cases) {
     it(c.name, () => {
       expect(stepStatus(c.step, c.interactions, new Set())).toBe(c.expected);
-    });
-  }
-});
-
-describe('autoAdvances', () => {
-  const only = (blocks: Block[], packs = new Set<string>()) => focusSteps(blocks, packs)[0]!;
-  const multiChoice = (id: string): Block => ({
-    id,
-    type: 'choice',
-    multi: true,
-    options: [
-      { id: `${id}o1`, label: 'one' },
-      { id: `${id}o2`, label: 'two' },
-    ],
-  });
-  const cases: { name: string; step: FocusStep; expected: boolean }[] = [
-    { name: 'a lone approval auto-advances', step: only([approval('a1')]), expected: true },
-    { name: 'a lone single-select choice auto-advances', step: only([choice('c1')]), expected: true },
-    { name: 'a multi-select choice never auto-advances', step: only([multiChoice('c1')]), expected: false },
-    {
-      name: 'a multi-decidable card never auto-advances',
-      step: only([card('c1', [approval('c1a'), choice('c1c')])]),
-      expected: false,
-    },
-    { name: 'an input never auto-advances', step: only([input('i1')]), expected: false },
-    { name: 'a context step never auto-advances', step: only([markdown('m1')]), expected: false },
-    {
-      name: 'a lone interactive pack never auto-advances',
-      step: only([pack('r1', 'ex.rating')], new Set(['ex.rating'])),
-      expected: false,
-    },
-  ];
-  for (const c of cases) {
-    it(c.name, () => {
-      expect(autoAdvances(c.step)).toBe(c.expected);
     });
   }
 });
