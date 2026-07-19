@@ -323,6 +323,9 @@ func validateInteraction(st *state.State, revision int, it *interaction, reg *pa
 		if err := requireCurrentRound(st, it.BlockID, topID); err != nil {
 			return nil, err
 		}
+		if len(it.Text) > maxHumanTextBytes {
+			return nil, fmt.Errorf("input %q text exceeds %d bytes", it.BlockID, maxHumanTextBytes)
+		}
 		return mustJSON(map[string]string{"blockId": it.BlockID, "text": it.Text}), nil
 	case EventPackInteraction:
 		pb, topID, err := requirePackBlock(st, it.BlockID)

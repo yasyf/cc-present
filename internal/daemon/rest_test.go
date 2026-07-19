@@ -155,6 +155,7 @@ func TestInteractionValidation(t *testing.T) {
 		{"feedback forbidden", `{"subject":"board--abcd0000","nonce":"n9","interaction":{"type":"feedback.created","blockId":"a1","text":"hi"}}`, 400, "does not allow feedback"},
 		{"note forbidden", `{"subject":"board--abcd0000","nonce":"n10","interaction":{"type":"decision.created","blockId":"a1","verdict":"approved","note":"x"}}`, 400, "does not allow feedback"},
 		{"oversized decision note", `{"subject":"board--abcd0000","nonce":"n12","interaction":{"type":"decision.created","blockId":"a2","verdict":"approved","note":"` + strings.Repeat("a", maxHumanTextBytes+1) + `"}}`, 400, "exceeds"},
+		{"oversized input text", `{"subject":"board--abcd0000","nonce":"n14","interaction":{"type":"input.submitted","blockId":"in1","text":"` + strings.Repeat("a", maxHumanTextBytes+1) + `"}}`, 400, "exceeds"},
 		{"duplicate optionIds", `{"subject":"board--abcd0000","nonce":"n13","interaction":{"type":"choice.selected","blockId":"ch2","optionIds":["m1","m1"]}}`, 400, "more than once"},
 		{"missing nonce", `{"subject":"board--abcd0000","interaction":{"type":"decision.created","blockId":"a2","verdict":"approved"}}`, 400, "nonce"},
 		{"unknown subject", `{"subject":"nope","nonce":"n11","interaction":{"type":"decision.created","blockId":"a2","verdict":"approved"}}`, 404, "unknown subject"},

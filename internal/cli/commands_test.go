@@ -155,6 +155,36 @@ func TestVisualNudge(t *testing.T) {
 			raw:  `{"version":1,"title":"T","blocks":[{"id":"ch1","type":"choice","options":[{"id":"o1","label":"A"}]},{"id":"c1","type":"card","children":[{"id":"ch2","type":"choice","options":[{"id":"o2","label":"B"}]}]}]}`,
 			want: "hint: 2 choices ship without a visual (ch1, ch2); attach an option.visual or lead the card with a diagram",
 		},
+		{
+			name: "top-level diagram lead-in satisfies the choice",
+			raw:  `{"version":1,"title":"T","blocks":[{"id":"d1","type":"diagram","kind":"mermaid","source":"graph LR\n a-->b"},{"id":"ch1","type":"choice","options":[{"id":"o1","label":"A"}]}]}`,
+			want: "",
+		},
+		{
+			name: "top-level image lead-in satisfies the choice",
+			raw:  `{"version":1,"title":"T","blocks":[{"id":"i1","type":"image","src":"https://x/y.png","alt":"x"},{"id":"ch1","type":"choice","options":[{"id":"o1","label":"A"}]}]}`,
+			want: "",
+		},
+		{
+			name: "a context block keeps the top-level lead-in",
+			raw:  `{"version":1,"title":"T","blocks":[{"id":"d1","type":"diagram","kind":"mermaid","source":"graph LR\n a-->b"},{"id":"m1","type":"markdown","md":"hi"},{"id":"ch1","type":"choice","options":[{"id":"o1","label":"A"}]}]}`,
+			want: "",
+		},
+		{
+			name: "a section breaks the top-level lead-in",
+			raw:  `{"version":1,"title":"T","blocks":[{"id":"d1","type":"diagram","kind":"mermaid","source":"graph LR\n a-->b"},{"id":"s1","type":"section","title":"S"},{"id":"ch1","type":"choice","options":[{"id":"o1","label":"A"}]}]}`,
+			want: "hint: 1 choice ships without a visual (ch1); attach an option.visual or lead the card with a diagram",
+		},
+		{
+			name: "a trailing diagram does not satisfy the choice",
+			raw:  `{"version":1,"title":"T","blocks":[{"id":"ch1","type":"choice","options":[{"id":"o1","label":"A"}]},{"id":"d1","type":"diagram","kind":"mermaid","source":"graph LR\n a-->b"}]}`,
+			want: "hint: 1 choice ships without a visual (ch1); attach an option.visual or lead the card with a diagram",
+		},
+		{
+			name: "a diagram sibling satisfies a choice inside a card",
+			raw:  `{"version":1,"title":"T","blocks":[{"id":"c1","type":"card","children":[{"id":"d1","type":"diagram","kind":"mermaid","source":"graph LR\n a-->b"},{"id":"ch1","type":"choice","options":[{"id":"o1","label":"A"}]}]}]}`,
+			want: "",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
