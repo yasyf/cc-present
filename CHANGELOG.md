@@ -6,6 +6,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-07-20
+
 ### Added
 - Four display primitives, each working at the top level, inside a card, and as
   an `option.visual`: `chart` (bar or line data rendered as a themed SVG, at
@@ -440,7 +442,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   marketplace.
 - `examples/opener-board.json`, a complete sample document.
 
-[Unreleased]: https://github.com/yasyf/cc-present/compare/v0.12.1...main
+[Unreleased]: https://github.com/yasyf/cc-present/compare/v0.13.0...main
+[0.13.0]: https://github.com/yasyf/cc-present/compare/v0.12.1...v0.13.0
 [0.12.1]: https://github.com/yasyf/cc-present/compare/v0.12.0...v0.12.1
 [0.12.0]: https://github.com/yasyf/cc-present/compare/v0.11.0...v0.12.0
 [0.11.0]: https://github.com/yasyf/cc-present/compare/v0.10.0...v0.11.0
