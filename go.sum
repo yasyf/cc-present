@@ -70,10 +70,16 @@ github.com/vishvananda/netns v0.0.0-20200728191858-db3c7e526aae h1:4hwBBUfQCFe3C
 github.com/vishvananda/netns v0.0.0-20200728191858-db3c7e526aae/go.mod h1:DD4vA1DwXk04H54A1oHXtwZmA0grkVMdPxx/VGLCah0=
 github.com/yasyf/cc-interact v0.11.1 h1:h0kBM0a+Bo3sxcXpFF3RSPOjBPzxhGrNrwOL1y6F1oA=
 github.com/yasyf/cc-interact v0.11.1/go.mod h1:mNt71Qf1EdEbHVXFn/LLtdx9FPdAQRJpVCXCsGUojTo=
+github.com/yasyf/cc-interact v0.11.2-0.20260719051950-3cea78003d54 h1:yH/2J+SdwfC6zDvpM3SrHpnrAQvVvhJlfqNDSV8k2a4=
+github.com/yasyf/cc-interact v0.11.2-0.20260719051950-3cea78003d54/go.mod h1:P2AwpeMEwEPC5EnjeIPEqZFPo+eGD4WOHALzPFS+ci4=
 github.com/yasyf/daemonkit v0.1.0 h1:bkr5wq6Z0IhntBSs+U6NajK04wVa4q+T7zceeLtLCus=
 github.com/yasyf/daemonkit v0.1.0/go.mod h1:615tFTdsseJNwpHtb6xMfQcvJFZj62xPZaCm21psoiY=
+github.com/yasyf/daemonkit v0.1.1-0.20260719051422-e93fc1280567 h1:HUrEFyARmxmvOsLKXWyyjAD7Y2bbHgri3fNGiUlkN4I=
+github.com/yasyf/daemonkit v0.1.1-0.20260719051422-e93fc1280567/go.mod h1:615tFTdsseJNwpHtb6xMfQcvJFZj62xPZaCm21psoiY=
 github.com/yasyf/synckit v0.18.0 h1:CrTP9GiXWFaySpqRcRrgKb9aJzFToME+H0sGKoshPTE=
 github.com/yasyf/synckit v0.18.0/go.mod h1:ANvxMrvFuqvytqZ9sFw8KnGgm6JpZe8FS0L3GlRy5sc=
+github.com/yasyf/synckit v0.19.1-0.20260719052548-c01d9f3b0076 h1:nnqO3JbUFeu2tKpFjFmRiI74/PqgEGWpIXf1efSx+d4=
+github.com/yasyf/synckit v0.19.1-0.20260719052548-c01d9f3b0076/go.mod h1:qchIu2fIUcqhd4HNl/NJ1nFPiBsBVoFveiG509UW31w=
 github.com/yusufpapurcu/wmi v1.2.4 h1:zFUKzehAFReQwLys1b/iSMl+JQGSCSjtVqQn9bBrPo0=
 github.com/yusufpapurcu/wmi v1.2.4/go.mod h1:SBZ9tNy3G9/m5Oi98Zks0QjeHVDvuK0qfxQmPyzfmi0=
 go.yaml.in/yaml/v3 v3.0.4/go.mod h1:DhzuOOF2ATzADvBadXxruRBLzYTpT36CKvDb3+aBEFg=

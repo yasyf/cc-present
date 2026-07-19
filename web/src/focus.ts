@@ -178,6 +178,17 @@ export function stepStatus(
   return 'decided';
 }
 
+// autoAdvances reports whether deciding this step arms the 450ms auto-advance: a
+// lone approval or a lone single-select choice. Multi-decidable cards, multi-select
+// choices, inputs, and packs stay explicit-Next.
+export function autoAdvances(step: FocusStep): boolean {
+  if (step.decidables.length !== 1) return false;
+  const p = step.primary;
+  if (!p) return false;
+  if (p.type === 'approval') return true;
+  return p.type === 'choice' && !p.multi;
+}
+
 const SWIPE_OFFSET = 120;
 const SWIPE_VELOCITY = 600;
 

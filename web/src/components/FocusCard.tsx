@@ -8,6 +8,7 @@ import { stepHeadline, swipeVerdict } from '../focus';
 import type { Block } from '../schema';
 import type { Interaction, Interactions } from '../events';
 import { usePresent } from '../present';
+import { revisionStore, useRevisingBanner, useUnseenChange } from '../revision';
 import { useExpandAll } from '../expand';
 import { renderMarkdown } from '../markdown';
 import { BlockRenderer } from './BlockRenderer';
@@ -49,6 +50,34 @@ function FocusContextBlock({ block, interactions }: { block: Block; interactions
     );
   }
   return <BlockRenderer block={block} interactions={interactions} />;
+}
+
+// RevisionCallout fills the reserved .focus-revision slot: a warn banner while the
+// step is being revised (passive after the 120s decay), else its changed-since-seen
+// note. Controls stay live throughout — this is warn-only.
+function RevisionCallout({ stepId }: { stepId: string }) {
+  const banner = useRevisingBanner(stepId);
+  const change = useUnseenChange(stepId);
+  if (banner) {
+    if (banner.passive) {
+      return <p className="focus-revision-line passive">Claude may still be revising this step</p>;
+    }
+    return (
+      <p className="focus-revision-line revising">
+        Claude is rewriting this step{banner.note ? ` — ${banner.note}` : ''}
+      </p>
+    );
+  }
+  if (change) {
+    const lead = change.kind === 'added' ? 'Claude added this step' : 'Updated after your earlier pick';
+    return (
+      <p className="focus-revision-line callout">
+        {lead}
+        {change.note ? ` — ${change.note}` : ''}
+      </p>
+    );
+  }
+  return null;
 }
 
 // A drag starts only off a non-interactive part of the card: elements that are
@@ -129,6 +158,10 @@ export const FocusCard = forwardRef<HTMLDivElement, { step: FocusStep; interacti
   useEffect(() => {
     x.set(0);
   }, [primaryId, x]);
+
+  // Mark the step seen on departure — this keyed card unmounts on a step change — so
+  // its badge and callout clear once viewed but persist while the human is here.
+  useEffect(() => () => revisionStore.markSeen(step.id), [step.id]);
 
   const onPointerDown = useCallback(
     (e: ReactPointerEvent<HTMLDivElement>) => {
@@ -214,7 +247,9 @@ export const FocusCard = forwardRef<HTMLDivElement, { step: FocusStep; interacti
             )}
           </div>
         )}
-        <div className="focus-revision" />
+        <div className="focus-revision">
+          <RevisionCallout stepId={step.id} />
+        </div>
         {headline.text && (
           <h2 id={headingId} className="focus-question">
             {headline.text}

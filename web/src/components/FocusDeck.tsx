@@ -2,11 +2,13 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { SyntheticEvent } from 'react';
 import { AnimatePresence, LazyMotion, MotionConfig, domMax } from 'motion/react';
 import { submitItems } from '../decide';
-import { stepTitle } from '../focus';
+import { autoAdvances, stepTitle } from '../focus';
 import type { FocusStep } from '../focus';
 import { useKeyboardApi } from '../keyboard';
+import { revisionStore } from '../revision';
 import { useInteractivePackTypes } from '../packs/registry';
-import type { Interactions, Verdict } from '../events';
+import type { Block } from '../schema';
+import type { Interactions } from '../events';
 import { FocusCard } from './FocusCard';
 import { FocusPeek } from './FocusPeek';
 import { FocusProgress } from './FocusProgress';
@@ -41,17 +43,29 @@ function deckIndex(steps: FocusStep[], currentId: string, lastIndex: number): nu
   return i >= 0 ? i : Math.min(lastIndex, steps.length - 1);
 }
 
-// FocusDeck owns the current step (as an anchor id, re-derived to an index on each
-// recompute and clamped when the anchor vanishes). It registers a StepNav so the
-// keyboard drives it, sets the cursor to the step's primary decidable (or the
-// jumped-to nested one), moves DOM focus and announces on each step change, and
-// auto-advances an approval 450ms after its verdict unless feedback is composing.
+// decisionSignature is the selection-only (re-)arm fingerprint: an approval's
+// verdict or a single-select choice's optionIds + write-in; null when undecided.
+function decisionSignature(primary: Block, interactions: Interactions): string | null {
+  if (primary.type === 'approval') {
+    const verdict = interactions.decisions[primary.id]?.verdict;
+    return verdict === 'approved' || verdict === 'rejected' ? verdict : null;
+  }
+  const selection = interactions.choices[primary.id];
+  if (!selection || (selection.optionIds.length === 0 && selection.other === undefined)) return null;
+  return `${selection.optionIds.join(',')} ${selection.other ?? ''}`;
+}
+
+// FocusDeck owns the current step (an anchor id, re-derived to an index each
+// recompute and clamped when the anchor vanishes). It registers a StepNav for the
+// keyboard, sets the cursor to the step's primary decidable (or the jumped-to
+// nested one), moves DOM focus and announces on each step change, and auto-advances
+// a lone approval or single-select choice 450ms after its decision.
 export function FocusDeck({ steps, interactions, round, closed }: FocusDeckProps) {
   const api = useKeyboardApi();
   const packInteractive = useInteractivePackTypes();
   const deckRef = useRef<HTMLDivElement>(null);
   const pendingCursorRef = useRef<string | null>(null);
-  const prevDecidedRef = useRef<{ id: string; verdict: Verdict | undefined } | null>(null);
+  const prevDecidedRef = useRef<{ id: string; sig: string | null } | null>(null);
   const timerRef = useRef<{ id: ReturnType<typeof setTimeout>; stepId: string } | null>(null);
   const [currentId, setCurrentId] = useState<string>(() => steps[0]?.id ?? DECK_END);
   // The direction AnimatePresence flies the outgoing card: a verdict sends it fully
@@ -112,11 +126,25 @@ export function FocusDeck({ steps, interactions, round, closed }: FocusDeckProps
     // Wrap modularly across the deck (mirroring nextUndecided) so an undecided
     // step behind the cursor is reached; land on the summary only when nothing is.
     const from = indexRef.current;
+    const revising = revisionStore.revisingSet();
+    const land = (i: number) => {
+      setExitCustom({ dir: i > from ? 1 : -1, kind: 'nav' });
+      go(i);
+    };
+    // First pass prefers non-revising undecided steps (momentum); a revising step
+    // stays reachable on the second pass — never locked out.
+    for (let hop = 1; hop <= list.length; hop++) {
+      const i = (from + hop) % list.length;
+      const s = list[i]!;
+      if (stepUndecided(s, interactionsRef.current, packRef.current) && !revising.has(s.id)) {
+        land(i);
+        return;
+      }
+    }
     for (let hop = 1; hop <= list.length; hop++) {
       const i = (from + hop) % list.length;
       if (stepUndecided(list[i]!, interactionsRef.current, packRef.current)) {
-        setExitCustom({ dir: i > from ? 1 : -1, kind: 'nav' });
-        go(i);
+        land(i);
         return;
       }
     }
@@ -124,11 +152,10 @@ export function FocusDeck({ steps, interactions, round, closed }: FocusDeckProps
     go(list.length);
   }, [go]);
 
-  // Stray input in the deck retracts an armed auto-advance; a verdict interaction
-  // is exempt — its own re-decide re-arms the cue in the effect below — and a rest
-  // state is a no-op.
+  // Stray input retracts an armed advance; a pick (.verdict/.option — its re-decide
+  // re-arms below) or anything in a live composer ([data-composing]) is exempt.
   const cancelAdvance = useCallback((e: SyntheticEvent) => {
-    if (e.target instanceof Element && e.target.closest('.verdict')) return;
+    if (e.target instanceof Element && e.target.closest('.verdict, .option, [data-composing]')) return;
     if (timerRef.current) {
       clearTimeout(timerRef.current.id);
       timerRef.current = null;
@@ -156,31 +183,29 @@ export function FocusDeck({ steps, interactions, round, closed }: FocusDeckProps
   }, [api, primaryId]);
 
   useEffect(() => {
-    const lone =
-      !closed && currentStep && currentStep.primary?.type === 'approval' && currentStep.decidables.length === 1
-        ? currentStep.primary
-        : undefined;
+    const advancer = !closed && currentStep && autoAdvances(currentStep) ? currentStep.primary : undefined;
     const stepId = currentStep?.id;
-    const verdict = lone ? interactions.decisions[lone.id]?.verdict : undefined;
-    const decided = verdict === 'approved' || verdict === 'rejected';
+    const sig = advancer ? decisionSignature(advancer, interactions) : null;
+    const decided = sig !== null;
     const prev = prevDecidedRef.current;
-    prevDecidedRef.current = lone ? { id: stepId!, verdict } : null;
-    // Verdict changed on this same step — a first verdict or a re-decide — so
-    // (re-)arm below; a redundant echo keeps the verdict and stays false.
-    const revised = prev !== null && prev.id === stepId && prev.verdict !== verdict;
+    prevDecidedRef.current = advancer ? { id: stepId!, sig } : null;
+    // The signature changed on this same step — a first pick or a re-pick — so
+    // (re-)arm below; a redundant echo keeps the signature and stays false.
+    const revised = prev !== null && prev.id === stepId && prev.sig !== sig;
 
     // An armed timer survives the echo re-render; cancel on a step change, a cleared
-    // verdict, or a revised verdict (the re-decide re-arms below), else keep it.
+    // decision, or a revised signature (the re-pick re-arms below), else keep it.
     const armed = timerRef.current;
     if (armed && (armed.stepId !== stepId || !decided || revised)) {
       clearTimeout(armed.id);
       timerRef.current = null;
       setAdvancing(false);
     }
-    // Arm 450ms after the verdict changes on this lone current approval — never on
-    // arrival, revisit, or echo. The fly-off sign is read when the timer fires.
-    if (lone && decided && revised && !timerRef.current) {
-      const loneId = lone.id;
+    // Arm 450ms after the signature changes on this lone current decidable — never
+    // on arrival, revisit, or echo. The fly-off sign is read when the timer fires.
+    if (advancer && decided && revised && !timerRef.current) {
+      const advancerId = advancer.id;
+      const isApproval = advancer.type === 'approval';
       setAdvancing(true);
       api.announce('Advancing to the next step');
       timerRef.current = {
@@ -189,7 +214,8 @@ export function FocusDeck({ steps, interactions, round, closed }: FocusDeckProps
           timerRef.current = null;
           setAdvancing(false);
           if (deckRef.current?.querySelector('.focus-card:not([data-exiting]) [data-composing]')) return;
-          const dir: 1 | -1 = interactionsRef.current.decisions[loneId]?.verdict === 'rejected' ? -1 : 1;
+          const dir: 1 | -1 =
+            isApproval && interactionsRef.current.decisions[advancerId]?.verdict === 'rejected' ? -1 : 1;
           setExitCustom({ dir, kind: 'verdict' });
           go(indexRef.current + 1);
         }, AUTO_ADVANCE_MS),
