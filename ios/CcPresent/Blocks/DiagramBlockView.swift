@@ -28,7 +28,7 @@ struct DiagramBlockView: View {
 
     @ViewBuilder
     private var content: some View {
-        switch Self.presentation(hasContext: context != nil, phase: phase) {
+        switch WebBlockPresentation.of(hasContext: context != nil, phase: phase) {
         case .rawSource:
             sourcePanel
         case let .webView(showingSkeleton):
@@ -70,21 +70,5 @@ struct DiagramBlockView: View {
         .background(BlockPalette.monoBg)
         .clipShape(RoundedRectangle(cornerRadius: 4))
         .overlay(RoundedRectangle(cornerRadius: 4).strokeBorder(BlockPalette.line))
-    }
-
-    /// DiagramPresentation is the content a diagram shows for a given context
-    /// availability and load phase — the pure mapping the fallback tests pin.
-    enum DiagramPresentation: Equatable {
-        case webView(showingSkeleton: Bool)
-        case rawSource
-    }
-
-    static func presentation(hasContext: Bool, phase: WebViewLoadPhase) -> DiagramPresentation {
-        guard hasContext else { return .rawSource }
-        switch phase {
-        case .loading: return .webView(showingSkeleton: true)
-        case .loaded: return .webView(showingSkeleton: false)
-        case .failed: return .rawSource
-        }
     }
 }

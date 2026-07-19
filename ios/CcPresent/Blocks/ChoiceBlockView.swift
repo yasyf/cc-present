@@ -333,6 +333,14 @@ struct OptionVisualView: View {
             ImageBlockView(block: image, client: client)
         case let .diff(diff):
             DiffBlockView(block: diff)
+        case let .chart(chart):
+            ChartBlockView(block: chart, context: context)
+        case let .term(term):
+            TermBlockView(block: term, context: context)
+        case let .filetree(filetree):
+            FileTreeBlockView(block: filetree, context: context)
+        case let .record(record):
+            RecordBlockView(block: record, context: context)
         }
     }
 }
@@ -368,6 +376,10 @@ func optionVisualTitle(_ visual: OptionVisual) -> String {
     case let .diagram(diagram): diagram.title ?? "Diagram"
     case let .image(image): image.caption ?? image.alt
     case let .diff(diff): diff.title ?? "Diff"
+    case let .chart(chart): chart.title ?? "Chart"
+    case let .term(term): term.title ?? "Terminal"
+    case let .filetree(filetree): filetree.title ?? "Files"
+    case let .record(record): record.title ?? "Record"
     }
 }
 

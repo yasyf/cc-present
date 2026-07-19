@@ -13,6 +13,10 @@ import { DiagramView } from './DiagramView';
 import { ImageView } from './ImageView';
 import { TableView } from './TableView';
 import { ProgressView } from './ProgressView';
+import { ChartView } from './ChartView';
+import { TermView } from './TermView';
+import { FileTreeView } from './FileTreeView';
+import { RecordView } from './RecordView';
 import { PackBlockView } from './PackBlockView';
 import { ReplyThread } from './ReplyThread';
 
@@ -42,6 +46,10 @@ const BUILTIN: { [T in BuiltinBlockType]: BuiltinRenderer<T> } = {
   image: ImageView,
   table: TableView,
   progress: ProgressView,
+  chart: ChartView,
+  term: TermView,
+  filetree: FileTreeView,
+  record: RecordView,
 };
 
 // BlockRenderer dispatches on the block's type, then threads the agent's replies

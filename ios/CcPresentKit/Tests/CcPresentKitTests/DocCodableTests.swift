@@ -123,6 +123,30 @@ struct DocCodableTests {
                 rows: [["k": "1", "v": "a"], ["k": "2", "v": "b"]]
             )),
             .progress(Block.Progress(id: "pg", label: "Working", value: 3, max: 10, state: "active")),
+            .chart(Block.Chart(
+                id: "cht",
+                kind: "bar",
+                title: "Revenue",
+                unit: "k",
+                categories: ["Q1", "Q2"],
+                series: [Block.Series(label: "A", values: [1, 2]), Block.Series(label: "B", values: [-3, 4])]
+            )),
+            .term(Block.Term(id: "tm", command: "go test ./...", output: "ok", title: "Tests")),
+            .filetree(Block.FileTree(
+                id: "ft",
+                title: "Changes",
+                entries: [
+                    Block.TreeEntry(path: "cmd/main.go", badge: "added", note: "new entrypoint"),
+                    Block.TreeEntry(path: "internal/doc/doc.go", badge: "modified"),
+                ]
+            )),
+            .record(Block.Record(
+                id: "rec",
+                title: "AA123",
+                chips: [Block.Chip(label: "Nonstop", tone: "flag")],
+                facts: [Block.Fact(label: "Cabin", value: "Business", tone: "good"), Block.Fact(label: "Miles", value: "70k")],
+                links: [Block.Link(label: "Book", url: "https://example.com/book")]
+            )),
         ]
 
         for block in blocks {
@@ -193,6 +217,23 @@ struct DocCodableTests {
 
         #expect(try block(#"{"id":"p","type":"progress","label":"L","value":2,"max":5,"state":"done"}"#)
             == .progress(Block.Progress(id: "p", label: "L", value: 2, max: 5, state: "done")))
+
+        #expect(try block(#"{"id":"cht","type":"chart","kind":"line","title":"T","unit":"ms","categories":["a","b"],"series":[{"label":"S","values":[1.5,2]}]}"#)
+            == .chart(Block.Chart(id: "cht", kind: "line", title: "T", unit: "ms", categories: ["a", "b"], series: [Block.Series(label: "S", values: [1.5, 2])])))
+
+        #expect(try block(#"{"id":"tm","type":"term","command":"ls","output":"a\nb"}"#)
+            == .term(Block.Term(id: "tm", command: "ls", output: "a\nb")))
+
+        #expect(try block(#"{"id":"ft","type":"filetree","entries":[{"path":"a/b.go","badge":"added","note":"new"}]}"#)
+            == .filetree(Block.FileTree(id: "ft", entries: [Block.TreeEntry(path: "a/b.go", badge: "added", note: "new")])))
+
+        #expect(try block(#"{"id":"rec","type":"record","chips":[{"label":"x"}],"facts":[{"label":"L","value":"v"}],"links":[{"label":"Go","url":"https://x/y"}]}"#)
+            == .record(Block.Record(
+                id: "rec",
+                chips: [Block.Chip(label: "x")],
+                facts: [Block.Fact(label: "L", value: "v")],
+                links: [Block.Link(label: "Go", url: "https://x/y")]
+            )))
     }
 
     @Test("an option's recommended flag and each visual kind decode and round-trip")
@@ -237,6 +278,44 @@ struct DocCodableTests {
         }
         #expect(ch.options[0].recommended == true)
         #expect(ch.options[0].visual == .diagram(Block.Diagram(id: "v1", kind: "mermaid", source: "graph TD; A-->B")))
+    }
+
+    @Test("each new option-visual kind decodes and round-trips")
+    func newOptionVisualsRoundTrip() throws {
+        let choice = Block.choice(Block.Choice(
+            id: "ch",
+            options: [
+                Block.Option(
+                    id: "o1",
+                    label: "Chart",
+                    visual: .chart(Block.Chart(id: "v1", kind: "bar", categories: ["a"], series: [Block.Series(label: "S", values: [1])]))
+                ),
+                Block.Option(id: "o2", label: "Term", visual: .term(Block.Term(id: "v2", output: "ok"))),
+                Block.Option(
+                    id: "o3",
+                    label: "Files",
+                    visual: .filetree(Block.FileTree(id: "v3", entries: [Block.TreeEntry(path: "a/b")]))
+                ),
+                Block.Option(
+                    id: "o4",
+                    label: "Record",
+                    visual: .record(Block.Record(id: "v4", facts: [Block.Fact(label: "L", value: "v")]))
+                ),
+            ]
+        ))
+        #expect(try roundTrip(choice) == choice)
+
+        // A hand-written option carrying a filetree visual decodes into the right case.
+        let decoded = try decoder.decode(Block.self, from: Data(#"""
+        {"id":"ch","type":"choice","options":[
+          {"id":"o1","label":"Files",
+           "visual":{"id":"v1","type":"filetree","entries":[{"path":"a/b.go","badge":"added"}]}}]}
+        """#.utf8))
+        guard case let .choice(ch) = decoded else {
+            Issue.record("decoded block is not a choice")
+            return
+        }
+        #expect(ch.options[0].visual == .filetree(Block.FileTree(id: "v1", entries: [Block.TreeEntry(path: "a/b.go", badge: "added")])))
     }
 
     @Test("an option visual of a disallowed type is a thrown decode error")

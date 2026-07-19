@@ -137,10 +137,15 @@ func visualNudge(dd *doc.Doc) string {
 		len(proseOnly), subject, strings.Join(proseOnly, ", "))
 }
 
-// isVisualLeadIn reports whether b is a diagram or image — the block types that
-// satisfy a choice by leading it in.
+// isVisualLeadIn reports whether b is a rendered-picture block — diagram, image,
+// chart, or filetree — the block types that satisfy a choice by leading it in.
 func isVisualLeadIn(b doc.Block) bool {
-	return b.BlockType() == "diagram" || b.BlockType() == "image"
+	switch b.BlockType() {
+	case "diagram", "image", "chart", "filetree":
+		return true
+	default:
+		return false
+	}
 }
 
 // cardHasVisualLeadIn reports whether a card carries a diagram or image sibling
@@ -162,7 +167,7 @@ func continuesVisualRun(b doc.Block, running bool) bool {
 		return true
 	}
 	switch b.BlockType() {
-	case "markdown", "code", "diff", "table", "progress":
+	case "markdown", "code", "diff", "table", "progress", "term", "record":
 		return running
 	default:
 		return false

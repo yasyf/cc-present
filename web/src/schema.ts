@@ -15,7 +15,11 @@ export type BuiltinBlockType =
   | 'diagram'
   | 'image'
   | 'table'
-  | 'progress';
+  | 'progress'
+  | 'chart'
+  | 'term'
+  | 'filetree'
+  | 'record';
 
 export interface Stat {
   label: string;
@@ -91,7 +95,7 @@ export interface Detail {
 
 // A restricted leaf an option may carry, rendered in the option's visual stage
 // rather than inside the row.
-export type OptionVisual = Code | Diagram | Image | Diff;
+export type OptionVisual = Code | Diagram | Image | Diff | Chart | Term | FileTree | Record;
 
 export interface ChoiceOption {
   id: string;
@@ -182,7 +186,9 @@ export interface Table {
   id: string;
   type: 'table';
   columns: Column[];
-  rows: Record<string, string>[];
+  // An inline index signature rather than `Record<…>`: the `Record` block type
+  // declared below shadows the `Record` utility type within this module.
+  rows: { [key: string]: string }[];
 }
 
 export type ProgressState = 'active' | 'done' | 'error';
@@ -194,6 +200,64 @@ export interface Progress {
   value: number;
   max: number;
   state?: ProgressState;
+}
+
+export interface ChartSeries {
+  label: string;
+  // Values align index-for-index to the chart's categories.
+  values: number[];
+}
+
+// A categorical bar or line chart rendered client-side into themed SVG.
+export interface Chart {
+  id: string;
+  type: 'chart';
+  kind: 'bar' | 'line';
+  title?: string;
+  unit?: string;
+  categories: string[];
+  series: ChartSeries[];
+}
+
+// A terminal panel: an optional command line above its captured (ANSI) output.
+export interface Term {
+  id: string;
+  type: 'term';
+  command?: string;
+  output: string;
+  title?: string;
+}
+
+export type TreeBadge = 'added' | 'modified' | 'removed';
+
+// One file path in a FileTree; directories are implicit from the path segments.
+export interface FileTreeEntry {
+  path: string;
+  badge?: TreeBadge;
+  note?: string;
+}
+
+export interface FileTree {
+  id: string;
+  type: 'filetree';
+  title?: string;
+  entries: FileTreeEntry[];
+}
+
+// A labelled https link in a Record.
+export interface RecordLink {
+  label: string;
+  url: string;
+}
+
+// One entity's labelled profile: tone chips, keyed facts, and https links.
+export interface Record {
+  id: string;
+  type: 'record';
+  title?: string;
+  chips?: Chip[];
+  facts: Fact[];
+  links?: RecordLink[];
 }
 
 // --- Pack blocks (plugin-supplied leaves) ---
@@ -216,7 +280,18 @@ export interface PackBlock {
 
 export type StructuralBlock = Section | Card;
 export type InteractiveBlock = Approval | Choice | Input;
-export type ContentBlock = Markdown | Code | Diff | Diagram | Image | Table | Progress;
+export type ContentBlock =
+  | Markdown
+  | Code
+  | Diff
+  | Diagram
+  | Image
+  | Table
+  | Progress
+  | Chart
+  | Term
+  | FileTree
+  | Record;
 
 // A card nests exactly one level of these leaf blocks; it cannot nest a section
 // or another card. Pack blocks are leaves and join the child set.

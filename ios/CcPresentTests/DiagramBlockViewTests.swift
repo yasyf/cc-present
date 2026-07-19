@@ -6,7 +6,7 @@ struct DiagramBlockViewTests {
     @Test("with board context, loading shows the webview under a skeleton")
     func loadingShowsSkeletonOverWebView() {
         #expect(
-            DiagramBlockView.presentation(hasContext: true, phase: .loading)
+            WebBlockPresentation.of(hasContext: true, phase: .loading)
                 == .webView(showingSkeleton: true)
         )
     }
@@ -14,20 +14,20 @@ struct DiagramBlockViewTests {
     @Test("with board context, a loaded page shows the webview without a skeleton")
     func loadedShowsWebViewOnly() {
         #expect(
-            DiagramBlockView.presentation(hasContext: true, phase: .loaded)
+            WebBlockPresentation.of(hasContext: true, phase: .loaded)
                 == .webView(showingSkeleton: false)
         )
     }
 
     @Test("with board context, a load failure falls back to the raw source")
     func failedFallsBackToSource() {
-        #expect(DiagramBlockView.presentation(hasContext: true, phase: .failed) == .rawSource)
+        #expect(WebBlockPresentation.of(hasContext: true, phase: .failed) == .rawSource)
     }
 
     @Test("without board context, every phase renders the raw source")
     func noContextAlwaysRendersSource() {
         for phase in [WebViewLoadPhase.loading, .loaded, .failed] {
-            #expect(DiagramBlockView.presentation(hasContext: false, phase: phase) == .rawSource)
+            #expect(WebBlockPresentation.of(hasContext: false, phase: phase) == .rawSource)
         }
     }
 }

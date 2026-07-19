@@ -3,6 +3,7 @@ package doc_test
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"strings"
 	"testing"
 
@@ -55,6 +56,33 @@ func TestValidate(t *testing.T) {
 	okData := "data:image/png;base64," + strings.Repeat("A", 100)
 	bigMd := strings.Repeat("x", doc.MaxDocBytes+1)
 	bigSource := strings.Repeat("x", doc.MaxDiagramBytes+1)
+	bigOutput := strings.Repeat("x", doc.MaxTermBytes+1)
+
+	manySeries := make([]string, doc.MaxChartSeries+1)
+	for i := range manySeries {
+		manySeries[i] = fmt.Sprintf(`{"label":"s%d","values":[1]}`, i)
+	}
+	overSeriesChart := fmt.Sprintf(`{"id":"cht1","type":"chart","kind":"bar","categories":["a"],"series":[%s]}`, strings.Join(manySeries, ","))
+
+	manyCats := make([]string, doc.MaxChartPoints+1)
+	manyVals := make([]string, doc.MaxChartPoints+1)
+	for i := range manyCats {
+		manyCats[i] = fmt.Sprintf(`"c%d"`, i)
+		manyVals[i] = "1"
+	}
+	overPointsChart := fmt.Sprintf(`{"id":"cht1","type":"chart","kind":"bar","categories":[%s],"series":[{"label":"S","values":[%s]}]}`, strings.Join(manyCats, ","), strings.Join(manyVals, ","))
+
+	manyEntries := make([]string, doc.MaxTreeEntries+1)
+	for i := range manyEntries {
+		manyEntries[i] = fmt.Sprintf(`{"path":"f%d"}`, i)
+	}
+	overEntriesTree := fmt.Sprintf(`{"id":"ft1","type":"filetree","entries":[%s]}`, strings.Join(manyEntries, ","))
+
+	manyFacts := make([]string, doc.MaxRecordFacts+1)
+	for i := range manyFacts {
+		manyFacts[i] = fmt.Sprintf(`{"label":"L%d","value":"v"}`, i)
+	}
+	overFactsRecord := fmt.Sprintf(`{"id":"rec1","type":"record","facts":[%s]}`, strings.Join(manyFacts, ","))
 
 	tests := []struct {
 		name    string
@@ -151,6 +179,55 @@ func TestValidate(t *testing.T) {
 		{"option visual invalid leaf", docWith(card("c1", `{"id":"ch1","type":"choice","options":[{"id":"o1","label":"A","visual":{"id":"v1","type":"diagram","kind":"d2","source":"x"}}]}`)), "kind must be mermaid"},
 		{"duplicate id via visual", docWith(card("c1", `{"id":"ch1","type":"choice","options":[{"id":"o1","label":"A","visual":{"id":"ch1","type":"code","lang":"go","code":"x"}}]}`)), `duplicate block id "ch1"`},
 
+		{"card empty chip label rejected", docWith(`{"id":"c1","type":"card","chips":[{"label":""}],"children":[]}`), "chip label must not be empty"},
+
+		{"chart valid bar top-level", docWith(`{"id":"cht1","type":"chart","kind":"bar","categories":["Q1","Q2"],"series":[{"label":"Rev","values":[10,20]}]}`), ""},
+		{"chart valid line with title and unit", docWith(card("c1", `{"id":"cht1","type":"chart","kind":"line","title":"Latency","unit":"ms","categories":["a","b"],"series":[{"label":"p50","values":[1.5,2.5]},{"label":"p99","values":[3,4]}]}`)), ""},
+		{"chart negative values allowed", docWith(`{"id":"cht1","type":"chart","kind":"bar","categories":["a","b"],"series":[{"label":"Delta","values":[-5,3]}]}`), ""},
+		{"chart bad kind", docWith(`{"id":"cht1","type":"chart","kind":"donut","categories":["a"],"series":[{"label":"S","values":[1]}]}`), "kind must be bar or line"},
+		{"chart ragged series", docWith(`{"id":"cht1","type":"chart","kind":"bar","categories":["a","b"],"series":[{"label":"S","values":[1]}]}`), "one per category"},
+		{"chart empty categories", docWith(`{"id":"cht1","type":"chart","kind":"bar","categories":[],"series":[{"label":"S","values":[]}]}`), "at least one category"},
+		{"chart empty series", docWith(`{"id":"cht1","type":"chart","kind":"bar","categories":["a"],"series":[]}`), "at least one series"},
+		{"chart empty series label", docWith(`{"id":"cht1","type":"chart","kind":"bar","categories":["a"],"series":[{"label":"","values":[1]}]}`), "series label must not be empty"},
+		{"chart duplicate series label", docWith(`{"id":"cht1","type":"chart","kind":"bar","categories":["a"],"series":[{"label":"S","values":[1]},{"label":"S","values":[2]}]}`), "duplicate series label"},
+		{"chart empty category", docWith(`{"id":"cht1","type":"chart","kind":"bar","categories":["a",""],"series":[{"label":"S","values":[1,2]}]}`), "category must not be empty"},
+		{"chart duplicate category", docWith(`{"id":"cht1","type":"chart","kind":"bar","categories":["a","a"],"series":[{"label":"S","values":[1,2]}]}`), "duplicate category"},
+		{"chart over series cap", docWith(overSeriesChart), "exceeds"},
+		{"chart over points cap", docWith(overPointsChart), "exceeds"},
+
+		{"term valid", docWith(`{"id":"tm1","type":"term","command":"go test ./...","output":"ok","title":"Tests"}`), ""},
+		{"term output empty", docWith(`{"id":"tm1","type":"term","output":""}`), "output must not be empty"},
+		{"term multiline command", docWith(`{"id":"tm1","type":"term","command":"line1\nline2","output":"x"}`), "command must be a single line"},
+		{"term multiline title", docWith(`{"id":"tm1","type":"term","output":"x","title":"a\nb"}`), "title must be a single line"},
+		{"term output too big", docWith(fmt.Sprintf(`{"id":"tm1","type":"term","output":%q}`, bigOutput)), "exceeds"},
+
+		{"filetree valid", docWith(`{"id":"ft1","type":"filetree","title":"Changes","entries":[{"path":"cmd/main.go","badge":"added","note":"new entrypoint"},{"path":"internal/doc/doc.go","badge":"modified"}]}`), ""},
+		{"filetree empty entries", docWith(`{"id":"ft1","type":"filetree","entries":[]}`), "at least one entry"},
+		{"filetree dotdot segment", docWith(`{"id":"ft1","type":"filetree","entries":[{"path":"a/../b"}]}`), "empty or dot segment"},
+		{"filetree absolute path", docWith(`{"id":"ft1","type":"filetree","entries":[{"path":"/a/b"}]}`), "must be relative"},
+		{"filetree trailing slash", docWith(`{"id":"ft1","type":"filetree","entries":[{"path":"a/b/"}]}`), "must not end with a slash"},
+		{"filetree duplicate path", docWith(`{"id":"ft1","type":"filetree","entries":[{"path":"a/b"},{"path":"a/b"}]}`), "duplicate path"},
+		{"filetree bad badge", docWith(`{"id":"ft1","type":"filetree","entries":[{"path":"a","badge":"renamed"}]}`), "invalid badge"},
+		{"filetree multiline note", docWith(`{"id":"ft1","type":"filetree","entries":[{"path":"a","note":"x\ny"}]}`), "note must be a single line"},
+		{"filetree over entries cap", docWith(overEntriesTree), "exceeds"},
+
+		{"record valid", docWith(`{"id":"rec1","type":"record","title":"AA123","chips":[{"label":"Nonstop","tone":"flag"}],"facts":[{"label":"Cabin","value":"Business","tone":"good"},{"label":"Miles","value":"70k"}],"links":[{"label":"Book","url":"https://example.com/book"}]}`), ""},
+		{"record missing facts", docWith(`{"id":"rec1","type":"record","facts":[]}`), "at least one fact"},
+		{"record label-less fact rejected", docWith(`{"id":"rec1","type":"record","facts":[{"value":"x"}]}`), "fact label must not be empty"},
+		{"record duplicate fact labels accepted", docWith(`{"id":"rec1","type":"record","facts":[{"label":"L","value":"a"},{"label":"L","value":"b"}]}`), ""},
+		{"record empty chip label rejected", docWith(`{"id":"rec1","type":"record","chips":[{"label":""}],"facts":[{"label":"L","value":"x"}]}`), "chip label must not be empty"},
+		{"record empty link label rejected", docWith(`{"id":"rec1","type":"record","facts":[{"label":"L","value":"x"}],"links":[{"label":"","url":"https://x.com"}]}`), "link label must not be empty"},
+		{"record http link rejected", docWith(`{"id":"rec1","type":"record","facts":[{"label":"L","value":"x"}],"links":[{"label":"Book","url":"http://x.com"}]}`), "must be https"},
+		{"record relative link rejected", docWith(`{"id":"rec1","type":"record","facts":[{"label":"L","value":"x"}],"links":[{"label":"Book","url":"/path"}]}`), "must be https"},
+		{"record javascript link rejected", docWith(`{"id":"rec1","type":"record","facts":[{"label":"L","value":"x"}],"links":[{"label":"Book","url":"javascript:alert(1)"}]}`), "must be https"},
+		{"record over facts cap", docWith(overFactsRecord), "exceeds"},
+
+		{"option visual chart", docWith(card("c1", `{"id":"ch1","type":"choice","options":[{"id":"o1","label":"A","visual":{"id":"v1","type":"chart","kind":"bar","categories":["a"],"series":[{"label":"S","values":[1]}]}}]}`)), ""},
+		{"option visual term", docWith(card("c1", `{"id":"ch1","type":"choice","options":[{"id":"o1","label":"A","visual":{"id":"v1","type":"term","output":"ok"}}]}`)), ""},
+		{"option visual filetree", docWith(card("c1", `{"id":"ch1","type":"choice","options":[{"id":"o1","label":"A","visual":{"id":"v1","type":"filetree","entries":[{"path":"a"}]}}]}`)), ""},
+		{"option visual record", docWith(card("c1", `{"id":"ch1","type":"choice","options":[{"id":"o1","label":"A","visual":{"id":"v1","type":"record","facts":[{"label":"L","value":"x"}]}}]}`)), ""},
+		{"option visual error names new types", docWith(card("c1", `{"id":"ch1","type":"choice","options":[{"id":"o1","label":"A","visual":{"id":"v1","type":"approval"}}]}`)), "chart, term, filetree, record"},
+
 		{"doc too big", docWith(card("c1", fmt.Sprintf(`{"id":"m1","type":"markdown","md":%q}`, bigMd))), "exceeds"},
 	}
 
@@ -168,6 +245,38 @@ func TestValidate(t *testing.T) {
 			}
 			if !strings.Contains(err.Error(), tt.wantErr) {
 				t.Fatalf("parse() error = %q, want substring %q", err.Error(), tt.wantErr)
+			}
+		})
+	}
+}
+
+// TestChartNonFiniteValueRejected pins the finite-value guard on a constructed
+// struct, since JSON literals cannot carry NaN or Inf. The block is decoded from
+// a valid chart so its base (id/type) is set, then a single value is poisoned.
+func TestChartNonFiniteValueRejected(t *testing.T) {
+	tests := []struct {
+		name string
+		v    float64
+	}{
+		{"NaN", math.NaN()},
+		{"positive infinity", math.Inf(1)},
+		{"negative infinity", math.Inf(-1)},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			b, err := doc.DecodeBlock([]byte(`{"id":"cht1","type":"chart","kind":"bar","categories":["a"],"series":[{"label":"S","values":[0]}]}`))
+			if err != nil {
+				t.Fatalf("decode chart: %v", err)
+			}
+			c, ok := b.(*doc.Chart)
+			if !ok {
+				t.Fatalf("decoded block type = %T, want *doc.Chart", b)
+			}
+			c.Series[0].Values[0] = tt.v
+			d := &doc.Doc{Version: 1, Title: "T", Blocks: []doc.Block{c}}
+			err = d.Validate(doc.NoPacks)
+			if err == nil || !strings.Contains(err.Error(), "non-finite") {
+				t.Fatalf("Validate() = %v, want error containing %q", err, "non-finite")
 			}
 		})
 	}

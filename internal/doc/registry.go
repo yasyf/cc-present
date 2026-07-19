@@ -72,6 +72,22 @@ var registry = map[string]spec{
 		decode:   func(data json.RawMessage) (Block, error) { return decodeInto(data, &Progress{}) },
 		validate: func(b Block) error { return validateProgress(b.(*Progress)) },
 	},
+	"chart": {
+		decode:   func(data json.RawMessage) (Block, error) { return decodeInto(data, &Chart{}) },
+		validate: func(b Block) error { return validateChart(b.(*Chart)) },
+	},
+	"term": {
+		decode:   func(data json.RawMessage) (Block, error) { return decodeInto(data, &Term{}) },
+		validate: func(b Block) error { return validateTerm(b.(*Term)) },
+	},
+	"filetree": {
+		decode:   func(data json.RawMessage) (Block, error) { return decodeInto(data, &FileTree{}) },
+		validate: func(b Block) error { return validateFileTree(b.(*FileTree)) },
+	},
+	"record": {
+		decode:   func(data json.RawMessage) (Block, error) { return decodeInto(data, &Record{}) },
+		validate: func(b Block) error { return validateRecord(b.(*Record)) },
+	},
 }
 
 // Children returns the blocks nested one level inside b — a card's children, and

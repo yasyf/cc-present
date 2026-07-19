@@ -185,6 +185,36 @@ func TestVisualNudge(t *testing.T) {
 			raw:  `{"version":1,"title":"T","blocks":[{"id":"c1","type":"card","children":[{"id":"d1","type":"diagram","kind":"mermaid","source":"graph LR\n a-->b"},{"id":"ch1","type":"choice","options":[{"id":"o1","label":"A"}]}]}]}`,
 			want: "",
 		},
+		{
+			name: "top-level chart lead-in satisfies the choice",
+			raw:  `{"version":1,"title":"T","blocks":[{"id":"cht1","type":"chart","kind":"bar","categories":["a"],"series":[{"label":"S","values":[1]}]},{"id":"ch1","type":"choice","options":[{"id":"o1","label":"A"}]}]}`,
+			want: "",
+		},
+		{
+			name: "top-level filetree lead-in satisfies the choice",
+			raw:  `{"version":1,"title":"T","blocks":[{"id":"ft1","type":"filetree","entries":[{"path":"a/b.go"}]},{"id":"ch1","type":"choice","options":[{"id":"o1","label":"A"}]}]}`,
+			want: "",
+		},
+		{
+			name: "a term sibling does not satisfy the choice",
+			raw:  `{"version":1,"title":"T","blocks":[{"id":"tm1","type":"term","output":"ok"},{"id":"ch1","type":"choice","options":[{"id":"o1","label":"A"}]}]}`,
+			want: "hint: 1 choice ships without a visual (ch1); attach an option.visual or lead the card with a diagram",
+		},
+		{
+			name: "a record sibling does not satisfy the choice",
+			raw:  `{"version":1,"title":"T","blocks":[{"id":"rec1","type":"record","facts":[{"label":"L","value":"x"}]},{"id":"ch1","type":"choice","options":[{"id":"o1","label":"A"}]}]}`,
+			want: "hint: 1 choice ships without a visual (ch1); attach an option.visual or lead the card with a diagram",
+		},
+		{
+			name: "a term option.visual satisfies the choice",
+			raw:  `{"version":1,"title":"T","blocks":[{"id":"ch1","type":"choice","options":[{"id":"o1","label":"A","visual":{"id":"v1","type":"term","output":"ok"}}]}]}`,
+			want: "",
+		},
+		{
+			name: "a record option.visual satisfies the choice",
+			raw:  `{"version":1,"title":"T","blocks":[{"id":"ch1","type":"choice","options":[{"id":"o1","label":"A","visual":{"id":"v1","type":"record","facts":[{"label":"L","value":"x"}]}}]}]}`,
+			want: "",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

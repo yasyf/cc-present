@@ -9,6 +9,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
+	"net/url"
 	"regexp"
 	"strings"
 )
@@ -19,6 +21,13 @@ const (
 	MaxDocBytes     = 1 << 20  // 1 MiB
 	MaxDataURIBytes = 32 << 10 // 32 KiB
 	MaxDiagramBytes = 8 << 10  // 8 KiB
+	MaxTermBytes    = 32 << 10 // 32 KiB
+	MaxChartSeries  = 6
+	MaxChartPoints  = 100
+	MaxTreeEntries  = 200
+	MaxRecordFacts  = 16
+	MaxRecordChips  = 8
+	MaxRecordLinks  = 8
 )
 
 var (
@@ -28,14 +37,16 @@ var (
 	validDetailMode    = map[string]bool{"inline": true, "modal": true}
 	validProgressState = map[string]bool{"active": true, "done": true, "error": true}
 	validPresentation  = map[string]bool{"focus": true, "board": true}
-	validVisualType    = map[string]bool{"code": true, "diagram": true, "image": true, "diff": true}
+	validVisualType    = map[string]bool{"code": true, "diagram": true, "image": true, "diff": true, "chart": true, "term": true, "filetree": true, "record": true}
+	validChartKind     = map[string]bool{"bar": true, "line": true}
+	validTreeBadge     = map[string]bool{"added": true, "modified": true, "removed": true}
 	assetSHAPattern    = regexp.MustCompile(`^asset:[0-9a-f]{64}$`)
 	errEmptyBlockID    = errors.New("block id must not be empty")
 	errEmptyTitle      = errors.New("doc title must not be empty")
 )
 
 // Block is a node in a document. The concrete types are Section, Card, and the
-// nine leaf blocks. A section, card, or leaf may appear at the top level, while
+// leaf blocks. A section, card, or leaf may appear at the top level, while
 // a card nests only leaf blocks. The interface is sealed to this package.
 type Block interface {
 	BlockID() string
@@ -141,10 +152,10 @@ type Option struct {
 }
 
 // UnmarshalJSON decodes an option, dispatching its optional visual through
-// DecodeBlock and rejecting any type outside the {code, diagram, image, diff}
-// allowlist so a disallowed visual fails loudly at decode. Marshaling needs no
-// custom path: the concrete visual block marshals naturally and a nil interface
-// omits.
+// DecodeBlock and rejecting any type outside the {code, diagram, image, diff,
+// chart, term, filetree, record} allowlist so a disallowed visual fails loudly
+// at decode. Marshaling needs no custom path: the concrete visual block marshals
+// naturally and a nil interface omits.
 func (o *Option) UnmarshalJSON(data []byte) error {
 	var raw struct {
 		ID          string          `json:"id"`
@@ -172,7 +183,7 @@ func (o *Option) UnmarshalJSON(data []byte) error {
 			return fmt.Errorf("option %q visual: %w", raw.ID, err)
 		}
 		if !validVisualType[v.BlockType()] {
-			return fmt.Errorf("option %q visual: type %q is not an allowed visual (code, diagram, image, diff)", raw.ID, v.BlockType())
+			return fmt.Errorf("option %q visual: type %q is not an allowed visual (code, diagram, image, diff, chart, term, filetree, record)", raw.ID, v.BlockType())
 		}
 		o.Visual = v
 	}
@@ -254,6 +265,64 @@ type Progress struct {
 	Value int    `json:"value"`
 	Max   int    `json:"max"`
 	State string `json:"state,omitempty"`
+}
+
+// Series is one data series in a Chart; Values align index-for-index to the
+// chart's categories.
+type Series struct {
+	Label  string    `json:"label"`
+	Values []float64 `json:"values"`
+}
+
+// Chart is a categorical bar or line chart rendered client-side into themed SVG.
+type Chart struct {
+	base
+	Kind       string   `json:"kind"`
+	Title      string   `json:"title,omitempty"`
+	Unit       string   `json:"unit,omitempty"`
+	Categories []string `json:"categories"`
+	Series     []Series `json:"series"`
+}
+
+// Term is a terminal panel: an optional command line above its captured output.
+type Term struct {
+	base
+	Command string `json:"command,omitempty"`
+	Output  string `json:"output"`
+	Title   string `json:"title,omitempty"`
+}
+
+// TreeEntry is one file path in a FileTree; directories are implicit from the
+// path segments. Badge is a git-status change marker; Note is an inline
+// annotation.
+type TreeEntry struct {
+	Path  string `json:"path"`
+	Badge string `json:"badge,omitempty"`
+	Note  string `json:"note,omitempty"`
+}
+
+// FileTree is a set of relative file paths rendered as a collapsible tree with
+// change badges.
+type FileTree struct {
+	base
+	Title   string      `json:"title,omitempty"`
+	Entries []TreeEntry `json:"entries"`
+}
+
+// Link is a labelled https link in a Record.
+type Link struct {
+	Label string `json:"label"`
+	URL   string `json:"url"`
+}
+
+// Record is one entity's labelled profile: tone chips, keyed facts, and https
+// links.
+type Record struct {
+	base
+	Title string `json:"title,omitempty"`
+	Chips []Chip `json:"chips,omitempty"`
+	Facts []Fact `json:"facts"`
+	Links []Link `json:"links,omitempty"`
 }
 
 // UnmarshalJSON decodes the envelope and dispatches each block by its type tag.
@@ -456,9 +525,22 @@ func validateCard(c *Card) error {
 		return fmt.Errorf("card %q: invalid status %q", c.ID, c.Status)
 	}
 	for _, chip := range c.Chips {
-		if chip.Tone != "" && !validTone[chip.Tone] {
-			return fmt.Errorf("card %q: invalid chip tone %q", c.ID, chip.Tone)
+		if err := validateChip(chip); err != nil {
+			return fmt.Errorf("card %q: %w", c.ID, err)
 		}
+	}
+	return nil
+}
+
+func validateChip(c Chip) error {
+	if c.Label == "" {
+		return errors.New("chip label must not be empty")
+	}
+	if strings.Contains(c.Label, "\n") {
+		return errors.New("chip label must be a single line")
+	}
+	if c.Tone != "" && !validTone[c.Tone] {
+		return fmt.Errorf("invalid chip tone %q", c.Tone)
 	}
 	return nil
 }
@@ -569,8 +651,16 @@ func validateVisual(b Block) error {
 		return validateImage(v)
 	case *Diff:
 		return validateDiff(v)
+	case *Chart:
+		return validateChart(v)
+	case *Term:
+		return validateTerm(v)
+	case *FileTree:
+		return validateFileTree(v)
+	case *Record:
+		return validateRecord(v)
 	default:
-		return fmt.Errorf("type %q is not an allowed visual (code, diagram, image, diff)", b.BlockType())
+		return fmt.Errorf("type %q is not an allowed visual (code, diagram, image, diff, chart, term, filetree, record)", b.BlockType())
 	}
 }
 
@@ -695,6 +785,182 @@ func validateProgress(p *Progress) error {
 	}
 	if p.State != "" && !validProgressState[p.State] {
 		return fmt.Errorf("progress %q: invalid state %q", p.ID, p.State)
+	}
+	return nil
+}
+
+func validateChart(c *Chart) error {
+	if !validChartKind[c.Kind] {
+		return fmt.Errorf("chart %q: kind must be bar or line, got %q", c.ID, c.Kind)
+	}
+	if strings.Contains(c.Title, "\n") {
+		return fmt.Errorf("chart %q: title must be a single line", c.ID)
+	}
+	if strings.Contains(c.Unit, "\n") {
+		return fmt.Errorf("chart %q: unit must be a single line", c.ID)
+	}
+	if len(c.Categories) == 0 {
+		return fmt.Errorf("chart %q: must have at least one category", c.ID)
+	}
+	if len(c.Categories) > MaxChartPoints {
+		return fmt.Errorf("chart %q: %d categories exceeds %d", c.ID, len(c.Categories), MaxChartPoints)
+	}
+	seenCat := map[string]bool{}
+	for _, cat := range c.Categories {
+		if cat == "" {
+			return fmt.Errorf("chart %q: category must not be empty", c.ID)
+		}
+		if strings.Contains(cat, "\n") {
+			return fmt.Errorf("chart %q: category must be a single line", c.ID)
+		}
+		if seenCat[cat] {
+			return fmt.Errorf("chart %q: duplicate category %q", c.ID, cat)
+		}
+		seenCat[cat] = true
+	}
+	if len(c.Series) == 0 {
+		return fmt.Errorf("chart %q: must have at least one series", c.ID)
+	}
+	if len(c.Series) > MaxChartSeries {
+		return fmt.Errorf("chart %q: %d series exceeds %d", c.ID, len(c.Series), MaxChartSeries)
+	}
+	seenSeries := map[string]bool{}
+	for _, s := range c.Series {
+		if s.Label == "" {
+			return fmt.Errorf("chart %q: series label must not be empty", c.ID)
+		}
+		if strings.Contains(s.Label, "\n") {
+			return fmt.Errorf("chart %q: series label must be a single line", c.ID)
+		}
+		if seenSeries[s.Label] {
+			return fmt.Errorf("chart %q: duplicate series label %q", c.ID, s.Label)
+		}
+		seenSeries[s.Label] = true
+		if len(s.Values) != len(c.Categories) {
+			return fmt.Errorf("chart %q: series %q has %d values, want %d (one per category)", c.ID, s.Label, len(s.Values), len(c.Categories))
+		}
+		for _, v := range s.Values {
+			if math.IsNaN(v) || math.IsInf(v, 0) {
+				return fmt.Errorf("chart %q: series %q has a non-finite value", c.ID, s.Label)
+			}
+		}
+	}
+	return nil
+}
+
+func validateTerm(t *Term) error {
+	if t.Output == "" {
+		return fmt.Errorf("term %q: output must not be empty", t.ID)
+	}
+	if len(t.Output) > MaxTermBytes {
+		return fmt.Errorf("term %q: output is %d bytes, exceeds %d", t.ID, len(t.Output), MaxTermBytes)
+	}
+	if strings.Contains(t.Command, "\n") {
+		return fmt.Errorf("term %q: command must be a single line", t.ID)
+	}
+	if strings.Contains(t.Title, "\n") {
+		return fmt.Errorf("term %q: title must be a single line", t.ID)
+	}
+	return nil
+}
+
+func validateFileTree(f *FileTree) error {
+	if strings.Contains(f.Title, "\n") {
+		return fmt.Errorf("filetree %q: title must be a single line", f.ID)
+	}
+	if len(f.Entries) == 0 {
+		return fmt.Errorf("filetree %q: must have at least one entry", f.ID)
+	}
+	if len(f.Entries) > MaxTreeEntries {
+		return fmt.Errorf("filetree %q: %d entries exceeds %d", f.ID, len(f.Entries), MaxTreeEntries)
+	}
+	seen := map[string]bool{}
+	for _, e := range f.Entries {
+		if err := validateTreePath(e.Path); err != nil {
+			return fmt.Errorf("filetree %q: %w", f.ID, err)
+		}
+		if seen[e.Path] {
+			return fmt.Errorf("filetree %q: duplicate path %q", f.ID, e.Path)
+		}
+		seen[e.Path] = true
+		if e.Badge != "" && !validTreeBadge[e.Badge] {
+			return fmt.Errorf("filetree %q: invalid badge %q", f.ID, e.Badge)
+		}
+		if strings.Contains(e.Note, "\n") {
+			return fmt.Errorf("filetree %q: note must be a single line", f.ID)
+		}
+	}
+	return nil
+}
+
+func validateTreePath(p string) error {
+	if p == "" {
+		return errors.New("path must not be empty")
+	}
+	if strings.HasPrefix(p, "/") {
+		return fmt.Errorf("path %q must be relative", p)
+	}
+	if strings.HasSuffix(p, "/") {
+		return fmt.Errorf("path %q must not end with a slash", p)
+	}
+	for _, seg := range strings.Split(p, "/") {
+		if seg == "" || seg == "." || seg == ".." {
+			return fmt.Errorf("path %q has an empty or dot segment", p)
+		}
+	}
+	return nil
+}
+
+func validateRecord(r *Record) error {
+	if strings.Contains(r.Title, "\n") {
+		return fmt.Errorf("record %q: title must be a single line", r.ID)
+	}
+	if len(r.Chips) > MaxRecordChips {
+		return fmt.Errorf("record %q: %d chips exceeds %d", r.ID, len(r.Chips), MaxRecordChips)
+	}
+	for _, chip := range r.Chips {
+		if err := validateChip(chip); err != nil {
+			return fmt.Errorf("record %q: %w", r.ID, err)
+		}
+	}
+	if len(r.Facts) == 0 {
+		return fmt.Errorf("record %q: must have at least one fact", r.ID)
+	}
+	if len(r.Facts) > MaxRecordFacts {
+		return fmt.Errorf("record %q: %d facts exceeds %d", r.ID, len(r.Facts), MaxRecordFacts)
+	}
+	for _, f := range r.Facts {
+		if f.Label == "" {
+			return fmt.Errorf("record %q: fact label must not be empty", r.ID)
+		}
+		if err := validateFact(f); err != nil {
+			return fmt.Errorf("record %q: %w", r.ID, err)
+		}
+	}
+	if len(r.Links) > MaxRecordLinks {
+		return fmt.Errorf("record %q: %d links exceeds %d", r.ID, len(r.Links), MaxRecordLinks)
+	}
+	for _, l := range r.Links {
+		if err := validateLink(l); err != nil {
+			return fmt.Errorf("record %q: %w", r.ID, err)
+		}
+	}
+	return nil
+}
+
+func validateLink(l Link) error {
+	if l.Label == "" {
+		return errors.New("link label must not be empty")
+	}
+	if strings.Contains(l.Label, "\n") {
+		return errors.New("link label must be a single line")
+	}
+	u, err := url.Parse(l.URL)
+	if err != nil {
+		return fmt.Errorf("link url %q is not a valid URL: %w", l.URL, err)
+	}
+	if u.Scheme != "https" || u.Host == "" {
+		return fmt.Errorf("link url must be https with a host, got %q", l.URL)
 	}
 	return nil
 }

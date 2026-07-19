@@ -30,6 +30,10 @@ const BUILTIN_DECIDABLE = {
   image: false,
   table: false,
   progress: false,
+  chart: false,
+  term: false,
+  filetree: false,
+  record: false,
 } satisfies Record<BuiltinBlockType, boolean>;
 
 const BUILTIN_TALLIED = {
@@ -45,6 +49,10 @@ const BUILTIN_TALLIED = {
   image: null,
   table: null,
   progress: null,
+  chart: null,
+  term: null,
+  filetree: null,
+  record: null,
 } satisfies Record<BuiltinBlockType, SubmitItem['kind'] | null>;
 
 // flatten yields every top-level block plus every card child, so a tally or the

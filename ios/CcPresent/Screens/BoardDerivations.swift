@@ -23,7 +23,8 @@ func showsNativeReplyThread(_ block: Block) -> Bool {
     switch block {
     case .approval, .choice, .pack:
         false
-    case .section, .card, .input, .markdown, .code, .diff, .diagram, .image, .table, .progress:
+    case .section, .card, .input, .markdown, .code, .diff, .diagram, .image, .table, .progress,
+         .chart, .term, .filetree, .record:
         true
     }
 }

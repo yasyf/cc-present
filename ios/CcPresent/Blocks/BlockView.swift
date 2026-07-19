@@ -57,6 +57,14 @@ struct BlockView: View {
             TableBlockView(block: table)
         case let .progress(progress):
             ProgressBlockView(block: progress)
+        case let .chart(chart):
+            ChartBlockView(block: chart, context: packContext)
+        case let .term(term):
+            TermBlockView(block: term, context: packContext)
+        case let .filetree(filetree):
+            FileTreeBlockView(block: filetree, context: packContext)
+        case let .record(record):
+            RecordBlockView(block: record, context: packContext)
         case let .pack(pack):
             if let packContext {
                 PackBlockWebView(block: pack, context: packContext)

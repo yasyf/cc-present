@@ -65,9 +65,9 @@ public struct Doc: Codable, Equatable, Sendable {
     }
 }
 
-/// Block is a node in a document. A section, a card, or any of the nine leaf
-/// blocks may appear at the top level; a card nests one level of leaf blocks. The
-/// JSON `type` tag is the discriminant, encoded alongside each case's fields.
+/// Block is a node in a document. A section, a card, or any of the leaf blocks
+/// may appear at the top level; a card nests one level of leaf blocks. The JSON
+/// `type` tag is the discriminant, encoded alongside each case's fields.
 public enum Block: Codable, Equatable, Sendable {
     case section(Section)
     case card(Card)
@@ -81,6 +81,10 @@ public enum Block: Codable, Equatable, Sendable {
     case image(Image)
     case table(Table)
     case progress(Progress)
+    case chart(Chart)
+    case term(Term)
+    case filetree(FileTree)
+    case record(Record)
     case pack(Pack)
 
     /// Section is a top-level header marker with optional prose.
@@ -365,6 +369,118 @@ public enum Block: Codable, Equatable, Sendable {
         }
     }
 
+    /// Series is one data series in a Chart; values align index-for-index to the
+    /// chart's categories.
+    public struct Series: Codable, Equatable, Sendable {
+        public var label: String
+        public var values: [Double]
+
+        public init(label: String, values: [Double]) {
+            self.label = label
+            self.values = values
+        }
+    }
+
+    /// Chart is a categorical bar or line chart rendered client-side into themed
+    /// SVG; kind is `bar` or `line`.
+    public struct Chart: Codable, Equatable, Sendable {
+        public var id: String
+        public var kind: String
+        public var title: String?
+        public var unit: String?
+        public var categories: [String]
+        public var series: [Series]
+
+        public init(
+            id: String,
+            kind: String,
+            title: String? = nil,
+            unit: String? = nil,
+            categories: [String],
+            series: [Series]
+        ) {
+            self.id = id
+            self.kind = kind
+            self.title = title
+            self.unit = unit
+            self.categories = categories
+            self.series = series
+        }
+    }
+
+    /// Term is a terminal panel: an optional command line above its captured output.
+    public struct Term: Codable, Equatable, Sendable {
+        public var id: String
+        public var command: String?
+        public var output: String
+        public var title: String?
+
+        public init(id: String, command: String? = nil, output: String, title: String? = nil) {
+            self.id = id
+            self.command = command
+            self.output = output
+            self.title = title
+        }
+    }
+
+    /// TreeEntry is one file path in a FileTree; directories are implicit from the
+    /// path segments. Badge is a git-status change marker; note is an inline
+    /// annotation.
+    public struct TreeEntry: Codable, Equatable, Sendable {
+        public var path: String
+        public var badge: String?
+        public var note: String?
+
+        public init(path: String, badge: String? = nil, note: String? = nil) {
+            self.path = path
+            self.badge = badge
+            self.note = note
+        }
+    }
+
+    /// FileTree is a set of relative file paths rendered as a collapsible tree
+    /// with change badges.
+    public struct FileTree: Codable, Equatable, Sendable {
+        public var id: String
+        public var title: String?
+        public var entries: [TreeEntry]
+
+        public init(id: String, title: String? = nil, entries: [TreeEntry]) {
+            self.id = id
+            self.title = title
+            self.entries = entries
+        }
+    }
+
+    /// Link is a labelled https link in a Record.
+    public struct Link: Codable, Equatable, Sendable {
+        public var label: String
+        public var url: String
+
+        public init(label: String, url: String) {
+            self.label = label
+            self.url = url
+        }
+    }
+
+    /// Record is one entity's labelled profile: tone chips, keyed facts, and
+    /// https links. It reuses the shared Chip and Fact types.
+    public struct Record: Codable, Equatable, Sendable {
+        public var id: String
+        public var title: String?
+        public var chips: [Chip]?
+        public var facts: [Fact]
+        public var links: [Link]?
+
+        public init(id: String, title: String? = nil, chips: [Chip]? = nil, facts: [Fact], links: [Link]? = nil) {
+            self.id = id
+            self.title = title
+            self.chips = chips
+            self.facts = facts
+            self.links = links
+        }
+    }
+
     /// Pack is a plugin-supplied block whose type carries a `<pack>.<name>`
     /// namespace. The client does not model its fields; `raw` holds the entire
     /// block object (id and type included) verbatim so a pack-supplied renderer
@@ -396,6 +512,10 @@ public enum Block: Codable, Equatable, Sendable {
         case let .image(block): block.id
         case let .table(block): block.id
         case let .progress(block): block.id
+        case let .chart(block): block.id
+        case let .term(block): block.id
+        case let .filetree(block): block.id
+        case let .record(block): block.id
         case let .pack(block): block.id
         }
     }
@@ -415,6 +535,10 @@ public enum Block: Codable, Equatable, Sendable {
         case .image: "image"
         case .table: "table"
         case .progress: "progress"
+        case .chart: "chart"
+        case .term: "term"
+        case .filetree: "filetree"
+        case .record: "record"
         case let .pack(block): block.packType
         }
     }
@@ -440,6 +564,10 @@ public enum Block: Codable, Equatable, Sendable {
         case "image": self = try .image(Image(from: decoder))
         case "table": self = try .table(Table(from: decoder))
         case "progress": self = try .progress(Progress(from: decoder))
+        case "chart": self = try .chart(Chart(from: decoder))
+        case "term": self = try .term(Term(from: decoder))
+        case "filetree": self = try .filetree(FileTree(from: decoder))
+        case "record": self = try .record(Record(from: decoder))
         default:
             if type.contains(".") {
                 let id = try container.decode(String.self, forKey: .id)
@@ -478,20 +606,28 @@ public enum Block: Codable, Equatable, Sendable {
         case let .image(block): try block.encode(to: encoder)
         case let .table(block): try block.encode(to: encoder)
         case let .progress(block): try block.encode(to: encoder)
+        case let .chart(block): try block.encode(to: encoder)
+        case let .term(block): try block.encode(to: encoder)
+        case let .filetree(block): try block.encode(to: encoder)
+        case let .record(block): try block.encode(to: encoder)
         case .pack: break
         }
     }
 }
 
-/// OptionVisual is the restricted leaf visual an option may carry. The four cases
+/// OptionVisual is the restricted leaf visual an option may carry. The cases
 /// encode the allowlist in the type system: a recursive `Block?` cannot compile
 /// (Block → Choice → Option → Block), so the visual is this narrow enum instead.
-/// Its discriminator init/encode mirror Block's, but only these four types decode.
+/// Its discriminator init/encode mirror Block's, but only these types decode.
 public enum OptionVisual: Codable, Equatable, Sendable {
     case code(Block.Code)
     case diagram(Block.Diagram)
     case image(Block.Image)
     case diff(Block.Diff)
+    case chart(Block.Chart)
+    case term(Block.Term)
+    case filetree(Block.FileTree)
+    case record(Block.Record)
 
     private enum Discriminator: String, CodingKey {
         case type
@@ -505,11 +641,15 @@ public enum OptionVisual: Codable, Equatable, Sendable {
         case "diagram": self = try .diagram(Block.Diagram(from: decoder))
         case "image": self = try .image(Block.Image(from: decoder))
         case "diff": self = try .diff(Block.Diff(from: decoder))
+        case "chart": self = try .chart(Block.Chart(from: decoder))
+        case "term": self = try .term(Block.Term(from: decoder))
+        case "filetree": self = try .filetree(Block.FileTree(from: decoder))
+        case "record": self = try .record(Block.Record(from: decoder))
         default:
             throw DecodingError.dataCorrupted(
                 DecodingError.Context(
                     codingPath: decoder.codingPath,
-                    debugDescription: "option visual: type \"\(type)\" is not an allowed visual (code, diagram, image, diff)"
+                    debugDescription: "option visual: type \"\(type)\" is not an allowed visual (code, diagram, image, diff, chart, term, filetree, record)"
                 )
             )
         }
@@ -529,6 +669,18 @@ public enum OptionVisual: Codable, Equatable, Sendable {
             try block.encode(to: encoder)
         case let .diff(block):
             try container.encode("diff", forKey: .type)
+            try block.encode(to: encoder)
+        case let .chart(block):
+            try container.encode("chart", forKey: .type)
+            try block.encode(to: encoder)
+        case let .term(block):
+            try container.encode("term", forKey: .type)
+            try block.encode(to: encoder)
+        case let .filetree(block):
+            try container.encode("filetree", forKey: .type)
+            try block.encode(to: encoder)
+        case let .record(block):
+            try container.encode("record", forKey: .type)
             try block.encode(to: encoder)
         }
     }

@@ -10,6 +10,23 @@ enum WebViewLoadPhase: Equatable {
     case failed
 }
 
+/// WebBlockPresentation is the content a webview-backed block shows for a given
+/// board-context availability and load phase — the pure mapping the per-view
+/// fallback tests pin. Shared by every block that embeds the SPA single-block page.
+enum WebBlockPresentation: Equatable {
+    case webView(showingSkeleton: Bool)
+    case rawSource
+
+    static func of(hasContext: Bool, phase: WebViewLoadPhase) -> WebBlockPresentation {
+        guard hasContext else { return .rawSource }
+        switch phase {
+        case .loading: return .webView(showingSkeleton: true)
+        case .loaded: return .webView(showingSkeleton: false)
+        case .failed: return .rawSource
+        }
+    }
+}
+
 /// SingleBlockWebView hosts the SPA's single-block page in a WKWebView sized to its
 /// content via the `ccPresentHeight` message (KVO fallback on the scroll content size).
 /// It carries the app's appearance to the page as a `theme` query param and reloads on
