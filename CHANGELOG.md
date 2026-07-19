@@ -6,6 +6,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-07-19
+
+### Added
+- Tailnet display URLs. `start` and `push` print `tailnet:` line(s) whenever the
+  daemon serves the tailnet — the MagicDNS name when tailscale publishes one
+  (deduped by port, so v4+v6 legs on one port yield one URL), raw tailnet IPs
+  otherwise, and under `pair`'s wildcard bind the primary port itself. `push`
+  now prints `url:` too, after `revision:`. The `tailnet:` URL is what to hand
+  another mesh machine — never a `tailscale serve` proxy, which the contract
+  bans.
+- Dynamic tailnet legs. A 30-second reconcile binds legs gained after boot, so
+  a daemon started before `tailscale up` grows tailnet reach without a restart;
+  the handshake's `extra_addrs` rewrites atomically as legs bind (cc-interact
+  v0.12.0), and legs are never pruned — a vanished address is inert. Synckit
+  state created after daemon start still needs one restart.
+- `GET /api/health` returns `{"version":…}` — the one non-vacuous liveness
+  probe, since the SPA fallback answers unmatched paths 200. Unknown `/api/*`
+  paths return 404, never the shell.
+
+### Fixed
+- A binary built without the web step embedded a Vite shell referencing
+  gitignored assets and served it as `text/html` for every asset request — a
+  blank board with a strict-MIME console error. `internal/web/dist` is
+  build-output-only now (`.gitkeep` restored by the vite build keeps `go:embed`
+  compiling): the daemon refuses to start on a missing or internally
+  inconsistent embed, and asset-shaped misses 404 instead of answering with the
+  shell.
+
 ## [0.10.0] - 2026-07-17
 
 ### Added
