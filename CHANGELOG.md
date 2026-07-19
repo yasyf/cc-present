@@ -6,6 +6,61 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-07-20
+
+### Added
+- Universal escape hatch on every choice. A chrome-guaranteed write-in "Other"
+  row (takes a 1–9 index, commits on Enter/blur) and an "Add note" thread on any
+  choice — authors can no longer box the human into their listed options.
+  `choice.selected` carries `other`, `feedback.created` accepts choice targets
+  (threaded, survives re-picks), and a write-in alone counts as decided
+  everywhere: tally, step status, receipts, and round snapshots.
+- Live revision loop. A new agent-origin `revising.changed` event (and
+  `cc-present revising <ids…> --note`) announces which steps are being rewritten
+  after a consequential pick. Clients show a pulsing rail dot and a warn-only
+  banner — controls stay live — that decays passive after 120 seconds; the
+  completing `update-block` clears the mark and lands an "Updated after your
+  earlier pick" callout, and a fresh-id upsert badges "Claude added this step."
+  The authoring skill's choreography replaces verbal conditionals and
+  hand-authored "Updated:" prefixes.
+- Visual-first decisions. A first-class `diagram` block (mermaid, ≤8 KiB) and
+  `option.visual` (code, diagram, image, or diff per option) with a per-step
+  visual stage that tracks the active option. Mermaid renders lazily
+  client-side, inked with Blue Pencil theme tokens and re-inked on theme flip;
+  broken source degrades to an error card with the source visible. iOS renders
+  diagrams through a shared single-block webview at parity, and code blocks
+  gain Highlightr syntax color. `push` prints a non-blocking nudge when a
+  board's choices ship without a single visual.
+- `recommended` on options — a validated schema field (at most one per
+  single-select) rendered as a stamp badge, replacing free-text hint prefixes.
+- Momentum. Auto-advance generalizes from lone approvals to lone single-select
+  choices (450 ms cue, any interaction cancels); the header reads
+  "Step N of M · K decisions left" with both numbers live-derived; a segmented
+  tap-to-jump strip appears past 10 steps.
+
+### Changed
+- Focus-mode cards are question-first. The prompt is a real heading pinned
+  above the scroll region (which also fixes titles clipping under sticky diff
+  and table headers), the tier eyebrow is gone, context clamps to ~6 lines with
+  expand-in-place, and heavy context blocks collapse to titled disclosures.
+  Facts render as a comparative grid when labels align across options. The
+  submit bar mounts only at the Review summary, whose receipts show chosen
+  labels and write-in text.
+- iOS ships all of the above in lockstep: question-first hierarchy, write-ins
+  and notes, generalized auto-advance, revision affordances, and webview
+  diagrams, conformance-tested against the shared reducer fixtures.
+
+### Fixed
+- Mermaid node labels rendered invisible: mermaid honors `htmlLabels` only at
+  the top level of its config (the nested flowchart setting is silently
+  ignored), so labels emitted as HTML were stripped by SVG sanitization. Labels
+  now render as SVG text, and theme colors are probe-resolved so `light-dark()`
+  tokens ink correctly in both themes.
+- Single-block pages honor `?theme=dark|light`, and the iOS webview passes its
+  appearance through the URL and reloads on trait flips — diagrams no longer
+  render light-on-light in dark mode.
+- The daemon caps `input.submitted` text at 64 KiB.
+
 ## [0.11.0] - 2026-07-19
 
 ### Added
@@ -343,7 +398,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   marketplace.
 - `examples/opener-board.json`, a complete sample document.
 
-[Unreleased]: https://github.com/yasyf/cc-present/compare/v0.10.0...main
+[Unreleased]: https://github.com/yasyf/cc-present/compare/v0.12.0...main
+[0.12.0]: https://github.com/yasyf/cc-present/compare/v0.11.0...v0.12.0
+[0.11.0]: https://github.com/yasyf/cc-present/compare/v0.10.0...v0.11.0
 [0.10.0]: https://github.com/yasyf/cc-present/compare/v0.9.4...v0.10.0
 [0.9.4]: https://github.com/yasyf/cc-present/compare/v0.9.3...v0.9.4
 [0.9.3]: https://github.com/yasyf/cc-present/compare/v0.9.2...v0.9.3
