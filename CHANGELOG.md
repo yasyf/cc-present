@@ -6,9 +6,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.1] - 2026-07-20
+
+### Fixed
+- Tailnet URLs open in browsers now. `ts.net` sits on the HSTS preload list, so
+  the `http://<name>.ts.net` URLs v0.11.0 printed could never load — browsers
+  force-upgrade them to `https://` against a plaintext listener. Tailnet legs
+  now serve TLS and plain HTTP on one port by sniffing each connection's first
+  byte: browsers get `https://<magicdns>:<port>` with a real certificate minted
+  through `tailscale cert` (asynchronously at start, renewed by the reconcile
+  pass, rotated without rebinding), while mesh clients keep dialing the same
+  legs over plain http by IP. Printed URLs always match what serves — the https
+  name URL appears only while a valid certificate for the live cert domain is
+  held, the HSTS-exempt `http://<tailnet-ip>` form prints otherwise, and the
+  `http://<name>.ts.net` form is never composed again. A specific non-loopback
+  bind no longer advertises tailnet IPs nothing serves.
+
 ## [0.12.0] - 2026-07-20
 
 ### Added
+- A dead event stream shows a visible "Can't connect to this board" panel after
+  ~8 seconds instead of an eternal loading skeleton — a hard `/events` failure
+  (a mistyped slug, a stopped daemon) previously rendered identically to
+  loading, forever.
 - Universal escape hatch on every choice. A chrome-guaranteed write-in "Other"
   row (takes a 1–9 index, commits on Enter/blur) and an "Add note" thread on any
   choice — authors can no longer box the human into their listed options.
