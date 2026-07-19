@@ -59,7 +59,7 @@ A board with any decision unit opens in focus mode by default: one step at a tim
 - **Each card is one focus step.** "Cards are decision units" is literal: the card renders as the step body and its controls decide it.
 - **Doc order is deck order.** Order cards by decision priority — the human meets them one at a time.
 - **A card fits one screen.** The content-density clamps above are the budget; an overlong card splits into multiple cards, same as on the board.
-- **Context attaches forward.** A top-level run of content blocks (markdown, code, diff, image, table, progress) becomes the lead-in of the next card or decidable; a trailing run is its own read-only step. Put context immediately before the decision it informs — a run cut off by a section header turns into a standalone read-only step instead of attaching.
+- **Context attaches forward.** A top-level run of content blocks (markdown, code, diff, diagram, image, table, progress, chart, term, filetree, record) becomes the lead-in of the next card or decidable; a trailing run is its own read-only step. Put context immediately before the decision it informs — a run cut off by a section header turns into a standalone read-only step instead of attaching.
 - **Sections are never steps.** A section surfaces as the tier label in the deck's progress header.
 - **A lone approval swipes.** A step whose only decidable is an approval takes swipe-to-decide — right approves, left rejects. A card with several decidables decides by its controls only.
 - **Content-only boards stay boards.** A push with no decision unit opens as the classic board; set `presentation` to override either default.
@@ -71,6 +71,11 @@ A board with any decision unit opens in focus mode by default: one step at a tim
 | Serialized document | 1 MiB |
 | `data:` URI in `image.src` | 32 KiB |
 | Local image file (inlined to an `asset:` ref) | 5 MiB |
+| `diagram.source` | 8 KiB |
+| `chart` | 6 series, 100 categories |
+| `term.output` | 32 KiB |
+| `filetree.entries` | 200 |
+| `record` | 16 facts, 8 chips, 8 links |
 
 ## Block types
 
@@ -162,7 +167,7 @@ The `md`-vs-`detail.md` line: `md` is what the human must read before deciding; 
 
 `recommended: true` marks your suggested pick: the option carries a stamp badge, and it replaces the free-text "Recommended —" `hint` prefix that used to signal the same thing. At most one option per single-select choice may set it — a second one fails validation. A multi-select choice allows any number.
 
-`visual` attaches one visual block to an option — a `code`, `diagram`, `image`, or `diff`, each with its own doc-unique id. The deck renders it in the step's visual stage as the option becomes active, so it stands in for a prose tier instead of crowding the row; on the board it rides inside the option's Details. Pick the type that shows the difference between the options: `code` for the shape of what the option produces, `diagram` for a flow or structure that differs across them, `diff` for a before/after edit, `image` for a rendered mockup or screenshot. Any other block type is rejected at decode, naming the option.
+`visual` attaches one visual block to an option — a `code`, `diagram`, `image`, `diff`, `chart`, `term`, `filetree`, or `record`, each with its own doc-unique id. The deck renders it in the step's visual stage as the option becomes active, so it stands in for a prose tier instead of crowding the row; on the board it rides inside the option's Details. Pick the type that shows the difference between the options: `code` for the shape of what the option produces, `diagram` for a flow or structure that differs across them, `diff` for a before/after edit, `image` for a rendered mockup or screenshot, `chart` for magnitudes the eye should rank, `term` for what running the option prints, `filetree` for the files it touches, `record` for the entity behind it. Any other block type is rejected at decode, naming the option.
 
 Facts earn the comparison grid by lining up. Give every option the same fact labels in the same order — matched labels render as a column-to-column grid the eye reads across options; a single mismatched label drops the whole choice back to per-option chips, silently.
 
@@ -209,6 +214,93 @@ Keep the source scannable — a diagram earns its place by reading at a glance, 
 - **No inline styling.** Leave out `style`, `classDef`, and `class` directives and any HTML in labels. The client owns ink and theming and re-inks on a theme flip, so author colors fight it and read inconsistently.
 - **A visual replaces a prose tier; it never repeats one.** When the diagram carries what a neighboring markdown block already says, cut the prose — don't caption the picture with its own transcript.
 
+### `chart` — data to picture
+
+```json
+{
+  "id": "latency-chart",
+  "type": "chart",
+  "kind": "bar",
+  "title": "p99 latency by backend",
+  "unit": "ms",
+  "categories": [ "SQLite", "Postgres", "DynamoDB" ],
+  "series": [
+    { "label": "read", "values": [ 4, 11, 38 ] },
+    { "label": "write", "values": [ 9, 14, 41 ] }
+  ]
+}
+```
+
+`kind` is `bar` or `line`. `categories` names the x-axis; each series carries exactly one finite value per category (6 series and 100 categories max). The client renders a themed SVG — series colors derive from the board accent and re-ink on a light/dark flip — and `unit` rides the formatted values. A chart works at the top level, inside a card, or as an `option.visual` — it is the default picture of a quantitative tradeoff.
+
+- **Chart over table when magnitudes are comparable.** Numbers the eye should rank at a glance go in a chart; exact values to look up, or mixed units, stay a `table`.
+- **At most ~12 categories.** Validation allows 100; legibility doesn't. Past that, aggregate or split.
+- **No styling knobs.** The client owns ink and theming, same as `diagram` — there is nothing to set, so don't encode color in labels.
+- Negative values are fine; the value axis always anchors at 0.
+
+### `term` — command output
+
+```json
+{
+  "id": "test-run",
+  "type": "term",
+  "command": "go test ./internal/doc/",
+  "title": "The failing case",
+  "output": "--- FAIL: TestValidate (0.00s)\n    doc_test.go:88: want 3 violations, got 2\nFAIL\nFAIL\tcc-present/internal/doc\t0.41s"
+}
+```
+
+`output` is what the command printed, ANSI colors preserved (32 KiB cap); `command`, when set, renders as a prompt row above it. Both `command` and `title` are single-line.
+
+- **`code` is source, `term` is output.** A snippet to read or copy is a `code` block; what running it printed is a `term`.
+- **Trim to the decision-relevant tail.** The failing test and its message, the error and its cause — not the full scrollback.
+
+> **Never board secrets.** Command output loves to embed tokens, signed URLs, and env dumps — scrub before pasting into `output`.
+
+### `filetree` — paths to a tree
+
+```json
+{
+  "id": "migration-tree",
+  "type": "filetree",
+  "title": "Files this migration touches",
+  "entries": [
+    { "path": "internal/doc/doc.go", "badge": "modified", "note": "4 new validators" },
+    { "path": "internal/doc/registry.go", "badge": "modified" },
+    { "path": "web/src/components/ChartView.tsx", "badge": "added" },
+    { "path": "web/src/components/LegacyChart.tsx", "badge": "removed" }
+  ]
+}
+```
+
+List files as relative slash paths (200-entry cap) and the client builds the collapsible tree — directories are implicit from path segments, never entries of their own. `badge` is `added`, `modified`, or `removed`, rendered as a tone chip; `note` is a dim single-line annotation. Keep the tree at most ~4 levels deep — scope to the subtree that matters instead of rooting at the repo.
+
+### `record` — one entity's profile
+
+```json
+{
+  "id": "flight-nh7",
+  "type": "record",
+  "title": "NH 7 — SFO → HND",
+  "chips": [ { "label": "Nonstop" }, { "label": "Overnight", "tone": "flag" } ],
+  "facts": [
+    { "label": "Cabin", "value": "Business", "tone": "good" },
+    { "label": "Miles", "value": "75k Aeroplan" },
+    { "label": "Taxes", "value": "$112", "tone": "warn" },
+    { "label": "Departs", "value": "17:05" }
+  ],
+  "links": [ { "label": "Book on Aeroplan", "url": "https://www.aircanada.com/aeroplan" } ]
+}
+```
+
+A record is one entity's labeled profile: 1–16 `facts` (every fact carries a `label` here — a standalone profile has no comparison grid to supply context), up to 8 `chips` (same shape and tones as on `card`), and up to 8 `links` (`{label, url}`, https URLs only).
+
+Three shapes carry labeled values; pick by what's being compared:
+
+- **Option `facts`** — numbers aligned *across* options; the comparison grid reads column-to-column.
+- **`table`** — many entities sharing columns.
+- **`record`** — one entity in full; the thing itself, not a comparison.
+
 ### `image`
 
 ```json
@@ -242,7 +334,7 @@ Every leaf type (`approval` through `progress`) works both at the top level and 
 
 ## Validation
 
-`push --dry-run FILE` runs the full check offline and prints every violation at once, one per line, each naming its offending block id — an unknown type, a duplicate id, a missing required field (`input.label`, `markdown.md`, `code.lang`/`code.code`, `image.src`/`image.alt`, `progress.label`), a `progress` with `max <= 0` or `value` outside `[0, max]`, a fact without a `value`, a newline in a fact or a `pros`/`cons` entry, a `diagram` whose `kind` isn't `mermaid` or whose `source` is empty or past 8 KiB, an option `visual` outside the `code`/`diagram`/`image`/`diff` set, a single-select choice with more than one `recommended` option, an empty `detail`, an over-cap image, or a document past 1 MiB. Compose the whole document, validate once, fix everything in a single pass. A file that isn't valid JSON fails earlier, with the line and column of the offending byte.
+`push --dry-run FILE` runs the full check offline and prints every violation at once, one per line, each naming its offending block id — an unknown type, a duplicate id, a missing required field (`input.label`, `markdown.md`, `code.lang`/`code.code`, `image.src`/`image.alt`, `progress.label`), a `progress` with `max <= 0` or `value` outside `[0, max]`, a fact without a `value`, a newline in a fact or a `pros`/`cons` entry, a `diagram` whose `kind` isn't `mermaid` or whose `source` is empty or past 8 KiB, a `chart` with a ragged or non-finite series, a `term` output past 32 KiB, a `filetree` path that is absolute, dotted, or duplicated, a `record` fact without a label or a link that isn't https, an empty chip label, an option `visual` outside the `code`/`diagram`/`image`/`diff`/`chart`/`term`/`filetree`/`record` set, a single-select choice with more than one `recommended` option, an empty `detail`, an over-cap image, or a document past 1 MiB. Compose the whole document, validate once, fix everything in a single pass. A file that isn't valid JSON fails earlier, with the line and column of the offending byte.
 
 ## Worked document: an opener approval board
 

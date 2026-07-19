@@ -21,7 +21,7 @@ seq 0 reconstructs a fresh tab's state; there is no get-document endpoint.
 Doc = { version: 1, title, intro?, stats?: {label, value}[], submit?: {label, note?}, presentation?: 'focus' | 'board', blocks: Block[] }
 ```
 
-`blocks` is a flat list of blocks. A `section`, a `card`, any of the nine built-in
+`blocks` is a flat list of blocks. A `section`, a `card`, any of the built-in
 leaf blocks, or a pack block (see Block packs) may appear directly in `blocks`; a
 card nests leaf blocks only.
 
@@ -35,12 +35,16 @@ toggle overrides it.
 | `section` | top | `id`, `type`, `title`, `md?` | Header marker with optional prose. |
 | `card` | top | `id`, `type`, `title?`, `chips?`, `flagged?`, `status?`, `children` | `chips[].tone` is one of `default`, `flag`, `demo`. `status` is one of `open`, `resolved`, `redrafted` and is agent-owned. `children` nests one level of leaf blocks. |
 | `approval` | top or child | `id`, `type`, `prompt?`, `allowFeedback?`, `detail?` | `allowFeedback` defaults to true at render time. `detail` is a `Detail` (see Validation). |
-| `choice` | top or child | `id`, `type`, `prompt?`, `multi?`, `options` | `options[]` is `{id, label, hint?, md?, facts?, detail?, recommended?, visual?}`; option ids are unique within the block. `facts` is `Fact[]`, `detail` a `Detail` (see Validation). `recommended` marks the author's suggested pick (at most one per single-select). `visual` is a restricted leaf (`code`, `diagram`, `image`, or `diff`) with its own doc-unique id. |
+| `choice` | top or child | `id`, `type`, `prompt?`, `multi?`, `options` | `options[]` is `{id, label, hint?, md?, facts?, detail?, recommended?, visual?}`; option ids are unique within the block. `facts` is `Fact[]`, `detail` a `Detail` (see Validation). `recommended` marks the author's suggested pick (at most one per single-select). `visual` is a restricted leaf (`code`, `diagram`, `image`, `diff`, `chart`, `term`, `filetree`, or `record`) with its own doc-unique id. |
 | `input` | top or child | `id`, `type`, `label`, `placeholder?`, `multiline?` | Free-text field. |
 | `markdown` | top or child | `id`, `type`, `md`, `struck?` | `struck` applies the "was:" treatment. |
 | `code` | top or child | `id`, `type`, `lang`, `code`, `title?` | |
 | `diff` | top or child | `id`, `type`, `diff`, `title?` | Unified diff text. |
 | `diagram` | top or child | `id`, `type`, `kind`, `source`, `title?` | Text-to-diagram block rendered client-side. `kind` is `mermaid`; `source` is at most **8 KiB**. Also usable as an `option.visual`. |
+| `chart` | top or child | `id`, `type`, `kind`, `title?`, `unit?`, `categories`, `series` | Structured data rendered client-side as a themed SVG. `kind` is `bar` or `line`. `categories` names the x-axis; `series[]` is `{label, values}` with one finite value per category. Also usable as an `option.visual`. |
+| `term` | top or child | `id`, `type`, `command?`, `output`, `title?` | Terminal output panel; `output` keeps its ANSI colors. `command`, when set, renders as a prompt row above it. Also usable as an `option.visual`. |
+| `filetree` | top or child | `id`, `type`, `title?`, `entries` | Collapsible file tree. `entries[]` is `{path, badge?, note?}`; directories are implicit from path segments. Also usable as an `option.visual`. |
+| `record` | top or child | `id`, `type`, `title?`, `chips?`, `facts`, `links?` | One entity's labeled profile. `facts` is `Fact[]` (see Validation; label required here), `chips` as on `card`, `links[]` is `{label, url}`. Also usable as an `option.visual`. |
 | `image` | top or child | `id`, `type`, `src`, `alt`, `caption?` | `src` is `https://…`, `asset:<sha256>`, or `data:…`. |
 | `table` | top or child | `id`, `type`, `columns`, `rows` | `columns[]` is `{key, label, align?}` where `align` is `left` or `right`; `rows[]` is a `Record<string,string>` of inline-markdown cells. |
 | `progress` | top or child | `id`, `type`, `label`, `value`, `max`, `state?` | `state` is one of `active`, `done`, `error` and is agent-owned. |
@@ -63,9 +67,29 @@ toggle overrides it.
   `data:…`. A `data:` URI is at most **32 KiB**.
 - On `diagram`, `kind` is `mermaid`, `source` is non-empty and at most **8 KiB**, and
   `title`, when set, is single-line.
-- A choice option's `visual`, when set, decodes to a `code`, `diagram`, `image`, or
-  `diff` block; any other type is rejected at decode time. A visual carries its own
-  doc-unique block id, so it is addressable in single-block mode.
+- On `chart`, `kind` is `bar` or `line`; `categories` (at most **100**) are non-empty,
+  single-line, and unique; each of at most **6** series carries a non-empty, single-line,
+  unique `label` and exactly one value per category, every value finite (`NaN` and
+  `±Inf` are rejected). Negative values are legal — the renderer anchors the value
+  axis at 0. `title` and `unit`, when set, are single-line.
+- On `term`, `output` is non-empty and at most **32 KiB**; `command` and `title`, when
+  set, are single-line.
+- On `filetree`, `entries` holds 1 to **200** entries; every `path` is relative,
+  slash-separated, and unique, with no empty, `.`, or `..` segment and no trailing
+  slash — directories are implicit from path segments, never entries of their own.
+  `badge`, when set, is one of `added`, `modified`, `removed`; `note`, when set, is
+  single-line.
+- On `record`, `facts` holds 1 to **16** entries and every fact carries a `label` — a
+  standalone profile has no comparison grid to supply context; `chips` and `links`
+  each hold at most **8**. Every `links[].label` is non-empty and single-line, and
+  every `links[].url` is `https://…` with a host — `http:`, relative, and
+  `javascript:` URLs are all rejected by the one rule. `title`, when set, is
+  single-line.
+- A chip's `label` — on `card` and `record` alike — is non-empty and single-line.
+- A choice option's `visual`, when set, decodes to a `code`, `diagram`, `image`,
+  `diff`, `chart`, `term`, `filetree`, or `record` block; any other type is rejected
+  at decode time. A visual carries its own doc-unique block id, so it is addressable
+  in single-block mode.
 - A single-select choice (`multi` unset or false) has at most one `recommended` option.
 - The serialized document is at most **1 MiB**.
 

@@ -6,6 +6,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Four display primitives, each working at the top level, inside a card, and as
+  an `option.visual`: `chart` (bar or line data rendered as a themed SVG, at
+  most 6 series over 100 categories, values aligned to categories and the axis
+  anchored at 0), `term` (a command plus its ANSI-colored output, capped at
+  32 KiB), `filetree` (relative-path entries built into a collapsible tree with
+  `added`/`modified`/`removed` badges, at most 200 entries), and `record` (one
+  entity's labeled profile: up to 16 facts — label required — 8 tone chips, and
+  8 https-only links). The shared chip validation also tightens: a card with an
+  empty chip label now fails validation instead of rendering an empty chip.
+
+### Changed
+- Tailnet URLs without a certificate now print the machine's bare MagicDNS
+  label (`http://yasyf-home:52668/…`) instead of raw tailnet IPs, one URL per
+  distinct leg port. The bare label sits outside the `ts.net` HSTS preload, so
+  browsers open it over plain http, and synckit v0.23.0 trusts it as an origin
+  alongside the full name. Raw-IP URLs remain only when tailscale reports no
+  usable name — down, or a collision-quarantined MagicDNS name.
+
 ## [0.12.1] - 2026-07-20
 
 ### Fixed
@@ -43,14 +62,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   earlier pick" callout, and a fresh-id upsert badges "Claude added this step."
   The authoring skill's choreography replaces verbal conditionals and
   hand-authored "Updated:" prefixes.
-- Visual-first decisions. A first-class `diagram` block (mermaid, ≤8 KiB) and
-  `option.visual` (code, diagram, image, or diff per option) with a per-step
-  visual stage that tracks the active option. Mermaid renders lazily
-  client-side, inked with Blue Pencil theme tokens and re-inked on theme flip;
-  broken source degrades to an error card with the source visible. iOS renders
-  diagrams through a shared single-block webview at parity, and code blocks
-  gain Highlightr syntax color. `push` prints a non-blocking nudge when a
-  board's choices ship without a single visual.
+- Visual-first decisions. The `diagram` block and `option.visual` (shipped in
+  0.11.0) gain a per-step visual stage that tracks the active option. Mermaid
+  ink now uses Blue Pencil theme tokens and re-inks on theme flip; broken
+  source degrades to an error card with the source visible. iOS diagram
+  rendering reaches parity through the shared single-block webview, and code
+  blocks gain Highlightr syntax color. `push` prints a non-blocking nudge when
+  a board's choices ship without a single visual.
 - `recommended` on options — a validated schema field (at most one per
   single-select) rendered as a stamp badge, replacing free-text hint prefixes.
 - Momentum. Auto-advance generalizes from lone approvals to lone single-select
@@ -99,6 +117,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `GET /api/health` returns `{"version":…}` — the one non-vacuous liveness
   probe, since the SPA fallback answers unmatched paths 200. Unknown `/api/*`
   paths return 404, never the shell.
+- The `diagram` block — text-to-diagram, `kind: mermaid`, source capped at
+  8 KiB — rendered lazily client-side and through the iOS single-block
+  webview; and `option.visual`, attaching one `code`, `diagram`, `image`, or
+  `diff` block per choice option, rendered inside the option's detail.
 
 ### Fixed
 - A binary built without the web step embedded a Vite shell referencing
@@ -418,7 +440,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   marketplace.
 - `examples/opener-board.json`, a complete sample document.
 
-[Unreleased]: https://github.com/yasyf/cc-present/compare/v0.12.0...main
+[Unreleased]: https://github.com/yasyf/cc-present/compare/v0.12.1...main
+[0.12.1]: https://github.com/yasyf/cc-present/compare/v0.12.0...v0.12.1
 [0.12.0]: https://github.com/yasyf/cc-present/compare/v0.11.0...v0.12.0
 [0.11.0]: https://github.com/yasyf/cc-present/compare/v0.10.0...v0.11.0
 [0.10.0]: https://github.com/yasyf/cc-present/compare/v0.9.4...v0.10.0
