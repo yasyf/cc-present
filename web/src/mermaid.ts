@@ -2,6 +2,7 @@
 // resolved from the Blue Pencil alias tokens and re-initialized on a light/dark flip.
 
 import type { Mermaid } from 'mermaid';
+import { resolveColor } from './cssColor';
 
 let loader: Promise<Mermaid> | null = null;
 let themeKey: string | null = null;
@@ -13,13 +14,6 @@ function currentThemeKey(): string {
   const explicit = document.documentElement.dataset.theme;
   if (explicit) return explicit;
   return window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-}
-
-// resolveColor forces a token to a concrete rgb: a custom property's own computed
-// value keeps its unresolved light-dark()/color-mix() string, which mermaid rejects.
-function resolveColor(probe: HTMLElement, token: string, fallback: string): string {
-  probe.style.color = `var(${token}, ${fallback})`;
-  return getComputedStyle(probe).color || fallback;
 }
 
 // themeVariables resolves the mermaid 'base' knobs to concrete colors through a probe

@@ -1,14 +1,55 @@
 import CcPresentKit
 import SwiftUI
 
-/// RecordBlockView renders a record block. Phase 0 shows a native fallback — title, a
-/// bracketed chip row, monospaced `label: value` fact lines, and `label — url` links;
-/// Phase 1 wires it to the shared single-block webview via WebBlockPresentation.
+/// RecordBlockView renders a record block by hosting the SPA's single-block page. A
+/// skeleton fills a default height while it loads; a load failure — or a preview with
+/// no board context — falls back to the native record panel, never blank.
 struct RecordBlockView: View {
     let block: Block.Record
     var context: PackContext?
 
+    @State private var height: CGFloat = RecordBlockView.skeletonHeight
+    @State private var phase: WebViewLoadPhase = .loading
+
+    static let skeletonHeight: CGFloat = 220
+
     var body: some View {
+        content
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        switch WebBlockPresentation.of(hasContext: context != nil, phase: phase) {
+        case .rawSource:
+            sourcePanel
+        case let .webView(showingSkeleton):
+            ZStack {
+                if let context {
+                    SingleBlockWebView(
+                        url: context.singleBlockURL(blockId: block.id),
+                        height: $height,
+                        phase: $phase
+                    )
+                    .frame(height: height)
+                    .frame(maxWidth: .infinity)
+                }
+                if showingSkeleton {
+                    skeleton
+                }
+            }
+        }
+    }
+
+    private var skeleton: some View {
+        RoundedRectangle(cornerRadius: 4)
+            .fill(BlockPalette.monoBg)
+            .frame(height: Self.skeletonHeight)
+            .frame(maxWidth: .infinity)
+            .overlay(ProgressView().tint(BlockPalette.muted))
+            .overlay(RoundedRectangle(cornerRadius: 4).strokeBorder(BlockPalette.line))
+    }
+
+    private var sourcePanel: some View {
         VStack(alignment: .leading, spacing: 6) {
             if let title = block.title, !title.isEmpty {
                 Text(title)

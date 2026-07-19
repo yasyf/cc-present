@@ -112,6 +112,16 @@ export function highlight(code: string, lang: CodeLang): Promise<string> {
   );
 }
 
+// highlightAnsi renders a terminal stream's SGR colors to dual-theme HTML. Shiki
+// short-circuits lang 'ansi' to its ANSI tokenizer before any grammar lookup, so it
+// stays out of CODE_LANGS/resolveLang — a special language, not a grammar a code
+// block may claim.
+export function highlightAnsi(output: string): Promise<string> {
+  return getHighlighter().then((hl) =>
+    hl.codeToHtml(output, { lang: 'ansi', themes: { light: 'github-light', dark: 'github-dark' } }),
+  );
+}
+
 // tokenizeLines returns dual-theme tokens per line (aligned to input lines) for
 // the Diff block; each token's htmlStyle carries the light color + --shiki-dark var.
 export function tokenizeLines(code: string, lang: CodeLang): Promise<ThemedToken[][]> {

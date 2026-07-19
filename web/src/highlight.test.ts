@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { langFromPath } from './highlight';
+import { highlightAnsi, langFromPath } from './highlight';
+
+const ESC = String.fromCharCode(27);
 
 describe('langFromPath', () => {
   const cases: [string, string | null][] = [
@@ -35,5 +37,17 @@ describe('langFromPath', () => {
 
   it('is case-insensitive on the extension', () => {
     expect(langFromPath('a/b/C.PY')).toBe('python');
+  });
+});
+
+describe('highlightAnsi', () => {
+  it('tokenizes an SGR run to a dual-theme colored span and drops the escapes', async () => {
+    const html = await highlightAnsi(`${ESC}[32mgreen${ESC}[0m plain`);
+    expect(html).toContain('green');
+    expect(html).toContain('plain');
+    // 'ansi' is a special language shiki short-circuits — the 32m run reads github-light green.
+    expect(html).toMatch(/color:#28a745/i);
+    expect(html).toContain('--shiki-dark');
+    expect(html).not.toContain(ESC);
   });
 });
