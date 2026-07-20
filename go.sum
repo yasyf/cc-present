@@ -68,8 +68,8 @@ github.com/vishvananda/netlink v1.2.1-beta.2 h1:Llsql0lnQEbHj0I1OuKyp8otXp0r3q0m
 github.com/vishvananda/netlink v1.2.1-beta.2/go.mod h1:twkDnbuQxJYemMlGd4JFIcuhgX83tXhKS2B/PRMpOho=
 github.com/vishvananda/netns v0.0.0-20200728191858-db3c7e526aae h1:4hwBBUfQCFe3Cym0ZtKyq7L16eZUtYKs+BaHDN6mAns=
 github.com/vishvananda/netns v0.0.0-20200728191858-db3c7e526aae/go.mod h1:DD4vA1DwXk04H54A1oHXtwZmA0grkVMdPxx/VGLCah0=
-github.com/yasyf/cc-interact v0.13.0 h1:1dnMjHpaf6+58KBmpUrCCLQeT1YpqDAX6JsjSI+5dZA=
-github.com/yasyf/cc-interact v0.13.0/go.mod h1:P2AwpeMEwEPC5EnjeIPEqZFPo+eGD4WOHALzPFS+ci4=
+github.com/yasyf/cc-context v0.28.5-0.20260720034201-f18e537f26a5 h1:KITFFVZaBYIc/qAaCBaVYsTCNW9nm0fWSV0fhQ92Oo0=
+github.com/yasyf/cc-context v0.28.5-0.20260720034201-f18e537f26a5/go.mod h1:jKWoW+L218X0RxqdKTQlLgn1mFbD6jtjwwSX2nWfeOY=
 github.com/yasyf/cc-interact v0.13.1-0.20260720035635-a3de2d94ad29 h1:8XSxh6p9MnrEdhu1YmuaLoplAe+l9yT0XibysgKe9DI=
 github.com/yasyf/cc-interact v0.13.1-0.20260720035635-a3de2d94ad29/go.mod h1:e5Pfke3fp7y/FeFTFyNzhRFBjNbj2mChdWEDF6by8B0=
 github.com/yasyf/cc-interact v0.13.1-0.20260720041906-19cc4e051606 h1:hT9ZlsNRTzzQZvERtj0JKg26jPFEWcFxMooCncHDyPY=

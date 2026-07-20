@@ -13,11 +13,11 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/yasyf/cc-context/anchor"
 	ccd "github.com/yasyf/cc-interact/daemon"
 	ccevent "github.com/yasyf/cc-interact/event"
 	"github.com/yasyf/cc-interact/sse"
 
-	"github.com/yasyf/cc-present/internal/anchor"
 	"github.com/yasyf/cc-present/internal/assets"
 	"github.com/yasyf/cc-present/internal/doc"
 	"github.com/yasyf/cc-present/internal/packs"
@@ -372,12 +372,14 @@ func validateInteraction(st *state.State, revision int, it *interaction, reg *pa
 		if len(it.Text) > maxHumanTextBytes {
 			return nil, fmt.Errorf("annotation %q text exceeds %d bytes", it.BlockID, maxHumanTextBytes)
 		}
-		ref, err := anchor.Parse(it.Anchor)
+		ref, ok, err := anchor.Parse(it.Anchor)
 		if err != nil {
 			return nil, fmt.Errorf("annotation %q anchor: %w", it.BlockID, err)
 		}
-		lines := strings.Split(dr.Text, "\n")
-		res, err := anchor.Resolve(ref, lines)
+		if !ok {
+			return nil, fmt.Errorf("annotation %q anchor %q: invalid anchor reference", it.BlockID, it.Anchor)
+		}
+		rng, _, err := anchor.FromBytes("draft", []byte(dr.Text)).Resolve(ref)
 		if err != nil {
 			return nil, fmt.Errorf("annotation %q anchor: %w", it.BlockID, err)
 		}
@@ -385,11 +387,12 @@ func validateInteraction(st *state.State, revision int, it *interaction, reg *pa
 		if id == "" {
 			id = randomHex(4)
 		}
-		quote := truncateRunes(strings.Join(lines[res.Start-1:res.End], "\n"), maxQuoteBytes)
+		lines := strings.Split(dr.Text, "\n")
+		quote := truncateRunes(strings.Join(lines[rng.Start-1:rng.End], "\n"), maxQuoteBytes)
 		return mustJSON(map[string]string{
 			"id":      id,
 			"blockId": it.BlockID,
-			"anchor":  anchor.FormatRange(res.Start, res.End, ref.Hash),
+			"anchor":  anchor.FormatRange(rng.Start, rng.End, ref.Hash),
 			"text":    it.Text,
 			"quote":   quote,
 		}), nil
