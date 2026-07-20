@@ -1,0 +1,69 @@
+{
+  "name": "agent-lifecycle-events-are-ignored",
+  "events": [
+    {
+      "origin": "agent",
+      "type": "doc.replaced",
+      "seq": 1,
+      "payload": {
+        "revision": 1,
+        "doc": {
+          "version": 1,
+          "title": "T",
+          "blocks": [
+            {
+              "id": "c1",
+              "type": "card",
+              "children": [{ "id": "a1", "type": "approval", "prompt": "Ship?" }]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "origin": "system",
+      "type": "agent.started",
+      "seq": 2,
+      "payload": { "agentId": "h1", "agentType": "cc-present:present-handler" }
+    },
+    {
+      "origin": "human",
+      "type": "decision.created",
+      "seq": 3,
+      "payload": { "blockId": "a1", "verdict": "approved" }
+    },
+    {
+      "origin": "system",
+      "type": "agent.relay",
+      "seq": 4,
+      "payload": { "agentId": "h1", "directiveId": 7 }
+    },
+    {
+      "origin": "system",
+      "type": "agent.stopped",
+      "seq": 5,
+      "payload": { "agentId": "h1" }
+    }
+  ],
+  "expected": {
+    "doc": {
+      "version": 1,
+      "title": "T",
+      "blocks": [
+        {
+          "id": "c1",
+          "type": "card",
+          "children": [{ "id": "a1", "type": "approval", "prompt": "Ship?" }]
+        }
+      ]
+    },
+    "interactions": {
+      "decisions": { "a1": { "verdict": "approved" } }
+    },
+    "rounds": {
+      "current": 1,
+      "blockRounds": { "c1": 1 },
+      "history": []
+    }
+  }
+}

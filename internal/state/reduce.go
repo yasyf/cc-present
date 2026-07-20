@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"slices"
 	"sort"
+	"strings"
 
 	"github.com/yasyf/cc-present/internal/doc"
 )
@@ -152,13 +153,10 @@ type State struct {
 	Revising     Revising     `json:"revising"`
 }
 
-// Reduce folds the log into a State. Events are processed in ascending Seq
-// order; last-write-wins interactions resolve by that order. The document
-// starts empty, so a block.upserted before any doc.replaced appends to it.
-// present.closed is terminal for the reduction: any event ordered after it is a
-// no-op, so a human interaction that races the close never poisons replay. The
-// framework appends channel.changed presence frames into the same log, so Reduce
-// skips them regardless of origin; any other unknown event type is an error.
+// Reduce folds the log into a State in ascending Seq order; present.closed is
+// terminal, so a racing interaction never poisons replay. Framework events in
+// the shared log — channel.changed and the agent.* lifecycle — are skipped;
+// any other unknown event type is an error.
 func Reduce(events []Event) (State, error) {
 	s := State{
 		Doc: &doc.Doc{Version: 1, Blocks: []doc.Block{}},
@@ -194,6 +192,9 @@ func Reduce(events []Event) (State, error) {
 }
 
 func (s *State) apply(ev Event) error {
+	if strings.HasPrefix(ev.Type, "agent.") {
+		return nil
+	}
 	switch ev.Type {
 	case "doc.replaced":
 		var p struct {

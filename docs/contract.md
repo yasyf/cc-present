@@ -374,9 +374,11 @@ recorded outcomes, so the reducer leaves state unchanged. Rejecting new
 interactions after close is enforced at the edges: the REST handler answers 409
 and the CLI refuses the append.
 
-The framework appends `channel.changed` presence frames, the cc-interact
-Connectivity type emitted with a `system` origin, into the same subject log.
-`Reduce` explicitly skips them regardless of origin, so state is unaffected. Every
+The framework appends `channel.changed` presence frames and the `agent.*`
+lifecycle events (`agent.started`, `agent.stopped`, `agent.result`,
+`agent.relay`, …) into the same subject log. Every reducer skips both classes
+regardless of origin, so state is unaffected — the `agent.` prefix is the
+substrate's namespace and future additions to it must not break replay. Every
 other unknown event type is still an error.
 
 ### Reduced state
