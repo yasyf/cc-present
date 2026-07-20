@@ -571,13 +571,13 @@ func newRoundCmd(d cmd.Deps) *cobra.Command {
 // drafting state. --clear rejects block ids and --note.
 func newRevisingCmd(d cmd.Deps) *cobra.Command {
 	var session, cwd, note string
-	var clear bool
+	var clearFlag bool
 	c := &cobra.Command{
 		Use:   "revising [blockId...]",
 		Short: "Declare the block ids the agent is revising, or abandon the announcement",
 		Args:  cobra.ArbitraryArgs,
 		RunE: func(c *cobra.Command, args []string) error {
-			if clear && (len(args) > 0 || note != "") {
+			if clearFlag && (len(args) > 0 || note != "") {
 				return errors.New("--clear takes no block ids and no --note")
 			}
 			ctx := c.Context()
@@ -593,7 +593,7 @@ func newRevisingCmd(d cmd.Deps) *cobra.Command {
 		},
 	}
 	c.Flags().StringVar(&note, "note", "", "note shown with the revising announcement")
-	c.Flags().BoolVar(&clear, "clear", false, "abandon the announcement — sends the empty set with no note (same as a bare call with no ids)")
+	c.Flags().BoolVar(&clearFlag, "clear", false, "abandon the announcement — sends the empty set with no note (same as a bare call with no ids)")
 	c.Flags().StringVar(&session, "session", "", "Claude session id (defaults to $CLAUDE_CODE_SESSION_ID)")
 	c.Flags().StringVar(&cwd, "cwd", "", "working directory (recorded on the request; artifacts are per-window, not resolved by directory)")
 	return c
