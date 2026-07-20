@@ -63,64 +63,95 @@ func TestTailnetListenersUsesHandshakeHint(t *testing.T) {
 }
 
 func TestTailnetURLs(t *testing.T) {
+	self := []netip.Addr{netip.MustParseAddr("100.1.2.3")}
 	tests := []struct {
-		name       string
-		certDomain string
-		minted     bool
-		hostLabel  string
-		addrs      []string
-		want       []string
+		name        string
+		certDomain  string
+		minted      bool
+		hostLabel   string
+		addrs       []string
+		selfAddrs   []netip.Addr
+		primaryPort int
+		want        []string
 	}{
 		{
 			"minted dedupes v4 and v6 legs sharing a port",
 			"host.ts.net", true, "host",
 			[]string{"100.1.2.3:8080", "[fd7a:115c:a1e0::1]:8080"},
+			self, 8080,
 			[]string{"https://host.ts.net:8080/p/board"},
 		},
 		{
-			"minted emits one https url per distinct port",
+			"minted collapses distinct ports to the primary port",
 			"host.ts.net", true, "host",
 			[]string{"100.1.2.3:8080", "100.1.2.3:9090"},
-			[]string{"https://host.ts.net:8080/p/board", "https://host.ts.net:9090/p/board"},
+			self, 8080,
+			[]string{"https://host.ts.net:8080/p/board"},
 		},
 		{
-			"unminted uses the bare host label once per distinct port",
+			"self address beats a stale address on the primary port",
+			"host.ts.net", true, "host",
+			[]string{"100.9.9.9:8080", "100.1.2.3:9090"},
+			self, 8080,
+			[]string{"https://host.ts.net:9090/p/board"},
+		},
+		{
+			"no self address match prefers the primary port",
+			"host.ts.net", true, "host",
+			[]string{"100.9.9.9:9090", "100.8.8.8:8080"},
+			self, 8080,
+			[]string{"https://host.ts.net:8080/p/board"},
+		},
+		{
+			"no self address or primary port match uses the lowest port",
+			"host.ts.net", true, "host",
+			[]string{"100.9.9.9:9090", "100.8.8.8:8080"},
+			self, 7070,
+			[]string{"https://host.ts.net:8080/p/board"},
+		},
+		{
+			"host label also prefers a self address over a stale primary-port leg",
 			"host.ts.net", false, "host",
-			[]string{"100.1.2.3:8080", "[fd7a:115c:a1e0::1]:9090"},
-			[]string{"http://host:8080/p/board", "http://host:9090/p/board"},
+			[]string{"100.9.9.9:8080", "100.1.2.3:9090"},
+			self, 8080,
+			[]string{"http://host:9090/p/board"},
 		},
 		{
 			"unminted dedupes v4 and v6 legs sharing a port",
 			"host.ts.net", false, "host",
 			[]string{"100.1.2.3:8080", "[fd7a:115c:a1e0::1]:8080"},
+			self, 8080,
 			[]string{"http://host:8080/p/board"},
 		},
 		{
 			"unminted without a host label stays on raw ips",
 			"host.ts.net", false, "",
 			[]string{"100.1.2.3:8080", "[fd7a:115c:a1e0::1]:9090"},
+			self, 8080,
 			[]string{"http://100.1.2.3:8080/p/board", "http://[fd7a:115c:a1e0::1]:9090/p/board"},
 		},
 		{
 			"minted without a domain stays on raw ips",
 			"", true, "",
 			[]string{"100.1.2.3:8080"},
+			self, 8080,
 			[]string{"http://100.1.2.3:8080/p/board"},
 		},
 		{
 			"no domain no cert falls back to raw ips, bracketing v6",
 			"", false, "",
 			[]string{"100.1.2.3:8080", "[fd7a:115c:a1e0::1]:9090"},
+			self, 8080,
 			[]string{"http://100.1.2.3:8080/p/board", "http://[fd7a:115c:a1e0::1]:9090/p/board"},
 		},
-		{"empty addrs minted yields nil", "host.ts.net", true, "host", nil, nil},
-		{"empty addrs unminted yields nil", "", false, "host", nil, nil},
+		{"empty addrs minted yields nil", "host.ts.net", true, "host", nil, self, 8080, nil},
+		{"empty addrs unminted yields nil", "", false, "host", nil, self, 8080, nil},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := tailnetURLs(tt.certDomain, tt.minted, tt.hostLabel, tt.addrs, "board")
+			got := tailnetURLs(tt.certDomain, tt.minted, tt.hostLabel, tt.addrs, tt.selfAddrs, tt.primaryPort, "board")
 			if !slices.Equal(got, tt.want) {
-				t.Fatalf("tailnetURLs(%q, %v, %q, %v) = %v, want %v", tt.certDomain, tt.minted, tt.hostLabel, tt.addrs, got, tt.want)
+				t.Fatalf("tailnetURLs(%q, %v, %q, %v, %v, %d) = %v, want %v", tt.certDomain, tt.minted, tt.hostLabel, tt.addrs, tt.selfAddrs, tt.primaryPort, got, tt.want)
 			}
 		})
 	}
@@ -137,6 +168,7 @@ func TestDisplayURLs(t *testing.T) {
 		want   []string
 	}{
 		{"extra legs minted", true, "", []string{"100.64.0.7:62520"}, "", []string{"https://ts.example.ts.net:62520/p/s"}},
+		{"extra legs minted collapse to the primary port", true, "", []string{"100.64.0.7:8080", "100.64.0.7:62520"}, "", []string{"https://ts.example.ts.net:8080/p/s"}},
 		{"extra legs unminted", false, "", []string{"100.64.0.7:62520"}, "", []string{"http://100.64.0.7:62520/p/s"}},
 		{"extra legs unminted with label", false, "pi", []string{"100.64.0.7:62520"}, "", []string{"http://pi:62520/p/s"}},
 		{"default loopback bind without legs", true, "", nil, "", nil},

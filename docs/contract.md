@@ -584,10 +584,14 @@ tailnet and no extra legs are bound.
 `start` and `push` results carry the composed display URLs for the live legs
 (`tailnetUrls`): `https://` on the daemon's MagicDNS name when tailscale
 publishes one and the daemon holds a certificate for it, else `http://` on the
-bare machine label (the MagicDNS name's first label, e.g. `yasyf-home`) — both
-deduped by port, so v4 and v6 legs on one port yield one URL. Raw tailnet IPs
-over `http` appear only when no usable name exists: tailscale down, or the
-name quarantined by a DNS collision. An `http` URL on the full MagicDNS name
+bare machine label (the MagicDNS name's first label, e.g. `yasyf-home`) — each
+collapsed to a single URL on the canonical leg port: a leg on a live self
+address wins, then the leg matching the primary HTTP port, then the lowest
+port. Scattered legs (a bind hint taken on one interface only) therefore never
+print as duplicate URLs for one name. Raw tailnet IPs over `http` appear only
+when no usable name exists — tailscale down, or the name quarantined by a DNS
+collision — and stay one URL per leg, since each `ip:port` names exactly one
+socket. An `http` URL on the full MagicDNS name
 is never composed: `ts.net` is on the browser HSTS-preload list, so a browser
 rewrites such a URL to `https://` before connecting and the navigation can
 only fail. The bare label sits outside the preload list, resolves through

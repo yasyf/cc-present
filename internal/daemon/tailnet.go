@@ -115,7 +115,7 @@ func reconcileTailnetPass(ctx context.Context, srv *ccd.Server, tp *meshtrust.Pr
 // serves only that address, so it advertises none.
 func displayURLs(certDomain string, minted bool, hostLabel string, extra []string, selfAddrs []netip.Addr, bind string, port int, slug string) []string {
 	if len(extra) > 0 {
-		return tailnetURLs(certDomain, minted, hostLabel, extra, slug)
+		return tailnetURLs(certDomain, minted, hostLabel, extra, selfAddrs, port, slug)
 	}
 	if !isUnspecifiedBind(bind) || port < 1 || port > math.MaxUint16 {
 		return nil
@@ -124,7 +124,7 @@ func displayURLs(certDomain string, minted bool, hostLabel string, extra []strin
 	for _, a := range selfAddrs {
 		addrs = append(addrs, netip.AddrPortFrom(a.Unmap(), uint16(port)).String())
 	}
-	return tailnetURLs(certDomain, false, hostLabel, addrs, slug)
+	return tailnetURLs(certDomain, false, hostLabel, addrs, selfAddrs, port, slug)
 }
 
 // isUnspecifiedBind reports whether bind is 0.0.0.0 or ::; the empty bind is
@@ -137,37 +137,19 @@ func isUnspecifiedBind(bind string) bool {
 // tailnetURLs renders the browsable URLs for a tailnet-served artifact: https
 // on the cert domain when minted, else http on the bare machine label — the
 // ts.net FQDN would be HSTS-preload-forced to https; the bare label escapes it.
-// One URL per distinct leg port (v4+v6 collapse). Raw IPs only when no usable
+// Named URLs collapse to the canonical leg port. Raw IPs only when no usable
 // name exists (tailscale down, or quarantined). Empty addrs → nil.
-func tailnetURLs(certDomain string, minted bool, hostLabel string, extraAddrs []string, slug string) []string {
+func tailnetURLs(certDomain string, minted bool, hostLabel string, extraAddrs []string, selfAddrs []netip.Addr, primaryPort int, slug string) []string {
 	var urls []string
 	if minted && certDomain != "" {
-		seen := make(map[uint16]bool, len(extraAddrs))
-		for _, a := range extraAddrs {
-			ap, err := netip.ParseAddrPort(a)
-			if err != nil {
-				continue
-			}
-			if seen[ap.Port()] {
-				continue
-			}
-			seen[ap.Port()] = true
-			urls = append(urls, fmt.Sprintf("https://%s:%d/p/%s", certDomain, ap.Port(), slug))
+		if port, ok := canonicalPort(extraAddrs, selfAddrs, primaryPort); ok {
+			urls = append(urls, fmt.Sprintf("https://%s:%d/p/%s", certDomain, port, slug))
 		}
 		return urls
 	}
 	if hostLabel != "" {
-		seen := make(map[uint16]bool, len(extraAddrs))
-		for _, a := range extraAddrs {
-			ap, err := netip.ParseAddrPort(a)
-			if err != nil {
-				continue
-			}
-			if seen[ap.Port()] {
-				continue
-			}
-			seen[ap.Port()] = true
-			urls = append(urls, fmt.Sprintf("http://%s:%d/p/%s", hostLabel, ap.Port(), slug))
+		if port, ok := canonicalPort(extraAddrs, selfAddrs, primaryPort); ok {
+			urls = append(urls, fmt.Sprintf("http://%s:%d/p/%s", hostLabel, port, slug))
 		}
 		return urls
 	}
@@ -179,4 +161,40 @@ func tailnetURLs(certDomain string, minted bool, hostLabel string, extraAddrs []
 		urls = append(urls, fmt.Sprintf("http://%s/p/%s", ap.String(), slug))
 	}
 	return urls
+}
+
+func canonicalPort(extraAddrs []string, selfAddrs []netip.Addr, primaryPort int) (uint16, bool) {
+	self := make(map[netip.Addr]bool, len(selfAddrs))
+	for _, addr := range selfAddrs {
+		self[addr.Unmap()] = true
+	}
+
+	parsed := make([]netip.AddrPort, 0, len(extraAddrs))
+	hasSelf := false
+	for _, extra := range extraAddrs {
+		ap, err := netip.ParseAddrPort(extra)
+		if err != nil {
+			continue
+		}
+		parsed = append(parsed, ap)
+		if self[ap.Addr().Unmap()] {
+			hasSelf = true
+		}
+	}
+
+	var lowest uint16
+	found := false
+	for _, ap := range parsed {
+		if hasSelf && !self[ap.Addr().Unmap()] {
+			continue
+		}
+		if int(ap.Port()) == primaryPort {
+			return ap.Port(), true
+		}
+		if !found || ap.Port() < lowest {
+			lowest = ap.Port()
+			found = true
+		}
+	}
+	return lowest, found
 }
