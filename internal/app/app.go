@@ -7,12 +7,15 @@ package app
 import (
 	"context"
 	"fmt"
+	"os/exec"
+	"path/filepath"
 	"time"
 
 	"github.com/yasyf/cc-interact/channel"
 	"github.com/yasyf/cc-interact/cmd"
 	ccd "github.com/yasyf/cc-interact/daemon"
 	"github.com/yasyf/cc-interact/procs"
+	"github.com/yasyf/daemonkit/daemonrole"
 	"github.com/yasyf/daemonkit/paths"
 
 	"github.com/yasyf/synckit/meshtrust"
@@ -25,7 +28,8 @@ import (
 
 const (
 	// appDir is the state-dir basename under the user's home (~/.cc-present).
-	appDir = ".cc-present"
+	appDir       = ".cc-present"
+	daemonRoleID = "com.yasyf.cc-present.daemon"
 
 	// channelNotifyMethod is the JSON-RPC method each subject event is pushed
 	// under on the cc-present channel.
@@ -47,10 +51,38 @@ The channel never speaks unsolicited: outside a cc-present run it is silent, and
 func Paths() paths.Paths { return paths.Paths{App: appDir} }
 
 // NewClient opens an exact-build persistent control session.
-func NewClient(ctx context.Context) (*ccd.Client, error) { return launcher().NewClient(ctx) }
+func NewClient(ctx context.Context) (*ccd.Client, error) {
+	l, err := launcher()
+	if err != nil {
+		return nil, err
+	}
+	return l.NewClient(ctx)
+}
 
-func launcher() ccd.Launcher {
-	return ccd.Launcher{Paths: Paths(), Version: version.String(), Args: []string{"daemon"}}
+func daemonRole() (daemonrole.Classifier, error) {
+	rolePath, err := exec.LookPath("cc-present")
+	if err != nil {
+		return daemonrole.Classifier{}, fmt.Errorf("resolve cc-present role alias: %w", err)
+	}
+	rolePath, err = filepath.Abs(rolePath)
+	if err != nil {
+		return daemonrole.Classifier{}, fmt.Errorf("resolve absolute cc-present role alias: %w", err)
+	}
+	role := daemonrole.Classifier{RoleID: daemonRoleID, RolePath: filepath.Clean(rolePath)}
+	if err := role.Validate(); err != nil {
+		return daemonrole.Classifier{}, err
+	}
+	return role, nil
+}
+
+func launcher() (ccd.Launcher, error) {
+	role, err := daemonRole()
+	if err != nil {
+		return ccd.Launcher{}, err
+	}
+	return ccd.Launcher{
+		Paths: Paths(), Version: version.String(), Args: []string{"daemon"}, DaemonRole: role,
+	}, nil
 }
 
 // Deps wires cc-interact's substrate commands to cc-present's host.
@@ -60,10 +92,18 @@ func Deps() cmd.Deps {
 		Version:   version.String(),
 		NewClient: NewClient,
 		EnsureCurrent: func(ctx context.Context) error {
-			return launcher().EnsureCurrent(ctx, ccd.UpgradeTimeout)
+			l, err := launcher()
+			if err != nil {
+				return err
+			}
+			return l.EnsureCurrent(ctx, ccd.UpgradeTimeout)
 		},
 		EnsureCurrentIfRunning: func(ctx context.Context) error {
-			return launcher().EnsureCurrentIfRunning(ctx)
+			l, err := launcher()
+			if err != nil {
+				return err
+			}
+			return l.EnsureCurrentIfRunning(ctx)
 		},
 		ClaudePID:     procs.ClaudePID,
 		WindowAlive:   procs.LiveClaude,
@@ -78,6 +118,10 @@ func Deps() cmd.Deps {
 // the mesh state exists, its hosts are additionally trusted by their
 // tailnet addresses (meshtrust.Detect).
 func serve(ctx context.Context) error {
+	role, err := daemonRole()
+	if err != nil {
+		return err
+	}
 	cfg, err := ReadConfig()
 	if err != nil {
 		return err
@@ -90,7 +134,7 @@ func serve(ctx context.Context) error {
 	if err := web.Validate(); err != nil {
 		return fmt.Errorf("validate embedded web build: %w", err)
 	}
-	return ccdaemon.Serve(ctx, Paths(), version.String(), cfg.Bind, token, loader, meshtrust.Detect())
+	return ccdaemon.Serve(ctx, Paths(), role, version.String(), cfg.Bind, token, loader, meshtrust.Detect())
 }
 
 // awaitTimeout is the await tool's default long-poll window, under typical HTTP

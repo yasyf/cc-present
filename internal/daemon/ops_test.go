@@ -29,14 +29,14 @@ type harness struct {
 
 func newHarness(t *testing.T) *harness {
 	t.Helper()
-	cc, err := ccstore.Open(filepath.Join(t.TempDir(), "t.db"), nil)
+	cc, err := ccstore.Open(context.Background(), filepath.Join(t.TempDir(), "t.db"), nil)
 	if err != nil {
 		t.Fatalf("open store: %v", err)
 	}
 	t.Cleanup(func() { _ = cc.Close() })
-	ast, err := assets.New(filepath.Join(t.TempDir(), "assets"))
-	if err != nil {
-		t.Fatalf("new assets: %v", err)
+	ast := assets.New(filepath.Join(t.TempDir(), "assets"))
+	if err := ast.Prepare(); err != nil {
+		t.Fatalf("prepare assets: %v", err)
 	}
 	return &harness{
 		cc:       cc,

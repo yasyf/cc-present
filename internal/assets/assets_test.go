@@ -10,11 +10,31 @@ import (
 	"time"
 )
 
-func TestPutGetRoundTrip(t *testing.T) {
-	s, err := New(t.TempDir())
-	if err != nil {
-		t.Fatalf("New: %v", err)
+func newTestStore(t *testing.T, dir string) *Store {
+	t.Helper()
+	s := New(dir)
+	if err := s.Prepare(); err != nil {
+		t.Fatalf("Prepare: %v", err)
 	}
+	return s
+}
+
+func TestNewDefersFilesystemAcquisition(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "assets")
+	s := New(dir)
+	if _, err := os.Stat(dir); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("New touched the filesystem: %v", err)
+	}
+	if err := s.Prepare(); err != nil {
+		t.Fatalf("Prepare: %v", err)
+	}
+	if info, err := os.Stat(dir); err != nil || !info.IsDir() {
+		t.Fatalf("prepared directory: info=%v err=%v", info, err)
+	}
+}
+
+func TestPutGetRoundTrip(t *testing.T) {
+	s := newTestStore(t, t.TempDir())
 	// A PNG magic header so DetectContentType returns image/png, not octet-stream.
 	png := append([]byte("\x89PNG\r\n\x1a\n"), bytes.Repeat([]byte{0}, 32)...)
 	sha, err := s.Put(png)
@@ -37,10 +57,7 @@ func TestPutGetRoundTrip(t *testing.T) {
 }
 
 func TestPutIdempotent(t *testing.T) {
-	s, err := New(t.TempDir())
-	if err != nil {
-		t.Fatalf("New: %v", err)
-	}
+	s := newTestStore(t, t.TempDir())
 	b := append([]byte("\x89PNG\r\n\x1a\n"), []byte("hello")...)
 	first, err := s.Put(b)
 	if err != nil {
@@ -57,10 +74,7 @@ func TestPutIdempotent(t *testing.T) {
 
 func TestPutRefreshesMtimeSoSweepSpares(t *testing.T) {
 	dir := t.TempDir()
-	s, err := New(dir)
-	if err != nil {
-		t.Fatalf("New: %v", err)
-	}
+	s := newTestStore(t, dir)
 	b := append([]byte("\x89PNG\r\n\x1a\n"), []byte("re-referenced")...)
 	sha, err := s.Put(b)
 	if err != nil {
@@ -87,10 +101,7 @@ func TestPutRefreshesMtimeSoSweepSpares(t *testing.T) {
 }
 
 func TestPutCap(t *testing.T) {
-	s, err := New(t.TempDir())
-	if err != nil {
-		t.Fatalf("New: %v", err)
-	}
+	s := newTestStore(t, t.TempDir())
 	if _, err := s.Put(bytes.Repeat([]byte{1}, MaxBytes+1)); err == nil {
 		t.Fatal("Put over cap = nil error, want failure")
 	} else if !strings.Contains(err.Error(), "exceeds") {
@@ -99,10 +110,7 @@ func TestPutCap(t *testing.T) {
 }
 
 func TestPutRejectsNonImage(t *testing.T) {
-	s, err := New(t.TempDir())
-	if err != nil {
-		t.Fatalf("New: %v", err)
-	}
+	s := newTestStore(t, t.TempDir())
 	tests := []struct {
 		name string
 		b    []byte
@@ -122,10 +130,7 @@ func TestPutRejectsNonImage(t *testing.T) {
 
 func TestGetErrors(t *testing.T) {
 	dir := t.TempDir()
-	s, err := New(dir)
-	if err != nil {
-		t.Fatalf("New: %v", err)
-	}
+	s := newTestStore(t, dir)
 	tests := []struct {
 		name string
 		sha  string
@@ -154,10 +159,7 @@ func TestGetErrors(t *testing.T) {
 
 func TestSweep(t *testing.T) {
 	dir := t.TempDir()
-	s, err := New(dir)
-	if err != nil {
-		t.Fatalf("New: %v", err)
-	}
+	s := newTestStore(t, dir)
 	old := time.Now().Add(-time.Hour)
 	young := time.Now()
 	keptRef := strings.Repeat("a", 64)

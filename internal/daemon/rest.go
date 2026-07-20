@@ -41,7 +41,7 @@ const maxQuoteBytes = 2 << 10
 // Append chokepoint, the subject resolver, the asset store, and the SPA handler
 // that /assets/{sha} falls through to for the app's own build files.
 type restServer struct {
-	db      *sql.DB
+	db      func() *sql.DB
 	append  ccd.AppendFunc
 	resolve func(ctx context.Context, ref string) (string, bool, error)
 	assets  *assets.Store
@@ -89,7 +89,7 @@ type triageEntry struct {
 // and /packs routes precedence over the catch-all.
 func mountREST(s *ccd.Server, ast *assets.Store, loader *packs.Loader, version string) {
 	rs := &restServer{
-		db:      s.DB(),
+		db:      s.DB,
 		append:  s.Append,
 		resolve: s.ResolveSubject,
 		assets:  ast,
@@ -174,7 +174,7 @@ func (rs *restServer) handleInteractions(w http.ResponseWriter, r *http.Request)
 		http.Error(w, "unknown subject: "+req.Subject, http.StatusNotFound)
 		return
 	}
-	events, err := loadEvents(r.Context(), rs.db, id)
+	events, err := loadEvents(r.Context(), rs.db(), id)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

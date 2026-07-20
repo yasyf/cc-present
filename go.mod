@@ -8,8 +8,8 @@ require (
 	github.com/pelletier/go-toml/v2 v2.4.3
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.2
 	github.com/spf13/cobra v1.10.2
-	github.com/yasyf/cc-interact v0.13.0
-	github.com/yasyf/daemonkit v0.1.1-0.20260719051422-e93fc1280567
+	github.com/yasyf/cc-interact v0.13.1-0.20260720035635-a3de2d94ad29
+	github.com/yasyf/daemonkit v0.1.1-0.20260720033905-c7c51fcf109b
 	github.com/yasyf/synckit v0.23.0
 )
 

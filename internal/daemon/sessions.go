@@ -30,13 +30,14 @@ type sessionSummary struct {
 // table is drained fully before the per-subject event reads, so the single-writer
 // connection is never held across the reduction (mirrors gcAssets).
 func (rs *restServer) handleSessions(w http.ResponseWriter, r *http.Request) {
-	summaries, err := listSessions(r.Context(), rs.db, r.URL.Query().Get("all") == "true")
+	db := rs.db()
+	summaries, err := listSessions(r.Context(), db, r.URL.Query().Get("all") == "true")
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	for i := range summaries {
-		events, err := loadEvents(r.Context(), rs.db, summaries[i].Subject)
+		events, err := loadEvents(r.Context(), db, summaries[i].Subject)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return

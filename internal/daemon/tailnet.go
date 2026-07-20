@@ -52,10 +52,10 @@ func reconcileTailnet(ctx context.Context, srv *ccd.Server, tp *meshtrust.Provid
 	tick := time.NewTicker(reconcileInterval)
 	defer tick.Stop()
 	for {
-		// Each pass doubles as the cert renewal tick; ensure runs off-loop so a
-		// slow `tailscale cert` issuance never delays leg binding.
-		go func() { mgr.ensure(ctx, tp.SelfCertDomain(ctx)) }()
 		reconcileTailnetPass(ctx, srv, tp, p, bind, mgr)
+		// Each pass doubles as the cert renewal tick after newly available legs
+		// bind. The enclosing HTTP-start worker owns and bounds the mint.
+		mgr.ensure(ctx, tp.SelfCertDomain(ctx))
 		select {
 		case <-ctx.Done():
 			return

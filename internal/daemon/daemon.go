@@ -19,6 +19,7 @@ import (
 	ccd "github.com/yasyf/cc-interact/daemon"
 	ccevent "github.com/yasyf/cc-interact/event"
 	"github.com/yasyf/cc-interact/subject"
+	"github.com/yasyf/daemonkit/daemonrole"
 	"github.com/yasyf/daemonkit/paths"
 	"github.com/yasyf/synckit/meshtrust"
 
@@ -92,8 +93,9 @@ func agentGreeting(info agent.Info) string {
 // no edit gate, window-owned scope, and optional mesh trust tp (nil =
 // token/loopback auth only; with trust on and a loopback bind the daemon also
 // listens on its own tailnet addresses).
-func BuildServer(ctx context.Context, p paths.Paths, version, bind, token string, loader *packs.Loader, tp *meshtrust.Provider) (*ccd.Server, error) {
+func BuildServer(ctx context.Context, p paths.Paths, role daemonrole.Classifier, version, bind, token string, loader *packs.Loader, tp *meshtrust.Provider) (*ccd.Server, error) {
 	c := channel.Connectivity{}
+	ast := assets.New(filepath.Join(p.StateDir(), "assets"))
 	bonjour := bonjourHook(bind)
 	// srv is late-bound: the reconcile hook needs the *ccd.Server, but OnHTTPStart
 	// only fires inside Serve, after ccd.New has returned it.
@@ -113,12 +115,18 @@ func BuildServer(ctx context.Context, p paths.Paths, version, bind, token string
 		AppName:        appName,
 		Paths:          p,
 		Version:        version,
+		DaemonRole:     role,
 		ActiveStatuses: []string{statusOpen},
 		// c.Type() (not c.EventType) so the SSE plane filters the same presence type
 		// the hooks emit — correct even for the Connectivity zero value.
 		PresenceEventType: c.Type(),
 		OnPresenceChange:  c.OnPresenceChange,
-		BootReconcile:     c.BootReconcile,
+		BootReconcile: func(ctx context.Context, s *ccd.Server) error {
+			if err := ast.Prepare(); err != nil {
+				return err
+			}
+			return c.BootReconcile(ctx, s)
+		},
 		// bind/token expose the plane to the LAN; bonjourHook advertises it over
 		// mDNS only when the bind is non-loopback (nil otherwise).
 		BindAddr:    bind,
@@ -136,7 +144,6 @@ func BuildServer(ctx context.Context, p paths.Paths, version, bind, token string
 	}
 	if tp != nil {
 		mgr = newCertManager(filepath.Join(p.StateDir(), "tls"))
-		go func() { mgr.ensure(ctx, tp.SelfCertDomain(ctx)) }()
 		cfg.TrustedPeer = tp.TrustedPeer
 		cfg.TrustedOrigin = tp.TrustedOrigin
 		cfg.ExtraHTTPListeners = tailnetListeners(p, bind, tp.SelfAddrs(ctx), mgr)
@@ -149,10 +156,6 @@ func BuildServer(ctx context.Context, p paths.Paths, version, bind, token string
 		return nil, err
 	}
 	srv = s
-	ast, err := assets.New(filepath.Join(p.StateDir(), "assets"))
-	if err != nil {
-		return nil, err
-	}
 	s.Register(OpStart, func(hc ccd.HandlerCtx) ccd.Reply { return handleStart(hc, loader.Current(), display) })
 	s.Register(OpPush, func(hc ccd.HandlerCtx) ccd.Reply { return handlePush(hc, loader.Current(), display) })
 	s.Register(OpUpsertBlock, func(hc ccd.HandlerCtx) ccd.Reply { return handleUpsertBlock(hc, loader.Current()) })
@@ -201,8 +204,8 @@ func combineHooks(hooks ...func(context.Context, int)) func(context.Context, int
 // plane's bind address (empty = loopback) and token the optional LAN bearer
 // token; the caller reads both from the host config and supplies the pack
 // loader and the optional mesh trust.
-func Serve(ctx context.Context, p paths.Paths, version, bind, token string, loader *packs.Loader, tp *meshtrust.Provider) error {
-	s, err := BuildServer(ctx, p, version, bind, token, loader, tp)
+func Serve(ctx context.Context, p paths.Paths, role daemonrole.Classifier, version, bind, token string, loader *packs.Loader, tp *meshtrust.Provider) error {
+	s, err := BuildServer(ctx, p, role, version, bind, token, loader, tp)
 	if err != nil {
 		return err
 	}

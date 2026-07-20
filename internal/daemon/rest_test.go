@@ -59,17 +59,17 @@ func emptyPackLoader(t *testing.T) *packs.Loader {
 
 func newRestHarnessWith(t *testing.T, docJSON string, loader *packs.Loader) *restHarness {
 	t.Helper()
-	cc, err := ccstore.Open(t.TempDir()+"/t.db", nil)
+	cc, err := ccstore.Open(context.Background(), t.TempDir()+"/t.db", nil)
 	if err != nil {
 		t.Fatalf("open store: %v", err)
 	}
 	t.Cleanup(func() { _ = cc.Close() })
-	ast, err := assets.New(t.TempDir())
-	if err != nil {
-		t.Fatalf("assets: %v", err)
+	ast := assets.New(t.TempDir())
+	if err := ast.Prepare(); err != nil {
+		t.Fatalf("prepare assets: %v", err)
 	}
 	rs := &restServer{
-		db:     cc.DB(),
+		db:     cc.DB,
 		append: cc.AppendEvent,
 		resolve: func(ctx context.Context, ref string) (string, bool, error) {
 			var id string

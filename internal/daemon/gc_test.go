@@ -23,15 +23,15 @@ func TestGCAssets(t *testing.T) {
 	shaUnrefOld := strings.Repeat("d", 64)
 	shaUnrefYoung := strings.Repeat("e", 64)
 
-	cc, err := ccstore.Open(filepath.Join(t.TempDir(), "t.db"), nil)
+	cc, err := ccstore.Open(context.Background(), filepath.Join(t.TempDir(), "t.db"), nil)
 	if err != nil {
 		t.Fatalf("open store: %v", err)
 	}
 	t.Cleanup(func() { _ = cc.Close() })
 	assetsDir := filepath.Join(t.TempDir(), "assets")
-	ast, err := assets.New(assetsDir)
-	if err != nil {
-		t.Fatalf("new assets: %v", err)
+	ast := assets.New(assetsDir)
+	if err := ast.Prepare(); err != nil {
+		t.Fatalf("prepare assets: %v", err)
 	}
 
 	// An open subject references shaCardKept via a card child and shaTopKept via a

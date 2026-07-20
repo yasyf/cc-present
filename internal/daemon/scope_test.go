@@ -4,16 +4,46 @@ import (
 	"context"
 	"encoding/json"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
 	ccd "github.com/yasyf/cc-interact/daemon"
+	"github.com/yasyf/daemonkit/daemonrole"
 	"github.com/yasyf/daemonkit/paths"
 
 	"github.com/yasyf/cc-present/internal/packs"
 )
 
 const markdownBlock = `{"id":"m1","type":"markdown","md":"hi"}`
+
+func testDaemonRole(t *testing.T, dir string) daemonrole.Classifier {
+	t.Helper()
+	executable, err := os.Executable()
+	if err != nil {
+		t.Fatalf("test executable: %v", err)
+	}
+	rolePath := filepath.Join(dir, "cc-present")
+	if err := os.Symlink(executable, rolePath); err != nil {
+		t.Fatalf("role alias: %v", err)
+	}
+	return daemonrole.Classifier{RoleID: "com.yasyf.cc-present.test", RolePath: rolePath}
+}
+
+func TestBuildServerDefersGenerationState(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("CLAUDE_CONFIG_DIR", t.TempDir())
+	p := paths.Paths{App: "d"}
+	if _, err := BuildServer(context.Background(), p, testDaemonRole(t, home), "v1.0.0", "", "", packs.NewLoader(nil, nil), nil); err != nil {
+		t.Fatalf("BuildServer: %v", err)
+	}
+	for _, path := range []string{p.DBPath(), filepath.Join(p.StateDir(), "assets")} {
+		if _, err := os.Stat(path); !os.IsNotExist(err) {
+			t.Fatalf("BuildServer acquired %s: %v", path, err)
+		}
+	}
+}
 
 // startTestDaemon boots a real cc-present daemon over its control socket and
 // returns a typed client once it answers Health — the full RPC path, so
@@ -31,10 +61,11 @@ func startTestDaemon(ctx context.Context, t *testing.T) *Client {
 	t.Setenv("CLAUDE_CONFIG_DIR", t.TempDir())
 
 	p := paths.Paths{App: "d"}
+	role := testDaemonRole(t, home)
 	ctx, cancel := context.WithCancel(ctx)
 	errCh := make(chan error, 1)
 	go func() {
-		errCh <- Serve(ctx, p, "v1.0.0", "", "", packs.NewLoader(nil, nil), nil)
+		errCh <- Serve(ctx, p, role, "v1.0.0", "", "", packs.NewLoader(nil, nil), nil)
 		close(errCh)
 	}()
 	// Closing errCh after the send lets cleanup's receive return even when the

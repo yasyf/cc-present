@@ -23,12 +23,12 @@ type sessionsHarness struct {
 
 func newSessionsHarness(t *testing.T) *sessionsHarness {
 	t.Helper()
-	cc, err := ccstore.Open(filepath.Join(t.TempDir(), "t.db"), nil)
+	cc, err := ccstore.Open(context.Background(), filepath.Join(t.TempDir(), "t.db"), nil)
 	if err != nil {
 		t.Fatalf("open store: %v", err)
 	}
 	t.Cleanup(func() { _ = cc.Close() })
-	return &sessionsHarness{cc: cc, rs: &restServer{db: cc.DB(), append: cc.AppendEvent}}
+	return &sessionsHarness{cc: cc, rs: &restServer{db: cc.DB, append: cc.AppendEvent}}
 }
 
 // seed creates a subject with the given status and updated_at, then appends one

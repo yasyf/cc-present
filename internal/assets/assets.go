@@ -34,12 +34,16 @@ var ErrNotImage = errors.New("asset is not an image")
 // file named by the lowercase hex sha256 of its bytes.
 type Store struct{ dir string }
 
-// New returns a Store rooted at dir, creating it (0700) if missing.
-func New(dir string) (*Store, error) {
+// New returns a Store rooted at dir without touching the filesystem.
+func New(dir string) *Store { return &Store{dir: dir} }
+
+// Prepare creates the store directory before the daemon begins serving.
+func (s *Store) Prepare() error {
+	dir := s.dir
 	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return nil, fmt.Errorf("create asset dir: %w", err)
+		return fmt.Errorf("create asset dir: %w", err)
 	}
-	return &Store{dir: dir}, nil
+	return nil
 }
 
 // SHA is the content address (lowercase hex sha256) of b.
