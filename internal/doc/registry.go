@@ -6,9 +6,9 @@ import (
 )
 
 // spec is the per-type behavior a block registers: how to decode it, how to
-// validate it, its nested children (card only), its option visuals (choice only),
-// pointers to its asset srcs (image only), and whether it is confined to the top
-// level (section, card).
+// validate it, its nested children (card only), its per-slot visuals (choice
+// options, triage items), pointers to its asset srcs (image only), and whether it
+// is confined to the top level (section, card).
 type spec struct {
 	decode    func(json.RawMessage) (Block, error)
 	validate  func(Block) error
@@ -38,6 +38,15 @@ var registry = map[string]spec{
 		decode:   func(data json.RawMessage) (Block, error) { return decodeInto(data, &Choice{}) },
 		validate: func(b Block) error { return validateChoice(b.(*Choice)) },
 		visuals:  func(b Block) []Block { return choiceVisuals(b.(*Choice)) },
+	},
+	"draft": {
+		decode:   func(data json.RawMessage) (Block, error) { return decodeInto(data, &Draft{}) },
+		validate: func(b Block) error { return validateDraft(b.(*Draft)) },
+	},
+	"triage": {
+		decode:   func(data json.RawMessage) (Block, error) { return decodeInto(data, &Triage{}) },
+		validate: func(b Block) error { return validateTriage(b.(*Triage)) },
+		visuals:  func(b Block) []Block { return triageVisuals(b.(*Triage)) },
 	},
 	"input": {
 		decode:   func(data json.RawMessage) (Block, error) { return decodeInto(data, &Input{}) },
@@ -100,8 +109,8 @@ func Children(b Block) []Block {
 	return sp.children(b)
 }
 
-// Visuals returns the option-visual leaf blocks carried by b — a choice's
-// per-option visuals, and nil for every other block type.
+// Visuals returns the visual leaf blocks carried by b — a choice's per-option
+// visuals or a triage's per-item visuals, and nil for every other block type.
 func Visuals(b Block) []Block {
 	sp := registry[b.BlockType()]
 	if sp.visuals == nil {
@@ -115,6 +124,16 @@ func choiceVisuals(c *Choice) []Block {
 	for i := range c.Options {
 		if c.Options[i].Visual != nil {
 			vs = append(vs, c.Options[i].Visual)
+		}
+	}
+	return vs
+}
+
+func triageVisuals(t *Triage) []Block {
+	var vs []Block
+	for i := range t.Items {
+		if t.Items[i].Visual != nil {
+			vs = append(vs, t.Items[i].Visual)
 		}
 	}
 	return vs

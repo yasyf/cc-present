@@ -1,0 +1,58 @@
+{
+  "version": 1,
+  "title": "v0.14.0 release notes, reviewed line by line",
+  "intro": "The draft below is the full release-notes text — select any line range and leave a note, and I fold every note into the next pass. Under it, the changelog entries: keep or cut each one. Submit when every entry has a verdict.",
+  "stats": [
+    { "label": "entries drafted", "value": "4" },
+    { "label": "notes folded in", "value": "0" }
+  ],
+  "submit": {
+    "label": "Send review",
+    "note": "Submitting sends your line notes and entry verdicts; I redraft and open another round."
+  },
+  "blocks": [
+    {
+      "id": "notes-draft",
+      "type": "draft",
+      "lang": "markdown",
+      "title": "Release notes, first pass",
+      "text": "## v0.14.0\n\ncc-present grows two review primitives.\n\nThe draft block renders a document as numbered lines and streams your\nline-anchored notes back to the agent, surviving redrafts by re-anchoring\non content instead of position.\n\nThe triage block turns a list into per-item accept/reject calls, with\nbulk controls and per-item notes.\n\nBoth land across the web board and the native iOS client in one release."
+    },
+    {
+      "id": "notes-approval",
+      "type": "approval",
+      "prompt": "Sign off on this pass of the notes?"
+    },
+    {
+      "id": "changelog-triage",
+      "type": "triage",
+      "prompt": "Keep or cut each changelog entry?",
+      "items": [
+        {
+          "id": "entry-draft",
+          "label": "draft: line-annotatable documents",
+          "hint": "headline feature",
+          "md": "A document block the human marks up with line-anchored notes."
+        },
+        {
+          "id": "entry-triage",
+          "label": "triage: per-item accept/reject",
+          "hint": "headline feature",
+          "md": "A list block with independent verdicts, bulk controls, and per-item notes."
+        },
+        {
+          "id": "entry-anchors",
+          "label": "Line-anchor wire contract",
+          "md": "The ccx anchor scheme, ported to Go, TypeScript, and Swift with one shared conformance corpus.",
+          "facts": [ { "label": "Surfaces", "value": "3" } ]
+        },
+        {
+          "id": "entry-internal",
+          "label": "Internal: generalized round-snapshot filter",
+          "hint": "maybe too internal for the changelog",
+          "md": "One generic filter with per-value clone hooks replaced the per-map helpers."
+        }
+      ]
+    }
+  ]
+}

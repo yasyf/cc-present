@@ -23,6 +23,7 @@ const (
 	MaxDataURIBytes = 32 << 10 // 32 KiB
 	MaxDiagramBytes = 8 << 10  // 8 KiB
 	MaxTermBytes    = 32 << 10 // 32 KiB
+	MaxDraftBytes   = 64 << 10 // 64 KiB
 	MaxChartSeries  = 6
 	MaxChartPoints  = 100
 	MaxChartAbs     = 1e15  // largest chart value magnitude the client scale renders without float overflow
@@ -32,6 +33,7 @@ const (
 	MaxRecordFacts  = 16
 	MaxRecordChips  = 8
 	MaxRecordLinks  = 8
+	MaxTriageItems  = 50
 )
 
 var (
@@ -156,9 +158,8 @@ type Option struct {
 	Visual      Block   `json:"visual,omitempty"`
 }
 
-// UnmarshalJSON decodes an option, dispatching its optional visual through
-// DecodeBlock and rejecting any type outside the {code, diagram, image, diff,
-// chart, term, filetree, record} allowlist so a disallowed visual fails loudly
+// UnmarshalJSON decodes an option, dispatching its optional visual through the
+// shared decodeVisual helper so a type outside the visual allowlist fails loudly
 // at decode. Marshaling needs no custom path: the concrete visual block marshals
 // naturally and a nil interface omits.
 func (o *Option) UnmarshalJSON(data []byte) error {
@@ -182,17 +183,30 @@ func (o *Option) UnmarshalJSON(data []byte) error {
 	o.Facts = raw.Facts
 	o.Detail = raw.Detail
 	o.Recommended = raw.Recommended
-	if len(raw.Visual) > 0 && string(raw.Visual) != "null" {
-		v, err := DecodeBlock(raw.Visual)
-		if err != nil {
-			return fmt.Errorf("option %q visual: %w", raw.ID, err)
-		}
-		if !validVisualType[v.BlockType()] {
-			return fmt.Errorf("option %q visual: type %q is not an allowed visual (code, diagram, image, diff, chart, term, filetree, record)", raw.ID, v.BlockType())
-		}
-		o.Visual = v
+	v, err := decodeVisual(raw.Visual, fmt.Sprintf("option %q", raw.ID))
+	if err != nil {
+		return err
 	}
+	o.Visual = v
 	return nil
+}
+
+// decodeVisual decodes an optional option- or item-visual from raw, enforcing the
+// {code, diagram, image, diff, chart, term, filetree, record} allowlist so a
+// disallowed type fails loudly at decode. It returns a nil block for an absent or
+// JSON-null visual; owner labels the enclosing element in any error.
+func decodeVisual(raw json.RawMessage, owner string) (Block, error) {
+	if len(raw) == 0 || string(raw) == "null" {
+		return nil, nil
+	}
+	v, err := DecodeBlock(raw)
+	if err != nil {
+		return nil, fmt.Errorf("%s visual: %w", owner, err)
+	}
+	if !validVisualType[v.BlockType()] {
+		return nil, fmt.Errorf("%s visual: type %q is not an allowed visual (code, diagram, image, diff, chart, term, filetree, record)", owner, v.BlockType())
+	}
+	return v, nil
 }
 
 // Choice is a single- or multi-select control; selecting an option approves it.
@@ -201,6 +215,66 @@ type Choice struct {
 	Prompt  string   `json:"prompt,omitempty"`
 	Multi   bool     `json:"multi,omitempty"`
 	Options []Option `json:"options"`
+}
+
+// Draft is an annotated document: a body of text a human marks up with anchored
+// annotations. Lang tags the body for rendering; Title is an optional heading.
+type Draft struct {
+	base
+	Lang  string `json:"lang"`
+	Text  string `json:"text"`
+	Title string `json:"title,omitempty"`
+}
+
+// Item is one entry in a Triage block, addressed by ID within its block. It is an
+// Option without the Recommended flag; Visual is an optional restricted leaf from
+// the same allowlist as an option's visual.
+type Item struct {
+	ID     string  `json:"id"`
+	Label  string  `json:"label"`
+	Hint   string  `json:"hint,omitempty"`
+	Md     string  `json:"md,omitempty"`
+	Facts  []Fact  `json:"facts,omitempty"`
+	Detail *Detail `json:"detail,omitempty"`
+	Visual Block   `json:"visual,omitempty"`
+}
+
+// UnmarshalJSON decodes an item, dispatching its optional visual through the
+// shared decodeVisual helper so a disallowed visual type fails loudly at decode.
+func (it *Item) UnmarshalJSON(data []byte) error {
+	var raw struct {
+		ID     string          `json:"id"`
+		Label  string          `json:"label"`
+		Hint   string          `json:"hint"`
+		Md     string          `json:"md"`
+		Facts  []Fact          `json:"facts"`
+		Detail *Detail         `json:"detail"`
+		Visual json.RawMessage `json:"visual"`
+	}
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return fmt.Errorf("unmarshal item: %w", err)
+	}
+	it.ID = raw.ID
+	it.Label = raw.Label
+	it.Hint = raw.Hint
+	it.Md = raw.Md
+	it.Facts = raw.Facts
+	it.Detail = raw.Detail
+	v, err := decodeVisual(raw.Visual, fmt.Sprintf("item %q", raw.ID))
+	if err != nil {
+		return err
+	}
+	it.Visual = v
+	return nil
+}
+
+// Triage is a multi-item accept/reject control; each item carries its own verdict,
+// with optional per-item notes when AllowNotes permits (true when unset).
+type Triage struct {
+	base
+	Prompt     string `json:"prompt,omitempty"`
+	AllowNotes *bool  `json:"allowNotes,omitempty"`
+	Items      []Item `json:"items"`
 }
 
 // Input is a free-text field.
@@ -724,6 +798,61 @@ func validateChoice(c *Choice) error {
 	}
 	if !c.Multi && recommended > 1 {
 		return fmt.Errorf("choice %q: single-select allows at most one recommended option, got %d", c.ID, recommended)
+	}
+	return nil
+}
+
+func validateDraft(d *Draft) error {
+	if d.Lang == "" {
+		return fmt.Errorf("draft %q: lang must not be empty", d.ID)
+	}
+	if d.Text == "" {
+		return fmt.Errorf("draft %q: text must not be empty", d.ID)
+	}
+	if len(d.Text) > MaxDraftBytes {
+		return fmt.Errorf("draft %q: text is %d bytes, exceeds %d", d.ID, len(d.Text), MaxDraftBytes)
+	}
+	if isMultiline(d.Title) {
+		return fmt.Errorf("draft %q: title must be a single line", d.ID)
+	}
+	return nil
+}
+
+func validateTriage(t *Triage) error {
+	if len(t.Items) == 0 {
+		return fmt.Errorf("triage %q: must have at least one item", t.ID)
+	}
+	if len(t.Items) > MaxTriageItems {
+		return fmt.Errorf("triage %q: %d items exceeds %d", t.ID, len(t.Items), MaxTriageItems)
+	}
+	seen := map[string]bool{}
+	for _, item := range t.Items {
+		if item.ID == "" {
+			return fmt.Errorf("triage %q: item id must not be empty", t.ID)
+		}
+		if seen[item.ID] {
+			return fmt.Errorf("triage %q: duplicate item id %q", t.ID, item.ID)
+		}
+		seen[item.ID] = true
+		if item.Label == "" {
+			return fmt.Errorf("triage %q: item %q label must not be empty", t.ID, item.ID)
+		}
+		if isMultiline(item.Hint) {
+			return fmt.Errorf("triage %q: item %q hint must be a single line", t.ID, item.ID)
+		}
+		for _, f := range item.Facts {
+			if err := validateFact(f); err != nil {
+				return fmt.Errorf("triage %q: item %q: %w", t.ID, item.ID, err)
+			}
+		}
+		if err := validateDetail(item.Detail); err != nil {
+			return fmt.Errorf("triage %q: item %q: %w", t.ID, item.ID, err)
+		}
+		if item.Visual != nil {
+			if err := validateVisual(item.Visual); err != nil {
+				return fmt.Errorf("triage %q: item %q visual: %w", t.ID, item.ID, err)
+			}
+		}
 	}
 	return nil
 }

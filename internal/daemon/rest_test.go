@@ -28,6 +28,17 @@ const seedDoc = `{"version":1,"title":"T","blocks":[
   {"id":"in1","type":"input","label":"Name"}
 ]}`
 
+// draftTriageDoc seeds a draft and two triage blocks (one forbidding notes) for
+// the annotation and triage interaction tests. The d1 line anchors are real
+// anchor.Of hashes: "Intro line."=dy65, "Second line here."=anp5, "Third and
+// final."=xr17.
+const draftTriageDoc = `{"version":1,"title":"T","blocks":[
+  {"id":"d1","type":"draft","lang":"markdown","text":"Intro line.\nSecond line here.\nThird and final."},
+  {"id":"tr1","type":"triage","items":[{"id":"i1","label":"First"},{"id":"i2","label":"Second"}]},
+  {"id":"trn","type":"triage","allowNotes":false,"items":[{"id":"j1","label":"NoNotes"}]},
+  {"id":"a1","type":"approval"}
+]}`
+
 type restHarness struct {
 	rs *restServer
 	cc *ccstore.Store
@@ -576,4 +587,143 @@ func seqOf(t *testing.T, w *httptest.ResponseRecorder) int64 {
 		t.Fatalf("decode seq: %v", err)
 	}
 	return out.Seq
+}
+
+func TestInteractionDraftTriageValidation(t *testing.T) {
+	bigText := strings.Repeat("a", maxHumanTextBytes+1)
+	tests := []struct {
+		name     string
+		body     string
+		wantCode int
+		wantErr  string
+	}{
+		{"valid annotation", `{"subject":"board--abcd0000","nonce":"an1","interaction":{"type":"annotation.created","blockId":"d1","anchor":"2#anp5","text":"needs a source"}}`, 200, ""},
+		{"annotation on non-draft", `{"subject":"board--abcd0000","nonce":"an2","interaction":{"type":"annotation.created","blockId":"tr1","anchor":"2#anp5","text":"x"}}`, 400, "not a draft"},
+		{"annotation unknown block", `{"subject":"board--abcd0000","nonce":"an3","interaction":{"type":"annotation.created","blockId":"zzz","anchor":"2#anp5","text":"x"}}`, 400, "unknown block"},
+		{"annotation malformed anchor", `{"subject":"board--abcd0000","nonce":"an4","interaction":{"type":"annotation.created","blockId":"d1","anchor":"not-an-anchor","text":"x"}}`, 400, "invalid anchor reference"},
+		{"annotation unresolvable anchor", `{"subject":"board--abcd0000","nonce":"an5","interaction":{"type":"annotation.created","blockId":"d1","anchor":"1#fa7h","text":"x"}}`, 400, "not found"},
+		{"annotation empty text", `{"subject":"board--abcd0000","nonce":"an6","interaction":{"type":"annotation.created","blockId":"d1","anchor":"2#anp5","text":"   "}}`, 400, "annotation requires text"},
+		{"annotation oversize text", `{"subject":"board--abcd0000","nonce":"an7","interaction":{"type":"annotation.created","blockId":"d1","anchor":"2#anp5","text":"` + bigText + `"}}`, 400, "exceeds"},
+		{"annotation remove unknown id", `{"subject":"board--abcd0000","nonce":"an8","interaction":{"type":"annotation.removed","blockId":"d1","id":"nope"}}`, 400, "does not exist"},
+		{"annotation remove on non-draft", `{"subject":"board--abcd0000","nonce":"an9","interaction":{"type":"annotation.removed","blockId":"tr1","id":"nope"}}`, 400, "not a draft"},
+
+		{"valid triage decision", `{"subject":"board--abcd0000","nonce":"tr1","interaction":{"type":"triage.decided","blockId":"tr1","verdicts":{"i1":{"verdict":"approved"},"i2":{"verdict":"rejected","note":"weak"}}}}`, 200, ""},
+		{"triage on non-triage", `{"subject":"board--abcd0000","nonce":"tr2","interaction":{"type":"triage.decided","blockId":"d1","verdicts":{"i1":{"verdict":"approved"}}}}`, 400, "not a triage"},
+		{"triage empty verdicts", `{"subject":"board--abcd0000","nonce":"tr3","interaction":{"type":"triage.decided","blockId":"tr1","verdicts":{}}}`, 400, "at least one verdict"},
+		{"triage unknown item", `{"subject":"board--abcd0000","nonce":"tr4","interaction":{"type":"triage.decided","blockId":"tr1","verdicts":{"i9":{"verdict":"approved"}}}}`, 400, `no item "i9"`},
+		{"triage invalid verdict", `{"subject":"board--abcd0000","nonce":"tr5","interaction":{"type":"triage.decided","blockId":"tr1","verdicts":{"i1":{"verdict":"maybe"}}}}`, 400, "invalid verdict"},
+		{"triage note on cleared", `{"subject":"board--abcd0000","nonce":"tr6","interaction":{"type":"triage.decided","blockId":"tr1","verdicts":{"i1":{"verdict":"cleared","note":"why"}}}}`, 400, "cleared verdict cannot carry a note"},
+		{"triage note when notes forbidden", `{"subject":"board--abcd0000","nonce":"tr7","interaction":{"type":"triage.decided","blockId":"trn","verdicts":{"j1":{"verdict":"approved","note":"hi"}}}}`, 400, "does not allow notes"},
+		{"triage note without notes flag accepted", `{"subject":"board--abcd0000","nonce":"tr8","interaction":{"type":"triage.decided","blockId":"trn","verdicts":{"j1":{"verdict":"approved"}}}}`, 200, ""},
+		{"triage oversize note", `{"subject":"board--abcd0000","nonce":"tr9","interaction":{"type":"triage.decided","blockId":"tr1","verdicts":{"i1":{"verdict":"approved","note":"` + bigText + `"}}}}`, 400, "exceeds"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := newRestHarnessWith(t, draftTriageDoc, emptyPackLoader(t))
+			w := h.post(t, tt.body)
+			if w.Code != tt.wantCode {
+				t.Fatalf("status = %d, want %d (body %q)", w.Code, tt.wantCode, w.Body.String())
+			}
+			if tt.wantErr != "" && !strings.Contains(w.Body.String(), tt.wantErr) {
+				t.Fatalf("body = %q, want %q", w.Body.String(), tt.wantErr)
+			}
+		})
+	}
+}
+
+// TestInteractionAnnotationNormalization proves the server rewrites a moved
+// anchor to its resolved range and stamps the quote server-side, replacing a
+// client-supplied lie: the hint points at line 1 but the hash matches line 2, so
+// the echoed anchor moves to 2-2 and the quote becomes line 2's real text.
+func TestInteractionAnnotationNormalization(t *testing.T) {
+	h := newRestHarnessWith(t, draftTriageDoc, emptyPackLoader(t))
+	body := `{"subject":"board--abcd0000","nonce":"norm","interaction":{"type":"annotation.created","blockId":"d1","anchor":"1#anp5","text":"needs a source","quote":"LIE"}}`
+	if w := h.post(t, body); w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 (%s)", w.Code, w.Body.String())
+	}
+	events, err := h.cc.EventsSince(context.Background(), h.id, 0, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(events) != 2 {
+		t.Fatalf("events = %d, want 2", len(events))
+	}
+	var p struct {
+		ID      string `json:"id"`
+		BlockID string `json:"blockId"`
+		Anchor  string `json:"anchor"`
+		Text    string `json:"text"`
+		Quote   string `json:"quote"`
+	}
+	if err := json.Unmarshal(events[1].Payload, &p); err != nil {
+		t.Fatalf("decode payload: %v", err)
+	}
+	if p.Anchor != "2-2#anp5" {
+		t.Fatalf("anchor = %q, want %q (rewritten to resolved range)", p.Anchor, "2-2#anp5")
+	}
+	if p.Quote != "Second line here." {
+		t.Fatalf("quote = %q, want %q (server-stamped over the client lie)", p.Quote, "Second line here.")
+	}
+	if p.ID == "" {
+		t.Fatal("id = empty, want a server-defaulted id")
+	}
+	if p.Text != "needs a source" {
+		t.Fatalf("text = %q, want %q", p.Text, "needs a source")
+	}
+}
+
+// TestInteractionTriageEcho proves the appended triage payload mirrors the
+// validated verdicts, omitting an empty note.
+func TestInteractionTriageEcho(t *testing.T) {
+	h := newRestHarnessWith(t, draftTriageDoc, emptyPackLoader(t))
+	body := `{"subject":"board--abcd0000","nonce":"echo","interaction":{"type":"triage.decided","blockId":"tr1","verdicts":{"i1":{"verdict":"approved"},"i2":{"verdict":"rejected","note":"weak"}}}}`
+	if w := h.post(t, body); w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 (%s)", w.Code, w.Body.String())
+	}
+	events, err := h.cc.EventsSince(context.Background(), h.id, 0, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var p struct {
+		BlockID  string `json:"blockId"`
+		Verdicts map[string]struct {
+			Verdict string  `json:"verdict"`
+			Note    *string `json:"note"`
+		} `json:"verdicts"`
+	}
+	if err := json.Unmarshal(events[1].Payload, &p); err != nil {
+		t.Fatalf("decode payload: %v", err)
+	}
+	if p.BlockID != "tr1" || len(p.Verdicts) != 2 {
+		t.Fatalf("payload = %+v, want blockId tr1 with 2 verdicts", p)
+	}
+	if p.Verdicts["i1"].Verdict != "approved" || p.Verdicts["i1"].Note != nil {
+		t.Fatalf("i1 = %+v, want approved with no note", p.Verdicts["i1"])
+	}
+	if p.Verdicts["i2"].Verdict != "rejected" || p.Verdicts["i2"].Note == nil || *p.Verdicts["i2"].Note != "weak" {
+		t.Fatalf("i2 = %+v, want rejected with note weak", p.Verdicts["i2"])
+	}
+}
+
+// TestInteractionDraftTriageClosedRound proves an annotation or triage decision
+// on a block from a round the reducer has already closed is rejected.
+func TestInteractionDraftTriageClosedRound(t *testing.T) {
+	h := newRestHarnessWith(t, draftTriageDoc, emptyPackLoader(t))
+	if w := h.post(t, `{"subject":"board--abcd0000","nonce":"sub","interaction":{"type":"submit","revision":1}}`); w.Code != http.StatusOK {
+		t.Fatalf("submit status = %d (%s)", w.Code, w.Body.String())
+	}
+	if _, err := h.cc.AppendEvent(context.Background(), &ccevent.Event{
+		SubjectID: h.id, Origin: ccevent.OriginAgent, Type: EventBlockUpserted,
+		Payload: blockUpsertedPayload(json.RawMessage(`{"id":"b2","type":"approval"}`), ""),
+	}); err != nil {
+		t.Fatalf("upsert round-2 block: %v", err)
+	}
+	ann := h.post(t, `{"subject":"board--abcd0000","nonce":"cr-an","interaction":{"type":"annotation.created","blockId":"d1","anchor":"2#anp5","text":"x"}}`)
+	if ann.Code != http.StatusBadRequest || !strings.Contains(ann.Body.String(), "closed round") {
+		t.Fatalf("annotation status = %d body %q, want 400 closed round", ann.Code, ann.Body.String())
+	}
+	tri := h.post(t, `{"subject":"board--abcd0000","nonce":"cr-tr","interaction":{"type":"triage.decided","blockId":"tr1","verdicts":{"i1":{"verdict":"approved"}}}}`)
+	if tri.Code != http.StatusBadRequest || !strings.Contains(tri.Body.String(), "closed round") {
+		t.Fatalf("triage status = %d body %q, want 400 closed round", tri.Code, tri.Body.String())
+	}
 }

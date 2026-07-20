@@ -29,19 +29,22 @@ const (
 // package state is the single authority on how each folds into document and
 // interaction state.
 const (
-	EventDocReplaced     = "doc.replaced"
-	EventBlockUpserted   = "block.upserted"
-	EventBlockRemoved    = "block.removed"
-	EventReplyCreated    = "reply.created"
-	EventRoundStarted    = "round.started"
-	EventPresentClosed   = "present.closed"
-	EventDecisionCreated = "decision.created"
-	EventChoiceSelected  = "choice.selected"
-	EventFeedbackCreated = "feedback.created"
-	EventInputSubmitted  = "input.submitted"
-	EventPackInteraction = "pack.interaction"
-	EventSubmit          = "submit"
-	EventRevisingChanged = "revising.changed"
+	EventDocReplaced       = "doc.replaced"
+	EventBlockUpserted     = "block.upserted"
+	EventBlockRemoved      = "block.removed"
+	EventReplyCreated      = "reply.created"
+	EventRoundStarted      = "round.started"
+	EventPresentClosed     = "present.closed"
+	EventDecisionCreated   = "decision.created"
+	EventChoiceSelected    = "choice.selected"
+	EventFeedbackCreated   = "feedback.created"
+	EventInputSubmitted    = "input.submitted"
+	EventPackInteraction   = "pack.interaction"
+	EventAnnotationCreated = "annotation.created"
+	EventAnnotationRemoved = "annotation.removed"
+	EventTriageDecided     = "triage.decided"
+	EventSubmit            = "submit"
+	EventRevisingChanged   = "revising.changed"
 )
 
 // body is the domain payload carried in an Envelope.Body; each handler reads

@@ -167,6 +167,12 @@ func initMaps(s *state.State) {
 	if s.Interactions.Replies == nil {
 		s.Interactions.Replies = map[string][]state.Reply{}
 	}
+	if s.Interactions.Annotations == nil {
+		s.Interactions.Annotations = map[string][]state.Annotation{}
+	}
+	if s.Interactions.Triage == nil {
+		s.Interactions.Triage = map[string]map[string]state.Decision{}
+	}
 	if s.Doc == nil {
 		s.Doc = &doc.Doc{Version: 1, Blocks: []doc.Block{}}
 	}
@@ -185,6 +191,12 @@ func initMaps(s *state.State) {
 	for i := range s.Rounds.History {
 		if s.Rounds.History[i].Packs == nil {
 			s.Rounds.History[i].Packs = map[string]state.PackValue{}
+		}
+		if s.Rounds.History[i].Annotations == nil {
+			s.Rounds.History[i].Annotations = map[string][]state.Annotation{}
+		}
+		if s.Rounds.History[i].Triage == nil {
+			s.Rounds.History[i].Triage = map[string]map[string]state.Decision{}
 		}
 	}
 }

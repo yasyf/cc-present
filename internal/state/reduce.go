@@ -66,6 +66,16 @@ type Reply struct {
 	Md string `json:"md"`
 }
 
+// Annotation is one anchored mark a human placed on a draft block. Anchor is an
+// opaque content-anchor string the reducer never parses; Quote is the server-
+// stamped text of the anchored lines.
+type Annotation struct {
+	ID     string `json:"id"`
+	Anchor string `json:"anchor"`
+	Text   string `json:"text"`
+	Quote  string `json:"quote"`
+}
+
 // Submitted records whether a human has submitted and the last revision submitted.
 type Submitted struct {
 	Value    bool `json:"value"`
@@ -79,32 +89,38 @@ type Closed struct {
 }
 
 // Interactions holds every human interaction, keyed by block id, plus the
-// submit and close signals. Decisions, choices, and inputs are last-write-wins;
-// feedback and replies are append-only.
+// submit and close signals. Decisions, choices, inputs, and packs are
+// last-write-wins; triage is last-write-wins per item; feedback and replies are
+// append-only; annotations are an ordered per-block list with last-write-wins
+// upsert by annotation id.
 type Interactions struct {
-	Decisions map[string]Decision   `json:"decisions"`
-	Choices   map[string]Selection  `json:"choices"`
-	Inputs    map[string]InputValue `json:"inputs"`
-	Packs     map[string]PackValue  `json:"packs"`
-	Feedback  map[string][]Feedback `json:"feedback"`
-	Replies   map[string][]Reply    `json:"replies"`
-	Submitted Submitted             `json:"submitted"`
-	Closed    Closed                `json:"closed"`
+	Decisions   map[string]Decision            `json:"decisions"`
+	Choices     map[string]Selection           `json:"choices"`
+	Inputs      map[string]InputValue          `json:"inputs"`
+	Packs       map[string]PackValue           `json:"packs"`
+	Feedback    map[string][]Feedback          `json:"feedback"`
+	Replies     map[string][]Reply             `json:"replies"`
+	Annotations map[string][]Annotation        `json:"annotations"`
+	Triage      map[string]map[string]Decision `json:"triage"`
+	Submitted   Submitted                      `json:"submitted"`
+	Closed      Closed                         `json:"closed"`
 }
 
 // RoundRecord is a closed round: the top-level blocks live at close (frozen
 // copies) plus the interaction values snapshotted to those blocks' ids.
 // SubmittedRevision is set only when the round closed on a submit.
 type RoundRecord struct {
-	Number            int                   `json:"number"`
-	Title             string                `json:"title,omitempty"`
-	Blocks            doc.BlockList         `json:"blocks"`
-	Decisions         map[string]Decision   `json:"decisions"`
-	Choices           map[string]Selection  `json:"choices"`
-	Inputs            map[string]InputValue `json:"inputs"`
-	Packs             map[string]PackValue  `json:"packs"`
-	Feedback          map[string][]Feedback `json:"feedback"`
-	SubmittedRevision *int                  `json:"submittedRevision,omitempty"`
+	Number            int                            `json:"number"`
+	Title             string                         `json:"title,omitempty"`
+	Blocks            doc.BlockList                  `json:"blocks"`
+	Decisions         map[string]Decision            `json:"decisions"`
+	Choices           map[string]Selection           `json:"choices"`
+	Inputs            map[string]InputValue          `json:"inputs"`
+	Packs             map[string]PackValue           `json:"packs"`
+	Feedback          map[string][]Feedback          `json:"feedback"`
+	Annotations       map[string][]Annotation        `json:"annotations"`
+	Triage            map[string]map[string]Decision `json:"triage"`
+	SubmittedRevision *int                           `json:"submittedRevision,omitempty"`
 }
 
 // Rounds tracks the round partition. Current is 1-based; BlockRounds maps a
@@ -147,12 +163,14 @@ func Reduce(events []Event) (State, error) {
 	s := State{
 		Doc: &doc.Doc{Version: 1, Blocks: []doc.Block{}},
 		Interactions: Interactions{
-			Decisions: map[string]Decision{},
-			Choices:   map[string]Selection{},
-			Inputs:    map[string]InputValue{},
-			Packs:     map[string]PackValue{},
-			Feedback:  map[string][]Feedback{},
-			Replies:   map[string][]Reply{},
+			Decisions:   map[string]Decision{},
+			Choices:     map[string]Selection{},
+			Inputs:      map[string]InputValue{},
+			Packs:       map[string]PackValue{},
+			Feedback:    map[string][]Feedback{},
+			Replies:     map[string][]Reply{},
+			Annotations: map[string][]Annotation{},
+			Triage:      map[string]map[string]Decision{},
 		},
 		Rounds: Rounds{
 			Current:     1,
@@ -331,6 +349,75 @@ func (s *State) apply(ev Event) error {
 		}
 		s.Interactions.Packs[p.BlockID] = PackValue{Payload: p.Payload}
 		return nil
+	case "annotation.created":
+		var p struct {
+			ID      string `json:"id"`
+			BlockID string `json:"blockId"`
+			Anchor  string `json:"anchor"`
+			Text    string `json:"text"`
+			Quote   string `json:"quote"`
+		}
+		if err := json.Unmarshal(ev.Payload, &p); err != nil {
+			return err
+		}
+		ann := Annotation{ID: p.ID, Anchor: p.Anchor, Text: p.Text, Quote: p.Quote}
+		list := s.Interactions.Annotations[p.BlockID]
+		for i := range list {
+			if list[i].ID == p.ID {
+				list[i] = ann
+				s.Interactions.Annotations[p.BlockID] = list
+				return nil
+			}
+		}
+		s.Interactions.Annotations[p.BlockID] = append(list, ann)
+		return nil
+	case "annotation.removed":
+		var p struct {
+			ID      string `json:"id"`
+			BlockID string `json:"blockId"`
+		}
+		if err := json.Unmarshal(ev.Payload, &p); err != nil {
+			return err
+		}
+		list := s.Interactions.Annotations[p.BlockID]
+		for i := range list {
+			if list[i].ID == p.ID {
+				s.Interactions.Annotations[p.BlockID] = append(list[:i:i], list[i+1:]...)
+				return nil
+			}
+		}
+		return nil
+	case "triage.decided":
+		var p struct {
+			BlockID  string `json:"blockId"`
+			Verdicts map[string]struct {
+				Verdict string `json:"verdict"`
+				Note    string `json:"note"`
+			} `json:"verdicts"`
+		}
+		if err := json.Unmarshal(ev.Payload, &p); err != nil {
+			return err
+		}
+		block := s.Interactions.Triage[p.BlockID]
+		if block == nil {
+			block = map[string]Decision{}
+		}
+		for itemID, entry := range p.Verdicts {
+			if !validVerdict[entry.Verdict] {
+				return fmt.Errorf("invalid verdict %q", entry.Verdict)
+			}
+			if entry.Verdict == "cleared" {
+				delete(block, itemID)
+				continue
+			}
+			block[itemID] = Decision{Verdict: entry.Verdict, Note: entry.Note}
+		}
+		if len(block) == 0 {
+			delete(s.Interactions.Triage, p.BlockID)
+		} else {
+			s.Interactions.Triage[p.BlockID] = block
+		}
+		return nil
 	case "submit":
 		var p struct {
 			Revision int `json:"revision"`
@@ -430,11 +517,13 @@ func (s *State) closeRound(revision *int) (RoundRecord, error) {
 		Number:            cur,
 		Title:             s.Rounds.CurrentTitle,
 		Blocks:            blocks,
-		Decisions:         filterMap(s.Interactions.Decisions, ids),
-		Choices:           filterMap(s.Interactions.Choices, ids),
-		Inputs:            filterMap(s.Interactions.Inputs, ids),
-		Packs:             filterMap(s.Interactions.Packs, ids),
-		Feedback:          filterFeedback(s.Interactions.Feedback, ids),
+		Decisions:         filterMap(s.Interactions.Decisions, ids, identity[Decision]),
+		Choices:           filterMap(s.Interactions.Choices, ids, identity[Selection]),
+		Inputs:            filterMap(s.Interactions.Inputs, ids, identity[InputValue]),
+		Packs:             filterMap(s.Interactions.Packs, ids, identity[PackValue]),
+		Feedback:          filterMap(s.Interactions.Feedback, ids, cloneSlice[Feedback]),
+		Annotations:       filterMap(s.Interactions.Annotations, ids, cloneSlice[Annotation]),
+		Triage:            filterMap(s.Interactions.Triage, ids, cloneVerdicts),
 		SubmittedRevision: revision,
 	}, nil
 }
@@ -478,22 +567,29 @@ func idsOf(blocks []doc.Block) map[string]bool {
 	return ids
 }
 
-func filterMap[T any](m map[string]T, ids map[string]bool) map[string]T {
+// filterMap projects m to the block ids in ids, cloning each retained value
+// through clone so a later mutation of the live interaction state cannot reach a
+// round's frozen snapshot.
+func filterMap[T any](m map[string]T, ids map[string]bool, clone func(T) T) map[string]T {
 	out := map[string]T{}
 	for id, v := range m {
 		if ids[id] {
-			out[id] = v
+			out[id] = clone(v)
 		}
 	}
 	return out
 }
 
-func filterFeedback(m map[string][]Feedback, ids map[string]bool) map[string][]Feedback {
-	out := map[string][]Feedback{}
-	for id, v := range m {
-		if ids[id] {
-			out[id] = append([]Feedback(nil), v...)
-		}
+func identity[T any](v T) T { return v }
+
+func cloneSlice[T any](s []T) []T { return append([]T(nil), s...) }
+
+// cloneVerdicts copies a triage block's per-item verdict map; Decision is a value
+// type, so a shallow copy fully detaches it from the live state.
+func cloneVerdicts(m map[string]Decision) map[string]Decision {
+	out := make(map[string]Decision, len(m))
+	for id, d := range m {
+		out[id] = d
 	}
 	return out
 }

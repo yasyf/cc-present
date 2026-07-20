@@ -11,11 +11,13 @@ import (
 	"net/http"
 	"strings"
 	"unicode"
+	"unicode/utf8"
 
 	ccd "github.com/yasyf/cc-interact/daemon"
 	ccevent "github.com/yasyf/cc-interact/event"
 	"github.com/yasyf/cc-interact/sse"
 
+	"github.com/yasyf/cc-present/internal/anchor"
 	"github.com/yasyf/cc-present/internal/assets"
 	"github.com/yasyf/cc-present/internal/doc"
 	"github.com/yasyf/cc-present/internal/packs"
@@ -30,6 +32,10 @@ var validVerdict = map[string]bool{"approved": true, "rejected": true, "cleared"
 const maxInteractionBytes = 256 << 10
 
 const maxHumanTextBytes = 64 << 10
+
+// maxQuoteBytes caps the server-stamped annotation quote so a draft with very long
+// lines can't bloat the anchored excerpt echoed back into the log.
+const maxQuoteBytes = 2 << 10
 
 // restServer holds the REST plane's shared state: the event-log connection, the
 // Append chokepoint, the subject resolver, the asset store, and the SPA handler
@@ -55,16 +61,26 @@ type interactionReq struct {
 // interaction is the discriminated union over the human event payloads. Type is
 // the event type; each handler reads only the fields its type uses.
 type interaction struct {
-	Type      string          `json:"type"`
-	BlockID   string          `json:"blockId"`
-	Verdict   string          `json:"verdict"`
-	Note      string          `json:"note"`
-	OptionIDs []string        `json:"optionIds"`
-	Other     string          `json:"other"`
-	Text      string          `json:"text"`
-	ID        string          `json:"id"`
-	Revision  int             `json:"revision"`
-	Payload   json.RawMessage `json:"payload"`
+	Type      string                 `json:"type"`
+	BlockID   string                 `json:"blockId"`
+	Verdict   string                 `json:"verdict"`
+	Note      string                 `json:"note"`
+	OptionIDs []string               `json:"optionIds"`
+	Other     string                 `json:"other"`
+	Text      string                 `json:"text"`
+	ID        string                 `json:"id"`
+	Anchor    string                 `json:"anchor,omitempty"`
+	Quote     string                 `json:"quote,omitempty"`
+	Verdicts  map[string]triageEntry `json:"verdicts,omitempty"`
+	Revision  int                    `json:"revision"`
+	Payload   json.RawMessage        `json:"payload"`
+}
+
+// triageEntry is one item's verdict in a triage.decided interaction, mirrored
+// verbatim into the appended payload with an empty note omitted.
+type triageEntry struct {
+	Verdict string `json:"verdict"`
+	Note    string `json:"note,omitempty"`
 }
 
 // mountREST registers the human-interaction endpoint, the content-addressed
@@ -342,6 +358,97 @@ func validateInteraction(st *state.State, revision int, it *interaction, reg *pa
 			BlockID string          `json:"blockId"`
 			Payload json.RawMessage `json:"payload"`
 		}{it.BlockID, it.Payload}), nil
+	case EventAnnotationCreated:
+		dr, topID, err := requireDraft(st, it.BlockID)
+		if err != nil {
+			return nil, err
+		}
+		if err := requireCurrentRound(st, it.BlockID, topID); err != nil {
+			return nil, err
+		}
+		if visuallyEmpty(it.Text) {
+			return nil, fmt.Errorf("annotation requires text")
+		}
+		if len(it.Text) > maxHumanTextBytes {
+			return nil, fmt.Errorf("annotation %q text exceeds %d bytes", it.BlockID, maxHumanTextBytes)
+		}
+		ref, err := anchor.Parse(it.Anchor)
+		if err != nil {
+			return nil, fmt.Errorf("annotation %q anchor: %w", it.BlockID, err)
+		}
+		lines := strings.Split(dr.Text, "\n")
+		res, err := anchor.Resolve(ref, lines)
+		if err != nil {
+			return nil, fmt.Errorf("annotation %q anchor: %w", it.BlockID, err)
+		}
+		id := it.ID
+		if id == "" {
+			id = randomHex(4)
+		}
+		quote := truncateRunes(strings.Join(lines[res.Start-1:res.End], "\n"), maxQuoteBytes)
+		return mustJSON(map[string]string{
+			"id":      id,
+			"blockId": it.BlockID,
+			"anchor":  anchor.FormatRange(res.Start, res.End, ref.Hash),
+			"text":    it.Text,
+			"quote":   quote,
+		}), nil
+	case EventAnnotationRemoved:
+		_, topID, err := requireDraft(st, it.BlockID)
+		if err != nil {
+			return nil, err
+		}
+		if err := requireCurrentRound(st, it.BlockID, topID); err != nil {
+			return nil, err
+		}
+		found := false
+		for _, a := range st.Interactions.Annotations[it.BlockID] {
+			if a.ID == it.ID {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return nil, fmt.Errorf("annotation %q does not exist on block %q", it.ID, it.BlockID)
+		}
+		return mustJSON(map[string]string{"id": it.ID, "blockId": it.BlockID}), nil
+	case EventTriageDecided:
+		tr, topID, err := requireTriage(st, it.BlockID)
+		if err != nil {
+			return nil, err
+		}
+		if err := requireCurrentRound(st, it.BlockID, topID); err != nil {
+			return nil, err
+		}
+		if len(it.Verdicts) == 0 {
+			return nil, fmt.Errorf("triage %q requires at least one verdict", it.BlockID)
+		}
+		items := map[string]bool{}
+		for _, item := range tr.Items {
+			items[item.ID] = true
+		}
+		out := map[string]triageEntry{}
+		for itemID, entry := range it.Verdicts {
+			if !items[itemID] {
+				return nil, fmt.Errorf("triage %q has no item %q", it.BlockID, itemID)
+			}
+			if !validVerdict[entry.Verdict] {
+				return nil, fmt.Errorf("invalid verdict %q", entry.Verdict)
+			}
+			if entry.Note != "" {
+				if entry.Verdict == "cleared" {
+					return nil, fmt.Errorf("triage %q item %q: a cleared verdict cannot carry a note", it.BlockID, itemID)
+				}
+				if !allowsNotes(tr) {
+					return nil, fmt.Errorf("triage %q does not allow notes", it.BlockID)
+				}
+				if len(entry.Note) > maxHumanTextBytes {
+					return nil, fmt.Errorf("triage %q item %q note exceeds %d bytes", it.BlockID, itemID, maxHumanTextBytes)
+				}
+			}
+			out[itemID] = triageEntry{Verdict: entry.Verdict, Note: entry.Note}
+		}
+		return mustJSON(map[string]any{"blockId": it.BlockID, "verdicts": out}), nil
 	default:
 		return nil, fmt.Errorf("unknown interaction type %q", it.Type)
 	}
@@ -395,6 +502,30 @@ func requirePackBlock(st *state.State, id string) (*doc.PackBlock, string, error
 	return pb, topID, nil
 }
 
+func requireDraft(st *state.State, id string) (*doc.Draft, string, error) {
+	b, topID, err := findBlock(st.Doc, id)
+	if err != nil {
+		return nil, "", err
+	}
+	dr, ok := b.(*doc.Draft)
+	if !ok {
+		return nil, "", fmt.Errorf("block %q is a %s, not a draft", id, b.BlockType())
+	}
+	return dr, topID, nil
+}
+
+func requireTriage(st *state.State, id string) (*doc.Triage, string, error) {
+	b, topID, err := findBlock(st.Doc, id)
+	if err != nil {
+		return nil, "", err
+	}
+	tr, ok := b.(*doc.Triage)
+	if !ok {
+		return nil, "", fmt.Errorf("block %q is a %s, not a triage", id, b.BlockType())
+	}
+	return tr, topID, nil
+}
+
 // requireCurrentRound rejects an interaction on a block whose enclosing
 // top-level block belongs to a round the reducer has already closed, so a human
 // can never act on a superseded round's blocks.
@@ -427,6 +558,12 @@ func allowsFeedback(ap *doc.Approval) bool {
 	return ap.AllowFeedback == nil || *ap.AllowFeedback
 }
 
+// allowsNotes reports whether a triage permits per-item notes; allowNotes
+// defaults to true when unset.
+func allowsNotes(tr *doc.Triage) bool {
+	return tr.AllowNotes == nil || *tr.AllowNotes
+}
+
 // visuallyEmpty reports whether s carries no visible content: once outer
 // whitespace is trimmed, every remaining rune is a Unicode space or format (Cf)
 // character — a zero-width space or joiner, say — so the string reads as blank
@@ -438,6 +575,19 @@ func visuallyEmpty(s string) bool {
 		}
 	}
 	return true
+}
+
+// truncateRunes returns the longest prefix of s no larger than limit bytes that
+// ends on a rune boundary, so an oversized quote never splits a multibyte rune.
+func truncateRunes(s string, limit int) string {
+	if len(s) <= limit {
+		return s
+	}
+	b := limit
+	for b > 0 && !utf8.RuneStart(s[b]) {
+		b--
+	}
+	return s[:b]
 }
 
 // requireAssetType is requireJSON's CSRF gate for the raw-bytes asset upload:

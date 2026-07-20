@@ -76,6 +76,8 @@ A board with any decision unit opens in focus mode by default: one step at a tim
 | `term.output` | 32 KiB |
 | `filetree.entries` | 200 |
 | `record` | 16 facts, 8 chips, 8 links |
+| `draft.text` | 64 KiB |
+| `triage.items` | 50 |
 
 ## Block types
 
@@ -178,6 +180,40 @@ Facts earn the comparison grid by lining up. Give every option the same fact lab
 ```
 
 An input carried into a new round renders empty with a dim "last round: …" hint showing the previous entry; the old text stays read-only inside the collapsed round. Fields are fresh each round automatically — never ask the human to clear one.
+
+### `draft` — document for line comments
+
+```json
+{
+  "id": "notes-draft",
+  "type": "draft",
+  "lang": "markdown",
+  "title": "Release notes, first pass",
+  "text": "## v0.14.0\n\ncc-present grows two review primitives.\n\nThe draft block renders a document as numbered lines."
+}
+```
+
+Reach for `draft` when the deliverable is the text itself — a prose draft, a config, a file — and you want margin notes instead of a verdict. It renders as numbered source lines (`lang` picks the syntax highlighting; use `markdown` for prose). The human selects a line or range and attaches a note; each note streams back as an `annotation.created` event carrying a content anchor and a `quote` of the anchored lines. Annotating never gates Submit; pair the draft with an `approval` when you need a sign-off.
+
+Redraft by upserting the **same block id** with new `text`: annotations persist and re-anchor by content, a note whose lines moved shows its shift, and a note whose lines vanished lands in a detached list instead of disappearing. When you read `outcomes`, each annotation is `{id, anchor, text, quote}` — resolve `anchor` against your current text to place it, and fall back to `quote` (the lines as the human saw them) when it no longer resolves.
+
+### `triage` — per-item accept/reject
+
+```json
+{
+  "id": "changelog-triage",
+  "type": "triage",
+  "prompt": "Keep or cut each entry?",
+  "items": [
+    { "id": "entry-anchors", "label": "Line-anchor port", "hint": "new wire contract", "md": "Three parallel implementations with one conformance corpus." },
+    { "id": "entry-bun", "label": "bun toolchain note", "facts": [ { "label": "Scope", "value": "web/ only" } ] }
+  ]
+}
+```
+
+Reach for `triage` when one decision decomposes into several independent accept/reject calls — a list of changelog entries, findings, or candidates to keep or cut. Each item carries an independent approve/reject verdict plus an optional note (`allowNotes: false` forbids notes); items take the choice-option body shape — `md`, `facts`, `detail`, `visual` — minus `recommended`. Verdicts stream back as `triage.decided` partial-map merges, and `outcomes` shows `{[itemId]: {verdict, note?}}` per block.
+
+The block counts **once** in the submit tally, and only when every item has a verdict — a 20-item triage is one undecided step until the last call lands. Closed-round headers count item verdicts individually. Accept all / Reject all covers **every** item, including ones already carrying the opposite verdict; individual flips afterward override.
 
 ### `markdown` — prose
 

@@ -57,6 +57,7 @@ func TestValidate(t *testing.T) {
 	bigMd := strings.Repeat("x", doc.MaxDocBytes+1)
 	bigSource := strings.Repeat("x", doc.MaxDiagramBytes+1)
 	bigOutput := strings.Repeat("x", doc.MaxTermBytes+1)
+	bigDraft := strings.Repeat("x", doc.MaxDraftBytes+1)
 
 	manySeries := make([]string, doc.MaxChartSeries+1)
 	for i := range manySeries {
@@ -136,6 +137,16 @@ func TestValidate(t *testing.T) {
 	atDepthPath := strings.Repeat("a/", doc.MaxTreeDepth-1) + "b" // MaxTreeDepth segments
 	deepTree := fmt.Sprintf(`{"id":"ft1","type":"filetree","entries":[{"path":%q}]}`, deepPath)
 	atDepthTree := fmt.Sprintf(`{"id":"ft1","type":"filetree","entries":[{"path":%q}]}`, atDepthPath)
+
+	triageItems := func(n int) string {
+		items := make([]string, n)
+		for i := range items {
+			items[i] = fmt.Sprintf(`{"id":"i%d","label":"L%d"}`, i, i)
+		}
+		return strings.Join(items, ",")
+	}
+	overItemsTriage := fmt.Sprintf(`{"id":"tr1","type":"triage","items":[%s]}`, triageItems(doc.MaxTriageItems+1))
+	atItemsTriage := fmt.Sprintf(`{"id":"tr1","type":"triage","items":[%s]}`, triageItems(doc.MaxTriageItems))
 
 	tests := []struct {
 		name    string
@@ -303,6 +314,32 @@ func TestValidate(t *testing.T) {
 		{"option visual filetree", docWith(card("c1", `{"id":"ch1","type":"choice","options":[{"id":"o1","label":"A","visual":{"id":"v1","type":"filetree","entries":[{"path":"a"}]}}]}`)), ""},
 		{"option visual record", docWith(card("c1", `{"id":"ch1","type":"choice","options":[{"id":"o1","label":"A","visual":{"id":"v1","type":"record","facts":[{"label":"L","value":"x"}]}}]}`)), ""},
 		{"option visual error names new types", docWith(card("c1", `{"id":"ch1","type":"choice","options":[{"id":"o1","label":"A","visual":{"id":"v1","type":"approval"}}]}`)), "chart, term, filetree, record"},
+
+		{"draft valid", docWith(card("c1", `{"id":"dr1","type":"draft","lang":"markdown","text":"Body line."}`)), ""},
+		{"draft top-level with title", docWith(`{"id":"dr1","type":"draft","lang":"go","text":"package main","title":"main.go"}`), ""},
+		{"draft missing lang", docWith(card("c1", `{"id":"dr1","type":"draft","text":"Body."}`)), "lang must not be empty"},
+		{"draft empty text", docWith(card("c1", `{"id":"dr1","type":"draft","lang":"markdown","text":""}`)), "text must not be empty"},
+		{"draft oversize text", docWith(card("c1", fmt.Sprintf(`{"id":"dr1","type":"draft","lang":"markdown","text":%q}`, bigDraft))), "text is"},
+		{"draft multiline title", docWith(card("c1", `{"id":"dr1","type":"draft","lang":"markdown","text":"Body.","title":"a\nb"}`)), "title must be a single line"},
+		{"draft carriage-return title", docWith(card("c1", `{"id":"dr1","type":"draft","lang":"markdown","text":"Body.","title":"a\rb"}`)), "title must be a single line"},
+
+		{"triage valid", docWith(card("c1", `{"id":"tr1","type":"triage","items":[{"id":"i1","label":"First"}]}`)), ""},
+		{"triage top-level with prompt and allowNotes", docWith(`{"id":"tr1","type":"triage","prompt":"Sort these","allowNotes":false,"items":[{"id":"i1","label":"First","hint":"a note"}]}`), ""},
+		{"triage allowNotes omitted defaults", docWith(`{"id":"tr1","type":"triage","items":[{"id":"i1","label":"First"}]}`), ""},
+		{"triage item full", docWith(card("c1", `{"id":"tr1","type":"triage","items":[{"id":"i1","label":"First","md":"detail","facts":[{"label":"Cost","value":"$5","tone":"good"}],"detail":{"pros":["fast"]},"visual":{"id":"v1","type":"code","lang":"go","code":"x"}}]}`)), ""},
+		{"triage no items", docWith(card("c1", `{"id":"tr1","type":"triage","items":[]}`)), "at least one item"},
+		{"triage over items cap", docWith(overItemsTriage), "exceeds"},
+		{"triage at items cap accepted", docWith(atItemsTriage), ""},
+		{"triage duplicate item id", docWith(card("c1", `{"id":"tr1","type":"triage","items":[{"id":"i1","label":"A"},{"id":"i1","label":"B"}]}`)), `duplicate item id "i1"`},
+		{"triage item missing id", docWith(card("c1", `{"id":"tr1","type":"triage","items":[{"id":"","label":"A"}]}`)), "item id must not be empty"},
+		{"triage item missing label", docWith(card("c1", `{"id":"tr1","type":"triage","items":[{"id":"i1","label":""}]}`)), "label must not be empty"},
+		{"triage item hint with newline", docWith(card("c1", `{"id":"tr1","type":"triage","items":[{"id":"i1","label":"A","hint":"a\nb"}]}`)), "hint must be a single line"},
+		{"triage item bad fact", docWith(card("c1", `{"id":"tr1","type":"triage","items":[{"id":"i1","label":"A","facts":[{"value":""}]}]}`)), "fact value must not be empty"},
+		{"triage item bad detail", docWith(card("c1", `{"id":"tr1","type":"triage","items":[{"id":"i1","label":"A","detail":{}}]}`)), "detail must set at least one"},
+		{"triage item off-whitelist visual rejected", docWith(card("c1", `{"id":"tr1","type":"triage","items":[{"id":"i1","label":"A","visual":{"id":"v1","type":"approval"}}]}`)), "not an allowed visual"},
+		{"triage item unknown visual type", docWith(card("c1", `{"id":"tr1","type":"triage","items":[{"id":"i1","label":"A","visual":{"id":"v1","type":"frobnicate"}}]}`)), `unknown type "frobnicate"`},
+		{"triage item invalid visual leaf", docWith(card("c1", `{"id":"tr1","type":"triage","items":[{"id":"i1","label":"A","visual":{"id":"v1","type":"diagram","kind":"d2","source":"x"}}]}`)), "kind must be mermaid"},
+		{"triage duplicate id via item visual", docWith(card("c1", `{"id":"tr1","type":"triage","items":[{"id":"i1","label":"A","visual":{"id":"tr1","type":"code","lang":"go","code":"x"}}]}`)), `duplicate block id "tr1"`},
 
 		{"doc too big", docWith(card("c1", fmt.Sprintf(`{"id":"m1","type":"markdown","md":%q}`, bigMd))), "exceeds"},
 	}
@@ -508,6 +545,58 @@ func TestFieldRoundTrip(t *testing.T) {
 				}
 				if dg.ID != "v1" || dg.Kind != "mermaid" || dg.Source != "graph TD; A-->B" {
 					t.Fatalf("visual = %+v, want {v1 mermaid graph TD; A-->B}", dg)
+				}
+			},
+		},
+		{
+			name: "draft fields survive marshal",
+			doc:  docWith(card("c1", `{"id":"dr1","type":"draft","lang":"go","text":"package main\nfunc main() {}","title":"main.go"}`)),
+			check: func(t *testing.T, c *doc.Card) {
+				dr, ok := c.Children[0].(*doc.Draft)
+				if !ok {
+					t.Fatalf("child[0] type = %T, want *doc.Draft", c.Children[0])
+				}
+				if dr.Lang != "go" || dr.Title != "main.go" {
+					t.Fatalf("draft lang/title = %q/%q, want go/main.go", dr.Lang, dr.Title)
+				}
+				if dr.Text != "package main\nfunc main() {}" {
+					t.Fatalf("draft text = %q", dr.Text)
+				}
+			},
+		},
+		{
+			name: "triage fields survive marshal",
+			doc:  docWith(card("c1", `{"id":"tr1","type":"triage","prompt":"Sort","allowNotes":false,"items":[{"id":"i1","label":"First","hint":"a hint","md":"body","facts":[{"label":"Cost","value":"$5","tone":"good"}],"detail":{"pros":["fast"],"mode":"modal"},"visual":{"id":"v1","type":"code","lang":"go","code":"x"}}]}`)),
+			check: func(t *testing.T, c *doc.Card) {
+				tr, ok := c.Children[0].(*doc.Triage)
+				if !ok {
+					t.Fatalf("child[0] type = %T, want *doc.Triage", c.Children[0])
+				}
+				if tr.Prompt != "Sort" {
+					t.Fatalf("prompt = %q, want Sort", tr.Prompt)
+				}
+				if tr.AllowNotes == nil || *tr.AllowNotes {
+					t.Fatalf("allowNotes = %v, want false", tr.AllowNotes)
+				}
+				if len(tr.Items) != 1 {
+					t.Fatalf("items = %d, want 1", len(tr.Items))
+				}
+				it := tr.Items[0]
+				if it.ID != "i1" || it.Label != "First" || it.Hint != "a hint" || it.Md != "body" {
+					t.Fatalf("item = %+v, want {i1 First a hint body}", it)
+				}
+				if len(it.Facts) != 1 || it.Facts[0] != (doc.Fact{Label: "Cost", Value: "$5", Tone: "good"}) {
+					t.Fatalf("facts = %+v, want [{Cost $5 good}]", it.Facts)
+				}
+				if it.Detail == nil || len(it.Detail.Pros) != 1 || it.Detail.Pros[0] != "fast" || it.Detail.Mode != "modal" {
+					t.Fatalf("detail = %+v, want pros=[fast] mode=modal", it.Detail)
+				}
+				cd, ok := it.Visual.(*doc.Code)
+				if !ok {
+					t.Fatalf("visual type = %T, want *doc.Code", it.Visual)
+				}
+				if cd.ID != "v1" || cd.Lang != "go" || cd.Code != "x" {
+					t.Fatalf("visual = %+v, want {v1 go x}", cd)
 				}
 			},
 		},
