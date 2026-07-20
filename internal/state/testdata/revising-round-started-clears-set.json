@@ -1,0 +1,43 @@
+{
+  "name": "revising-round-started-clears-set",
+  "events": [
+    {
+      "origin": "agent",
+      "type": "doc.replaced",
+      "seq": 1,
+      "payload": {
+        "revision": 1,
+        "doc": {
+          "version": 1,
+          "title": "T",
+          "blocks": [{ "id": "b1", "type": "approval" }]
+        }
+      }
+    },
+    { "origin": "agent", "type": "revising.changed", "seq": 2, "payload": { "blockIds": ["b1"], "note": "reworking b1" } },
+    { "origin": "agent", "type": "round.started", "seq": 3, "payload": { "title": "round two" } }
+  ],
+  "expected": {
+    "doc": {
+      "version": 1,
+      "title": "T",
+      "blocks": [{ "id": "b1", "type": "approval" }]
+    },
+    "rounds": {
+      "current": 2,
+      "currentTitle": "round two",
+      "blockRounds": { "b1": 1 },
+      "history": [
+        {
+          "number": 1,
+          "blocks": [{ "id": "b1", "type": "approval" }],
+          "decisions": {},
+          "choices": {},
+          "inputs": {},
+          "feedback": {}
+        }
+      ]
+    },
+    "revising": { "blockIds": [] }
+  }
+}

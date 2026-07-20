@@ -442,12 +442,14 @@ private extension BoardState {
             }
         case let .submit(payload):
             interactions.submitted = Submitted(value: true, revision: payload.revision)
+            revising = Revising()
             if dirty() {
                 rounds.history.append(closeRound(revision: payload.revision))
                 rounds.current += 1
                 rounds.currentTitle = ""
             }
         case let .roundStarted(payload):
+            revising = Revising()
             if dirty() {
                 rounds.history.append(closeRound(revision: nil))
                 rounds.current += 1

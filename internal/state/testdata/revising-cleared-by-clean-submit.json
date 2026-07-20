@@ -1,0 +1,58 @@
+{
+  "name": "revising-cleared-by-clean-submit",
+  "events": [
+    {
+      "origin": "agent",
+      "type": "doc.replaced",
+      "seq": 1,
+      "payload": {
+        "revision": 1,
+        "doc": {
+          "version": 1,
+          "title": "T",
+          "blocks": [
+            { "id": "b1", "type": "approval" },
+            { "id": "b2", "type": "approval" }
+          ]
+        }
+      }
+    },
+    { "origin": "human", "type": "decision.created", "seq": 2, "payload": { "blockId": "b1", "verdict": "approved" } },
+    { "origin": "human", "type": "submit", "seq": 3, "payload": { "revision": 1 } },
+    { "origin": "agent", "type": "revising.changed", "seq": 4, "payload": { "blockIds": ["b1"], "note": "one more pass" } },
+    { "origin": "human", "type": "submit", "seq": 5, "payload": { "revision": 1 } }
+  ],
+  "expected": {
+    "doc": {
+      "version": 1,
+      "title": "T",
+      "blocks": [
+        { "id": "b1", "type": "approval" },
+        { "id": "b2", "type": "approval" }
+      ]
+    },
+    "interactions": {
+      "decisions": { "b1": { "verdict": "approved" } },
+      "submitted": { "value": true, "revision": 1 }
+    },
+    "rounds": {
+      "current": 2,
+      "blockRounds": { "b1": 1, "b2": 1 },
+      "history": [
+        {
+          "number": 1,
+          "blocks": [
+            { "id": "b1", "type": "approval" },
+            { "id": "b2", "type": "approval" }
+          ],
+          "decisions": { "b1": { "verdict": "approved" } },
+          "choices": {},
+          "inputs": {},
+          "feedback": {},
+          "submittedRevision": 1
+        }
+      ]
+    },
+    "revising": { "blockIds": [] }
+  }
+}

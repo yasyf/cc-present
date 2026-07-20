@@ -138,7 +138,8 @@ type Rounds struct {
 // Revising is the agent's declared working set: the top-level block ids being
 // rewritten plus an optional shared note. revising.changed replaces it wholesale;
 // a block.upserted or block.removed drops its id, draining the note when the set
-// empties; doc.replaced clears everything. It never stamps rounds.
+// empties; doc.replaced, submit, and round.started clear everything, note
+// included — no announcement crosses a round boundary. It never stamps rounds.
 type Revising struct {
 	BlockIDs []string `json:"blockIds"`
 	Note     string   `json:"note,omitempty"`
@@ -427,6 +428,7 @@ func (s *State) apply(ev Event) error {
 			return err
 		}
 		s.Interactions.Submitted = Submitted{Value: true, Revision: p.Revision}
+		s.Revising = Revising{BlockIDs: []string{}}
 		if s.dirty() {
 			rec, err := s.closeRound(&p.Revision)
 			if err != nil {
@@ -444,6 +446,7 @@ func (s *State) apply(ev Event) error {
 		if err := json.Unmarshal(ev.Payload, &p); err != nil {
 			return err
 		}
+		s.Revising = Revising{BlockIDs: []string{}}
 		if s.dirty() {
 			rec, err := s.closeRound(nil)
 			if err != nil {

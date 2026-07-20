@@ -354,7 +354,7 @@ columns below omit that injected field; both reducers tolerate it.
 | agent | `block.upserted` | `{block, after?}` | If a block with `block.id` exists — at top level or one level deep as a card child — replace it in place as a whole block, so nothing from the old block survives, and stamp the enclosing top-level block's round. Otherwise insert: after a top-level `after` at top level, after a card-child `after` inside that card, or append at top level when `after` is absent or unknown (the reducer keeps that append fallback for replay; the daemon edge rejects unknown and option-visual `after` ids). |
 | agent | `block.removed` | `{id}` | Remove the top-level block with that id, or splice a card child from its card and restamp the card's round. An unknown id is a reducer no-op (the daemon edge rejects it). |
 | agent | `reply.created` | `{id, blockId, md}` | Append to the block's reply thread. The thread renders under every block type, and the daemon rejects a reply whose `blockId` names no block in the current document — top level or a card child — with an error. |
-| agent | `round.started` | `{title?}` | When the round is dirty (a live top-level block is stamped with the current round), snapshot it into `rounds.history` without a `submittedRevision` and advance `rounds.current`; then set the current round's title. When clean, only the title changes — so a `round.started` right after a submit names the round the submit already opened. Never bumps the revision, which counts `doc.replaced` events only. |
+| agent | `round.started` | `{title?}` | When the round is dirty (a live top-level block is stamped with the current round), snapshot it into `rounds.history` without a `submittedRevision` and advance `rounds.current`; then set the current round's title. When clean, only the title changes — so a `round.started` right after a submit names the round the submit already opened. Either way the revising working set clears wholesale (see Live revision). Never bumps the revision, which counts `doc.replaced` events only. |
 | system | `present.closed` | `{summary?}` | Set closed. Terminal for the reduction: any event ordered after it is a no-op (see below). Recorded with a `system` origin, not `agent`, so it survives the agent-side `watch`/channel `exclude_origin=agent` filter — `watch` terminates on it. |
 | human | `decision.created` | `{blockId, verdict, note?}` | Last-write-wins per block. `verdict` is one of `approved`, `rejected`, `cleared`; `cleared` removes the decision, returning the block to undecided. |
 | human | `choice.selected` | `{blockId, optionIds, other?}` | Last-write-wins per block. `other` is a free-text write-in outside the authored option set; it may stand alone (single-select write-in, empty `optionIds`) or coexist with `optionIds` (multi-select). A re-pick replaces the whole selection, so it drops a prior `other`. |
@@ -364,8 +364,8 @@ columns below omit that injected field; both reducers tolerate it.
 | human | `annotation.created` | `{id, blockId, anchor, text, quote}` | Upsert by `id` into the block's ordered annotation list: an existing id is replaced in place, a new id appends — an edit re-sends the id. Targets a `draft` block. The REST edge parses and resolves `anchor` against the block's current `text` (an unresolvable anchor is rejected), rewrites it to the normalized ranged form (see Line anchors), and stamps `quote` from the resolved lines (at most **2 KiB**) — the client-sent `quote` is advisory and always replaced. |
 | human | `annotation.removed` | `{id, blockId}` | Splice the annotation out of the block's list. A replayed unknown id is a reducer no-op; the REST edge rejects one with 400. Removing the last annotation leaves an empty list under the block key. |
 | human | `triage.decided` | `{blockId, verdicts}` | Partial-map merge, last-write-wins per item: `verdicts` is `{[itemId]: {verdict, note?}}`, folded entry by entry, so one event carries a single flip or an atomic accept-all. `cleared` removes the item's entry, and an emptied block map is removed with it. A `note` requires a non-cleared verdict and the block's `allowNotes`. The REST edge rejects an `itemId` outside the block's items. |
-| human | `submit` | `{revision}` | Set submitted with the revision. When the round is dirty, additionally snapshot the current round into `rounds.history` with `submittedRevision` set, advance `rounds.current`, and clear the title; a clean submit records only the revision. Does not close the document, so rounds continue. The REST plane rejects a revision the log never produced (below 0 or past the current revision). |
-| agent | `revising.changed` | `{blockIds, note?}` | Replace the revising working set wholesale (last-write-wins). Each id on the wire names a current top-level block — the daemon edge resolves an announced card-child id to its enclosing card before appending, deduplicating in input order. A `block.upserted` or `block.removed` drops its id (a child write drops the enclosing card's), and draining the last id clears the shared `note` too. `doc.replaced` clears everything. An empty set with a `note` is the doc-level drafting state, while an empty set with no `note` abandons the announcement. Announcing never stamps rounds (see Live revision). |
+| human | `submit` | `{revision}` | Set submitted with the revision. When the round is dirty, additionally snapshot the current round into `rounds.history` with `submittedRevision` set, advance `rounds.current`, and clear the title; a clean submit records only the revision. Does not close the document, so rounds continue. Either way the revising working set clears wholesale (see Live revision). The REST plane rejects a revision the log never produced (below 0 or past the current revision). |
+| agent | `revising.changed` | `{blockIds, note?}` | Replace the revising working set wholesale (last-write-wins). Each id on the wire names a current top-level block — the daemon edge resolves an announced card-child id to its enclosing card before appending, deduplicating in input order. A `block.upserted` or `block.removed` drops its id (a child write drops the enclosing card's), and draining the last id clears the shared `note` too. `doc.replaced` clears everything, and a `submit` or `round.started` clears the whole set too, note included. An empty set with a `note` is the doc-level drafting state, while an empty set with no `note` abandons the announcement. Announcing never stamps rounds (see Live revision). |
 
 Post-close events are no-ops, not errors, by design. A human click can race an
 agent's close, with the browser POSTing an interaction at the same moment
@@ -470,15 +470,24 @@ every post-close event. An empty set with a `note` (`blockIds: []` + `note`) is 
 doc-level drafting state — work with no existing block to mark yet — cleared by the
 next `block.upserted`. An empty set with no `note` abandons the announcement.
 
+`submit` and `round.started` clear the whole set as well — an announcement describes
+work inside the round it was made in, and neither a mark nor the doc-level note
+survives the boundary; re-announce after the boundary when a rewrite is still in
+flight. A revision that lands under a **new** block id never clears the old id's
+mark on its own — remove the superseded block (removal counts as completion) or
+send `revising --clear`.
+
 `revising.changed` never stamps `blockRounds`: announcing is not touching. The
-reducers stay pure — no wall clock — so a mark persists until an upsert, removal, or
-replacement clears it; client-side decay of a stale mark is presentation only.
+reducers stay pure — no wall clock — so a mark persists until an upsert, removal,
+replacement, or round boundary (`submit`/`round.started`) clears it; client-side
+decay of a stale mark is presentation only.
 
 The daemon edge resolves each announced id against the current document: a
 top-level id passes through, a card-child id resolves to its enclosing card
 (deduplicated in input order), and unknown or option-visual ids are rejected with
 a pointing error; an empty set skips id validation. The agent sends it with
-`cc-present revising [blockId...] [--note "…"]` — a bare call abandons.
+`cc-present revising [blockId...] [--note "…"]` — a bare call, or the equivalent
+`revising --clear`, abandons.
 
 | Method | Path | Body | Purpose |
 |---|---|---|---|

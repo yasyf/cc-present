@@ -742,6 +742,11 @@ func TestRevising(t *testing.T) {
 			wantIDs: []string{},
 		},
 		{
+			name:    "bare clear records an empty set with no note",
+			seed:    approvalDoc,
+			wantIDs: []string{},
+		},
+		{
 			name:     "rejected on a closed artifact",
 			seed:     approvalDoc,
 			blockIDs: []string{"a1"},
@@ -780,12 +785,19 @@ func TestRevising(t *testing.T) {
 			}
 			var payload struct {
 				BlockIDs []string `json:"blockIds"`
+				Note     *string  `json:"note"`
 			}
 			if err := json.Unmarshal(events[0].Payload, &payload); err != nil {
 				t.Fatalf("decode revising payload: %v", err)
 			}
 			if !slices.Equal(payload.BlockIDs, tt.wantIDs) {
 				t.Fatalf("event blockIds = %v, want %v", payload.BlockIDs, tt.wantIDs)
+			}
+			if tt.note == "" && payload.Note != nil {
+				t.Fatalf("event note = %q, want absent", *payload.Note)
+			}
+			if tt.note != "" && (payload.Note == nil || *payload.Note != tt.note) {
+				t.Fatalf("event note = %v, want %q", payload.Note, tt.note)
 			}
 			st := reduceSubject(t, h, start.SubjectID)
 			if !slices.Equal(st.Revising.BlockIDs, tt.wantIDs) {

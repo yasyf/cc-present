@@ -1,0 +1,58 @@
+{
+  "name": "revising-dangle-new-id-cleared-by-submit",
+  "events": [
+    {
+      "origin": "agent",
+      "type": "doc.replaced",
+      "seq": 1,
+      "payload": {
+        "revision": 1,
+        "doc": {
+          "version": 1,
+          "title": "T",
+          "blocks": [
+            { "id": "s1", "type": "approval" },
+            { "id": "s2", "type": "approval" }
+          ]
+        }
+      }
+    },
+    { "origin": "agent", "type": "revising.changed", "seq": 2, "payload": { "blockIds": ["s2"], "note": "reworking s2" } },
+    { "origin": "agent", "type": "block.upserted", "seq": 3, "payload": { "block": { "id": "s3", "type": "approval" } } },
+    { "origin": "human", "type": "submit", "seq": 4, "payload": { "revision": 1 } }
+  ],
+  "expected": {
+    "doc": {
+      "version": 1,
+      "title": "T",
+      "blocks": [
+        { "id": "s1", "type": "approval" },
+        { "id": "s2", "type": "approval" },
+        { "id": "s3", "type": "approval" }
+      ]
+    },
+    "interactions": {
+      "submitted": { "value": true, "revision": 1 }
+    },
+    "rounds": {
+      "current": 2,
+      "blockRounds": { "s1": 1, "s2": 1, "s3": 1 },
+      "history": [
+        {
+          "number": 1,
+          "blocks": [
+            { "id": "s1", "type": "approval" },
+            { "id": "s2", "type": "approval" },
+            { "id": "s3", "type": "approval" }
+          ],
+          "decisions": {},
+          "choices": {},
+          "inputs": {},
+          "feedback": {},
+          "submittedRevision": 1
+        }
+      ]
+    },
+    "revising": { "blockIds": [] }
+  }
+}

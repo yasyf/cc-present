@@ -96,7 +96,8 @@ export function applyEvent(state: PresentState, ev: PresentEvent): PresentState 
     }
     case 'round.started': {
       const { title } = ev.payload;
-      const advanced = isDirty(state) ? closeRound(state, undefined) : state;
+      const cleared = { ...state, revising: { blockIds: [] } };
+      const advanced = isDirty(cleared) ? closeRound(cleared, undefined) : cleared;
       const rounds = { ...advanced.rounds };
       if (title) rounds.currentTitle = title;
       else delete rounds.currentTitle;
@@ -181,7 +182,10 @@ export function applyEvent(state: PresentState, ev: PresentEvent): PresentState 
     }
     case 'submit': {
       const { revision } = ev.payload;
-      const submitted = withInteractions(state, { submitted: { value: true, revision } });
+      const submitted = {
+        ...withInteractions(state, { submitted: { value: true, revision } }),
+        revising: { blockIds: [] },
+      };
       if (!isDirty(submitted)) return submitted;
       const closed = closeRound(submitted, revision);
       const rounds = { ...closed.rounds };

@@ -1,0 +1,42 @@
+{
+  "name": "revising-doc-note-cleared-by-round-boundary",
+  "events": [
+    {
+      "origin": "agent",
+      "type": "doc.replaced",
+      "seq": 1,
+      "payload": {
+        "revision": 1,
+        "doc": {
+          "version": 1,
+          "title": "T",
+          "blocks": [{ "id": "b1", "type": "approval" }]
+        }
+      }
+    },
+    { "origin": "agent", "type": "revising.changed", "seq": 2, "payload": { "blockIds": [], "note": "drafting the follow-up" } },
+    { "origin": "agent", "type": "round.started", "seq": 3, "payload": {} }
+  ],
+  "expected": {
+    "doc": {
+      "version": 1,
+      "title": "T",
+      "blocks": [{ "id": "b1", "type": "approval" }]
+    },
+    "rounds": {
+      "current": 2,
+      "blockRounds": { "b1": 1 },
+      "history": [
+        {
+          "number": 1,
+          "blocks": [{ "id": "b1", "type": "approval" }],
+          "decisions": {},
+          "choices": {},
+          "inputs": {},
+          "feedback": {}
+        }
+      ]
+    },
+    "revising": { "blockIds": [] }
+  }
+}
