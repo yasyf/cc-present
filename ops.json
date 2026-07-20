@@ -1,1 +1,1 @@
-{"v":1,"lamport":4,"session":"7823c41f-2319-4beb-9912-13357a7e18fc","ops":[{"kind":"set_criterion_status","id":"0711b875eb65d1c6b1ff8f33155b76de","status":"met","note":"web anchor.test.ts (33) and iOS AnchorConformanceTests (5 suites) unchanged, green in the shipped web (9233685) and iOS (0bf9478/016de66) CI runs."}]}
+{"v":1,"lamport":5,"session":"7823c41f-2319-4beb-9912-13357a7e18fc","ops":[{"kind":"set_status","status":"done"},{"kind":"link_commit","sha":"cc1a543ef8759884a9ada306b0a63e9850380041"}]}
