@@ -392,17 +392,17 @@ func newUpdateBlockCmd(d cmd.Deps) *cobra.Command {
 	}
 	c.Flags().StringVar(&session, "session", "", "Claude session id (defaults to $CLAUDE_CODE_SESSION_ID)")
 	c.Flags().StringVar(&cwd, "cwd", "", "working directory (recorded on the request; artifacts are per-window, not resolved by directory)")
-	c.Flags().StringVar(&after, "after", "", "insert a new block after this block id (append when absent or unknown)")
+	c.Flags().StringVar(&after, "after", "", "insert a new block after a top-level block, or into a card after a child (unknown ids error)")
 	c.Flags().BoolVar(&dryRun, "dry-run", false, "validate the single block only; print every violation and exit non-zero")
 	return c
 }
 
-// newRemoveBlockCmd removes a top-level block by id.
+// newRemoveBlockCmd removes a block by id.
 func newRemoveBlockCmd(d cmd.Deps) *cobra.Command {
 	var session, cwd string
 	c := &cobra.Command{
 		Use:   "remove-block <id>",
-		Short: "Remove a top-level block by id",
+		Short: "Remove a block by id",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(c *cobra.Command, args []string) error {
 			ctx := c.Context()
@@ -491,9 +491,9 @@ func newRoundCmd(d cmd.Deps) *cobra.Command {
 	return c
 }
 
-// newRevisingCmd declares the top-level block ids the agent is revising, with an
-// optional note. No ids and no note abandons the announcement; no ids with a note
-// is the doc-level drafting state.
+// newRevisingCmd declares the block ids the agent is revising, with an optional
+// note. Child ids resolve to their enclosing cards. No ids and no note abandons
+// the announcement; no ids with a note is the doc-level drafting state.
 func newRevisingCmd(d cmd.Deps) *cobra.Command {
 	var session, cwd, note string
 	c := &cobra.Command{

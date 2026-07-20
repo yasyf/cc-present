@@ -35,7 +35,7 @@ public struct BlockUpsertedPayload: Decodable, Equatable, Sendable {
     public var after: String?
 }
 
-/// BlockRemovedPayload removes the top-level block with `id`.
+/// BlockRemovedPayload removes the block with `id`, top-level or card child.
 public struct BlockRemovedPayload: Decodable, Equatable, Sendable {
     public var id: String
 }

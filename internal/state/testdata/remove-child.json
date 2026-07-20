@@ -1,0 +1,69 @@
+{
+  "name": "remove-child-restamps-card",
+  "events": [
+    {
+      "origin": "agent",
+      "type": "doc.replaced",
+      "seq": 1,
+      "payload": {
+        "revision": 1,
+        "doc": {
+          "version": 1,
+          "title": "T",
+          "blocks": [
+            {
+              "id": "c1",
+              "type": "card",
+              "children": [
+                { "id": "a1", "type": "approval", "prompt": "Remove me" },
+                { "id": "m1", "type": "markdown", "md": "Keep me" }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    { "origin": "human", "type": "submit", "seq": 2, "payload": { "revision": 1 } },
+    { "origin": "agent", "type": "block.removed", "seq": 3, "payload": { "id": "a1" } }
+  ],
+  "expected": {
+    "doc": {
+      "version": 1,
+      "title": "T",
+      "blocks": [
+        {
+          "id": "c1",
+          "type": "card",
+          "children": [{ "id": "m1", "type": "markdown", "md": "Keep me" }]
+        }
+      ]
+    },
+    "interactions": {
+      "submitted": { "value": true, "revision": 1 }
+    },
+    "rounds": {
+      "current": 2,
+      "blockRounds": { "c1": 2 },
+      "history": [
+        {
+          "number": 1,
+          "blocks": [
+            {
+              "id": "c1",
+              "type": "card",
+              "children": [
+                { "id": "a1", "type": "approval", "prompt": "Remove me" },
+                { "id": "m1", "type": "markdown", "md": "Keep me" }
+              ]
+            }
+          ],
+          "decisions": {},
+          "choices": {},
+          "inputs": {},
+          "feedback": {},
+          "submittedRevision": 1
+        }
+      ]
+    }
+  }
+}

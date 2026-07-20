@@ -23,7 +23,7 @@ import (
 const seedDoc = `{"version":1,"title":"T","blocks":[
   {"id":"a1","type":"approval","allowFeedback":false},
   {"id":"a2","type":"approval"},
-  {"id":"ch1","type":"choice","options":[{"id":"o1","label":"A"},{"id":"o2","label":"B"}]},
+  {"id":"ch1","type":"choice","options":[{"id":"o1","label":"A","visual":{"id":"v1","type":"code","lang":"go","code":"x"}},{"id":"o2","label":"B"}]},
   {"id":"ch2","type":"choice","multi":true,"options":[{"id":"m1","label":"A"},{"id":"m2","label":"B"}]},
   {"id":"in1","type":"input","label":"Name"}
 ]}`
@@ -148,6 +148,11 @@ func TestInteractionValidation(t *testing.T) {
 		{"submit future revision", `{"subject":"board--abcd0000","nonce":"s3","interaction":{"type":"submit","revision":999999}}`, 400, "does not exist"},
 		{"submit negative revision", `{"subject":"board--abcd0000","nonce":"s4","interaction":{"type":"submit","revision":-1}}`, 400, "does not exist"},
 		{"unknown block", `{"subject":"board--abcd0000","nonce":"n4","interaction":{"type":"decision.created","blockId":"zzz","verdict":"approved"}}`, 400, "unknown block"},
+		{"decision on visual points to choice", `{"subject":"board--abcd0000","nonce":"visual-decision","interaction":{"type":"decision.created","blockId":"v1","verdict":"approved"}}`, 400, `block "v1" is the visual of option "o1" on choice "ch1"; address the choice`},
+		{"selection on visual points to choice", `{"subject":"board--abcd0000","nonce":"visual-choice","interaction":{"type":"choice.selected","blockId":"v1","optionIds":["o1"]}}`, 400, `block "v1" is the visual of option "o1" on choice "ch1"; address the choice`},
+		{"input on visual points to choice", `{"subject":"board--abcd0000","nonce":"visual-input","interaction":{"type":"input.submitted","blockId":"v1","text":"x"}}`, 400, `block "v1" is the visual of option "o1" on choice "ch1"; address the choice`},
+		{"pack interaction on visual points to choice", `{"subject":"board--abcd0000","nonce":"visual-pack","interaction":{"type":"pack.interaction","blockId":"v1","payload":{}}}`, 400, `block "v1" is the visual of option "o1" on choice "ch1"; address the choice`},
+		{"feedback on visual points to choice", `{"subject":"board--abcd0000","nonce":"visual-feedback","interaction":{"type":"feedback.created","blockId":"v1","text":"x"}}`, 400, `block "v1" is the visual of option "o1" on choice "ch1"; address the choice`},
 		{"wrong kind", `{"subject":"board--abcd0000","nonce":"n5","interaction":{"type":"decision.created","blockId":"ch1","verdict":"approved"}}`, 400, "not an approval"},
 		{"bad verdict", `{"subject":"board--abcd0000","nonce":"n6","interaction":{"type":"decision.created","blockId":"a2","verdict":"maybe"}}`, 400, "invalid verdict"},
 		{"unknown choice option", `{"subject":"board--abcd0000","nonce":"n7","interaction":{"type":"choice.selected","blockId":"ch1","optionIds":["o9"]}}`, 400, "no option"},

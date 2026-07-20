@@ -195,7 +195,7 @@ func (s *State) apply(ev Event) error {
 	case "block.upserted":
 		var p struct {
 			Block json.RawMessage `json:"block"`
-			After *string         `json:"after"`
+			After string          `json:"after"`
 		}
 		if err := json.Unmarshal(ev.Payload, &p); err != nil {
 			return err
@@ -204,9 +204,15 @@ func (s *State) apply(ev Event) error {
 		if err != nil {
 			return err
 		}
-		s.upsert(b, p.After)
-		s.Rounds.BlockRounds[b.BlockID()] = s.Rounds.Current
-		s.revisingOnUpsert(b.BlockID())
+		topID := b.BlockID()
+		if loc, ok := doc.Locate(s.Doc, b.BlockID()); ok {
+			topID = loc.TopID
+		} else if loc, ok := doc.Locate(s.Doc, p.After); ok && loc.Kind == doc.CardChild {
+			topID = loc.TopID
+		}
+		s.Doc.Blocks = doc.UpsertBlocks(s.Doc.Blocks, b, p.After)
+		s.Rounds.BlockRounds[topID] = s.Rounds.Current
+		s.revisingOnUpsert(topID)
 		return nil
 	case "block.removed":
 		var p struct {
@@ -215,9 +221,19 @@ func (s *State) apply(ev Event) error {
 		if err := json.Unmarshal(ev.Payload, &p); err != nil {
 			return err
 		}
-		s.remove(p.ID)
-		delete(s.Rounds.BlockRounds, p.ID)
-		s.revisingOnRemove(p.ID)
+		loc, ok := doc.Locate(s.Doc, p.ID)
+		if !ok || loc.Kind == doc.OptionVisual {
+			return nil
+		}
+		blocks, topID := doc.RemoveBlock(s.Doc.Blocks, p.ID)
+		s.Doc.Blocks = blocks
+		if loc.Kind == doc.CardChild {
+			s.Rounds.BlockRounds[topID] = s.Rounds.Current
+			s.revisingOnRemove(topID)
+			return nil
+		}
+		delete(s.Rounds.BlockRounds, loc.TopID)
+		s.revisingOnRemove(loc.TopID)
 		return nil
 	case "reply.created":
 		var p struct {
@@ -354,40 +370,6 @@ func (s *State) apply(ev Event) error {
 		return nil
 	default:
 		return fmt.Errorf("unknown event type %q", ev.Type)
-	}
-}
-
-func (s *State) upsert(b doc.Block, after *string) {
-	id := b.BlockID()
-	for i, existing := range s.Doc.Blocks {
-		if existing.BlockID() == id {
-			s.Doc.Blocks[i] = b
-			return
-		}
-	}
-	if after != nil {
-		for i, existing := range s.Doc.Blocks {
-			if existing.BlockID() == *after {
-				s.insertAt(i+1, b)
-				return
-			}
-		}
-	}
-	s.Doc.Blocks = append(s.Doc.Blocks, b)
-}
-
-func (s *State) insertAt(idx int, b doc.Block) {
-	s.Doc.Blocks = append(s.Doc.Blocks, nil)
-	copy(s.Doc.Blocks[idx+1:], s.Doc.Blocks[idx:])
-	s.Doc.Blocks[idx] = b
-}
-
-func (s *State) remove(id string) {
-	for i, b := range s.Doc.Blocks {
-		if b.BlockID() == id {
-			s.Doc.Blocks = append(s.Doc.Blocks[:i], s.Doc.Blocks[i+1:]...)
-			return
-		}
 	}
 }
 

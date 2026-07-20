@@ -1,0 +1,70 @@
+{
+  "name": "round-child-upsert-restamps-card",
+  "events": [
+    {
+      "origin": "agent",
+      "type": "doc.replaced",
+      "seq": 1,
+      "payload": {
+        "revision": 1,
+        "doc": {
+          "version": 1,
+          "title": "T",
+          "blocks": [
+            {
+              "id": "c1",
+              "type": "card",
+              "children": [{ "id": "a1", "type": "approval", "prompt": "Version one?" }]
+            }
+          ]
+        }
+      }
+    },
+    { "origin": "human", "type": "submit", "seq": 2, "payload": { "revision": 1 } },
+    {
+      "origin": "agent",
+      "type": "block.upserted",
+      "seq": 3,
+      "payload": {
+        "block": { "id": "a1", "type": "approval", "prompt": "Version two?" }
+      }
+    }
+  ],
+  "expected": {
+    "doc": {
+      "version": 1,
+      "title": "T",
+      "blocks": [
+        {
+          "id": "c1",
+          "type": "card",
+          "children": [{ "id": "a1", "type": "approval", "prompt": "Version two?" }]
+        }
+      ]
+    },
+    "interactions": {
+      "submitted": { "value": true, "revision": 1 }
+    },
+    "rounds": {
+      "current": 2,
+      "blockRounds": { "c1": 2 },
+      "history": [
+        {
+          "number": 1,
+          "blocks": [
+            {
+              "id": "c1",
+              "type": "card",
+              "children": [{ "id": "a1", "type": "approval", "prompt": "Version one?" }]
+            }
+          ],
+          "decisions": {},
+          "choices": {},
+          "inputs": {},
+          "feedback": {},
+          "submittedRevision": 1
+        }
+      ]
+    }
+  }
+}

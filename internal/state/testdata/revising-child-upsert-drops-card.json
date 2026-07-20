@@ -1,0 +1,48 @@
+{
+  "name": "revising-child-upsert-drops-card",
+  "events": [
+    {
+      "origin": "agent",
+      "type": "doc.replaced",
+      "seq": 1,
+      "payload": {
+        "revision": 1,
+        "doc": {
+          "version": 1,
+          "title": "T",
+          "blocks": [
+            {
+              "id": "c1",
+              "type": "card",
+              "children": [{ "id": "a1", "type": "approval", "prompt": "Version one?" }]
+            }
+          ]
+        }
+      }
+    },
+    { "origin": "agent", "type": "revising.changed", "seq": 2, "payload": { "blockIds": ["c1"], "note": "Reworking the card" } },
+    {
+      "origin": "agent",
+      "type": "block.upserted",
+      "seq": 3,
+      "payload": {
+        "block": { "id": "a1", "type": "approval", "prompt": "Version two?" }
+      }
+    }
+  ],
+  "expected": {
+    "doc": {
+      "version": 1,
+      "title": "T",
+      "blocks": [
+        {
+          "id": "c1",
+          "type": "card",
+          "children": [{ "id": "a1", "type": "approval", "prompt": "Version two?" }]
+        }
+      ]
+    },
+    "rounds": { "current": 1, "blockRounds": { "c1": 1 }, "history": [] },
+    "revising": { "blockIds": [] }
+  }
+}

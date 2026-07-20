@@ -323,13 +323,19 @@ private extension BoardState {
             }
             revising = Revising()
         case let .blockUpserted(payload):
+            let topID = upsertTopID(payload.block.id, after: payload.after)
             upsert(payload.block, after: payload.after)
-            rounds.blockRounds[payload.block.id] = rounds.current
-            revisingOnUpsert(payload.block.id)
+            rounds.blockRounds[topID] = rounds.current
+            revisingOnUpsert(topID)
         case let .blockRemoved(payload):
+            guard let location = locate(payload.id) else { return }
             remove(payload.id)
-            rounds.blockRounds.removeValue(forKey: payload.id)
-            revisingOnRemove(payload.id)
+            if location.kind == .cardChild {
+                rounds.blockRounds[location.topID] = rounds.current
+            } else {
+                rounds.blockRounds.removeValue(forKey: location.topID)
+            }
+            revisingOnRemove(location.topID)
         case let .replyCreated(payload):
             interactions.replies[payload.blockId, default: []].append(Reply(id: payload.id, md: payload.md))
         case let .presentClosed(payload):
@@ -392,22 +398,83 @@ private extension BoardState {
         }
     }
 
+    /// upsertTopID resolves the top-level id an upsert's bookkeeping keys on: the
+    /// enclosing top-level id when a block carries the id, the card's id when
+    /// `after` names one of its children, else the block's own id.
+    func upsertTopID(_ id: String, after: String?) -> String {
+        if let location = locate(id) {
+            return location.topID
+        }
+        if let after, let location = locate(after), location.kind == .cardChild {
+            return location.topID
+        }
+        return id
+    }
+
+    /// locate finds where id sits — a top-level block or a card child — or nil.
+    /// Only cards nest children, mirroring the Go doc.Locate.
+    func locate(_ id: String) -> Location? {
+        for block in doc.blocks {
+            if block.id == id {
+                return Location(kind: .topLevel, topID: block.id)
+            }
+            if case let .card(card) = block {
+                for child in card.children where child.id == id {
+                    return Location(kind: .cardChild, topID: block.id)
+                }
+            }
+        }
+        return nil
+    }
+
+    /// upsert inserts or replaces block by id, mirroring Go doc.UpsertBlocks. An
+    /// existing id replaces in place; a new id lands after `after` (top-level or
+    /// card child) or, on an absent or unknown `after`, appends at the top level.
     mutating func upsert(_ block: Block, after: String?) {
         let id = block.id
         if let index = doc.blocks.firstIndex(where: { $0.id == id }) {
             doc.blocks[index] = block
             return
         }
-        if let after, let index = doc.blocks.firstIndex(where: { $0.id == after }) {
-            doc.blocks.insert(block, at: index + 1)
-            return
+        for i in doc.blocks.indices {
+            if case .card(var card) = doc.blocks[i],
+               let childIndex = card.children.firstIndex(where: { $0.id == id }) {
+                card.children[childIndex] = block
+                doc.blocks[i] = .card(card)
+                return
+            }
+        }
+        if let after {
+            if let index = doc.blocks.firstIndex(where: { $0.id == after }) {
+                doc.blocks.insert(block, at: index + 1)
+                return
+            }
+            for i in doc.blocks.indices {
+                if case .card(var card) = doc.blocks[i],
+                   let childIndex = card.children.firstIndex(where: { $0.id == after }) {
+                    card.children.insert(block, at: childIndex + 1)
+                    doc.blocks[i] = .card(card)
+                    return
+                }
+            }
         }
         doc.blocks.append(block)
     }
 
+    /// remove deletes the block with id wherever it lives — a top-level block or a
+    /// card child — leaving the doc untouched when no block carries it.
     mutating func remove(_ id: String) {
         if let index = doc.blocks.firstIndex(where: { $0.id == id }) {
             doc.blocks.remove(at: index)
+            return
+        }
+        for i in doc.blocks.indices {
+            if case .card(var card) = doc.blocks[i],
+               let childIndex = card.children.firstIndex(where: { $0.id == id }) {
+                card.children.remove(at: childIndex)
+                doc.blocks[i] = .card(card)
+                return
+            }
         }
     }
 
@@ -460,6 +527,20 @@ private extension BoardState {
     func stampedRound(_ id: String) -> Int {
         rounds.blockRounds[id] ?? rounds.current
     }
+}
+
+/// LocationKind classifies where a block sits: at the top level or as a card's
+/// child. Mirrors the Go doc.LocationKind over the kinds the reducer partitions on.
+private enum LocationKind {
+    case topLevel
+    case cardChild
+}
+
+/// Location is a block's resolved position: its kind and the enclosing top-level
+/// block's id, which owns the round and revising bookkeeping.
+private struct Location {
+    var kind: LocationKind
+    var topID: String
 }
 
 /// idsOf collects the ids of a block slice plus one level of card children,

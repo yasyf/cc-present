@@ -1,0 +1,56 @@
+{
+  "name": "upsert-child-insert-after",
+  "events": [
+    {
+      "origin": "agent",
+      "type": "doc.replaced",
+      "seq": 1,
+      "payload": {
+        "revision": 1,
+        "doc": {
+          "version": 1,
+          "title": "T",
+          "blocks": [
+            {
+              "id": "c1",
+              "type": "card",
+              "children": [
+                { "id": "a1", "type": "approval", "prompt": "Approve?" },
+                { "id": "m1", "type": "markdown", "md": "Keep me last" }
+              ]
+            },
+            { "id": "m2", "type": "markdown", "md": "Keep me top-level" }
+          ]
+        }
+      }
+    },
+    {
+      "origin": "agent",
+      "type": "block.upserted",
+      "seq": 2,
+      "payload": {
+        "after": "a1",
+        "block": { "id": "in1", "type": "input", "label": "Inserted" }
+      }
+    }
+  ],
+  "expected": {
+    "doc": {
+      "version": 1,
+      "title": "T",
+      "blocks": [
+        {
+          "id": "c1",
+          "type": "card",
+          "children": [
+            { "id": "a1", "type": "approval", "prompt": "Approve?" },
+            { "id": "in1", "type": "input", "label": "Inserted" },
+            { "id": "m1", "type": "markdown", "md": "Keep me last" }
+          ]
+        },
+        { "id": "m2", "type": "markdown", "md": "Keep me top-level" }
+      ]
+    },
+    "rounds": { "current": 1, "blockRounds": { "c1": 1, "m2": 1 }, "history": [] }
+  }
+}

@@ -279,9 +279,9 @@ func validateInteraction(st *state.State, revision int, it *interaction, reg *pa
 		}
 		return mustJSON(p), nil
 	case EventFeedbackCreated:
-		b, topID, ok := findBlock(st.Doc, it.BlockID)
-		if !ok {
-			return nil, fmt.Errorf("unknown block %q", it.BlockID)
+		b, topID, err := findBlock(st.Doc, it.BlockID)
+		if err != nil {
+			return nil, err
 		}
 		var ap *doc.Approval
 		switch target := b.(type) {
@@ -348,9 +348,9 @@ func validateInteraction(st *state.State, revision int, it *interaction, reg *pa
 }
 
 func requireApproval(st *state.State, id string) (*doc.Approval, string, error) {
-	b, topID, ok := findBlock(st.Doc, id)
-	if !ok {
-		return nil, "", fmt.Errorf("unknown block %q", id)
+	b, topID, err := findBlock(st.Doc, id)
+	if err != nil {
+		return nil, "", err
 	}
 	ap, ok := b.(*doc.Approval)
 	if !ok {
@@ -360,9 +360,9 @@ func requireApproval(st *state.State, id string) (*doc.Approval, string, error) 
 }
 
 func requireChoice(st *state.State, id string) (*doc.Choice, string, error) {
-	b, topID, ok := findBlock(st.Doc, id)
-	if !ok {
-		return nil, "", fmt.Errorf("unknown block %q", id)
+	b, topID, err := findBlock(st.Doc, id)
+	if err != nil {
+		return nil, "", err
 	}
 	ch, ok := b.(*doc.Choice)
 	if !ok {
@@ -372,9 +372,9 @@ func requireChoice(st *state.State, id string) (*doc.Choice, string, error) {
 }
 
 func requireInput(st *state.State, id string) (*doc.Input, string, error) {
-	b, topID, ok := findBlock(st.Doc, id)
-	if !ok {
-		return nil, "", fmt.Errorf("unknown block %q", id)
+	b, topID, err := findBlock(st.Doc, id)
+	if err != nil {
+		return nil, "", err
 	}
 	in, ok := b.(*doc.Input)
 	if !ok {
@@ -384,9 +384,9 @@ func requireInput(st *state.State, id string) (*doc.Input, string, error) {
 }
 
 func requirePackBlock(st *state.State, id string) (*doc.PackBlock, string, error) {
-	b, topID, ok := findBlock(st.Doc, id)
-	if !ok {
-		return nil, "", fmt.Errorf("unknown block %q", id)
+	b, topID, err := findBlock(st.Doc, id)
+	if err != nil {
+		return nil, "", err
 	}
 	pb, ok := b.(*doc.PackBlock)
 	if !ok {
@@ -405,23 +405,20 @@ func requireCurrentRound(st *state.State, id, topID string) error {
 	return nil
 }
 
-// findBlock locates a block by id at the top level or one level deep inside a
-// card, mirroring where interactive blocks may appear. It also returns the id of
-// the enclosing top-level block — the block itself when top-level, or the card
-// when the block is a card child — which is the key the reducer stamps a round
-// against.
-func findBlock(d *doc.Doc, id string) (doc.Block, string, bool) {
-	for _, b := range d.Blocks {
-		if b.BlockID() == id {
-			return b, b.BlockID(), true
-		}
-		for _, child := range doc.Children(b) {
-			if child.BlockID() == id {
-				return child, b.BlockID(), true
-			}
-		}
+// findBlock locates an addressable block and returns its enclosing top-level id.
+func findBlock(d *doc.Doc, id string) (doc.Block, string, error) {
+	loc, ok := doc.Locate(d, id)
+	if !ok {
+		return nil, "", fmt.Errorf("unknown block %q", id)
 	}
-	return nil, "", false
+	if loc.Kind == doc.OptionVisual {
+		return nil, "", pointingError(id, loc)
+	}
+	return loc.Block, loc.TopID, nil
+}
+
+func pointingError(id string, loc doc.Location) error {
+	return fmt.Errorf("block %q is the visual of option %q on choice %q; address the choice", id, loc.OptionID, loc.ChoiceID)
 }
 
 // allowsFeedback reports whether an approval permits free-text feedback;

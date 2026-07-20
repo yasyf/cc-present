@@ -99,7 +99,7 @@ func (cl *Client) UpsertBlock(ctx context.Context, session, scope string, pid in
 	return err
 }
 
-// RemoveBlock removes a top-level block by id.
+// RemoveBlock removes a block by id.
 func (cl *Client) RemoveBlock(ctx context.Context, session, scope string, pid int, id string) error {
 	_, _, err := cl.do(ctx, OpRemoveBlock, session, scope, pid, body{ID: id})
 	return err
@@ -118,9 +118,9 @@ func (cl *Client) Round(ctx context.Context, session, scope string, pid int, tit
 	return res.Round, err
 }
 
-// Revising declares the agent's revising working set: the top-level block ids
-// being rewritten plus an optional shared note. No ids and no note abandons the
-// announcement; no ids with a note is the doc-level drafting state.
+// Revising declares the agent's revising working set plus an optional shared
+// note. Child ids resolve to their enclosing cards. No ids and no note abandons
+// the announcement; no ids with a note is the doc-level drafting state.
 func (cl *Client) Revising(ctx context.Context, session, scope string, pid int, blockIDs []string, note string) error {
 	_, _, err := cl.do(ctx, OpRevising, session, scope, pid, body{BlockIDs: blockIDs, Note: note})
 	return err

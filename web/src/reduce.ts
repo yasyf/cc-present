@@ -4,7 +4,7 @@
 // Replaying the log from seq 0 reconstructs a fresh tab's state. Both reducers
 // are driven by the same internal/state/testdata/*.json fixtures (reduce.test.ts).
 
-import type { Block, Doc } from './schema';
+import type { Block, Card, ChildBlock, Choice, Doc } from './schema';
 import type {
   Closed,
   Decision,
@@ -70,16 +70,21 @@ export function applyEvent(state: PresentState, ev: PresentEvent): PresentState 
       return { ...state, doc, rounds: { ...state.rounds, blockRounds }, revising: { blockIds: [] } };
     }
     case 'block.upserted': {
-      const blocks = upsert(state.doc.blocks, ev.payload.block, ev.payload.after);
-      const blockRounds = { ...state.rounds.blockRounds, [ev.payload.block.id]: state.rounds.current };
-      const revising = revisingOnUpsert(state.revising, ev.payload.block.id);
+      const { block, after } = ev.payload;
+      const topId = enclosingTopId(state.doc.blocks, block.id, after);
+      const blocks = upsert(state.doc.blocks, block, after);
+      const blockRounds = { ...state.rounds.blockRounds, [topId]: state.rounds.current };
+      const revising = revisingOnUpsert(state.revising, topId);
       return { ...state, doc: { ...state.doc, blocks }, rounds: { ...state.rounds, blockRounds }, revising };
     }
     case 'block.removed': {
+      const loc = locate(state.doc.blocks, ev.payload.id);
+      if (!loc || loc.kind === 'option-visual') return state;
       const blocks = remove(state.doc.blocks, ev.payload.id);
       const blockRounds = { ...state.rounds.blockRounds };
-      delete blockRounds[ev.payload.id];
-      const revising = revisingOnRemove(state.revising, ev.payload.id);
+      if (loc.kind === 'card-child') blockRounds[loc.topId] = state.rounds.current;
+      else delete blockRounds[loc.topId];
+      const revising = revisingOnRemove(state.revising, loc.topId);
       return { ...state, doc: { ...state.doc, blocks }, rounds: { ...state.rounds, blockRounds }, revising };
     }
     case 'reply.created': {
@@ -315,12 +320,70 @@ function filterFeedback(map: Record<string, Feedback[]>, ids: Set<string>): Reco
   return out;
 }
 
+// A block's resolved position, mirroring doc.Location: whether it sits at the top
+// level, as a card child, or as a choice option's visual, plus the id of the
+// enclosing top-level block whose round and revising bookkeeping the block keys.
+type LocationKind = 'top-level' | 'card-child' | 'option-visual';
+
+interface Location {
+  kind: LocationKind;
+  topId: string;
+}
+
+// locate mirrors doc.Locate: it finds `id` anywhere the document registers a
+// block — a top-level block, a card child, or a choice option's visual — and
+// reports the enclosing top-level id. undefined when no block carries `id`.
+function locate(blocks: readonly Block[], id: string): Location | undefined {
+  for (const b of blocks) {
+    if (b.id === id) return { kind: 'top-level', topId: b.id };
+    if (b.type === 'choice' && hasOptionVisual(b, id)) return { kind: 'option-visual', topId: b.id };
+    if (b.type === 'card') {
+      for (const child of b.children) {
+        if (child.id === id) return { kind: 'card-child', topId: b.id };
+        if (child.type === 'choice' && hasOptionVisual(child, id)) return { kind: 'option-visual', topId: b.id };
+      }
+    }
+  }
+  return undefined;
+}
+
+function hasOptionVisual(choice: Choice, id: string): boolean {
+  return choice.options.some((o) => o.visual?.id === id);
+}
+
+// enclosingTopId resolves the top-level id a block.upserted keys its round and
+// revising bookkeeping on, mirroring the reducer's Go logic: the block's own
+// enclosing top when it already exists, else the card one level up when `after`
+// names a card child, else the block's own id (a new top-level append/insert).
+function enclosingTopId(blocks: readonly Block[], id: string, after: string | undefined): string {
+  const existing = locate(blocks, id);
+  if (existing) return existing.topId;
+  if (after !== undefined) {
+    const afterLoc = locate(blocks, after);
+    if (afterLoc?.kind === 'card-child') return afterLoc.topId;
+  }
+  return id;
+}
+
+// upsert mirrors doc.UpsertBlocks: an existing id (top-level or card child)
+// replaces the block where it lives, order preserved; a new id lands after
+// `after` (top-level or as a new child of the card holding it), else appends at
+// the top level.
 function upsert(blocks: readonly Block[], block: Block, after: string | undefined): Block[] {
   const idx = blocks.findIndex((b) => b.id === block.id);
   if (idx !== -1) {
     const next = blocks.slice();
     next[idx] = block;
     return next;
+  }
+  for (const [i, b] of blocks.entries()) {
+    if (b.type !== 'card') continue;
+    const ci = b.children.findIndex((c) => c.id === block.id);
+    if (ci !== -1) {
+      const children = b.children.slice();
+      children[ci] = block as ChildBlock;
+      return withCardAt(blocks, i, b, children);
+    }
   }
   if (after !== undefined) {
     const afterIdx = blocks.findIndex((b) => b.id === after);
@@ -329,14 +392,46 @@ function upsert(blocks: readonly Block[], block: Block, after: string | undefine
       next.splice(afterIdx + 1, 0, block);
       return next;
     }
+    for (const [i, b] of blocks.entries()) {
+      if (b.type !== 'card') continue;
+      const ci = b.children.findIndex((c) => c.id === after);
+      if (ci !== -1) {
+        const children = b.children.slice();
+        children.splice(ci + 1, 0, block as ChildBlock);
+        return withCardAt(blocks, i, b, children);
+      }
+    }
   }
   return [...blocks, block];
 }
 
+// remove mirrors doc.RemoveBlock: it splices `id` from the top level or from the
+// card that holds it, copying the card and its children rather than mutating in
+// place; an id no block carries leaves the document unchanged.
 function remove(blocks: readonly Block[], id: string): Block[] {
   const idx = blocks.findIndex((b) => b.id === id);
-  if (idx === -1) return blocks.slice();
+  if (idx !== -1) {
+    const next = blocks.slice();
+    next.splice(idx, 1);
+    return next;
+  }
+  for (const [i, b] of blocks.entries()) {
+    if (b.type !== 'card') continue;
+    const ci = b.children.findIndex((c) => c.id === id);
+    if (ci !== -1) {
+      const children = b.children.slice();
+      children.splice(ci, 1);
+      return withCardAt(blocks, i, b, children);
+    }
+  }
+  return blocks.slice();
+}
+
+// withCardAt shallow-copies the block slice, swapping the card at index `i` for a
+// copy carrying the new children — the card object and its children array are
+// never mutated in place, since the result feeds React state.
+function withCardAt(blocks: readonly Block[], i: number, card: Card, children: ChildBlock[]): Block[] {
   const next = blocks.slice();
-  next.splice(idx, 1);
+  next[i] = { ...card, children };
   return next;
 }
