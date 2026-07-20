@@ -22,6 +22,14 @@ private func approval(_ id: String) -> Block {
     .approval(Block.Approval(id: id))
 }
 
+private func draft(_ id: String) -> Block {
+    .draft(Block.Draft(id: id, lang: "markdown", text: "line one\nline two"))
+}
+
+private func triage(_ id: String, _ itemIds: [String]) -> Block {
+    .triage(Block.Triage(id: id, items: itemIds.map { Block.Item(id: $0, label: $0.uppercased()) }))
+}
+
 @Test func flattenInlinesCardChildrenOneLevel() {
     let blocks: [Block] = [
         .approval(Block.Approval(id: "top-ap")),
@@ -70,6 +78,63 @@ private func approval(_ id: String) -> Block {
     #expect(items.map(\.id) == ["r1", "ap1"])
     #expect(items.map(\.kind) == [.pack, .approval])
     #expect(items.map(\.decided) == [true, false])
+}
+
+@Test func submitItemsTalliesTriageOnceAndNeverDraft() {
+    let blocks: [Block] = [
+        draft("d1"),
+        triage("t1", ["i1", "i2"]),
+    ]
+    let interactions = Interactions(triage: ["t1": ["i1": Decision(verdict: "approved"), "i2": Decision(verdict: "rejected")]])
+
+    let items = submitItems(blocks, interactions, [])
+
+    // The draft never tallies; the triage block counts once, decided when every item has a verdict.
+    #expect(items.map(\.id) == ["t1"])
+    #expect(items.map(\.kind) == [.triage])
+    #expect(items.map(\.decided) == [true])
+}
+
+@Test func isDecidedTriageRequiresEveryItemVerdict() {
+    let block = triage("t1", ["i1", "i2"])
+
+    #expect(isDecided(block, Interactions()) == false)
+    #expect(isDecided(block, Interactions(triage: ["t1": ["i1": Decision(verdict: "approved")]])) == false)
+    #expect(isDecided(
+        block,
+        Interactions(triage: ["t1": ["i1": Decision(verdict: "approved"), "i2": Decision(verdict: "rejected")]])
+    ) == true)
+}
+
+@Test func isDecidedDraftIsNeverDecided() {
+    let block = draft("d1")
+
+    #expect(isDecided(block, Interactions()) == false)
+    #expect(isDecided(
+        block,
+        Interactions(annotations: ["d1": [Annotation(id: "a1", anchor: "1-1#abcd", text: "note", quote: "line one")]])
+    ) == false)
+}
+
+@Test func roundTallyCountsTriageItemVerdictsIndividually() {
+    let record = RoundRecord(
+        number: 6,
+        blocks: [
+            .approval(Block.Approval(id: "ap1")),
+            triage("t1", ["i1", "i2", "i3"]),
+        ],
+        decisions: ["ap1": Decision(verdict: "approved")],
+        triage: ["t1": [
+            "i1": Decision(verdict: "approved"),
+            "i2": Decision(verdict: "approved"),
+            "i3": Decision(verdict: "rejected"),
+        ]]
+    )
+
+    let tally = roundTally(record)
+
+    // Two item approvals plus the approval block, one item rejection; no picks or notes.
+    #expect(tally == RoundTally(approved: 3, rejected: 1, picks: 0, notes: 0))
 }
 
 @Test func isDecidedTreatsEmptyChoiceSelectionAsUndecided() {
@@ -283,6 +348,12 @@ private let replyThreadCases: [ReplyThreadCase] = [
         name: "choice",
         block: .choice(Block.Choice(id: "ch", options: [Block.Option(id: "o1", label: "A")])),
         shows: false
+    ),
+    ReplyThreadCase(name: "draft", block: .draft(Block.Draft(id: "d", lang: "swift", text: "x")), shows: true),
+    ReplyThreadCase(
+        name: "triage",
+        block: .triage(Block.Triage(id: "t", items: [Block.Item(id: "i", label: "I")])),
+        shows: true
     ),
     ReplyThreadCase(name: "input", block: .input(Block.Input(id: "in", label: "Note")), shows: true),
     ReplyThreadCase(name: "markdown", block: .markdown(Block.Markdown(id: "md", md: "hi")), shows: true),

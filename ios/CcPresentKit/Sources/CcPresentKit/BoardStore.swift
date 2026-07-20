@@ -143,6 +143,26 @@ public final class BoardStore {
         send(.input(blockId: blockId, text: text))
     }
 
+    /// annotate upserts one anchored mark on a draft block, keyed by `id` (a re-send
+    /// of the same id is an edit). Anchor is the ranged form; quote is advisory — the
+    /// daemon re-anchors and re-stamps both on echo.
+    @discardableResult
+    public func annotate(id: String, blockId: String, anchor: String, text: String, quote: String) -> Task<Void, Never> {
+        send(.annotation(id: id, blockId: blockId, anchor: anchor, text: text, quote: quote))
+    }
+
+    /// removeAnnotation splices one mark off a draft block by id.
+    @discardableResult
+    public func removeAnnotation(id: String, blockId: String) -> Task<Void, Never> {
+        send(.annotationRemoved(id: id, blockId: blockId))
+    }
+
+    /// triageDecide submits one partial-map merge of item verdicts on a triage block.
+    @discardableResult
+    public func triageDecide(blockId: String, verdicts: [String: TriageVerdict]) -> Task<Void, Never> {
+        send(.triage(blockId: blockId, verdicts: verdicts))
+    }
+
     /// submit records a human submit at `revision`.
     @discardableResult
     public func submit(revision: Int) -> Task<Void, Never> {
@@ -250,6 +270,13 @@ private struct PendingInteraction {
             return echoed.blockId == blockId && echoed.optionIds == optionIds && echoed.other == other
         case let (.input(blockId, text), .inputSubmitted(echoed)):
             return echoed.blockId == blockId && echoed.text == text
+        case let (.annotation(id, blockId, _, _, _), .annotationCreated(echoed)):
+            // Anchor and quote are re-stamped server-side, so identity is id + block.
+            return echoed.id == id && echoed.blockId == blockId
+        case let (.annotationRemoved(id, blockId), .annotationRemoved(echoed)):
+            return echoed.id == id && echoed.blockId == blockId
+        case let (.triage(blockId, verdicts), .triageDecided(echoed)):
+            return echoed.blockId == blockId && echoed.verdicts == verdicts
         case let (.submit(revision), .submit(echoed)):
             return echoed.revision == revision
         default:

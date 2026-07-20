@@ -40,6 +40,10 @@ struct BlockView: View {
             ApprovalBlockView(block: approval, store: store)
         case let .choice(choice):
             ChoiceBlockView(block: choice, store: store, client: client, packContext: packContext)
+        case let .draft(draft):
+            DraftBlockView(block: draft, store: store)
+        case let .triage(triage):
+            TriageBlockView(block: triage, store: store, client: client, packContext: packContext)
         case let .input(input):
             InputBlockView(block: input, store: store)
         case let .markdown(markdown):

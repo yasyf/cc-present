@@ -73,6 +73,8 @@ public enum Block: Codable, Equatable, Sendable {
     case card(Card)
     case approval(Approval)
     case choice(Choice)
+    case draft(Draft)
+    case triage(Triage)
     case input(Input)
     case markdown(Markdown)
     case code(Code)
@@ -236,6 +238,73 @@ public enum Block: Codable, Equatable, Sendable {
             self.prompt = prompt
             self.multi = multi
             self.options = options
+        }
+    }
+
+    /// Draft is a document under line-anchored markup, rendered as numbered source
+    /// lines a human annotates by content-addressed anchor. Lang selects highlighting;
+    /// title is an optional single-line caption. It carries no human state — the
+    /// annotations live in the separate event reduction (see Reduce.swift).
+    public struct Draft: Codable, Equatable, Sendable {
+        public var id: String
+        public var lang: String
+        public var text: String
+        public var title: String?
+
+        public init(id: String, lang: String, text: String, title: String? = nil) {
+            self.id = id
+            self.lang = lang
+            self.text = text
+            self.title = title
+        }
+    }
+
+    /// Item is one entry in a Triage block: a labelled row a human accepts or rejects.
+    /// It carries the same optional rich body as a Choice Option — hint, markdown,
+    /// facts, a Tier-2 detail, and a restricted visual — minus the author's
+    /// recommendation, which has no meaning per item.
+    public struct Item: Codable, Equatable, Sendable {
+        public var id: String
+        public var label: String
+        public var hint: String?
+        public var md: String?
+        public var facts: [Fact]?
+        public var detail: Detail?
+        public var visual: OptionVisual?
+
+        public init(
+            id: String,
+            label: String,
+            hint: String? = nil,
+            md: String? = nil,
+            facts: [Fact]? = nil,
+            detail: Detail? = nil,
+            visual: OptionVisual? = nil
+        ) {
+            self.id = id
+            self.label = label
+            self.hint = hint
+            self.md = md
+            self.facts = facts
+            self.detail = detail
+            self.visual = visual
+        }
+    }
+
+    /// Triage is a multi-item accept/reject control: each Item takes its own verdict,
+    /// with optional per-item notes. AllowNotes defaults to true at render time when
+    /// omitted; prompt is an optional heading.
+    public struct Triage: Codable, Equatable, Sendable {
+        public var id: String
+        public var prompt: String?
+        public var allowNotes: Bool?
+        public var items: [Item]
+
+        public init(id: String, prompt: String? = nil, allowNotes: Bool? = nil, items: [Item]) {
+            self.id = id
+            self.prompt = prompt
+            self.allowNotes = allowNotes
+            self.items = items
         }
     }
 
@@ -504,6 +573,8 @@ public enum Block: Codable, Equatable, Sendable {
         case let .card(block): block.id
         case let .approval(block): block.id
         case let .choice(block): block.id
+        case let .draft(block): block.id
+        case let .triage(block): block.id
         case let .input(block): block.id
         case let .markdown(block): block.id
         case let .code(block): block.id
@@ -527,6 +598,8 @@ public enum Block: Codable, Equatable, Sendable {
         case .card: "card"
         case .approval: "approval"
         case .choice: "choice"
+        case .draft: "draft"
+        case .triage: "triage"
         case .input: "input"
         case .markdown: "markdown"
         case .code: "code"
@@ -556,6 +629,8 @@ public enum Block: Codable, Equatable, Sendable {
         case "card": self = try .card(Card(from: decoder))
         case "approval": self = try .approval(Approval(from: decoder))
         case "choice": self = try .choice(Choice(from: decoder))
+        case "draft": self = try .draft(Draft(from: decoder))
+        case "triage": self = try .triage(Triage(from: decoder))
         case "input": self = try .input(Input(from: decoder))
         case "markdown": self = try .markdown(Markdown(from: decoder))
         case "code": self = try .code(Code(from: decoder))
@@ -598,6 +673,8 @@ public enum Block: Codable, Equatable, Sendable {
         case let .card(block): try block.encode(to: encoder)
         case let .approval(block): try block.encode(to: encoder)
         case let .choice(block): try block.encode(to: encoder)
+        case let .draft(block): try block.encode(to: encoder)
+        case let .triage(block): try block.encode(to: encoder)
         case let .input(block): try block.encode(to: encoder)
         case let .markdown(block): try block.encode(to: encoder)
         case let .code(block): try block.encode(to: encoder)

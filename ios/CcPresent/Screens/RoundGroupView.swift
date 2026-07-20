@@ -106,6 +106,21 @@ struct RoundGroupView: View {
             for entry in record.feedback[block.id] ?? [] {
                 store.feedback(blockId: block.id, text: entry.text)
             }
+            for annotation in record.annotations[block.id] ?? [] {
+                store.annotate(
+                    id: annotation.id,
+                    blockId: block.id,
+                    anchor: annotation.anchor,
+                    text: annotation.text,
+                    quote: annotation.quote
+                )
+            }
+            if let verdicts = record.triage[block.id], !verdicts.isEmpty {
+                store.triageDecide(
+                    blockId: block.id,
+                    verdicts: verdicts.mapValues { TriageVerdict(verdict: $0.verdict, note: $0.note) }
+                )
+            }
         }
         return store
     }

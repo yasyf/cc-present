@@ -17,6 +17,9 @@ public enum Interaction: Encodable, Equatable, Sendable {
     case feedback(id: String, blockId: String, text: String)
     case choice(blockId: String, optionIds: [String], other: String? = nil)
     case input(blockId: String, text: String)
+    case annotation(id: String, blockId: String, anchor: String, text: String, quote: String)
+    case annotationRemoved(id: String, blockId: String)
+    case triage(blockId: String, verdicts: [String: TriageVerdict])
     case submit(revision: Int)
 
     /// type is the wire discriminant, matching the human event names.
@@ -26,6 +29,9 @@ public enum Interaction: Encodable, Equatable, Sendable {
         case .feedback: "feedback.created"
         case .choice: "choice.selected"
         case .input: "input.submitted"
+        case .annotation: "annotation.created"
+        case .annotationRemoved: "annotation.removed"
+        case .triage: "triage.decided"
         case .submit: "submit"
         }
     }
@@ -38,12 +44,15 @@ public enum Interaction: Encodable, Equatable, Sendable {
         case let .feedback(_, blockId, _): blockId
         case let .choice(blockId, _, _): blockId
         case let .input(blockId, _): blockId
+        case let .annotation(_, blockId, _, _, _): blockId
+        case let .annotationRemoved(_, blockId): blockId
+        case let .triage(blockId, _): blockId
         case .submit: nil
         }
     }
 
     private enum CodingKeys: String, CodingKey {
-        case type, blockId, verdict, note, id, text, optionIds, other, revision
+        case type, blockId, verdict, note, id, text, optionIds, other, anchor, quote, verdicts, revision
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -65,6 +74,18 @@ public enum Interaction: Encodable, Equatable, Sendable {
         case let .input(blockId, text):
             try container.encode(blockId, forKey: .blockId)
             try container.encode(text, forKey: .text)
+        case let .annotation(id, blockId, anchor, text, quote):
+            try container.encode(id, forKey: .id)
+            try container.encode(blockId, forKey: .blockId)
+            try container.encode(anchor, forKey: .anchor)
+            try container.encode(text, forKey: .text)
+            try container.encode(quote, forKey: .quote)
+        case let .annotationRemoved(id, blockId):
+            try container.encode(id, forKey: .id)
+            try container.encode(blockId, forKey: .blockId)
+        case let .triage(blockId, verdicts):
+            try container.encode(blockId, forKey: .blockId)
+            try container.encode(verdicts, forKey: .verdicts)
         case let .submit(revision):
             try container.encode(revision, forKey: .revision)
         }

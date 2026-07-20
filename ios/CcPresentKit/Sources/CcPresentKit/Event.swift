@@ -94,6 +94,62 @@ public struct InputSubmittedPayload: Decodable, Equatable, Sendable {
     public var text: String
 }
 
+/// AnnotationCreatedPayload upserts one anchored mark on a draft block, keyed by id.
+/// Anchor and quote are server-normalized on echo, so a client-sent value is
+/// advisory and never assumed to round-trip.
+public struct AnnotationCreatedPayload: Decodable, Equatable, Sendable {
+    public var id: String
+    public var blockId: String
+    public var anchor: String
+    public var text: String
+    public var quote: String
+}
+
+/// AnnotationRemovedPayload splices one mark off a draft block by id.
+public struct AnnotationRemovedPayload: Decodable, Equatable, Sendable {
+    public var id: String
+    public var blockId: String
+}
+
+/// TriageVerdict is one item's decision inside a triage merge: a verdict string
+/// (approved, rejected, or cleared) with an optional note. It is the wire shape
+/// shared by the outgoing interaction and the echoed payload; an empty note is
+/// omitted on the wire (the daemon's omitempty).
+public struct TriageVerdict: Codable, Equatable, Sendable {
+    public var verdict: String
+    public var note: String?
+
+    public init(verdict: String, note: String? = nil) {
+        self.verdict = verdict
+        self.note = note
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case verdict, note
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        verdict = try container.decode(String.self, forKey: .verdict)
+        note = try container.decodeIfPresent(String.self, forKey: .note)
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(verdict, forKey: .verdict)
+        if let note, !note.isEmpty {
+            try container.encode(note, forKey: .note)
+        }
+    }
+}
+
+/// TriageDecidedPayload is one partial-map merge over a triage block's items, each
+/// item last-write-wins; a `cleared` verdict deletes that item's entry.
+public struct TriageDecidedPayload: Decodable, Equatable, Sendable {
+    public var blockId: String
+    public var verdicts: [String: TriageVerdict]
+}
+
 /// PackInteractionPayload records a last-write-wins interaction on a pack block.
 /// `payload` is the pack-declared JSON body, held verbatim so a client that does
 /// not model the pack still round-trips it.
@@ -126,6 +182,9 @@ public enum EventPayload: Equatable, Sendable {
     case choiceSelected(ChoiceSelectedPayload)
     case feedbackCreated(FeedbackCreatedPayload)
     case inputSubmitted(InputSubmittedPayload)
+    case annotationCreated(AnnotationCreatedPayload)
+    case annotationRemoved(AnnotationRemovedPayload)
+    case triageDecided(TriageDecidedPayload)
     case packInteraction(PackInteractionPayload)
     case submit(SubmitPayload)
     case revisingChanged(RevisingChangedPayload)
@@ -165,6 +224,9 @@ public struct Event: Decodable, Equatable, Sendable {
             case "choice.selected": return try .choiceSelected(rawPayload.decode(ChoiceSelectedPayload.self))
             case "feedback.created": return try .feedbackCreated(rawPayload.decode(FeedbackCreatedPayload.self))
             case "input.submitted": return try .inputSubmitted(rawPayload.decode(InputSubmittedPayload.self))
+            case "annotation.created": return try .annotationCreated(rawPayload.decode(AnnotationCreatedPayload.self))
+            case "annotation.removed": return try .annotationRemoved(rawPayload.decode(AnnotationRemovedPayload.self))
+            case "triage.decided": return try .triageDecided(rawPayload.decode(TriageDecidedPayload.self))
             case "pack.interaction": return try .packInteraction(rawPayload.decode(PackInteractionPayload.self))
             case "submit": return try .submit(rawPayload.decode(SubmitPayload.self))
             case "revising.changed": return try .revisingChanged(rawPayload.decode(RevisingChangedPayload.self))

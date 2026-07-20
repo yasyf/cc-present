@@ -23,7 +23,7 @@ func showsNativeReplyThread(_ block: Block) -> Bool {
     switch block {
     case .approval, .choice, .pack:
         false
-    case .section, .card, .input, .markdown, .code, .diff, .diagram, .image, .table, .progress,
+    case .section, .card, .draft, .triage, .input, .markdown, .code, .diff, .diagram, .image, .table, .progress,
          .chart, .term, .filetree, .record:
         true
     }
@@ -85,6 +85,7 @@ struct SubmitItem: Equatable {
     enum Kind: Equatable {
         case approval
         case choice
+        case triage
         case pack
     }
 
@@ -105,6 +106,8 @@ func submitItems(_ blocks: [Block], _ interactions: Interactions, _ packInteract
             out.append(SubmitItem(id: approval.id, kind: .approval, decided: isDecided(block, interactions)))
         case let .choice(choice):
             out.append(SubmitItem(id: choice.id, kind: .choice, decided: isDecided(block, interactions)))
+        case let .triage(triage):
+            out.append(SubmitItem(id: triage.id, kind: .triage, decided: isDecided(block, interactions)))
         case let .pack(pack):
             if packInteractive.contains(pack.packType) {
                 out.append(SubmitItem(id: pack.id, kind: .pack, decided: isDecided(block, interactions)))
@@ -130,6 +133,8 @@ func isDecided(_ block: Block, _ interactions: Interactions) -> Bool {
         } else {
             false
         }
+    case let .triage(triage):
+        triage.items.allSatisfy { interactions.triage[triage.id]?[$0.id] != nil }
     case let .pack(pack):
         interactions.packs[pack.id] != nil
     default:
@@ -175,6 +180,15 @@ func roundTally(_ record: RoundRecord) -> RoundTally {
         case let .choice(choice):
             if let selection = record.choices[choice.id], !selection.optionIds.isEmpty || selection.other != nil {
                 picks += 1
+            }
+        case let .triage(triage):
+            let verdicts = record.triage[triage.id] ?? [:]
+            for item in triage.items {
+                switch verdicts[item.id]?.verdict {
+                case "approved": approved += 1
+                case "rejected": rejected += 1
+                default: break
+                }
             }
         case let .input(input):
             let text = record.inputs[input.id]?.text.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""

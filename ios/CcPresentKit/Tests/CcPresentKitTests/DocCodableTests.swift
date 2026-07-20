@@ -329,6 +329,66 @@ struct DocCodableTests {
         }
     }
 
+    @Test("draft and triage blocks decode and round-trip exactly")
+    func draftAndTriageRoundTrip() throws {
+        // Draft round-trips with and without a title.
+        let draft = Block.draft(Block.Draft(id: "d1", lang: "swift", text: "let x = 1\nreturn x", title: "Patch"))
+        #expect(try roundTrip(draft) == draft)
+        let draftNoTitle = Block.draft(Block.Draft(id: "d2", lang: "markdown", text: "One line."))
+        #expect(try roundTrip(draftNoTitle) == draftNoTitle)
+
+        // Triage round-trips with prompt, allowNotes, and rich items (facts/detail/visual).
+        let triage = Block.triage(Block.Triage(
+            id: "t1",
+            prompt: "Sort these",
+            allowNotes: false,
+            items: [
+                Block.Item(
+                    id: "i1",
+                    label: "First",
+                    hint: "a hint",
+                    md: "**body**",
+                    facts: [Block.Fact(label: "Risk", value: "low", tone: "good")],
+                    detail: Block.Detail(pros: ["fast"], cons: ["risky"]),
+                    visual: .code(Block.Code(id: "v1", lang: "go", code: "x := 1"))
+                ),
+                Block.Item(id: "i2", label: "Second"),
+            ]
+        ))
+        #expect(try roundTrip(triage) == triage)
+
+        // Hand-written JSON decodes into the right cases with the right fields.
+        #expect(try decoder.decode(Block.self, from: Data(#"""
+        {"id":"d1","type":"draft","lang":"go","text":"package main"}
+        """#.utf8)) == .draft(Block.Draft(id: "d1", lang: "go", text: "package main")))
+
+        let decodedTriage = try decoder.decode(Block.self, from: Data(#"""
+        {"id":"t1","type":"triage","prompt":"P","items":[
+          {"id":"i1","label":"One","hint":"h",
+           "visual":{"id":"v1","type":"diagram","kind":"mermaid","source":"graph TD; A-->B"}},
+          {"id":"i2","label":"Two"}]}
+        """#.utf8))
+        guard case let .triage(tr) = decodedTriage else {
+            Issue.record("decoded block is not a triage")
+            return
+        }
+        #expect(tr.items.count == 2)
+        #expect(tr.items[0].hint == "h")
+        #expect(tr.items[0].visual == .diagram(Block.Diagram(id: "v1", kind: "mermaid", source: "graph TD; A-->B")))
+        #expect(tr.allowNotes == nil)
+    }
+
+    @Test("a triage item's visual of a disallowed type is a thrown decode error")
+    func triageItemVisualAllowlistThrows() {
+        let json = Data(#"""
+        {"id":"t1","type":"triage","items":[
+          {"id":"i1","label":"A","visual":{"id":"v1","type":"approval"}}]}
+        """#.utf8)
+        #expect(throws: DecodingError.self) {
+            _ = try decoder.decode(Block.self, from: json)
+        }
+    }
+
     @Test("the presentation hint decodes to its enum, is nil when absent, and rejects an unknown value")
     func presentationHintDecodes() throws {
         let withHint = try decoder.decode(

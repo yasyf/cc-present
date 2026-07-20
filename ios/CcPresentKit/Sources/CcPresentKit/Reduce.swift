@@ -76,6 +76,33 @@ public struct Reply: Decodable, Equatable, Sendable {
     }
 }
 
+/// Annotation is one anchored mark a human placed on a draft block. Anchor is an
+/// opaque content-anchor string the reducer never parses; quote is the
+/// server-stamped text of the anchored lines at creation.
+public struct Annotation: Decodable, Equatable, Sendable {
+    public var id: String
+    public var anchor: String
+    public var text: String
+    public var quote: String
+
+    public init(id: String, anchor: String, text: String, quote: String) {
+        self.id = id
+        self.anchor = anchor
+        self.text = text
+        self.quote = quote
+    }
+}
+
+/// ReduceError is a failure folding an event into state: a triage verdict outside
+/// the approved/rejected/cleared set, mirroring the Go reducer's error return.
+public enum ReduceError: Error, Equatable {
+    case invalidVerdict(String)
+}
+
+/// validTriageVerdicts is the accepted verdict set a triage merge is checked against,
+/// mirroring the Go reducer's validVerdict map.
+private let validTriageVerdicts: Set<String> = ["approved", "rejected", "cleared"]
+
 /// Submitted records whether a human has submitted and the last revision submitted.
 public struct Submitted: Decodable, Equatable, Sendable {
     public var value: Bool
@@ -108,6 +135,8 @@ public struct Interactions: Decodable, Equatable, Sendable {
     public var packs: [String: PackValue]
     public var feedback: [String: [Feedback]]
     public var replies: [String: [Reply]]
+    public var annotations: [String: [Annotation]]
+    public var triage: [String: [String: Decision]]
     public var submitted: Submitted
     public var closed: Closed
 
@@ -118,6 +147,8 @@ public struct Interactions: Decodable, Equatable, Sendable {
         packs: [String: PackValue] = [:],
         feedback: [String: [Feedback]] = [:],
         replies: [String: [Reply]] = [:],
+        annotations: [String: [Annotation]] = [:],
+        triage: [String: [String: Decision]] = [:],
         submitted: Submitted = Submitted(value: false, revision: 0),
         closed: Closed = Closed(value: false, summary: nil)
     ) {
@@ -127,12 +158,14 @@ public struct Interactions: Decodable, Equatable, Sendable {
         self.packs = packs
         self.feedback = feedback
         self.replies = replies
+        self.annotations = annotations
+        self.triage = triage
         self.submitted = submitted
         self.closed = closed
     }
 
     private enum CodingKeys: String, CodingKey {
-        case decisions, choices, inputs, packs, feedback, replies, submitted, closed
+        case decisions, choices, inputs, packs, feedback, replies, annotations, triage, submitted, closed
     }
 
     public init(from decoder: Decoder) throws {
@@ -143,6 +176,8 @@ public struct Interactions: Decodable, Equatable, Sendable {
         packs = try container.decodeIfPresent([String: PackValue].self, forKey: .packs) ?? [:]
         feedback = try container.decodeIfPresent([String: [Feedback]].self, forKey: .feedback) ?? [:]
         replies = try container.decodeIfPresent([String: [Reply]].self, forKey: .replies) ?? [:]
+        annotations = try container.decodeIfPresent([String: [Annotation]].self, forKey: .annotations) ?? [:]
+        triage = try container.decodeIfPresent([String: [String: Decision]].self, forKey: .triage) ?? [:]
         submitted = try container.decodeIfPresent(Submitted.self, forKey: .submitted)
             ?? Submitted(value: false, revision: 0)
         closed = try container.decodeIfPresent(Closed.self, forKey: .closed) ?? Closed(value: false, summary: nil)
@@ -161,6 +196,8 @@ public struct RoundRecord: Decodable, Equatable, Sendable {
     public var inputs: [String: InputValue]
     public var packs: [String: PackValue]
     public var feedback: [String: [Feedback]]
+    public var annotations: [String: [Annotation]]
+    public var triage: [String: [String: Decision]]
     public var submittedRevision: Int?
 
     public init(
@@ -172,6 +209,8 @@ public struct RoundRecord: Decodable, Equatable, Sendable {
         inputs: [String: InputValue] = [:],
         packs: [String: PackValue] = [:],
         feedback: [String: [Feedback]] = [:],
+        annotations: [String: [Annotation]] = [:],
+        triage: [String: [String: Decision]] = [:],
         submittedRevision: Int? = nil
     ) {
         self.number = number
@@ -182,11 +221,13 @@ public struct RoundRecord: Decodable, Equatable, Sendable {
         self.inputs = inputs
         self.packs = packs
         self.feedback = feedback
+        self.annotations = annotations
+        self.triage = triage
         self.submittedRevision = submittedRevision
     }
 
     private enum CodingKeys: String, CodingKey {
-        case number, title, blocks, decisions, choices, inputs, packs, feedback, submittedRevision
+        case number, title, blocks, decisions, choices, inputs, packs, feedback, annotations, triage, submittedRevision
     }
 
     public init(from decoder: Decoder) throws {
@@ -199,6 +240,8 @@ public struct RoundRecord: Decodable, Equatable, Sendable {
         inputs = try container.decodeIfPresent([String: InputValue].self, forKey: .inputs) ?? [:]
         packs = try container.decodeIfPresent([String: PackValue].self, forKey: .packs) ?? [:]
         feedback = try container.decodeIfPresent([String: [Feedback]].self, forKey: .feedback) ?? [:]
+        annotations = try container.decodeIfPresent([String: [Annotation]].self, forKey: .annotations) ?? [:]
+        triage = try container.decodeIfPresent([String: [String: Decision]].self, forKey: .triage) ?? [:]
         submittedRevision = try container.decodeIfPresent(Int.self, forKey: .submittedRevision)
     }
 }
@@ -294,17 +337,18 @@ public struct BoardState: Decodable, Equatable, Sendable {
     }
 }
 
-/// reduce folds the log into a BoardState. Events are processed in ascending seq
-/// order; last-write-wins interactions resolve by that order. The document starts
-/// empty, so a block.upserted before any doc.replaced appends to it.
-/// present.closed is terminal: any event ordered after it is a no-op, so a human
-/// interaction that races the close never poisons replay. channel.changed presence
-/// frames are skipped regardless of origin; any other unknown event type throws.
+/// reduce folds the log into a BoardState in ascending seq order; present.closed
+/// is terminal, so a racing interaction never poisons replay. Framework events in
+/// the shared log — channel.changed and the agent.* lifecycle — are skipped; any
+/// other unknown event type throws.
 public func reduce(events: [Event]) throws -> BoardState {
     var state = BoardState.initial
     let ordered = events.sorted { ($0.seq ?? 0) < ($1.seq ?? 0) }
     for event in ordered {
         if state.interactions.closed.value {
+            continue
+        }
+        if event.type.hasPrefix("agent.") {
             continue
         }
         try state.apply(event)
@@ -357,6 +401,45 @@ private extension BoardState {
             interactions.feedback[payload.blockId, default: []].append(Feedback(id: payload.id, text: payload.text))
         case let .inputSubmitted(payload):
             interactions.inputs[payload.blockId] = InputValue(text: payload.text, round: inputRound(payload.blockId))
+        case let .annotationCreated(payload):
+            let annotation = Annotation(
+                id: payload.id,
+                anchor: payload.anchor,
+                text: payload.text,
+                quote: payload.quote
+            )
+            var list = interactions.annotations[payload.blockId] ?? []
+            if let index = list.firstIndex(where: { $0.id == payload.id }) {
+                list[index] = annotation
+            } else {
+                list.append(annotation)
+            }
+            interactions.annotations[payload.blockId] = list
+        case let .annotationRemoved(payload):
+            guard var list = interactions.annotations[payload.blockId],
+                  let index = list.firstIndex(where: { $0.id == payload.id })
+            else {
+                return
+            }
+            list.remove(at: index)
+            interactions.annotations[payload.blockId] = list
+        case let .triageDecided(payload):
+            var block = interactions.triage[payload.blockId] ?? [:]
+            for (itemID, entry) in payload.verdicts {
+                guard validTriageVerdicts.contains(entry.verdict) else {
+                    throw ReduceError.invalidVerdict(entry.verdict)
+                }
+                if entry.verdict == "cleared" {
+                    block.removeValue(forKey: itemID)
+                } else {
+                    block[itemID] = Decision(verdict: entry.verdict, note: entry.note)
+                }
+            }
+            if block.isEmpty {
+                interactions.triage.removeValue(forKey: payload.blockId)
+            } else {
+                interactions.triage[payload.blockId] = block
+            }
         case let .submit(payload):
             interactions.submitted = Submitted(value: true, revision: payload.revision)
             if dirty() {
@@ -436,11 +519,12 @@ private extension BoardState {
             doc.blocks[index] = block
             return
         }
-        for i in doc.blocks.indices {
-            if case .card(var card) = doc.blocks[i],
-               let childIndex = card.children.firstIndex(where: { $0.id == id }) {
+        for blockIndex in doc.blocks.indices {
+            if case var .card(card) = doc.blocks[blockIndex],
+               let childIndex = card.children.firstIndex(where: { $0.id == id })
+            {
                 card.children[childIndex] = block
-                doc.blocks[i] = .card(card)
+                doc.blocks[blockIndex] = .card(card)
                 return
             }
         }
@@ -449,11 +533,12 @@ private extension BoardState {
                 doc.blocks.insert(block, at: index + 1)
                 return
             }
-            for i in doc.blocks.indices {
-                if case .card(var card) = doc.blocks[i],
-                   let childIndex = card.children.firstIndex(where: { $0.id == after }) {
+            for blockIndex in doc.blocks.indices {
+                if case var .card(card) = doc.blocks[blockIndex],
+                   let childIndex = card.children.firstIndex(where: { $0.id == after })
+                {
                     card.children.insert(block, at: childIndex + 1)
-                    doc.blocks[i] = .card(card)
+                    doc.blocks[blockIndex] = .card(card)
                     return
                 }
             }
@@ -468,11 +553,12 @@ private extension BoardState {
             doc.blocks.remove(at: index)
             return
         }
-        for i in doc.blocks.indices {
-            if case .card(var card) = doc.blocks[i],
-               let childIndex = card.children.firstIndex(where: { $0.id == id }) {
+        for blockIndex in doc.blocks.indices {
+            if case var .card(card) = doc.blocks[blockIndex],
+               let childIndex = card.children.firstIndex(where: { $0.id == id })
+            {
                 card.children.remove(at: childIndex)
-                doc.blocks[i] = .card(card)
+                doc.blocks[blockIndex] = .card(card)
                 return
             }
         }
@@ -501,6 +587,8 @@ private extension BoardState {
             inputs: filterMap(interactions.inputs, ids),
             packs: filterMap(interactions.packs, ids),
             feedback: filterMap(interactions.feedback, ids),
+            annotations: filterMap(interactions.annotations, ids),
+            triage: filterMap(interactions.triage, ids),
             submittedRevision: revision
         )
     }

@@ -36,7 +36,7 @@ struct FocusStep: Equatable {
 func decidableIds(_ blocks: [Block], _ packInteractive: Set<String>) -> [String] {
     flatten(blocks).compactMap { block in
         switch block {
-        case .approval, .choice, .input:
+        case .approval, .choice, .draft, .triage, .input:
             block.id
         case let .pack(pack):
             packInteractive.contains(pack.packType) ? block.id : nil
@@ -132,6 +132,10 @@ func stepTitle(_ step: FocusStep) -> String {
         approval.prompt ?? "Approval"
     case let .choice(choice):
         choice.prompt ?? "Choice"
+    case let .draft(draft):
+        draft.title ?? "Draft"
+    case let .triage(triage):
+        triage.prompt ?? "Triage"
     case let .input(input):
         input.label
     case let .section(section):
