@@ -140,10 +140,11 @@ Type dispatch at decode is lenient about packs and strict about everything else:
 ## Line anchors
 
 A `draft` annotation addresses lines of the block's `text` with a content anchor.
-The grammar, hash, and resolution rules below are wire contract — the daemon, the
-SPA, and the iOS client each implement them, and
-`internal/anchor/testdata/anchors.json` is the shared conformance corpus all three
-test suites execute.
+The grammar, hash, and resolution rules below are wire contract. The daemon uses
+ccx's own implementation — the `github.com/yasyf/cc-context/anchor` package — as
+the reference; the SPA and the iOS client each carry a conformant port, and
+`internal/anchor/testdata/anchors.json` is the shared corpus all three surfaces
+execute in their test suites.
 
 **Grammar.** An anchor fully matches
 `^(?:(\d+)(?:-(\d+))?#)?([a-hjkmnp-tv-z][0-9a-hjkmnp-tv-z]{3})$` — an optional
@@ -380,6 +381,14 @@ lifecycle events (`agent.started`, `agent.stopped`, `agent.result`,
 regardless of origin, so state is unaffected — the `agent.` prefix is the
 substrate's namespace and future additions to it must not break replay. Every
 other unknown event type is still an error.
+
+One accepted replay divergence: logs written before child ids became
+addressable can contain a `block.removed` naming a card child (then a no-op,
+now a splice) or a `block.upserted` whose `after` named a child (then appended
+at top level, now inserted into the card). Replaying such a log through the
+current reducers renders what the write *asked for* rather than what the old
+reducer did with it. Boards are short-lived approval artifacts; the divergence
+is accepted rather than version-gated.
 
 ### Reduced state
 

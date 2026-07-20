@@ -26,7 +26,7 @@ Mailbox items are doorbells; the daemon's state is the truth. On start — befor
 cc-present outcomes --no-doc --session "$SESSION"
 ```
 
-Handle anything already pending that lacks a response: feedback entries with no reply under their block, rejections never redrafted. A predecessor handler may have died mid-round; events stranded in its mailbox are recovered here, from state, never from its queue. Skip any feedback `id` that already has a reply — delivery is at-least-once and double-replying is the one mistake reconciliation can make.
+Handle anything already pending that lacks a response, using the board's own handled-markers: a feedback entry is owed a reply when its block's thread has no reply since it; a rejection is owed a redraft when the enclosing card's `status` is not `"redrafted"`. Choice, input, and pack values are durable and need no live reaction on reconcile — leave them for the submit digest unless the envelope's `guidance` says a pick reshapes later steps. A predecessor handler may have died mid-round; events stranded in its mailbox are recovered here, from state, never from its queue. When a marker is ambiguous (a second rejection on an already-redrafted card, a reply count that doesn't line up), prefer asking over acting: reply once under the block naming what you see, rather than double-redrafting.
 
 Then loop:
 

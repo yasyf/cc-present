@@ -60,16 +60,16 @@ var slugStrip = regexp.MustCompile(`[^a-z0-9]+`)
 // registers under; the steering channel targets only these agents.
 const presentHandlerType = "cc-present:present-handler"
 
-// isPresentHandler reports whether info is a cc-present handler agent — the only
+// IsPresentHandler reports whether info is a cc-present handler agent — the only
 // participant the human-interaction tee and the await greeting address.
-func isPresentHandler(info agent.Info) bool {
+func IsPresentHandler(info agent.Info) bool {
 	return strings.HasSuffix(info.AgentType, presentHandlerType)
 }
 
 // presentSubscribe tees the six human-interaction events into a handler agent's
 // mailbox as directives; every other agent subscribes to nothing.
 func presentSubscribe(_ subject.Subject, info agent.Info) []string {
-	if !isPresentHandler(info) {
+	if !IsPresentHandler(info) {
 		return nil
 	}
 	return []string{
@@ -81,7 +81,7 @@ func presentSubscribe(_ subject.Subject, info agent.Info) []string {
 // agentGreeting bootstraps a handler agent's identity on the steering channel,
 // naming its agent_id so it can park with the await tool; non-handlers get none.
 func agentGreeting(info agent.Info) string {
-	if !isPresentHandler(info) {
+	if !IsPresentHandler(info) {
 		return ""
 	}
 	return fmt.Sprintf("You are agent %s on the cc-present steering channel. "+
@@ -93,7 +93,7 @@ func agentGreeting(info agent.Info) string {
 // no edit gate, window-owned scope, and optional mesh trust tp (nil =
 // token/loopback auth only; with trust on and a loopback bind the daemon also
 // listens on its own tailnet addresses).
-func BuildServer(ctx context.Context, p paths.Paths, role daemonrole.Classifier, version, bind, token string, loader *packs.Loader, tp *meshtrust.Provider) (*ccd.Server, error) {
+func BuildServer(ctx context.Context, p paths.Paths, role daemonrole.Classifier, build, lifecycleBuild, bind, token string, loader *packs.Loader, tp *meshtrust.Provider) (*ccd.Server, error) {
 	c := channel.Connectivity{}
 	ast := assets.New(filepath.Join(p.StateDir(), "assets"))
 	bonjour := bonjourHook(bind)
@@ -114,7 +114,8 @@ func BuildServer(ctx context.Context, p paths.Paths, role daemonrole.Classifier,
 	cfg := ccd.Config{
 		AppName:        appName,
 		Paths:          p,
-		Version:        version,
+		Version:        build,
+		LifecycleBuild: lifecycleBuild,
 		DaemonRole:     role,
 		ActiveStatuses: []string{statusOpen},
 		// c.Type() (not c.EventType) so the SSE plane filters the same presence type
@@ -165,7 +166,7 @@ func BuildServer(ctx context.Context, p paths.Paths, role daemonrole.Classifier,
 	s.Register(OpRevising, handleRevising)
 	s.Register(OpClose, func(hc ccd.HandlerCtx) ccd.Reply { return handleClose(hc, ast) })
 	s.Register(OpOutcomes, handleOutcomes)
-	mountREST(s, ast, loader, version)
+	mountREST(s, ast, loader, build)
 	return s, nil
 }
 
@@ -204,8 +205,8 @@ func combineHooks(hooks ...func(context.Context, int)) func(context.Context, int
 // plane's bind address (empty = loopback) and token the optional LAN bearer
 // token; the caller reads both from the host config and supplies the pack
 // loader and the optional mesh trust.
-func Serve(ctx context.Context, p paths.Paths, role daemonrole.Classifier, version, bind, token string, loader *packs.Loader, tp *meshtrust.Provider) error {
-	s, err := BuildServer(ctx, p, role, version, bind, token, loader, tp)
+func Serve(ctx context.Context, p paths.Paths, role daemonrole.Classifier, build, lifecycleBuild, bind, token string, loader *packs.Loader, tp *meshtrust.Provider) error {
+	s, err := BuildServer(ctx, p, role, build, lifecycleBuild, bind, token, loader, tp)
 	if err != nil {
 		return err
 	}

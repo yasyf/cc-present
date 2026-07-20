@@ -19,30 +19,43 @@ func TestSoleRunningAgent(t *testing.T) {
 			wantErr: "no running handler agent",
 		},
 		{
-			name:    "only a stopped agent",
-			roster:  []agent.Info{{AgentID: "a1", Status: agent.StatusDone}},
+			name:    "only a stopped handler",
+			roster:  []agent.Info{{AgentID: "a1", AgentType: "cc-present:present-handler", Status: agent.StatusDone}},
 			wantErr: "no running handler agent",
 		},
 		{
-			name:   "sole running agent",
-			roster: []agent.Info{{AgentID: "a1", Status: agent.StatusRunning}},
+			name:   "sole running handler",
+			roster: []agent.Info{{AgentID: "a1", AgentType: "cc-present:present-handler", Status: agent.StatusRunning}},
 			want:   "a1",
 		},
 		{
-			name: "running agent alongside a stopped one",
+			name: "running handler alongside a stopped one",
 			roster: []agent.Info{
-				{AgentID: "done1", Status: agent.StatusDone},
-				{AgentID: "run1", Status: agent.StatusRunning},
+				{AgentID: "done1", AgentType: "cc-present:present-handler", Status: agent.StatusDone},
+				{AgentID: "run1", AgentType: "cc-present:present-handler", Status: agent.StatusRunning},
 			},
 			want: "run1",
 		},
 		{
-			name: "several running agents",
+			name:    "sole running non-handler is not a target",
+			roster:  []agent.Info{{AgentID: "explore1", AgentType: "Explore", Status: agent.StatusRunning}},
+			wantErr: "no running handler agent",
+		},
+		{
+			name: "handler picked over a running non-handler",
 			roster: []agent.Info{
-				{AgentID: "a1", Status: agent.StatusRunning},
-				{AgentID: "a2", Status: agent.StatusRunning},
+				{AgentID: "explore1", AgentType: "Explore", Status: agent.StatusRunning},
+				{AgentID: "h1", AgentType: "cc-present:present-handler", Status: agent.StatusRunning},
 			},
-			wantErr: "direct needs --agent: running agents are a1, a2",
+			want: "h1",
+		},
+		{
+			name: "several running handlers",
+			roster: []agent.Info{
+				{AgentID: "a1", AgentType: "cc-present:present-handler", Status: agent.StatusRunning},
+				{AgentID: "a2", AgentType: "cc-present:present-handler", Status: agent.StatusRunning},
+			},
+			wantErr: "direct needs --agent: running handlers are a1, a2",
 		},
 	}
 	for _, tt := range tests {

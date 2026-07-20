@@ -512,13 +512,14 @@ func newDirectCmd(d cmd.Deps) *cobra.Command {
 	return c
 }
 
-// soleRunningAgent picks the lone running agent from a roster so `direct`
-// without --agent never mistargets; zero or several running agents are errors
-// that name the live set rather than defaulting to the top-level mailbox.
+// soleRunningAgent picks the lone running present-handler from a roster so
+// `direct` without --agent never mistargets; every subagent registers via the
+// hooks, so non-handlers are ignored, and zero or several running handlers are
+// errors rather than a default to the top-level mailbox.
 func soleRunningAgent(roster []agent.Info) (string, error) {
 	var running []string
 	for _, a := range roster {
-		if a.Status == agent.StatusRunning {
+		if a.Status == agent.StatusRunning && ccdaemon.IsPresentHandler(a) {
 			running = append(running, a.AgentID)
 		}
 	}
@@ -528,7 +529,7 @@ func soleRunningAgent(roster []agent.Info) (string, error) {
 	case 1:
 		return running[0], nil
 	default:
-		return "", fmt.Errorf("direct needs --agent: running agents are %s", strings.Join(running, ", "))
+		return "", fmt.Errorf("direct needs --agent: running handlers are %s", strings.Join(running, ", "))
 	}
 }
 
@@ -682,15 +683,14 @@ func filterBlock(raw json.RawMessage, id string) (json.RawMessage, error) {
 	return json.Marshal(m)
 }
 
-// filterInteractions keeps only id's entries in each block-keyed interaction map
-// (decisions, choices, inputs, packs, feedback, replies), leaving the non-keyed
-// submit and close signals untouched.
+// filterInteractions keeps only id's entries in each block-keyed interaction
+// map, leaving the non-keyed submit and close signals untouched.
 func filterInteractions(raw json.RawMessage, id string) (json.RawMessage, error) {
 	var m map[string]json.RawMessage
 	if err := json.Unmarshal(raw, &m); err != nil {
 		return nil, err
 	}
-	for _, key := range []string{"decisions", "choices", "inputs", "packs", "feedback", "replies"} {
+	for _, key := range []string{"decisions", "choices", "inputs", "packs", "feedback", "replies", "annotations", "triage"} {
 		sub, ok := m[key]
 		if !ok {
 			continue
