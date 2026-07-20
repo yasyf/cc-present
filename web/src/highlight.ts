@@ -6,6 +6,7 @@
 import { createHighlighterCore } from 'shiki/core';
 import { createJavaScriptRegexEngine } from 'shiki/engine/javascript';
 import type { HighlighterCore, ThemedToken } from 'shiki/core';
+import { sanitizeForSgr } from './ansi';
 import githubDark from '@shikijs/themes/github-dark';
 import githubLight from '@shikijs/themes/github-light';
 import bash from '@shikijs/langs/bash';
@@ -118,7 +119,10 @@ export function highlight(code: string, lang: CodeLang): Promise<string> {
 // block may claim.
 export function highlightAnsi(output: string): Promise<string> {
   return getHighlighter().then((hl) =>
-    hl.codeToHtml(output, { lang: 'ansi', themes: { light: 'github-light', dark: 'github-dark' } }),
+    hl.codeToHtml(sanitizeForSgr(output), {
+      lang: 'ansi',
+      themes: { light: 'github-light', dark: 'github-dark' },
+    }),
   );
 }
 

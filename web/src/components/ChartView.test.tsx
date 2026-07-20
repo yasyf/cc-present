@@ -98,6 +98,25 @@ describe('ChartView', () => {
     expect(container.querySelector('.chart-bar')).toBeNull();
   });
 
+  it('renders every bar with a positive width at the documented caps (100 × 6)', () => {
+    const categories = Array.from({ length: 100 }, (_, i) => `c${i}`);
+    const series = Array.from({ length: 6 }, (_, s) => ({
+      label: `s${s}`,
+      values: categories.map(() => 10),
+    }));
+    renderChart({ id: 'ch', type: 'chart', kind: 'bar', unit: 'ms', categories, series });
+    const bars = [...container.querySelectorAll<SVGPathElement>('.chart-bar')];
+    expect(bars).toHaveLength(600);
+    for (const bar of bars) {
+      const d = bar.getAttribute('d') ?? '';
+      expect(d).not.toContain('NaN');
+      const left = Number(d.match(/^M(-?[\d.]+),/)?.[1]);
+      const rights = [...d.matchAll(/L(-?[\d.]+),/g)];
+      const right = Number(rights.at(-1)?.[1]);
+      expect(right - left).toBeGreaterThan(0);
+    }
+  });
+
   it('re-inks the marks when the resolved theme flips', async () => {
     renderChart(chart('bar', twoSeries));
     const accentBar = () => container.querySelector('.chart-bar')?.getAttribute('fill');

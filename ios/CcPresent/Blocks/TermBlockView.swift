@@ -15,9 +15,13 @@ struct TermBlockView: View {
 
     static let skeletonHeight: CGFloat = 160
 
+    private var presentation: WebBlockPresentation {
+        WebBlockPresentation.of(hasContext: context != nil, phase: phase)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            if let title = block.title, !title.isEmpty {
+            if presentation.showsNativeTitle, let title = block.title, !title.isEmpty {
                 Text(title)
                     .font(.system(size: 11, design: .monospaced))
                     .foregroundStyle(BlockPalette.muted)
@@ -29,7 +33,7 @@ struct TermBlockView: View {
 
     @ViewBuilder
     private var content: some View {
-        switch WebBlockPresentation.of(hasContext: context != nil, phase: phase) {
+        switch presentation {
         case .rawSource:
             fallbackPanel
         case let .webView(showingSkeleton):
@@ -78,10 +82,12 @@ struct TermBlockView: View {
         .overlay(RoundedRectangle(cornerRadius: 4).strokeBorder(BlockPalette.line))
     }
 
-    private static let ansiEscape = /\u{001B}\[[0-9;?]*[A-Za-z]/
+    private static let ansiEscape =
+        /\u{001B}\][^\u{0007}\u{001B}]*(?:\u{0007}|\u{001B}\\)|\u{001B}\[[\u{0030}-\u{003F}]*[\u{0020}-\u{002F}]*[\u{0040}-\u{007E}]|\u{001B}[\u{0020}-\u{002F}]*[\u{0030}-\u{007E}]/
 
-    /// stripAnsi drops the CSI escape sequences (SGR color runs, cursor moves, erases) a
-    /// captured stream carries, leaving the plain text a terminal would render.
+    /// stripAnsi drops every ANSI escape a captured stream carries — SGR color runs
+    /// (semicolon or colon form), cursor moves, erases, and OSC strings (an OSC-8
+    /// hyperlink's visible text is kept) — leaving the plain text a terminal renders.
     static func stripAnsi(_ text: String) -> String {
         text.replacing(ansiEscape, with: "")
     }

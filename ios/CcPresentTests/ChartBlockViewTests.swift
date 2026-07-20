@@ -38,4 +38,11 @@ struct ChartBlockViewTests {
         let series = Block.Series(label: "p95", values: [10, 20, 30])
         #expect(ChartBlockView.line(for: series) == "p95: 10.0, 20.0, 30.0")
     }
+
+    @Test("the native title shows only in the fallback, never over the webview")
+    func nativeTitleOnlyInFallback() {
+        #expect(WebBlockPresentation.rawSource.showsNativeTitle)
+        #expect(!WebBlockPresentation.webView(showingSkeleton: true).showsNativeTitle)
+        #expect(!WebBlockPresentation.webView(showingSkeleton: false).showsNativeTitle)
+    }
 }

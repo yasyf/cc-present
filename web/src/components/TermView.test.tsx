@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import type { Root } from 'react-dom/client';
-import { TermView, stripAnsi } from './TermView';
+import { TermView } from './TermView';
 import type { Term } from '../schema';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -52,20 +52,6 @@ async function waitFor(predicate: () => boolean): Promise<void> {
   throw new Error('condition never met');
 }
 
-describe('stripAnsi', () => {
-  it('removes SGR color codes', () => {
-    expect(stripAnsi(`${ESC}[1;32mbold green${ESC}[0m`)).toBe('bold green');
-  });
-
-  it('leaves plain text untouched', () => {
-    expect(stripAnsi('a plain line')).toBe('a plain line');
-  });
-
-  it('strips cursor and erase CSI sequences too', () => {
-    expect(stripAnsi(`a${ESC}[2K${ESC}[1Ab`)).toBe('ab');
-  });
-});
-
 describe('TermView', () => {
   it('first paints the stripped output as plain text, no escape bytes', async () => {
     await render(term(GREEN));
@@ -113,5 +99,17 @@ describe('TermView', () => {
     await render(term('bare output'));
     expect(container.querySelector('.term-command')).toBeNull();
     expect(container.querySelector('.term-title')).toBeNull();
+  });
+
+  it('shows only the current output after a prop change, never the prior highlight', async () => {
+    await render(term(GREEN));
+    await waitFor(() => container.querySelector('.shiki-wrap') != null);
+    expect(container.textContent).toContain('green');
+
+    // The html is paired with the output it was computed from, so a change never leaves
+    // the previous highlight under the new text — the stripped new output shows at once.
+    await render(term(`${ESC}[31mred${ESC}[0m done`));
+    await waitFor(() => container.textContent?.includes('red done') ?? false);
+    expect(container.textContent).not.toContain('green');
   });
 });

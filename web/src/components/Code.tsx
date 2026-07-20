@@ -5,12 +5,11 @@ import { CopyButton } from './CopyButton';
 // First paint is a plain <pre>; the lazily-imported Shiki chunk swaps in once it
 // resolves. An uncurated language stays plain, and the header tag names it.
 export function Code({ block }: { block: CodeBlock }) {
-  const [html, setHtml] = useState<string | null>(null);
+  const [rendered, setRendered] = useState<{ html: string; code: string; lang: string } | null>(null);
   const [highlightable, setHighlightable] = useState<boolean | null>(null);
 
   useEffect(() => {
     let alive = true;
-    setHtml(null);
     setHighlightable(null);
     void (async () => {
       const { resolveLang, highlight } = await import('../highlight');
@@ -19,12 +18,16 @@ export function Code({ block }: { block: CodeBlock }) {
       setHighlightable(lang != null);
       if (!lang) return;
       const out = await highlight(block.code, lang);
-      if (alive) setHtml(out);
+      if (alive) setRendered({ html: out, code: block.code, lang: block.lang });
     })();
     return () => {
       alive = false;
     };
   }, [block.code, block.lang]);
+
+  // Show the highlighted HTML only when it was computed from the current code, so a prop
+  // change never flashes the previous highlight under the new source.
+  const html = rendered?.code === block.code && rendered.lang === block.lang ? rendered.html : null;
 
   return (
     <figure className="code-block">

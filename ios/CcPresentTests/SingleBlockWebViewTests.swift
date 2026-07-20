@@ -31,4 +31,20 @@ struct SingleBlockWebViewTests {
         #expect(SingleBlockWebView.Coordinator.clampedHeight(current: 140, proposed: 0) == nil)
         #expect(SingleBlockWebView.Coordinator.clampedHeight(current: 140, proposed: -5) == nil)
     }
+
+    @Test("an http(s) new-window request yields its url for external open")
+    func externalURLForHttpLinks() throws {
+        let https = try #require(URL(string: "https://example.com/docs"))
+        let http = try #require(URL(string: "http://example.com"))
+        #expect(SingleBlockWebView.Coordinator.externalURL(for: URLRequest(url: https)) == https)
+        #expect(SingleBlockWebView.Coordinator.externalURL(for: URLRequest(url: http)) == http)
+    }
+
+    @Test("a non-http scheme is not opened externally")
+    func externalURLRejectsOtherSchemes() throws {
+        for raw in ["mailto:a@example.com", "ftp://example.com/x", "tel:+15551234567"] {
+            let url = try #require(URL(string: raw))
+            #expect(SingleBlockWebView.Coordinator.externalURL(for: URLRequest(url: url)) == nil)
+        }
+    }
 }

@@ -30,4 +30,11 @@ struct DiagramBlockViewTests {
             #expect(WebBlockPresentation.of(hasContext: false, phase: phase) == .rawSource)
         }
     }
+
+    @Test("the native title shows only in the fallback, never over the webview")
+    func nativeTitleOnlyInFallback() {
+        #expect(WebBlockPresentation.rawSource.showsNativeTitle)
+        #expect(!WebBlockPresentation.webView(showingSkeleton: true).showsNativeTitle)
+        #expect(!WebBlockPresentation.webView(showingSkeleton: false).showsNativeTitle)
+    }
 }

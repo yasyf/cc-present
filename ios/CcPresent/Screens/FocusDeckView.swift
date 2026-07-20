@@ -761,8 +761,8 @@ struct FocusCardView: View {
 }
 
 /// FocusContextBlock demotes a step's lead-in context: markdown clamps and dims, and a
-/// heavy block (code, diff, table, image, diagram) collapses to a one-line titled
-/// disclosure. Mirrors web/src/components/FocusCard.tsx `FocusContextBlock`.
+/// heavy block (code, diff, table, image, diagram, term, filetree) collapses to a
+/// one-line titled disclosure. Mirrors web/src/components/FocusCard.tsx `FocusContextBlock`.
 struct FocusContextBlock: View {
     let block: Block
     let store: BoardStore
@@ -777,7 +777,7 @@ struct FocusContextBlock: View {
             MarkdownText(markdown.md, style: .clamped)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .opacity(0.8)
-        case .code, .diff, .table, .image, .diagram:
+        case .code, .diff, .table, .image, .diagram, .term, .filetree:
             DisclosureGroup(isExpanded: $expanded) {
                 BlockView(block: block, store: store, client: client, packContext: packContext)
                     .padding(.top, 8)
@@ -803,6 +803,8 @@ func focusContextTitle(_ block: Block) -> String {
     case let .diagram(diagram): diagram.title ?? "Diagram"
     case let .image(image): image.caption ?? image.alt
     case .table: "Table"
+    case let .term(term): term.title ?? "Terminal"
+    case let .filetree(filetree): filetree.title ?? "Files"
     default: block.type
     }
 }

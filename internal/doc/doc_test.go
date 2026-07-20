@@ -84,6 +84,59 @@ func TestValidate(t *testing.T) {
 	}
 	overFactsRecord := fmt.Sprintf(`{"id":"rec1","type":"record","facts":[%s]}`, strings.Join(manyFacts, ","))
 
+	seriesJSON := func(n int) string {
+		s := make([]string, n)
+		for i := range s {
+			s[i] = fmt.Sprintf(`{"label":"s%d","values":[1]}`, i)
+		}
+		return strings.Join(s, ",")
+	}
+	atSeriesChart := fmt.Sprintf(`{"id":"cht1","type":"chart","kind":"bar","categories":["a"],"series":[%s]}`, seriesJSON(doc.MaxChartSeries))
+
+	atCats := make([]string, doc.MaxChartPoints)
+	atVals := make([]string, doc.MaxChartPoints)
+	for i := range atCats {
+		atCats[i] = fmt.Sprintf(`"c%d"`, i)
+		atVals[i] = "1"
+	}
+	atPointsChart := fmt.Sprintf(`{"id":"cht1","type":"chart","kind":"bar","categories":[%s],"series":[{"label":"S","values":[%s]}]}`, strings.Join(atCats, ","), strings.Join(atVals, ","))
+
+	atEntries := make([]string, doc.MaxTreeEntries)
+	for i := range atEntries {
+		atEntries[i] = fmt.Sprintf(`{"path":"f%d"}`, i)
+	}
+	atEntriesTree := fmt.Sprintf(`{"id":"ft1","type":"filetree","entries":[%s]}`, strings.Join(atEntries, ","))
+
+	atFacts := make([]string, doc.MaxRecordFacts)
+	for i := range atFacts {
+		atFacts[i] = fmt.Sprintf(`{"label":"L%d","value":"v"}`, i)
+	}
+	atFactsRecord := fmt.Sprintf(`{"id":"rec1","type":"record","facts":[%s]}`, strings.Join(atFacts, ","))
+
+	chipsJSON := func(n int) string {
+		cs := make([]string, n)
+		for i := range cs {
+			cs[i] = fmt.Sprintf(`{"label":"c%d"}`, i)
+		}
+		return strings.Join(cs, ",")
+	}
+	linksJSON := func(n int) string {
+		ls := make([]string, n)
+		for i := range ls {
+			ls[i] = fmt.Sprintf(`{"label":"l%d","url":"https://x.com/%d"}`, i, i)
+		}
+		return strings.Join(ls, ",")
+	}
+	atChipsRecord := fmt.Sprintf(`{"id":"rec1","type":"record","chips":[%s],"facts":[{"label":"L","value":"x"}]}`, chipsJSON(doc.MaxRecordChips))
+	overChipsRecord := fmt.Sprintf(`{"id":"rec1","type":"record","chips":[%s],"facts":[{"label":"L","value":"x"}]}`, chipsJSON(doc.MaxRecordChips+1))
+	atLinksRecord := fmt.Sprintf(`{"id":"rec1","type":"record","links":[%s],"facts":[{"label":"L","value":"x"}]}`, linksJSON(doc.MaxRecordLinks))
+	overLinksRecord := fmt.Sprintf(`{"id":"rec1","type":"record","links":[%s],"facts":[{"label":"L","value":"x"}]}`, linksJSON(doc.MaxRecordLinks+1))
+
+	deepPath := strings.Repeat("a/", doc.MaxTreeDepth) + "b"      // MaxTreeDepth+1 segments
+	atDepthPath := strings.Repeat("a/", doc.MaxTreeDepth-1) + "b" // MaxTreeDepth segments
+	deepTree := fmt.Sprintf(`{"id":"ft1","type":"filetree","entries":[{"path":%q}]}`, deepPath)
+	atDepthTree := fmt.Sprintf(`{"id":"ft1","type":"filetree","entries":[{"path":%q}]}`, atDepthPath)
+
 	tests := []struct {
 		name    string
 		doc     string
@@ -194,6 +247,13 @@ func TestValidate(t *testing.T) {
 		{"chart duplicate category", docWith(`{"id":"cht1","type":"chart","kind":"bar","categories":["a","a"],"series":[{"label":"S","values":[1,2]}]}`), "duplicate category"},
 		{"chart over series cap", docWith(overSeriesChart), "exceeds"},
 		{"chart over points cap", docWith(overPointsChart), "exceeds"},
+		{"chart at series cap accepted", docWith(atSeriesChart), ""},
+		{"chart at points cap accepted", docWith(atPointsChart), ""},
+		{"chart value magnitude too large", docWith(`{"id":"cht1","type":"chart","kind":"bar","categories":["a"],"series":[{"label":"S","values":[1e16]}]}`), "magnitude must be 0 or within"},
+		{"chart value magnitude too small", docWith(`{"id":"cht1","type":"chart","kind":"bar","categories":["a"],"series":[{"label":"S","values":[1e-16]}]}`), "magnitude must be 0 or within"},
+		{"chart value magnitude at bounds accepted", docWith(`{"id":"cht1","type":"chart","kind":"bar","categories":["a","b"],"series":[{"label":"S","values":[1e15,1e-15]}]}`), ""},
+		{"chart zero value accepted", docWith(`{"id":"cht1","type":"chart","kind":"bar","categories":["a"],"series":[{"label":"S","values":[0]}]}`), ""},
+		{"chart title with carriage return", docWith(`{"id":"cht1","type":"chart","kind":"bar","title":"a\rb","categories":["a"],"series":[{"label":"S","values":[1]}]}`), "title must be a single line"},
 
 		{"term valid", docWith(`{"id":"tm1","type":"term","command":"go test ./...","output":"ok","title":"Tests"}`), ""},
 		{"term output empty", docWith(`{"id":"tm1","type":"term","output":""}`), "output must not be empty"},
@@ -210,6 +270,12 @@ func TestValidate(t *testing.T) {
 		{"filetree bad badge", docWith(`{"id":"ft1","type":"filetree","entries":[{"path":"a","badge":"renamed"}]}`), "invalid badge"},
 		{"filetree multiline note", docWith(`{"id":"ft1","type":"filetree","entries":[{"path":"a","note":"x\ny"}]}`), "note must be a single line"},
 		{"filetree over entries cap", docWith(overEntriesTree), "exceeds"},
+		{"filetree at entries cap accepted", docWith(atEntriesTree), ""},
+		{"filetree path too deep", docWith(deepTree), "exceeds depth"},
+		{"filetree path at max depth accepted", docWith(atDepthTree), ""},
+		{"filetree windows drive path rejected", docWith(`{"id":"ft1","type":"filetree","entries":[{"path":"C:/Users/x/file.txt"}]}`), "must be relative"},
+		{"filetree backslash path rejected", docWith(`{"id":"ft1","type":"filetree","entries":[{"path":"a\\b"}]}`), "must use forward slashes"},
+		{"filetree note with carriage return", docWith(`{"id":"ft1","type":"filetree","entries":[{"path":"a","note":"x\ry"}]}`), "note must be a single line"},
 
 		{"record valid", docWith(`{"id":"rec1","type":"record","title":"AA123","chips":[{"label":"Nonstop","tone":"flag"}],"facts":[{"label":"Cabin","value":"Business","tone":"good"},{"label":"Miles","value":"70k"}],"links":[{"label":"Book","url":"https://example.com/book"}]}`), ""},
 		{"record missing facts", docWith(`{"id":"rec1","type":"record","facts":[]}`), "at least one fact"},
@@ -221,6 +287,16 @@ func TestValidate(t *testing.T) {
 		{"record relative link rejected", docWith(`{"id":"rec1","type":"record","facts":[{"label":"L","value":"x"}],"links":[{"label":"Book","url":"/path"}]}`), "must be https"},
 		{"record javascript link rejected", docWith(`{"id":"rec1","type":"record","facts":[{"label":"L","value":"x"}],"links":[{"label":"Book","url":"javascript:alert(1)"}]}`), "must be https"},
 		{"record over facts cap", docWith(overFactsRecord), "exceeds"},
+		{"record at facts cap accepted", docWith(atFactsRecord), ""},
+		{"record at chips cap accepted", docWith(atChipsRecord), ""},
+		{"record over chips cap", docWith(overChipsRecord), "exceeds"},
+		{"record at links cap accepted", docWith(atLinksRecord), ""},
+		{"record over links cap", docWith(overLinksRecord), "exceeds"},
+		{"record link out-of-range port rejected", docWith(`{"id":"rec1","type":"record","facts":[{"label":"L","value":"x"}],"links":[{"label":"Book","url":"https://example.com:99999"}]}`), "invalid port"},
+		{"record link valid explicit port accepted", docWith(`{"id":"rec1","type":"record","facts":[{"label":"L","value":"x"}],"links":[{"label":"Book","url":"https://example.com:8443/x"}]}`), ""},
+		{"record link port-only authority rejected", docWith(`{"id":"rec1","type":"record","facts":[{"label":"L","value":"x"}],"links":[{"label":"Book","url":"https://:443/path"}]}`), "must be https with a host"},
+		{"record title with carriage return", docWith(`{"id":"rec1","type":"record","title":"a\rb","facts":[{"label":"L","value":"x"}]}`), "title must be a single line"},
+		{"term command with carriage return", docWith(`{"id":"tm1","type":"term","command":"first\rsecond","output":"x"}`), "command must be a single line"},
 
 		{"option visual chart", docWith(card("c1", `{"id":"ch1","type":"choice","options":[{"id":"o1","label":"A","visual":{"id":"v1","type":"chart","kind":"bar","categories":["a"],"series":[{"label":"S","values":[1]}]}}]}`)), ""},
 		{"option visual term", docWith(card("c1", `{"id":"ch1","type":"choice","options":[{"id":"o1","label":"A","visual":{"id":"v1","type":"term","output":"ok"}}]}`)), ""},

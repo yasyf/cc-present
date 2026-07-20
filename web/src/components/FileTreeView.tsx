@@ -25,7 +25,9 @@ function TreeLevel({ nodes }: { nodes: TreeNode[] }) {
   return (
     <ul className="filetree-list">
       {nodes.map((node) => (
-        <li key={node.path} className="filetree-item">
+        // Key by kind+path: a removed file and a same-named implicit directory (a real
+        // git story) share a path, so path alone would collide.
+        <li key={`${node.entry ? 'f' : 'd'}:${node.path}`} className="filetree-item">
           {node.entry ? <FileRow name={node.name} entry={node.entry} /> : <DirNode node={node} />}
         </li>
       ))}

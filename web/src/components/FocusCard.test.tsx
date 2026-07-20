@@ -8,7 +8,7 @@ import type { PanInfo } from 'motion/react';
 import { PresentContext } from '../present';
 import type { PresentApi } from '../present';
 import { KeyboardProvider } from '../keyboard';
-import { FocusCard, NO_DRAG, resolveDragEnd, swipeCommit } from './FocusCard';
+import { contextTitle, FocusCard, NO_DRAG, resolveDragEnd, swipeCommit } from './FocusCard';
 import { focusSteps } from '../focus';
 import { emptyState } from '../reduce';
 import { DECAY_MS, revisionStore } from '../revision';
@@ -56,6 +56,37 @@ describe('swipeCommit', () => {
       }
     });
   }
+});
+
+describe('contextTitle', () => {
+  it('labels the new visual types by authored title, matching iOS optionVisualTitle', () => {
+    const chart = { id: 'c', type: 'chart', kind: 'bar', categories: [], series: [] } as Block;
+    expect(contextTitle({ ...chart, title: 'Latency' } as Block)).toBe('Latency');
+    expect(contextTitle(chart)).toBe('Chart');
+    expect(contextTitle({ id: 't', type: 'term', output: 'x', title: 'Build' } as Block)).toBe('Build');
+    expect(contextTitle({ id: 't', type: 'term', output: 'x' } as Block)).toBe('Terminal');
+    expect(contextTitle({ id: 'f', type: 'filetree', entries: [], title: 'Changed' } as Block)).toBe('Changed');
+    expect(contextTitle({ id: 'f', type: 'filetree', entries: [] } as Block)).toBe('Files');
+    expect(contextTitle({ id: 'r', type: 'record', facts: [], title: 'AA123' } as Block)).toBe('AA123');
+    expect(contextTitle({ id: 'r', type: 'record', facts: [] } as Block)).toBe('Record');
+  });
+});
+
+describe('contextTitle', () => {
+  it('labels the new visual types by authored title, else the iOS fallback name', () => {
+    const chart = (title?: string) => ({ id: 'c', type: 'chart', kind: 'bar', title, categories: [], series: [] }) as Block;
+    const term = (title?: string) => ({ id: 't', type: 'term', output: 'x', title }) as Block;
+    const filetree = (title?: string) => ({ id: 'f', type: 'filetree', title, entries: [] }) as Block;
+    const record = (title?: string) => ({ id: 'r', type: 'record', title, facts: [] }) as Block;
+    expect(contextTitle(chart('Latency'))).toBe('Latency');
+    expect(contextTitle(chart())).toBe('Chart');
+    expect(contextTitle(term('Build'))).toBe('Build');
+    expect(contextTitle(term())).toBe('Terminal');
+    expect(contextTitle(filetree('Changed'))).toBe('Changed');
+    expect(contextTitle(filetree())).toBe('Files');
+    expect(contextTitle(record('AA123'))).toBe('AA123');
+    expect(contextTitle(record())).toBe('Record');
+  });
 });
 
 const approval = (id: string, prompt: string): Block => ({ id, type: 'approval', prompt });

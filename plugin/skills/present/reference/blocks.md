@@ -231,7 +231,7 @@ Keep the source scannable — a diagram earns its place by reading at a glance, 
 }
 ```
 
-`kind` is `bar` or `line`. `categories` names the x-axis; each series carries exactly one finite value per category (6 series and 100 categories max). The client renders a themed SVG — series colors derive from the board accent and re-ink on a light/dark flip — and `unit` rides the formatted values. A chart works at the top level, inside a card, or as an `option.visual` — it is the default picture of a quantitative tradeoff.
+`kind` is `bar` or `line`. `categories` names the x-axis; each series carries exactly one finite value per category — each value is 0 or of magnitude 1e-15 to 1e15 (6 series and 100 categories max). The client renders a themed SVG — series colors derive from the board accent and re-ink on a light/dark flip — and `unit` rides the formatted values. A chart works at the top level, inside a card, or as an `option.visual` — it is the default picture of a quantitative tradeoff.
 
 - **Chart over table when magnitudes are comparable.** Numbers the eye should rank at a glance go in a chart; exact values to look up, or mixed units, stay a `table`.
 - **At most ~12 categories.** Validation allows 100; legibility doesn't. Past that, aggregate or split.
@@ -273,7 +273,7 @@ Keep the source scannable — a diagram earns its place by reading at a glance, 
 }
 ```
 
-List files as relative slash paths (200-entry cap) and the client builds the collapsible tree — directories are implicit from path segments, never entries of their own. `badge` is `added`, `modified`, or `removed`, rendered as a tone chip; `note` is a dim single-line annotation. Keep the tree at most ~4 levels deep — scope to the subtree that matters instead of rooting at the repo.
+List files as relative slash paths (200-entry cap, at most 32 segments deep; a leading `/`, a drive letter, or a backslash is rejected) and the client builds the collapsible tree — directories are implicit from path segments, never entries of their own. `badge` is `added`, `modified`, or `removed`, rendered as a tone chip; `note` is a dim single-line annotation. Keep the tree at most ~4 levels deep — scope to the subtree that matters instead of rooting at the repo.
 
 ### `record` — one entity's profile
 

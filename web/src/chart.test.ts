@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatValue, niceScale, seriesColors } from './chart';
+import { barLayout, formatValue, niceScale, seriesColors } from './chart';
 
 describe('niceScale', () => {
   it('anchors the baseline at 0 for positive-only data', () => {
@@ -27,6 +27,12 @@ describe('niceScale', () => {
   it('emits fractional ticks free of floating-point noise', () => {
     expect(niceScale(0, 1).ticks).toEqual([0, 0.2, 0.4, 0.6, 0.8, 1]);
   });
+
+  it('falls back to a finite unit scale for a range too small to resolve a step', () => {
+    const scale = niceScale(0, 5e-324);
+    expect(scale.max).toBeGreaterThan(scale.min);
+    for (const t of [scale.min, scale.max, ...scale.ticks]) expect(Number.isFinite(t)).toBe(true);
+  });
 });
 
 describe('formatValue', () => {
@@ -43,6 +49,13 @@ describe('formatValue', () => {
   it('appends the optional unit with a separating space', () => {
     expect(formatValue(80, '%')).toBe('80 %');
     expect(formatValue(12900, 'req')).toBe('12.9K req');
+  });
+
+  it('keeps sub-unit magnitudes distinct with significant-digit precision', () => {
+    expect(formatValue(0.01, 'ms')).toBe('0.01 ms');
+    expect(formatValue(0.02, 'ms')).toBe('0.02 ms');
+    expect(formatValue(0.005)).toBe('0.005');
+    expect(formatValue(0.5)).toBe('0.5');
   });
 });
 
@@ -81,5 +94,24 @@ describe('seriesColors', () => {
 
   it('accepts a resolved rgb() accent verbatim', () => {
     expect(seriesColors('rgb(61, 86, 197)', 'light', 2)).toEqual(['rgb(61, 86, 197)', '#c86269']);
+  });
+});
+
+describe('barLayout', () => {
+  const PLOT_W = 560 - 44 - 12; // mirrors ChartView's plot width
+
+  it('keeps every bar positive and within the band at the caps (100 categories × 6 series)', () => {
+    const bandW = PLOT_W / 100;
+    const { barW, gap } = barLayout(bandW, 6);
+    expect(barW).toBeGreaterThan(0);
+    expect(gap).toBeGreaterThan(0);
+    expect(gap).toBeLessThanOrEqual(2);
+    expect(6 * barW + 5 * gap).toBeLessThanOrEqual(bandW + 1e-9);
+  });
+
+  it('keeps the full 2px gap and a wide bar for a sparse chart', () => {
+    const { gap, barW } = barLayout(PLOT_W / 3, 2);
+    expect(gap).toBe(2);
+    expect(barW).toBeGreaterThan(2);
   });
 });

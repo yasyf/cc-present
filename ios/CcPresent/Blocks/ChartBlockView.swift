@@ -14,9 +14,13 @@ struct ChartBlockView: View {
 
     static let skeletonHeight: CGFloat = 220
 
+    private var presentation: WebBlockPresentation {
+        WebBlockPresentation.of(hasContext: context != nil, phase: phase)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            if let title = block.title, !title.isEmpty {
+            if presentation.showsNativeTitle, let title = block.title, !title.isEmpty {
                 Text(title)
                     .font(.system(size: 11, design: .monospaced))
                     .foregroundStyle(BlockPalette.muted)
@@ -28,7 +32,7 @@ struct ChartBlockView: View {
 
     @ViewBuilder
     private var content: some View {
-        switch WebBlockPresentation.of(hasContext: context != nil, phase: phase) {
+        switch presentation {
         case .rawSource:
             fallbackPanel
         case let .webView(showingSkeleton):

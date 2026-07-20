@@ -6,7 +6,7 @@ import type { Root } from 'react-dom/client';
 
 vi.mock('../highlight', () => ({
   resolveLang: (lang: string) => (lang === 'go' ? 'go' : null),
-  highlight: () => Promise.resolve('<pre class="shiki"><code>package main</code></pre>'),
+  highlight: (code: string) => Promise.resolve(`<pre class="shiki"><code>${code}</code></pre>`),
 }));
 
 import { Code } from './Code';
@@ -72,5 +72,13 @@ describe('Code header', () => {
     await renderCode(codeBlock('go', 'main.go'));
     expect(container.querySelector('.code-title')?.textContent).toBe('main.go');
     expect(container.querySelector('button.copy-button')).not.toBeNull();
+  });
+
+  it('shows the current code after a prop change, never the prior highlight', async () => {
+    await renderCode({ id: 'c', type: 'code', lang: 'go', code: 'AAA' });
+    expect(container.querySelector('.shiki-wrap')?.textContent).toContain('AAA');
+    await renderCode({ id: 'c', type: 'code', lang: 'go', code: 'BBB' });
+    expect(container.textContent).toContain('BBB');
+    expect(container.textContent).not.toContain('AAA');
   });
 });

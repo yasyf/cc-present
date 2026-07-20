@@ -1,5 +1,6 @@
 import CcPresentKit
 import SwiftUI
+import UIKit
 import WebKit
 
 /// WebViewLoadPhase is the navigation lifecycle a SingleBlockWebView reports through
@@ -24,6 +25,12 @@ enum WebBlockPresentation: Equatable {
         case .loaded: return .webView(showingSkeleton: false)
         case .failed: return .rawSource
         }
+    }
+
+    /// showsNativeTitle is true only in the native fallback: in webview mode the embedded
+    /// page draws the block title, so a native heading above it would double the title.
+    var showsNativeTitle: Bool {
+        self == .rawSource
     }
 }
 
@@ -54,6 +61,7 @@ struct SingleBlockWebView: UIViewRepresentable {
 
         let webView = WKWebView(frame: .zero, configuration: configuration)
         webView.navigationDelegate = context.coordinator
+        webView.uiDelegate = context.coordinator
         webView.scrollView.isScrollEnabled = false
         webView.scrollView.bounces = false
         webView.isOpaque = false
@@ -73,7 +81,7 @@ struct SingleBlockWebView: UIViewRepresentable {
     }
 
     @MainActor
-    final class Coordinator: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
+    final class Coordinator: NSObject, WKScriptMessageHandler, WKNavigationDelegate, WKUIDelegate {
         private let height: Binding<CGFloat>
         private let phase: Binding<WebViewLoadPhase>?
         private var observation: NSKeyValueObservation?
@@ -123,6 +131,24 @@ struct SingleBlockWebView: UIViewRepresentable {
 
         func webView(_: WKWebView, didFailProvisionalNavigation _: WKNavigation!, withError _: Error) {
             phase?.wrappedValue = .failed
+        }
+
+        /// A `target="_blank"` link (a record's external links) asks the page to open a
+        /// window; the single-block page never hosts one, so route an http(s) target to the
+        /// system browser and return nil so no orphan web view is created.
+        func webView(_: WKWebView, createWebViewWith _: WKWebViewConfiguration, for navigationAction: WKNavigationAction, windowFeatures _: WKWindowFeatures) -> WKWebView? {
+            if let url = Self.externalURL(for: navigationAction.request) {
+                UIApplication.shared.open(url)
+            }
+            return nil
+        }
+
+        /// externalURL is the http(s) target a new-window navigation hands to the system
+        /// browser, or nil for a scheme that should not escape the webview.
+        nonisolated static func externalURL(for request: URLRequest) -> URL? {
+            guard let url = request.url, let scheme = url.scheme?.lowercased(),
+                  scheme == "http" || scheme == "https" else { return nil }
+            return url
         }
 
         private func apply(_ newHeight: CGFloat) {

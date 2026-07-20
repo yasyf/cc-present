@@ -55,4 +55,18 @@ describe('buildTree', () => {
   it('returns an empty forest for no entries', () => {
     expect(buildTree([])).toEqual([]);
   });
+
+  it('keeps a removed file and a same-named added directory as distinct nodes', () => {
+    const built = buildTree([
+      { path: 'a', badge: 'removed' },
+      { path: 'a/b', badge: 'added' },
+    ]);
+    // Directories sort before files, so the implicit "a/" precedes the removed "a" file.
+    expect(shape(built)).toEqual(['a/', '  b', 'a']);
+    const [dir, file] = built;
+    expect(dir?.entry).toBeUndefined();
+    expect(file?.entry).toEqual({ path: 'a', badge: 'removed' });
+    // Same path, distinct kind — the render key must fold in kind to stay unique.
+    expect(dir?.path).toBe(file?.path);
+  });
 });

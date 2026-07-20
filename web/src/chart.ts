@@ -9,6 +9,12 @@ export interface Scale {
   ticks: number[];
 }
 
+export interface BarLayout {
+  groupW: number;
+  gap: number;
+  barW: number;
+}
+
 // niceScale rounds the data range out to clean ticks, always including the baseline
 // 0: bars and lines both grow from 0, and a negative value extends the domain below it.
 export function niceScale(dataMin: number, dataMax: number, targetCount = 5): Scale {
@@ -16,6 +22,9 @@ export function niceScale(dataMin: number, dataMax: number, targetCount = 5): Sc
   let hi = Math.max(0, dataMax);
   if (lo === hi) hi = lo + 1;
   const step = niceNum(niceNum(hi - lo, false) / (targetCount - 1), true);
+  // A range too small to resolve a positive nice step (denormal underflow) or an
+  // overflowed one collapses to a unit scale rather than emit NaN coordinates.
+  if (!Number.isFinite(step) || step <= 0) return { min: lo, max: lo + 1, ticks: [lo, lo + 1] };
   const min = Math.floor(lo / step) * step;
   const max = Math.ceil(hi / step) * step;
   const decimals = Math.max(0, -Math.floor(Math.log10(step)));
@@ -51,11 +60,23 @@ function roundTo(value: number, decimals: number): number {
 }
 
 const compact = new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 1 });
+const precise = new Intl.NumberFormat('en-US', { maximumSignificantDigits: 2 });
 
-// formatValue renders a value compactly (1.3K, 4.2M), appending the optional unit.
+// formatValue labels a tick or mark: a sub-unit magnitude keeps two significant digits so
+// 0.01 and 0.02 stay distinct, a larger one compacts (1.3K, 4.2M). Appends the unit.
 export function formatValue(value: number, unit?: string): string {
-  const n = compact.format(value);
+  const n = value !== 0 && Math.abs(value) < 1 ? precise.format(value) : compact.format(value);
   return unit ? `${n} ${unit}` : n;
+}
+
+// barLayout sizes a category's grouped bars: the group spans at most 80% of the band (and
+// no more than n full bars), gaps shrink with the band, and the bar width floors above 0
+// so the documented 100×6 cap can't drive negative, overlapping bars.
+export function barLayout(bandW: number, n: number, maxBar = 24, maxGap = 2): BarLayout {
+  const groupW = Math.min(bandW * 0.8, n * maxBar + (n - 1) * maxGap);
+  const gap = Math.min(maxGap, bandW * 0.05);
+  const barW = Math.max(0.5, (groupW - (n - 1) * gap) / n);
+  return { groupW, gap, barW };
 }
 
 // Slot 1 is --accent verbatim; slots 2..6 walk HUE_OFFSETS off the accent hue at the

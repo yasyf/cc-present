@@ -70,13 +70,17 @@ toggle overrides it.
 - On `chart`, `kind` is `bar` or `line`; `categories` (at most **100**) are non-empty,
   single-line, and unique; each of at most **6** series carries a non-empty, single-line,
   unique `label` and exactly one value per category, every value finite (`NaN` and
-  `±Inf` are rejected). Negative values are legal — the renderer anchors the value
-  axis at 0. `title` and `unit`, when set, are single-line.
+  `±Inf` are rejected) and either 0 or of magnitude **1e-15** to **1e15** (values
+  outside that window overflow or underflow the client scale). Negative values are
+  legal — the renderer anchors the value axis at 0. `title` and `unit`, when set,
+  are single-line.
 - On `term`, `output` is non-empty and at most **32 KiB**; `command` and `title`, when
   set, are single-line.
-- On `filetree`, `entries` holds 1 to **200** entries; every `path` is relative,
-  slash-separated, and unique, with no empty, `.`, or `..` segment and no trailing
-  slash — directories are implicit from path segments, never entries of their own.
+- On `filetree`, `entries` holds 1 to **200** entries; every `path` is relative
+  (a leading `/`, a `C:`-style drive letter, or any backslash is rejected),
+  slash-separated, and unique, with no empty, `.`, or `..` segment, no trailing
+  slash, and at most **32** path segments — directories are implicit from path
+  segments, never entries of their own.
   `badge`, when set, is one of `added`, `modified`, `removed`; `note`, when set, is
   single-line.
 - On `record`, `facts` holds 1 to **16** entries and every fact carries a `label` — a

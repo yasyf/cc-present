@@ -48,4 +48,37 @@ struct TermBlockViewTests {
         let esc = "\u{001B}"
         #expect(TermBlockView.stripAnsi("a\(esc)[2K\(esc)[1Ab") == "ab")
     }
+
+    @Test("stripAnsi removes colon-form (truecolor) SGR")
+    func stripsColonSgr() {
+        let esc = "\u{001B}"
+        #expect(TermBlockView.stripAnsi("\(esc)[38:2::255:0:0mred\(esc)[0m") == "red")
+    }
+
+    @Test("stripAnsi strips an OSC-8 hyperlink but keeps its visible text")
+    func stripsOsc8KeepingText() {
+        let esc = "\u{001B}"
+        let input = "\(esc)]8;;https://example.com\(esc)\\Link text\(esc)]8;;\(esc)\\"
+        #expect(TermBlockView.stripAnsi(input) == "Link text")
+    }
+
+    @Test("stripAnsi strips a BEL-terminated OSC window-title sequence")
+    func stripsOscBel() {
+        let esc = "\u{001B}"
+        let bel = "\u{0007}"
+        #expect(TermBlockView.stripAnsi("\(esc)]0;my title\(bel)rest") == "rest")
+    }
+
+    @Test("stripAnsi strips a lone ESC charset-select sequence")
+    func stripsLoneEsc() {
+        let esc = "\u{001B}"
+        #expect(TermBlockView.stripAnsi("\(esc)(Bplain") == "plain")
+    }
+
+    @Test("the native title shows only in the fallback, never over the webview")
+    func nativeTitleOnlyInFallback() {
+        #expect(WebBlockPresentation.rawSource.showsNativeTitle)
+        #expect(!WebBlockPresentation.webView(showingSkeleton: true).showsNativeTitle)
+        #expect(!WebBlockPresentation.webView(showingSkeleton: false).showsNativeTitle)
+    }
 }

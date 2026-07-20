@@ -1,6 +1,6 @@
 import { useId, useMemo } from 'react';
 import type { Chart } from '../schema';
-import { formatValue, niceScale, seriesColors } from '../chart';
+import { barLayout, formatValue, niceScale, seriesColors } from '../chart';
 import { resolveColor } from '../cssColor';
 import { useResolvedTheme } from '../theme';
 
@@ -58,8 +58,7 @@ export function ChartView({ block }: { block: Chart }) {
   const xCenter = (c: number) => PAD_L + bandW * c + bandW / 2;
 
   const n = block.series.length;
-  const groupW = Math.min(bandW * 0.8, n * MAX_BAR + (n - 1) * BAR_GAP);
-  const barW = (groupW - (n - 1) * BAR_GAP) / n;
+  const { groupW, gap, barW } = barLayout(bandW, n, MAX_BAR, BAR_GAP);
 
   const desc = `${block.kind} chart, ${block.categories.length} categories, ${n} series`;
   const markTitle = (category: string, label: string, value: number) =>
@@ -97,7 +96,7 @@ export function ChartView({ block }: { block: Chart }) {
           {block.kind === 'bar'
             ? block.series.map((s, si) =>
                 s.values.map((v, c) => {
-                  const x = PAD_L + bandW * c + (bandW - groupW) / 2 + si * (barW + BAR_GAP);
+                  const x = PAD_L + bandW * c + (bandW - groupW) / 2 + si * (barW + gap);
                   const y1 = yScale(v);
                   const top = Math.min(baselineY, y1);
                   const h = Math.abs(y1 - baselineY);

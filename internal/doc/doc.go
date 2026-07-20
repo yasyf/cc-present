@@ -12,6 +12,7 @@ import (
 	"math"
 	"net/url"
 	"regexp"
+	"strconv"
 	"strings"
 )
 
@@ -24,7 +25,10 @@ const (
 	MaxTermBytes    = 32 << 10 // 32 KiB
 	MaxChartSeries  = 6
 	MaxChartPoints  = 100
+	MaxChartAbs     = 1e15  // largest chart value magnitude the client scale renders without float overflow
+	MinChartAbs     = 1e-15 // smallest non-zero magnitude before the client scale underflows to a zero step
 	MaxTreeEntries  = 200
+	MaxTreeDepth    = 32
 	MaxRecordFacts  = 16
 	MaxRecordChips  = 8
 	MaxRecordLinks  = 8
@@ -41,6 +45,7 @@ var (
 	validChartKind     = map[string]bool{"bar": true, "line": true}
 	validTreeBadge     = map[string]bool{"added": true, "modified": true, "removed": true}
 	assetSHAPattern    = regexp.MustCompile(`^asset:[0-9a-f]{64}$`)
+	driveLetterPrefix  = regexp.MustCompile(`^[A-Za-z]:$`)
 	errEmptyBlockID    = errors.New("block id must not be empty")
 	errEmptyTitle      = errors.New("doc title must not be empty")
 )
@@ -518,7 +523,7 @@ func validateSection(s *Section) error {
 }
 
 func validateCard(c *Card) error {
-	if strings.Contains(c.Summary, "\n") {
+	if isMultiline(c.Summary) {
 		return fmt.Errorf("card %q: summary must be a single line", c.ID)
 	}
 	if c.Status != "" && !validStatus[c.Status] {
@@ -536,7 +541,7 @@ func validateChip(c Chip) error {
 	if c.Label == "" {
 		return errors.New("chip label must not be empty")
 	}
-	if strings.Contains(c.Label, "\n") {
+	if isMultiline(c.Label) {
 		return errors.New("chip label must be a single line")
 	}
 	if c.Tone != "" && !validTone[c.Tone] {
@@ -576,10 +581,10 @@ func validateFact(f Fact) error {
 	if f.Value == "" {
 		return errors.New("fact value must not be empty")
 	}
-	if strings.Contains(f.Value, "\n") {
+	if isMultiline(f.Value) {
 		return errors.New("fact value must be a single line")
 	}
-	if strings.Contains(f.Label, "\n") {
+	if isMultiline(f.Label) {
 		return errors.New("fact label must be a single line")
 	}
 	if f.Tone != "" && !validFactTone[f.Tone] {
@@ -599,7 +604,7 @@ func validateDetail(d *Detail) error {
 		if p == "" {
 			return errors.New("detail pro must not be empty")
 		}
-		if strings.Contains(p, "\n") {
+		if isMultiline(p) {
 			return errors.New("detail pro must be a single line")
 		}
 	}
@@ -607,7 +612,7 @@ func validateDetail(d *Detail) error {
 		if c == "" {
 			return errors.New("detail con must not be empty")
 		}
-		if strings.Contains(c, "\n") {
+		if isMultiline(c) {
 			return errors.New("detail con must be a single line")
 		}
 	}
@@ -674,7 +679,7 @@ func validateDiagram(d *Diagram) error {
 	if len(d.Source) > MaxDiagramBytes {
 		return fmt.Errorf("diagram %q: source is %d bytes, exceeds %d", d.ID, len(d.Source), MaxDiagramBytes)
 	}
-	if strings.Contains(d.Title, "\n") {
+	if isMultiline(d.Title) {
 		return fmt.Errorf("diagram %q: title must be a single line", d.ID)
 	}
 	return nil
@@ -697,7 +702,7 @@ func validateChoice(c *Choice) error {
 		if o.Label == "" {
 			return fmt.Errorf("choice %q: option %q label must not be empty", c.ID, o.ID)
 		}
-		if strings.Contains(o.Hint, "\n") {
+		if isMultiline(o.Hint) {
 			return fmt.Errorf("choice %q: option %q hint must be a single line", c.ID, o.ID)
 		}
 		for _, f := range o.Facts {
@@ -789,14 +794,18 @@ func validateProgress(p *Progress) error {
 	return nil
 }
 
+func isMultiline(s string) bool {
+	return strings.ContainsAny(s, "\r\n")
+}
+
 func validateChart(c *Chart) error {
 	if !validChartKind[c.Kind] {
 		return fmt.Errorf("chart %q: kind must be bar or line, got %q", c.ID, c.Kind)
 	}
-	if strings.Contains(c.Title, "\n") {
+	if isMultiline(c.Title) {
 		return fmt.Errorf("chart %q: title must be a single line", c.ID)
 	}
-	if strings.Contains(c.Unit, "\n") {
+	if isMultiline(c.Unit) {
 		return fmt.Errorf("chart %q: unit must be a single line", c.ID)
 	}
 	if len(c.Categories) == 0 {
@@ -810,7 +819,7 @@ func validateChart(c *Chart) error {
 		if cat == "" {
 			return fmt.Errorf("chart %q: category must not be empty", c.ID)
 		}
-		if strings.Contains(cat, "\n") {
+		if isMultiline(cat) {
 			return fmt.Errorf("chart %q: category must be a single line", c.ID)
 		}
 		if seenCat[cat] {
@@ -829,7 +838,7 @@ func validateChart(c *Chart) error {
 		if s.Label == "" {
 			return fmt.Errorf("chart %q: series label must not be empty", c.ID)
 		}
-		if strings.Contains(s.Label, "\n") {
+		if isMultiline(s.Label) {
 			return fmt.Errorf("chart %q: series label must be a single line", c.ID)
 		}
 		if seenSeries[s.Label] {
@@ -843,6 +852,9 @@ func validateChart(c *Chart) error {
 			if math.IsNaN(v) || math.IsInf(v, 0) {
 				return fmt.Errorf("chart %q: series %q has a non-finite value", c.ID, s.Label)
 			}
+			if a := math.Abs(v); v != 0 && (a < MinChartAbs || a > MaxChartAbs) {
+				return fmt.Errorf("chart %q: series %q value magnitude must be 0 or within [%g, %g]", c.ID, s.Label, MinChartAbs, MaxChartAbs)
+			}
 		}
 	}
 	return nil
@@ -855,17 +867,17 @@ func validateTerm(t *Term) error {
 	if len(t.Output) > MaxTermBytes {
 		return fmt.Errorf("term %q: output is %d bytes, exceeds %d", t.ID, len(t.Output), MaxTermBytes)
 	}
-	if strings.Contains(t.Command, "\n") {
+	if isMultiline(t.Command) {
 		return fmt.Errorf("term %q: command must be a single line", t.ID)
 	}
-	if strings.Contains(t.Title, "\n") {
+	if isMultiline(t.Title) {
 		return fmt.Errorf("term %q: title must be a single line", t.ID)
 	}
 	return nil
 }
 
 func validateFileTree(f *FileTree) error {
-	if strings.Contains(f.Title, "\n") {
+	if isMultiline(f.Title) {
 		return fmt.Errorf("filetree %q: title must be a single line", f.ID)
 	}
 	if len(f.Entries) == 0 {
@@ -886,7 +898,7 @@ func validateFileTree(f *FileTree) error {
 		if e.Badge != "" && !validTreeBadge[e.Badge] {
 			return fmt.Errorf("filetree %q: invalid badge %q", f.ID, e.Badge)
 		}
-		if strings.Contains(e.Note, "\n") {
+		if isMultiline(e.Note) {
 			return fmt.Errorf("filetree %q: note must be a single line", f.ID)
 		}
 	}
@@ -900,10 +912,20 @@ func validateTreePath(p string) error {
 	if strings.HasPrefix(p, "/") {
 		return fmt.Errorf("path %q must be relative", p)
 	}
+	if strings.Contains(p, `\`) {
+		return fmt.Errorf("path %q must use forward slashes", p)
+	}
 	if strings.HasSuffix(p, "/") {
 		return fmt.Errorf("path %q must not end with a slash", p)
 	}
-	for _, seg := range strings.Split(p, "/") {
+	segs := strings.Split(p, "/")
+	if driveLetterPrefix.MatchString(segs[0]) {
+		return fmt.Errorf("path %q must be relative", p)
+	}
+	if len(segs) > MaxTreeDepth {
+		return fmt.Errorf("path %q exceeds depth %d", p, MaxTreeDepth)
+	}
+	for _, seg := range segs {
 		if seg == "" || seg == "." || seg == ".." {
 			return fmt.Errorf("path %q has an empty or dot segment", p)
 		}
@@ -912,7 +934,7 @@ func validateTreePath(p string) error {
 }
 
 func validateRecord(r *Record) error {
-	if strings.Contains(r.Title, "\n") {
+	if isMultiline(r.Title) {
 		return fmt.Errorf("record %q: title must be a single line", r.ID)
 	}
 	if len(r.Chips) > MaxRecordChips {
@@ -952,15 +974,21 @@ func validateLink(l Link) error {
 	if l.Label == "" {
 		return errors.New("link label must not be empty")
 	}
-	if strings.Contains(l.Label, "\n") {
+	if isMultiline(l.Label) {
 		return errors.New("link label must be a single line")
 	}
 	u, err := url.Parse(l.URL)
 	if err != nil {
 		return fmt.Errorf("link url %q is not a valid URL: %w", l.URL, err)
 	}
-	if u.Scheme != "https" || u.Host == "" {
+	if u.Scheme != "https" || u.Hostname() == "" {
 		return fmt.Errorf("link url must be https with a host, got %q", l.URL)
+	}
+	if port := u.Port(); port != "" {
+		n, err := strconv.Atoi(port)
+		if err != nil || n < 1 || n > 65535 {
+			return fmt.Errorf("link url has an invalid port %q (must be 1-65535)", port)
+		}
 	}
 	return nil
 }

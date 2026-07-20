@@ -17,11 +17,13 @@ import { FocusStageContext, FocusStepContext } from './focusStep';
 import type { FocusStageValue } from './focusStep';
 import { cardVariants } from './focusMotion';
 
-// Heavy lead-in blocks collapse to a one-line titled disclosure; markdown stays
-// visible but clamped; everything else renders in place.
-const HEAVY_CONTEXT = new Set(['code', 'diff', 'table', 'image', 'diagram']);
+// Heavy lead-in blocks collapse to a one-line titled disclosure; markdown clamps.
+// term and filetree join them; chart and record stay expanded (bounded-height).
+const HEAVY_CONTEXT = new Set(['code', 'diff', 'table', 'image', 'diagram', 'term', 'filetree']);
 
-function contextTitle(block: Block): string {
+// contextTitle labels a demoted context or option-visual disclosure, else a type name.
+// Mirrors iOS optionVisualTitle/focusContextTitle.
+export function contextTitle(block: Block): string {
   switch (block.type) {
     case 'code':
       return block.title ?? block.lang;
@@ -33,6 +35,14 @@ function contextTitle(block: Block): string {
       return block.caption ?? block.alt;
     case 'table':
       return 'Table';
+    case 'chart':
+      return block.title ?? 'Chart';
+    case 'term':
+      return block.title ?? 'Terminal';
+    case 'filetree':
+      return block.title ?? 'Files';
+    case 'record':
+      return block.title ?? 'Record';
     default:
       return block.type;
   }

@@ -89,4 +89,28 @@ struct FileTreeBlockViewTests {
             "+ new.ts",
         ])
     }
+
+    @Test("a removed file and a same-named added directory stay distinct rows")
+    func fileAndDirSameNameDistinctRows() {
+        let entries = [
+            Block.TreeEntry(path: "a", badge: "removed"),
+            Block.TreeEntry(path: "a/b", badge: "added"),
+        ]
+        let rows = FileTreeBlockView.rows(from: entries)
+        // The implicit "a/" directory, "b" under it, and the removed "a" file all coexist.
+        #expect(rows.map(FileTreeBlockView.line(for:)) == [
+            "  a/",
+            "  + b",
+            "\u{2212} a",
+        ])
+        // Distinct identities keep ForEach from collapsing the two same-named nodes.
+        #expect(Set(rows.map(\.id)).count == rows.count)
+    }
+
+    @Test("the native title shows only in the fallback, never over the webview")
+    func nativeTitleOnlyInFallback() {
+        #expect(WebBlockPresentation.rawSource.showsNativeTitle)
+        #expect(!WebBlockPresentation.webView(showingSkeleton: true).showsNativeTitle)
+        #expect(!WebBlockPresentation.webView(showingSkeleton: false).showsNativeTitle)
+    }
 }

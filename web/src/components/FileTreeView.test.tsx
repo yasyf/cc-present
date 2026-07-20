@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import type { Root } from 'react-dom/client';
@@ -104,5 +104,24 @@ describe('FileTreeView', () => {
   it('omits the badge span for an unbadged entry', () => {
     render(tree([{ path: 'plain.ts' }]));
     expect(container.querySelector('.filetree-badge')).toBeNull();
+  });
+
+  it('renders a file and a same-named directory without colliding React keys', () => {
+    const warnings: string[] = [];
+    const spy = vi.spyOn(console, 'error').mockImplementation((...args: unknown[]) => {
+      warnings.push(args.map(String).join(' '));
+    });
+    render(
+      tree([
+        { path: 'a', badge: 'removed' },
+        { path: 'a/b', badge: 'added' },
+      ]),
+    );
+    spy.mockRestore();
+    expect(warnings.some((w) => w.includes('same key'))).toBe(false);
+    // Both the removed file "a" and the implicit "a/" directory (with child "b") render.
+    expect(container.querySelector('summary.filetree-summary')?.textContent).toBe('a');
+    const names = [...container.querySelectorAll('.filetree-name')].map((n) => n.textContent);
+    expect(names).toEqual(expect.arrayContaining(['a', 'b']));
   });
 });
