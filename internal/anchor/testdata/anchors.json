@@ -1,0 +1,39 @@
+{
+  "hash": [
+    {"line": "", "hash": "v7e5"},
+    {"line": "  \t ", "hash": "v7e5"},
+    {"line": "func main() {", "hash": "f6zy"},
+    {"line": "\tfunc main() {  ", "hash": "f6zy"},
+    {"line": "func main() {\r", "hash": "f6zy"},
+    {"line": "return nil", "hash": "xrkm"},
+    {"line": "}", "hash": "tj58"},
+    {"line": "\u00a0return nil\u00a0", "hash": "xrkm"},
+    {"line": "\ufeffreturn nil", "hash": "ty1h"},
+    {"line": "héllo -> wörld", "hash": "xdsf"}
+  ],
+  "parse": [
+    {"ref": "f6zy", "line": 0, "end": 0, "hash": "f6zy"},
+    {"ref": "12#xrkm", "line": 12, "end": 12, "hash": "xrkm"},
+    {"ref": "2-4#tj58", "line": 2, "end": 4, "hash": "tj58"},
+    {"ref": "4-2#tj58", "error": true},
+    {"ref": "0#f6zy", "error": true},
+    {"ref": "fi00", "error": true},
+    {"ref": "fl00", "error": true},
+    {"ref": "fo00", "error": true},
+    {"ref": "fu00", "error": true},
+    {"ref": "f6z", "error": true},
+    {"ref": "F6ZY", "error": true},
+    {"ref": "06zy", "error": true}
+  ],
+  "resolve": [
+    {"ref": "2#xrkm", "lines": ["func main() {", "return nil", "}"], "start": 2, "end": 2, "moved": false},
+    {"ref": "1#xrkm", "lines": ["func main() {", "return nil", "}"], "start": 2, "end": 2, "moved": true, "from": 1},
+    {"ref": "4#xrkm", "lines": ["x", "return nil", "y", "z", "return nil"], "start": 5, "end": 5, "moved": true, "from": 4},
+    {"ref": "3#xrkm", "lines": ["x", "return nil", "y", "return nil", "z"], "start": 2, "end": 2, "moved": true, "from": 3},
+    {"ref": "2#xrkm", "lines": ["func main() {", "return value", "}"], "error": "not found"},
+    {"ref": "xrkm", "lines": ["x", "return nil", "y"], "start": 2, "end": 2, "moved": false},
+    {"ref": "xrkm", "lines": ["return nil", "x", "return nil"], "error": "ambiguous"},
+    {"ref": "1-2#f6zy", "lines": ["// inserted", "func main() {", "return nil", "}"], "start": 2, "end": 3, "moved": true, "from": 1},
+    {"ref": "1-5#f6zy", "lines": ["func main() {", "return nil", "}"], "start": 1, "end": 3, "moved": false}
+  ]
+}
