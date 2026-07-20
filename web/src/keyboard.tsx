@@ -16,7 +16,7 @@ import { useInteractivePackTypes } from './packs/registry';
 import type { Block } from './schema';
 import type { Interactions } from './events';
 
-export type DecidableKind = 'approval' | 'choice' | 'input' | 'pack';
+export type DecidableKind = 'approval' | 'choice' | 'input' | 'pack' | 'draft' | 'triage';
 
 export interface DecidableSpec {
   kind: DecidableKind;
@@ -252,19 +252,19 @@ export function KeyboardProvider({ blocks, interactions, closed, round, onViewTo
           jumpNextUndecided();
           break;
         case 'verdict':
-          if (handle?.kind === 'approval') {
+          if (handle?.kind === 'approval' || handle?.kind === 'triage') {
             e.preventDefault();
             handle.specRef.current.verdict?.(action.verdict);
           }
           break;
         case 'clear':
-          if (handle?.kind === 'approval') {
+          if (handle?.kind === 'approval' || handle?.kind === 'triage') {
             e.preventDefault();
             handle.specRef.current.clear?.();
           }
           break;
         case 'choose':
-          if (handle?.kind === 'choice') {
+          if (handle?.kind === 'choice' || handle?.kind === 'triage') {
             e.preventDefault();
             handle.specRef.current.choose?.(action.option);
           }

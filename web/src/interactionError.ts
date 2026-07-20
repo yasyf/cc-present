@@ -11,6 +11,12 @@ export function interactionErrorText(interaction: Interaction): string {
       return 'Could not record your choice. Check your connection and try again.';
     case 'feedback.created':
       return 'Could not send your feedback. Check your connection and try again.';
+    case 'annotation.created':
+      return 'Could not save your note. Check your connection and try again.';
+    case 'annotation.removed':
+      return 'Could not remove your note. Check your connection and try again.';
+    case 'triage.decided':
+      return 'Could not record your verdict. Check your connection and try again.';
     case 'input.submitted':
       return 'Could not save your input. Check your connection and try again.';
     case 'pack.interaction':

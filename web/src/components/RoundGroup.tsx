@@ -15,13 +15,23 @@ export function RoundGroup({ record, interactions }: { record: RoundRecord; inte
     packs: record.packs,
     feedback: record.feedback,
     replies: interactions.replies,
+    annotations: record.annotations,
+    triage: record.triage,
     submitted: interactions.submitted,
     closed: interactions.closed,
   };
 
   const all = flatten(record.blocks);
-  const approved = all.filter((b) => b.type === 'approval' && record.decisions[b.id]?.verdict === 'approved').length;
-  const rejected = all.filter((b) => b.type === 'approval' && record.decisions[b.id]?.verdict === 'rejected').length;
+  // Triage item verdicts are the same currency as approval verdicts, so the
+  // approve/reject chips count them individually alongside approvals.
+  const triageVerdicts = (b: (typeof all)[number], v: 'approved' | 'rejected') =>
+    b.type === 'triage' ? Object.values(record.triage[b.id] ?? {}).filter((d) => d.verdict === v).length : 0;
+  const approved =
+    all.filter((b) => b.type === 'approval' && record.decisions[b.id]?.verdict === 'approved').length +
+    all.reduce((n, b) => n + triageVerdicts(b, 'approved'), 0);
+  const rejected =
+    all.filter((b) => b.type === 'approval' && record.decisions[b.id]?.verdict === 'rejected').length +
+    all.reduce((n, b) => n + triageVerdicts(b, 'rejected'), 0);
   const picks = all.filter(
     (b) =>
       (b.type === 'choice' &&
@@ -29,7 +39,17 @@ export function RoundGroup({ record, interactions }: { record: RoundRecord; inte
       (isPackBlock(b) && record.packs[b.id] !== undefined),
   ).length;
   const filledInputs = all.filter((b) => b.type === 'input' && (record.inputs[b.id]?.text.trim() ?? '') !== '').length;
-  const notes = filledInputs + all.reduce((n, b) => n + (record.feedback[b.id]?.length ?? 0), 0);
+  const triageNotes = all.reduce(
+    (n, b) =>
+      b.type === 'triage' ? n + Object.values(record.triage[b.id] ?? {}).filter((d) => (d.note ?? '') !== '').length : n,
+    0,
+  );
+  const annotationNotes = all.reduce((n, b) => n + (record.annotations[b.id]?.length ?? 0), 0);
+  const notes =
+    filledInputs +
+    triageNotes +
+    annotationNotes +
+    all.reduce((n, b) => n + (record.feedback[b.id]?.length ?? 0), 0);
 
   const header = (
     <span className="round-header">

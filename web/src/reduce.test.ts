@@ -28,20 +28,27 @@ function normalizeInteractions(i: Partial<Interactions> | undefined): Interactio
     packs: i?.packs ?? {},
     feedback: i?.feedback ?? {},
     replies: i?.replies ?? {},
+    annotations: i?.annotations ?? {},
+    triage: i?.triage ?? {},
     submitted: i?.submitted ?? { value: false, revision: 0 },
     closed: i?.closed ?? { value: false },
   };
 }
 
-// normalizeRounds fills a round record's `packs` map the same way Go's initMaps
-// does (reduce_test.go), so a fixture that omits the empty pack snapshot still
-// matches the reducer, which always emits it.
+// normalizeRounds fills a round record's `packs`, `annotations`, and `triage`
+// maps the same way Go's initMaps does (reduce_test.go), so a fixture that omits
+// an empty snapshot still matches the reducer, which always emits them.
 function normalizeRounds(r: Partial<Rounds> | undefined): Rounds {
   return {
     current: r?.current ?? 1,
     currentTitle: r?.currentTitle,
     blockRounds: r?.blockRounds ?? {},
-    history: (r?.history ?? []).map((rec) => ({ ...rec, packs: rec.packs ?? {} })),
+    history: (r?.history ?? []).map((rec) => ({
+      ...rec,
+      packs: rec.packs ?? {},
+      annotations: rec.annotations ?? {},
+      triage: rec.triage ?? {},
+    })),
   };
 }
 

@@ -9,7 +9,7 @@ import type { Interactions, Verdict } from './events';
 
 export interface SubmitItem {
   id: string;
-  kind: 'approval' | 'choice' | 'pack';
+  kind: 'approval' | 'choice' | 'pack' | 'triage';
   decided: boolean;
 }
 
@@ -23,6 +23,8 @@ const BUILTIN_DECIDABLE = {
   approval: true,
   choice: true,
   input: true,
+  draft: true,
+  triage: true,
   markdown: false,
   code: false,
   diff: false,
@@ -42,6 +44,8 @@ const BUILTIN_TALLIED = {
   approval: 'approval',
   choice: 'choice',
   input: null,
+  draft: null,
+  triage: 'triage',
   markdown: null,
   code: null,
   diff: null,
@@ -88,6 +92,10 @@ export function isDecided(block: Block, interactions: Interactions): boolean {
     case 'choice': {
       const selection = interactions.choices[block.id];
       return selection !== undefined && (selection.optionIds.length > 0 || selection.other !== undefined);
+    }
+    case 'triage': {
+      const verdicts = interactions.triage[block.id];
+      return block.items.every((item) => verdicts?.[item.id] !== undefined);
     }
     default:
       return false;

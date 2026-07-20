@@ -6,9 +6,9 @@
 
 import type { Block, Card, ChildBlock, Choice, Doc } from './schema';
 import type {
+  Annotation,
   Closed,
   Decision,
-  Feedback,
   HumanEvent,
   Interaction,
   Interactions,
@@ -37,6 +37,8 @@ export function emptyState(): PresentState {
       packs: {},
       feedback: {},
       replies: {},
+      annotations: {},
+      triage: {},
       submitted: { value: false, revision: 0 },
       closed: { value: false },
     },
@@ -57,9 +59,9 @@ export function reduce(events: readonly PresentEvent[]): PresentState {
 }
 
 // applyEvent applies a single frame. present.closed is terminal: once closed,
-// every later frame is a no-op, so a human interaction that races the close
-// never poisons replay. channel.changed frames and agent.* lifecycle events are
-// skipped; any other unknown type is an error.
+// every later frame is a no-op. Framework frames in the shared log —
+// channel.changed and the agent.* lifecycle — are skipped; any other unknown
+// type is an error.
 export function applyEvent(state: PresentState, ev: PresentEvent): PresentState {
   if (state.interactions.closed.value) return state;
   if (ev.type.startsWith('agent.')) return state;
@@ -127,6 +129,43 @@ export function applyEvent(state: PresentState, ev: PresentEvent): PresentState 
     case 'feedback.created': {
       const { blockId, id, text } = ev.payload;
       return withInteractions(state, { feedback: append(state.interactions.feedback, blockId, { id, text }) });
+    }
+    case 'annotation.created': {
+      const { blockId, id, anchor, text, quote } = ev.payload;
+      const ann: Annotation = { id, anchor, text, quote };
+      const list = state.interactions.annotations[blockId] ?? [];
+      const idx = list.findIndex((a) => a.id === id);
+      const next = idx === -1 ? [...list, ann] : list.map((a, i) => (i === idx ? ann : a));
+      return withInteractions(state, { annotations: { ...state.interactions.annotations, [blockId]: next } });
+    }
+    case 'annotation.removed': {
+      const { blockId, id } = ev.payload;
+      const list = state.interactions.annotations[blockId];
+      if (!list || !list.some((a) => a.id === id)) return state;
+      // A removal that empties the list leaves the (now empty) list under the
+      // block key, mirroring the Go splice — the key is never deleted.
+      return withInteractions(state, {
+        annotations: { ...state.interactions.annotations, [blockId]: list.filter((a) => a.id !== id) },
+      });
+    }
+    case 'triage.decided': {
+      const { blockId, verdicts } = ev.payload;
+      const block = { ...(state.interactions.triage[blockId] ?? {}) };
+      for (const [itemId, entry] of Object.entries(verdicts)) {
+        if (!VALID_VERDICTS.has(entry.verdict)) throw new Error(`invalid verdict "${entry.verdict}"`);
+        if (entry.verdict === 'cleared') {
+          delete block[itemId];
+          continue;
+        }
+        const decision: Decision = { verdict: entry.verdict };
+        if (entry.note) decision.note = entry.note;
+        block[itemId] = decision;
+      }
+      const triage = { ...state.interactions.triage };
+      // An emptied inner map deletes the block key; a non-empty one replaces it.
+      if (Object.keys(block).length === 0) delete triage[blockId];
+      else triage[blockId] = block;
+      return withInteractions(state, { triage });
     }
     case 'input.submitted': {
       const { blockId, text } = ev.payload;
@@ -200,6 +239,33 @@ function interactionEvent(interaction: Interaction): HumanEvent {
         seq,
         payload: { id: interaction.id, blockId: interaction.blockId, text: interaction.text },
       };
+    case 'annotation.created':
+      return {
+        origin: 'human',
+        type: 'annotation.created',
+        seq,
+        payload: {
+          id: interaction.id,
+          blockId: interaction.blockId,
+          anchor: interaction.anchor,
+          text: interaction.text,
+          quote: interaction.quote,
+        },
+      };
+    case 'annotation.removed':
+      return {
+        origin: 'human',
+        type: 'annotation.removed',
+        seq,
+        payload: { id: interaction.id, blockId: interaction.blockId },
+      };
+    case 'triage.decided':
+      return {
+        origin: 'human',
+        type: 'triage.decided',
+        seq,
+        payload: { blockId: interaction.blockId, verdicts: interaction.verdicts },
+      };
     case 'input.submitted':
       return {
         origin: 'human',
@@ -263,7 +329,9 @@ function closeRound(state: PresentState, revision: number | undefined): PresentS
     choices: filterMap(state.interactions.choices, ids),
     inputs: filterMap(state.interactions.inputs, ids),
     packs: filterMap(state.interactions.packs, ids),
-    feedback: filterFeedback(state.interactions.feedback, ids),
+    feedback: filterClone(state.interactions.feedback, ids, (v) => [...v]),
+    annotations: filterClone(state.interactions.annotations, ids, (v) => [...v]),
+    triage: filterClone(state.interactions.triage, ids, (v) => ({ ...v })),
   };
   if (state.rounds.currentTitle) record.title = state.rounds.currentTitle;
   if (revision !== undefined) record.submittedRevision = revision;
@@ -315,9 +383,13 @@ function filterMap<T>(map: Record<string, T>, ids: Set<string>): Record<string, 
   return out;
 }
 
-function filterFeedback(map: Record<string, Feedback[]>, ids: Set<string>): Record<string, Feedback[]> {
-  const out: Record<string, Feedback[]> = {};
-  for (const [id, v] of Object.entries(map)) if (ids.has(id)) out[id] = [...v];
+// filterClone projects a keyed interaction map to the round's block ids, cloning
+// each retained value through `clone` so a later mutation of the live interaction
+// state cannot reach a round's frozen snapshot (lists and triage inner maps are
+// references). Generalizes filterMap for the append-only / nested cases.
+function filterClone<T>(map: Record<string, T>, ids: Set<string>, clone: (v: T) => T): Record<string, T> {
+  const out: Record<string, T> = {};
+  for (const [id, v] of Object.entries(map)) if (ids.has(id)) out[id] = clone(v);
   return out;
 }
 

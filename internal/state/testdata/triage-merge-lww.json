@@ -1,0 +1,38 @@
+{
+  "name": "triage-merge-lww",
+  "events": [
+    {
+      "origin": "agent",
+      "type": "doc.replaced",
+      "seq": 1,
+      "payload": {
+        "revision": 1,
+        "doc": {
+          "version": 1,
+          "title": "T",
+          "blocks": [
+            { "id": "t1", "type": "triage", "items": [ { "id": "i1", "label": "First" }, { "id": "i2", "label": "Second" } ] }
+          ]
+        }
+      }
+    },
+    { "origin": "human", "type": "triage.decided", "seq": 2, "payload": { "blockId": "t1", "verdicts": { "i1": { "verdict": "approved" } } } },
+    { "origin": "human", "type": "triage.decided", "seq": 3, "payload": { "blockId": "t1", "verdicts": { "i2": { "verdict": "rejected" } } } },
+    { "origin": "human", "type": "triage.decided", "seq": 4, "payload": { "blockId": "t1", "verdicts": { "i1": { "verdict": "rejected" } } } }
+  ],
+  "expected": {
+    "doc": {
+      "version": 1,
+      "title": "T",
+      "blocks": [
+        { "id": "t1", "type": "triage", "items": [ { "id": "i1", "label": "First" }, { "id": "i2", "label": "Second" } ] }
+      ]
+    },
+    "interactions": {
+      "triage": {
+        "t1": { "i1": { "verdict": "rejected" }, "i2": { "verdict": "rejected" } }
+      }
+    },
+    "rounds": { "current": 1, "blockRounds": { "t1": 1 }, "history": [] }
+  }
+}

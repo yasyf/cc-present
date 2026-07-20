@@ -9,6 +9,8 @@ export type BuiltinBlockType =
   | 'approval'
   | 'choice'
   | 'input'
+  | 'draft'
+  | 'triage'
   | 'markdown'
   | 'code'
   | 'diff'
@@ -127,6 +129,45 @@ export interface Input {
   label: string;
   placeholder?: string;
   multiline?: boolean;
+}
+
+// A document under line-anchored markup: numbered source lines a human annotates.
+// lang picks the highlight grammar (plain-text fallback); annotations live in the
+// separate interaction reduction and re-anchor by content across agent redrafts.
+export interface Draft {
+  id: string;
+  type: 'draft';
+  lang: string;
+  text: string;
+  title?: string;
+}
+
+// One row in a triage block: choice's Option minus `recommended`, so choice-only
+// state stays unrepresentable here. It carries the same rich body — hint, md,
+// facts, a drill-down detail, and a single visual leaf.
+export interface Item {
+  id: string;
+  label: string;
+  // Single-line inline markdown shown beside the item label.
+  hint?: string;
+  md?: string;
+  // Scannable metrics shown in the item's up-front cluster.
+  facts?: Fact[];
+  // Drill-down tradeoffs and rationale behind a "Details" affordance.
+  detail?: Detail;
+  // A single visual leaf rendered in the item's visual stage.
+  visual?: OptionVisual;
+}
+
+// A multi-item accept/reject block: every item gets its own verdict, with bulk
+// accept/reject-all and optional per-item notes. allowNotes defaults to true when
+// omitted; the default is applied at render time.
+export interface Triage {
+  id: string;
+  type: 'triage';
+  prompt?: string;
+  allowNotes?: boolean;
+  items: Item[];
 }
 
 // --- Content child blocks ---
@@ -279,7 +320,7 @@ export interface PackBlock {
 // --- Unions ---
 
 export type StructuralBlock = Section | Card;
-export type InteractiveBlock = Approval | Choice | Input;
+export type InteractiveBlock = Approval | Choice | Input | Draft | Triage;
 export type ContentBlock =
   | Markdown
   | Code

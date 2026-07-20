@@ -1,0 +1,41 @@
+{
+  "name": "triage-bulk-then-override",
+  "events": [
+    {
+      "origin": "agent",
+      "type": "doc.replaced",
+      "seq": 1,
+      "payload": {
+        "revision": 1,
+        "doc": {
+          "version": 1,
+          "title": "T",
+          "blocks": [
+            { "id": "t1", "type": "triage", "allowNotes": true, "items": [ { "id": "i1", "label": "First" }, { "id": "i2", "label": "Second" }, { "id": "i3", "label": "Third" } ] }
+          ]
+        }
+      }
+    },
+    { "origin": "human", "type": "triage.decided", "seq": 2, "payload": { "blockId": "t1", "verdicts": { "i1": { "verdict": "approved" }, "i2": { "verdict": "approved", "note": "looks fine" }, "i3": { "verdict": "rejected" } } } },
+    { "origin": "human", "type": "triage.decided", "seq": 3, "payload": { "blockId": "t1", "verdicts": { "i2": { "verdict": "rejected", "note": "changed my mind" } } } }
+  ],
+  "expected": {
+    "doc": {
+      "version": 1,
+      "title": "T",
+      "blocks": [
+        { "id": "t1", "type": "triage", "allowNotes": true, "items": [ { "id": "i1", "label": "First" }, { "id": "i2", "label": "Second" }, { "id": "i3", "label": "Third" } ] }
+      ]
+    },
+    "interactions": {
+      "triage": {
+        "t1": {
+          "i1": { "verdict": "approved" },
+          "i2": { "verdict": "rejected", "note": "changed my mind" },
+          "i3": { "verdict": "rejected" }
+        }
+      }
+    },
+    "rounds": { "current": 1, "blockRounds": { "t1": 1 }, "history": [] }
+  }
+}

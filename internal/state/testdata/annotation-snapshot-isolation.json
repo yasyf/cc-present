@@ -1,0 +1,58 @@
+{
+  "name": "annotation-snapshot-isolation",
+  "events": [
+    {
+      "origin": "agent",
+      "type": "doc.replaced",
+      "seq": 1,
+      "payload": {
+        "revision": 1,
+        "doc": {
+          "version": 1,
+          "title": "D",
+          "blocks": [
+            { "id": "d1", "type": "draft", "lang": "markdown", "text": "Intro paragraph.\nA claim that needs support.\nClosing remarks." }
+          ]
+        }
+      }
+    },
+    { "origin": "human", "type": "annotation.created", "seq": 2, "payload": { "id": "an1", "blockId": "d1", "anchor": "2-2#svvz", "text": "Needs a citation.", "quote": "A claim that needs support." } },
+    { "origin": "human", "type": "submit", "seq": 3, "payload": { "revision": 1 } },
+    { "origin": "human", "type": "annotation.created", "seq": 4, "payload": { "id": "an1", "blockId": "d1", "anchor": "2-2#svvz", "text": "Rewritten note after close.", "quote": "A claim that needs support." } }
+  ],
+  "expected": {
+    "doc": {
+      "version": 1,
+      "title": "D",
+      "blocks": [
+        { "id": "d1", "type": "draft", "lang": "markdown", "text": "Intro paragraph.\nA claim that needs support.\nClosing remarks." }
+      ]
+    },
+    "interactions": {
+      "annotations": {
+        "d1": [ { "id": "an1", "anchor": "2-2#svvz", "text": "Rewritten note after close.", "quote": "A claim that needs support." } ]
+      },
+      "submitted": { "value": true, "revision": 1 }
+    },
+    "rounds": {
+      "current": 2,
+      "blockRounds": { "d1": 1 },
+      "history": [
+        {
+          "number": 1,
+          "blocks": [
+            { "id": "d1", "type": "draft", "lang": "markdown", "text": "Intro paragraph.\nA claim that needs support.\nClosing remarks." }
+          ],
+          "decisions": {},
+          "choices": {},
+          "inputs": {},
+          "packs": {},
+          "feedback": {},
+          "annotations": { "d1": [ { "id": "an1", "anchor": "2-2#svvz", "text": "Needs a citation.", "quote": "A claim that needs support." } ] },
+          "triage": {},
+          "submittedRevision": 1
+        }
+      ]
+    }
+  }
+}

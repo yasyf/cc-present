@@ -1,0 +1,84 @@
+{
+  "name": "triage-round-partition",
+  "events": [
+    {
+      "origin": "agent",
+      "type": "doc.replaced",
+      "seq": 1,
+      "payload": {
+        "revision": 1,
+        "doc": {
+          "version": 1,
+          "title": "T",
+          "blocks": [
+            { "id": "t1", "type": "triage", "items": [ { "id": "i1", "label": "First" }, { "id": "i2", "label": "Second" } ] }
+          ]
+        }
+      }
+    },
+    { "origin": "human", "type": "triage.decided", "seq": 2, "payload": { "blockId": "t1", "verdicts": { "i1": { "verdict": "approved" } } } },
+    { "origin": "human", "type": "submit", "seq": 3, "payload": { "revision": 1 } },
+    {
+      "origin": "agent",
+      "type": "block.upserted",
+      "seq": 4,
+      "payload": {
+        "after": "t1",
+        "block": { "id": "t2", "type": "triage", "items": [ { "id": "j1", "label": "Alpha" }, { "id": "j2", "label": "Beta" } ] }
+      }
+    },
+    { "origin": "human", "type": "triage.decided", "seq": 5, "payload": { "blockId": "t2", "verdicts": { "j1": { "verdict": "rejected" } } } },
+    { "origin": "human", "type": "submit", "seq": 6, "payload": { "revision": 2 } }
+  ],
+  "expected": {
+    "doc": {
+      "version": 1,
+      "title": "T",
+      "blocks": [
+        { "id": "t1", "type": "triage", "items": [ { "id": "i1", "label": "First" }, { "id": "i2", "label": "Second" } ] },
+        { "id": "t2", "type": "triage", "items": [ { "id": "j1", "label": "Alpha" }, { "id": "j2", "label": "Beta" } ] }
+      ]
+    },
+    "interactions": {
+      "triage": {
+        "t1": { "i1": { "verdict": "approved" } },
+        "t2": { "j1": { "verdict": "rejected" } }
+      },
+      "submitted": { "value": true, "revision": 2 }
+    },
+    "rounds": {
+      "current": 3,
+      "blockRounds": { "t1": 1, "t2": 2 },
+      "history": [
+        {
+          "number": 1,
+          "blocks": [
+            { "id": "t1", "type": "triage", "items": [ { "id": "i1", "label": "First" }, { "id": "i2", "label": "Second" } ] }
+          ],
+          "decisions": {},
+          "choices": {},
+          "inputs": {},
+          "packs": {},
+          "feedback": {},
+          "annotations": {},
+          "triage": { "t1": { "i1": { "verdict": "approved" } } },
+          "submittedRevision": 1
+        },
+        {
+          "number": 2,
+          "blocks": [
+            { "id": "t2", "type": "triage", "items": [ { "id": "j1", "label": "Alpha" }, { "id": "j2", "label": "Beta" } ] }
+          ],
+          "decisions": {},
+          "choices": {},
+          "inputs": {},
+          "packs": {},
+          "feedback": {},
+          "annotations": {},
+          "triage": { "t2": { "j1": { "verdict": "rejected" } } },
+          "submittedRevision": 2
+        }
+      ]
+    }
+  }
+}

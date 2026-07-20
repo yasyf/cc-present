@@ -6,6 +6,8 @@ import { Card } from './Card';
 import { Approval } from './Approval';
 import { Choice } from './Choice';
 import { Input } from './Input';
+import { DraftView } from './DraftView';
+import { Triage } from './Triage';
 import { Markdown } from './Markdown';
 import { Code } from './Code';
 import { DiffView } from './DiffView';
@@ -39,6 +41,8 @@ const BUILTIN: { [T in BuiltinBlockType]: BuiltinRenderer<T> } = {
   approval: Approval,
   choice: Choice,
   input: Input,
+  draft: DraftView,
+  triage: Triage,
   markdown: Markdown,
   code: Code,
   diff: DiffView,

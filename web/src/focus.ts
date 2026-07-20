@@ -5,7 +5,7 @@
 // off these; iOS mirrors this walk in FocusSteps.swift.
 
 import { decidableIds, flatten, submitItems } from './decide';
-import type { Block, ChoiceOption } from './schema';
+import type { Block, Fact } from './schema';
 import type { Interactions } from './events';
 
 export type FocusStepKind = 'decision' | 'context';
@@ -113,6 +113,10 @@ export function stepTitle(step: FocusStep): string {
       return b.prompt ?? 'Choice';
     case 'input':
       return b.label;
+    case 'draft':
+      return b.title ?? 'Draft';
+    case 'triage':
+      return b.prompt ?? 'Triage';
     case 'section':
       return b.title;
     default:
@@ -144,11 +148,12 @@ export function stepHeadline(step: FocusStep): FocusHeadline {
 
 // factAxes is the aligned-grid gate: the shared ordered label list when at least
 // two fact-carrying options declare the same non-empty label sequence, else null —
-// any mismatch drops the comparison grid and the per-option fallback renders.
-export function factAxes(options: ChoiceOption[]): string[] | null {
+// any mismatch drops the comparison grid and the per-option fallback renders. The
+// param is widened past ChoiceOption to any fact-carrier, so triage items reuse it.
+export function factAxes(options: { facts?: Fact[] }[]): string[] | null {
   const withFacts = options.filter((o) => o.facts && o.facts.length > 0);
   if (withFacts.length < 2) return null;
-  const labelsOf = (o: ChoiceOption) => o.facts!.map((f) => f.label ?? '');
+  const labelsOf = (o: { facts?: Fact[] }) => o.facts!.map((f) => f.label ?? '');
   const axes = labelsOf(withFacts[0]!);
   if (axes.some((l) => l === '')) return null;
   for (const o of withFacts) {

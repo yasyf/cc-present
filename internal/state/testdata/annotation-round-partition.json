@@ -1,0 +1,84 @@
+{
+  "name": "annotation-round-partition",
+  "events": [
+    {
+      "origin": "agent",
+      "type": "doc.replaced",
+      "seq": 1,
+      "payload": {
+        "revision": 1,
+        "doc": {
+          "version": 1,
+          "title": "T",
+          "blocks": [
+            { "id": "d1", "type": "draft", "lang": "markdown", "text": "Intro paragraph.\nA claim that needs support.\nClosing remarks." }
+          ]
+        }
+      }
+    },
+    { "origin": "human", "type": "annotation.created", "seq": 2, "payload": { "id": "an1", "blockId": "d1", "anchor": "2-2#svvz", "text": "round one note", "quote": "A claim that needs support." } },
+    { "origin": "human", "type": "submit", "seq": 3, "payload": { "revision": 1 } },
+    {
+      "origin": "agent",
+      "type": "block.upserted",
+      "seq": 4,
+      "payload": {
+        "after": "d1",
+        "block": { "id": "d2", "type": "draft", "lang": "markdown", "text": "Second draft opening.\nAnother point to review." }
+      }
+    },
+    { "origin": "human", "type": "annotation.created", "seq": 5, "payload": { "id": "an2", "blockId": "d2", "anchor": "1-1#cnhc", "text": "round two note", "quote": "Second draft opening." } },
+    { "origin": "human", "type": "submit", "seq": 6, "payload": { "revision": 2 } }
+  ],
+  "expected": {
+    "doc": {
+      "version": 1,
+      "title": "T",
+      "blocks": [
+        { "id": "d1", "type": "draft", "lang": "markdown", "text": "Intro paragraph.\nA claim that needs support.\nClosing remarks." },
+        { "id": "d2", "type": "draft", "lang": "markdown", "text": "Second draft opening.\nAnother point to review." }
+      ]
+    },
+    "interactions": {
+      "annotations": {
+        "d1": [ { "id": "an1", "anchor": "2-2#svvz", "text": "round one note", "quote": "A claim that needs support." } ],
+        "d2": [ { "id": "an2", "anchor": "1-1#cnhc", "text": "round two note", "quote": "Second draft opening." } ]
+      },
+      "submitted": { "value": true, "revision": 2 }
+    },
+    "rounds": {
+      "current": 3,
+      "blockRounds": { "d1": 1, "d2": 2 },
+      "history": [
+        {
+          "number": 1,
+          "blocks": [
+            { "id": "d1", "type": "draft", "lang": "markdown", "text": "Intro paragraph.\nA claim that needs support.\nClosing remarks." }
+          ],
+          "decisions": {},
+          "choices": {},
+          "inputs": {},
+          "packs": {},
+          "feedback": {},
+          "annotations": { "d1": [ { "id": "an1", "anchor": "2-2#svvz", "text": "round one note", "quote": "A claim that needs support." } ] },
+          "triage": {},
+          "submittedRevision": 1
+        },
+        {
+          "number": 2,
+          "blocks": [
+            { "id": "d2", "type": "draft", "lang": "markdown", "text": "Second draft opening.\nAnother point to review." }
+          ],
+          "decisions": {},
+          "choices": {},
+          "inputs": {},
+          "packs": {},
+          "feedback": {},
+          "annotations": { "d2": [ { "id": "an2", "anchor": "1-1#cnhc", "text": "round two note", "quote": "Second draft opening." } ] },
+          "triage": {},
+          "submittedRevision": 2
+        }
+      ]
+    }
+  }
+}

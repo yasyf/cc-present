@@ -1,0 +1,39 @@
+{
+  "name": "annotation-remove-unknown-noop",
+  "events": [
+    {
+      "origin": "agent",
+      "type": "doc.replaced",
+      "seq": 1,
+      "payload": {
+        "revision": 1,
+        "doc": {
+          "version": 1,
+          "title": "T",
+          "blocks": [
+            { "id": "d1", "type": "draft", "lang": "markdown", "text": "Intro paragraph.\nA claim that needs support.\nClosing remarks." }
+          ]
+        }
+      }
+    },
+    { "origin": "human", "type": "annotation.created", "seq": 2, "payload": { "id": "an1", "blockId": "d1", "anchor": "2-2#svvz", "text": "needs a citation", "quote": "A claim that needs support." } },
+    { "origin": "human", "type": "annotation.removed", "seq": 3, "payload": { "id": "nope", "blockId": "d1" } }
+  ],
+  "expected": {
+    "doc": {
+      "version": 1,
+      "title": "T",
+      "blocks": [
+        { "id": "d1", "type": "draft", "lang": "markdown", "text": "Intro paragraph.\nA claim that needs support.\nClosing remarks." }
+      ]
+    },
+    "interactions": {
+      "annotations": {
+        "d1": [
+          { "id": "an1", "anchor": "2-2#svvz", "text": "needs a citation", "quote": "A claim that needs support." }
+        ]
+      }
+    },
+    "rounds": { "current": 1, "blockRounds": { "d1": 1 }, "history": [] }
+  }
+}

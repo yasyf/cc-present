@@ -64,6 +64,30 @@ export interface FeedbackCreatedPayload {
   text: string;
 }
 
+export interface AnnotationCreatedPayload {
+  id: string;
+  blockId: string;
+  // A content anchor (ccx `A-B#hash` form) the reducer stores verbatim. The
+  // daemon normalizes it to the resolution before echoing.
+  anchor: string;
+  text: string;
+  // The anchored lines at creation. Client-sent but always server-rewritten, so
+  // it never round-trips client-authored.
+  quote: string;
+}
+
+export interface AnnotationRemovedPayload {
+  id: string;
+  blockId: string;
+}
+
+// triage.decided is one partial-map merge, per-item last-write-wins. Each entry
+// is a Decision (verdict + optional note); a `cleared` verdict deletes the item.
+export interface TriageDecidedPayload {
+  blockId: string;
+  verdicts: Record<string, Decision>;
+}
+
 export interface InputSubmittedPayload {
   blockId: string;
   text: string;
@@ -111,6 +135,9 @@ export type PresentEvent =
   | { origin: 'human'; type: 'decision.created'; seq: number; payload: DecisionCreatedPayload }
   | { origin: 'human'; type: 'choice.selected'; seq: number; payload: ChoiceSelectedPayload }
   | { origin: 'human'; type: 'feedback.created'; seq: number; payload: FeedbackCreatedPayload }
+  | { origin: 'human'; type: 'annotation.created'; seq: number; payload: AnnotationCreatedPayload }
+  | { origin: 'human'; type: 'annotation.removed'; seq: number; payload: AnnotationRemovedPayload }
+  | { origin: 'human'; type: 'triage.decided'; seq: number; payload: TriageDecidedPayload }
   | { origin: 'human'; type: 'input.submitted'; seq: number; payload: InputSubmittedPayload }
   | { origin: 'human'; type: 'pack.interaction'; seq: number; payload: PackInteractionPayload }
   | { origin: 'human'; type: 'submit'; seq: number; payload: SubmitPayload }
@@ -141,6 +168,9 @@ export type WireFrame =
   | ({ type: 'decision.created' } & DecisionCreatedPayload)
   | ({ type: 'choice.selected' } & ChoiceSelectedPayload)
   | ({ type: 'feedback.created' } & FeedbackCreatedPayload)
+  | ({ type: 'annotation.created' } & AnnotationCreatedPayload)
+  | ({ type: 'annotation.removed' } & AnnotationRemovedPayload)
+  | ({ type: 'triage.decided' } & TriageDecidedPayload)
   | ({ type: 'input.submitted' } & InputSubmittedPayload)
   | ({ type: 'pack.interaction' } & PackInteractionPayload)
   | ({ type: 'submit' } & SubmitPayload)
@@ -157,6 +187,9 @@ export type Interaction =
   | ({ type: 'decision.created' } & DecisionCreatedPayload)
   | ({ type: 'choice.selected' } & ChoiceSelectedPayload)
   | ({ type: 'feedback.created' } & FeedbackCreatedPayload)
+  | ({ type: 'annotation.created' } & AnnotationCreatedPayload)
+  | ({ type: 'annotation.removed' } & AnnotationRemovedPayload)
+  | ({ type: 'triage.decided' } & TriageDecidedPayload)
   | ({ type: 'input.submitted' } & InputSubmittedPayload)
   | ({ type: 'pack.interaction' } & PackInteractionPayload)
   | ({ type: 'submit' } & SubmitPayload);
@@ -193,6 +226,16 @@ export interface Feedback {
   text: string;
 }
 
+// Annotation is one anchored mark a human placed on a draft block. anchor is an
+// opaque content-anchor string the reducer never parses; quote is the server-
+// stamped text of the anchored lines.
+export interface Annotation {
+  id: string;
+  anchor: string;
+  text: string;
+  quote: string;
+}
+
 export interface Reply {
   id: string;
   md: string;
@@ -215,6 +258,10 @@ export interface Interactions {
   packs: Record<string, PackValue>;
   feedback: Record<string, Feedback[]>;
   replies: Record<string, Reply[]>;
+  // An ordered per-block annotation list, upserted in place by annotation id.
+  annotations: Record<string, Annotation[]>;
+  // Per-block, per-item verdicts; a `cleared` verdict deletes the item entry.
+  triage: Record<string, Record<string, Decision>>;
   submitted: Submitted;
   closed: Closed;
 }
@@ -231,6 +278,8 @@ export interface RoundRecord {
   inputs: Record<string, InputValue>;
   packs: Record<string, PackValue>;
   feedback: Record<string, Feedback[]>;
+  annotations: Record<string, Annotation[]>;
+  triage: Record<string, Record<string, Decision>>;
   submittedRevision?: number;
 }
 
