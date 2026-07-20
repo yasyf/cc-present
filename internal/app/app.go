@@ -81,7 +81,8 @@ func launcher() (ccd.Launcher, error) {
 		return ccd.Launcher{}, err
 	}
 	return ccd.Launcher{
-		Paths: Paths(), Version: version.String(), Args: []string{"daemon"}, DaemonRole: role,
+		Paths: Paths(), Version: version.String(), LifecycleBuild: version.String(),
+		Args: []string{"daemon"}, DaemonRole: role,
 	}, nil
 }
 
@@ -134,7 +135,8 @@ func serve(ctx context.Context) error {
 	if err := web.Validate(); err != nil {
 		return fmt.Errorf("validate embedded web build: %w", err)
 	}
-	return ccdaemon.Serve(ctx, Paths(), role, version.String(), cfg.Bind, token, loader, meshtrust.Detect())
+	build := version.String()
+	return ccdaemon.Serve(ctx, Paths(), role, build, build, cfg.Bind, token, loader, meshtrust.Detect())
 }
 
 // awaitTimeout is the await tool's default long-poll window, under typical HTTP

@@ -35,7 +35,7 @@ func TestBuildServerDefersGenerationState(t *testing.T) {
 	t.Setenv("HOME", home)
 	t.Setenv("CLAUDE_CONFIG_DIR", t.TempDir())
 	p := paths.Paths{App: "d"}
-	if _, err := BuildServer(context.Background(), p, testDaemonRole(t, home), "v1.0.0", "", "", packs.NewLoader(nil, nil), nil); err != nil {
+	if _, err := BuildServer(context.Background(), p, testDaemonRole(t, home), "business-v1", "v1.0.0", "", "", packs.NewLoader(nil, nil), nil); err != nil {
 		t.Fatalf("BuildServer: %v", err)
 	}
 	for _, path := range []string{p.DBPath(), filepath.Join(p.StateDir(), "assets")} {
@@ -65,7 +65,7 @@ func startTestDaemon(ctx context.Context, t *testing.T) *Client {
 	ctx, cancel := context.WithCancel(ctx)
 	errCh := make(chan error, 1)
 	go func() {
-		errCh <- Serve(ctx, p, role, "v1.0.0", "", "", packs.NewLoader(nil, nil), nil)
+		errCh <- Serve(ctx, p, role, "business-v1", "v1.0.0", "", "", packs.NewLoader(nil, nil), nil)
 		close(errCh)
 	}()
 	// Closing errCh after the send lets cleanup's receive return even when the
@@ -82,7 +82,7 @@ func startTestDaemon(ctx context.Context, t *testing.T) *Client {
 			t.Fatalf("daemon exited before becoming healthy: %v", err)
 		default:
 		}
-		raw, err := ccd.NewClient(ctx, ccd.ClientConfig{Socket: p.SocketPath(), Build: "v1.0.0"})
+		raw, err := ccd.NewClient(ctx, ccd.ClientConfig{Socket: p.SocketPath(), Build: "business-v1", LifecycleBuild: "v1.0.0"})
 		if err == nil {
 			t.Cleanup(func() { _ = raw.Close() })
 			return NewClient(raw)
