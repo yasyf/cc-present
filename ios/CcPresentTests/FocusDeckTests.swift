@@ -194,7 +194,7 @@ private func optimisticThenEchoAdvances() async {
     // The SSE echo re-renders the same key; the armed timer must survive it.
     model.reconcileAdvance(from: armed("a1"), to: armed("a1"))
     #expect(model.anchorId == "a1")
-    try? await Task.sleep(for: .milliseconds(650))
+    await model.advance?.value
     #expect(model.anchorId == "a2")
 }
 
@@ -205,9 +205,10 @@ private func rollbackCancelsAdvance() async {
     let model = FocusDeckModel(anchorId: steps[0].id)
     model.reconcile(steps)
     model.reconcileAdvance(from: undecidedKey("a1"), to: armed("a1"))
+    let advance = model.advance
     // The optimistic decision fails and reverts to undecided before the timer fires.
     model.reconcileAdvance(from: armed("a1"), to: undecidedKey("a1"))
-    try? await Task.sleep(for: .milliseconds(650))
+    await advance?.value
     #expect(model.anchorId == "a1")
 }
 
@@ -219,7 +220,7 @@ private func composerSuppressesAdvance() async {
     model.reconcile(steps)
     model.composer.set("a1", composing: true)
     model.reconcileAdvance(from: undecidedKey("a1"), to: armed("a1"))
-    try? await Task.sleep(for: .milliseconds(650))
+    await model.advance?.value
     #expect(model.anchorId == "a1")
 }
 
@@ -248,7 +249,7 @@ private func choicePickAdvances() async {
     model.reconcileAdvance(from: undecidedKey("c1"), to: armed("c1", "c1o1"))
     model.reconcileAdvance(from: armed("c1", "c1o1"), to: armed("c1", "c1o1"))
     #expect(model.anchorId == "c1")
-    try? await Task.sleep(for: .milliseconds(650))
+    await model.advance?.value
     #expect(model.anchorId == "a2")
 }
 
@@ -261,7 +262,7 @@ private func choiceRepickReArms() async {
     model.reconcileAdvance(from: undecidedKey("c1"), to: armed("c1", "c1o1"))
     // A re-pick changes the signature on the same step, re-arming a fresh timer.
     model.reconcileAdvance(from: armed("c1", "c1o1"), to: armed("c1", "c1o2"))
-    try? await Task.sleep(for: .milliseconds(650))
+    await model.advance?.value
     #expect(model.anchorId == "a2")
 }
 
@@ -273,7 +274,7 @@ private func choiceOtherArms() async {
     model.reconcile(steps)
     // The write-in signs the step by its text — an empty option set still arms.
     model.reconcileAdvance(from: undecidedKey("c1"), to: armed("c1", "custom"))
-    try? await Task.sleep(for: .milliseconds(650))
+    await model.advance?.value
     #expect(model.anchorId == "a2")
 }
 

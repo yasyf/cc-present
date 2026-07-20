@@ -51,7 +51,7 @@ final class FocusDeckModel {
 
     @ObservationIgnored var lastIndex = 0
     @ObservationIgnored private var steps: [FocusStep] = []
-    @ObservationIgnored private var advance: Task<Void, Never>?
+    @ObservationIgnored private(set) var advance: Task<Void, Never>?
 
     let composer = FocusComposer()
 
