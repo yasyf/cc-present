@@ -1,6 +1,6 @@
 # Event schema
 
-`cc-present watch` prints one JSON object per line; the channel delivers the same JSON inside `<channel source="cc-present">` tags. Either way the frame is the event's **payload**, self-describing via an embedded `type` field — no envelope, no origin, no seq. Route on `type`. Your own agent-origin events are filtered out and never echo back; the one lifecycle event you do receive is the `system`-origin `present.closed`, on which `watch` exits.
+`cc-present watch` prints one JSON object per line; the channel delivers the same JSON inside `<channel source="cc-present">` tags; the dispatched `present-handler` agent receives the same payloads as mailbox directives with origin `event`. Every frame is the event's **payload**, self-describing via an embedded `type` field — no envelope, no seq. Route on `type`. The **React** column below describes the dispatched handler's moves — the main session only routes (SKILL.md step 4). Your own agent-origin events are filtered out of every feed and never echo back; the one lifecycle event you do receive is the `system`-origin `present.closed`, on which `watch` exits.
 
 ## Events you receive
 
@@ -24,8 +24,8 @@ For completeness — these are what your own CLI calls append. The browser reduc
 | Event | Payload | Appended by |
 |---|---|---|
 | `doc.replaced` | `{doc, revision}` | `start --doc`, `push` |
-| `block.upserted` | `{block, after?}` — replaces the block in place as a whole (nothing from the old block survives), or inserts after `after`, appending when absent or unknown | `update-block` |
-| `block.removed` | `{id}` — unknown id is a no-op | `remove-block` |
+| `block.upserted` | `{block, after?}` — replaces the block in place as a whole (nothing from the old block survives) wherever its id lives, top level or inside a card; a new id inserts after a top-level `after`, into a card after a card-child `after`, appending top-level when `after` is absent (the daemon rejects unknown `after` ids; the reducer keeps the append fallback so old logs replay). A child write stamps the enclosing card's round | `update-block` |
+| `block.removed` | `{id}` — removes a top-level block or splices a card child (restamping the card's round); unknown id stays a reducer no-op, though the daemon now rejects it at the edge | `remove-block` |
 | `reply.created` | `{id, blockId, md}` — append-only thread under the block | `reply` |
 | `round.started` | `{title?}` — dirty round: snapshots it into `rounds.history` (no `submittedRevision`) and advances, then titles the new round; clean round: only titles the current one. The revision is untouched; it counts `doc.replaced` alone | `round` |
 | `revising.changed` | `{blockIds, note?}` — declares the top-level block ids you're rewriting plus an optional shared note; replace-set last-write-wins. A `block.upserted` or `block.removed` clears its id, and draining the last id clears the note; `doc.replaced` clears all. Warn-only, so the human's controls stay live | `revising` |

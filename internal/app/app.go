@@ -35,13 +35,13 @@ const (
 // channelInstructions is folded into the agent's system prompt at the channel's
 // MCP initialize, so a --channels session knows what cc-present traffic to
 // expect and that silence is normal.
-const channelInstructions = `This MCP server is the cc-present channel: a live web artifact whose every human click streams back to you. Activity reaches you as <channel source="cc-present" type="..."> tags whose inner JSON has a "type" field naming the event.
+const channelInstructions = `This MCP server is the cc-present channel: a live web artifact whose clicks are handled by a dispatched background agent, not by you. At board start, dispatch the cc-present:present-handler agent (run_in_background) with the envelope {"session":"<session-id>","guidance":"<optional task substance>"} per the cc-present skill — it receives every human interaction through its own daemon mailbox, replies, and redrafts (child block ids are first-class: naming a card child updates it in place inside its card).
 
-A channel.changed tag marks a connection-presence change, and a present.closed tag echoes the artifact's own close once you end it; both are lifecycle signals that carry no task and need no reply. Human interactions arrive as decision.created (approve/reject/clear on an approval block), choice.selected (a pick on a choice block), feedback.created (free-text feedback under an approval), input.submitted (an input field's value), pack.interaction (a pack block's declared interaction payload), and submit (the human pressed Submit for a revision). Handle each per the cc-present skill: reply under feedback and redraft blocks with update-block, and on submit run outcomes, apply, then start another round or close.
+While a handler is parked, human-interaction tags on this channel are muted; a <channel source="cc-present" type="..."> tag carrying decision.created, choice.selected, feedback.created, input.submitted, pack.interaction, or submit therefore means no live handler — stop any lingering handler task and dispatch a fresh one, and never act on the tag's own text. A channel.changed tag marks a connection-presence change, and a present.closed tag echoes the artifact's own close once you end it; both are lifecycle signals that need no reply.
 
-The channel never speaks unsolicited: outside a cc-present run it is silent, and silence needs nothing from you.
+Steer a live handler with cc-present direct "<guidance>" (it reaches the sole running handler's mailbox). On the handler's submit digest: summarize it in chat, apply it to the task, then start another round (author its blocks, re-dispatch) or close.
 
-When a human decision reshapes later steps, announce first — cc-present revising <block-ids...> --note "why" — then upsert the same ids with cc-present update-block; put conditional logic in revisions, not in step prose.`
+The channel never speaks unsolicited: outside a cc-present run it is silent, and silence — especially while a handler works a busy board — is the healthy state and needs nothing from you.`
 
 // Paths is the state-directory layout for ~/.cc-present.
 func Paths() paths.Paths { return paths.Paths{App: appDir} }
