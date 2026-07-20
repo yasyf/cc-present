@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/yasyf/cc-interact/agent"
 	"github.com/yasyf/cc-interact/channel"
 	ccd "github.com/yasyf/cc-interact/daemon"
 	ccevent "github.com/yasyf/cc-interact/event"
@@ -53,6 +54,39 @@ func resolveScope(_ context.Context, _ string) string { return scopeSentinel }
 var lifecycle = subject.Lifecycle{Initial: statusOpen, Closed: statusClosed}
 
 var slugStrip = regexp.MustCompile(`[^a-z0-9]+`)
+
+// presentHandlerType is the agent_type suffix a cc-present handler agent
+// registers under; the steering channel targets only these agents.
+const presentHandlerType = "cc-present:present-handler"
+
+// isPresentHandler reports whether info is a cc-present handler agent — the only
+// participant the human-interaction tee and the await greeting address.
+func isPresentHandler(info agent.Info) bool {
+	return strings.HasSuffix(info.AgentType, presentHandlerType)
+}
+
+// presentSubscribe tees the six human-interaction events into a handler agent's
+// mailbox as directives; every other agent subscribes to nothing.
+func presentSubscribe(_ subject.Subject, info agent.Info) []string {
+	if !isPresentHandler(info) {
+		return nil
+	}
+	return []string{
+		EventDecisionCreated, EventChoiceSelected, EventFeedbackCreated,
+		EventInputSubmitted, EventPackInteraction, EventSubmit,
+	}
+}
+
+// agentGreeting bootstraps a handler agent's identity on the steering channel,
+// naming its agent_id so it can park with the await tool; non-handlers get none.
+func agentGreeting(info agent.Info) string {
+	if !isPresentHandler(info) {
+		return ""
+	}
+	return fmt.Sprintf("You are agent %s on the cc-present steering channel. "+
+		"Park with the await tool, passing this agent_id, to receive operator directives and human interactions as they arrive; "+
+		"act on each once, then continue or finish your task.", info.AgentID)
+}
 
 // BuildServer composes the cc-present daemon: presence via channel.Connectivity,
 // no edit gate, window-owned scope, and optional mesh trust tp (nil =
@@ -94,6 +128,11 @@ func BuildServer(ctx context.Context, p paths.Paths, version, bind, token string
 		// interaction state are a pure reduction of the event log). ScopeResolve
 		// canonicalizes every raw cwd to the window sentinel.
 		ScopeResolve: resolveScope,
+		// The agent plane: tee human interactions to a handler, mute them on the
+		// channel stream under its presence, and greet it with its await identity.
+		Subscribe:     presentSubscribe,
+		MuteConsumer:  channelConsumer,
+		AgentGreeting: agentGreeting,
 	}
 	if tp != nil {
 		mgr = newCertManager(filepath.Join(p.StateDir(), "tls"))

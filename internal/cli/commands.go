@@ -12,6 +12,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/yasyf/cc-interact/agent"
 	"github.com/yasyf/cc-interact/cmd"
 
 	"github.com/yasyf/cc-present/internal/app"
@@ -458,6 +459,77 @@ func newReplyCmd(d cmd.Deps) *cobra.Command {
 	c.Flags().StringVar(&session, "session", "", "Claude session id (defaults to $CLAUDE_CODE_SESSION_ID)")
 	c.Flags().StringVar(&cwd, "cwd", "", "working directory (recorded on the request; artifacts are per-window, not resolved by directory)")
 	return c
+}
+
+// newDirectCmd enqueues an operator steering directive for a handler agent. With
+// no --agent it targets the window's sole running agent, erroring when zero or
+// several are live so a directive never silently lands in the top-level mailbox.
+func newDirectCmd(d cmd.Deps) *cobra.Command {
+	var session, cwd, agentID string
+	c := &cobra.Command{
+		Use:   "direct <text>",
+		Short: "Enqueue an operator steering directive for a handler agent",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(c *cobra.Command, args []string) error {
+			ctx := c.Context()
+			if err := d.EnsureCurrent(ctx); err != nil {
+				return err
+			}
+			cl, err := client(ctx, d)
+			if err != nil {
+				return err
+			}
+			defer func() { _ = cl.CloseSession() }()
+			sess, scope, pid := sessionOr(session), mustCwd(cwd), d.ClaudePID()
+			subjectID, port, err := cl.Resolve(ctx, sess, scope, pid)
+			if err != nil {
+				return err
+			}
+			if subjectID == "" {
+				return errors.New(noArtifact)
+			}
+			target := agentID
+			if target == "" {
+				roster, err := cl.Roster(ctx, subjectID, port)
+				if err != nil {
+					return err
+				}
+				if target, err = soleRunningAgent(roster); err != nil {
+					return err
+				}
+			}
+			id, err := cl.Direct(ctx, sess, scope, pid, target, args[0])
+			if err != nil {
+				return err
+			}
+			_, _ = fmt.Fprintf(c.OutOrStdout(), "directed %s (#%d)\n", target, id)
+			return nil
+		},
+	}
+	c.Flags().StringVar(&agentID, "agent", "", "target agent id (empty targets the window's sole running agent)")
+	c.Flags().StringVar(&session, "session", "", "Claude session id (defaults to $CLAUDE_CODE_SESSION_ID)")
+	c.Flags().StringVar(&cwd, "cwd", "", "working directory (recorded on the request; artifacts are per-window, not resolved by directory)")
+	return c
+}
+
+// soleRunningAgent picks the lone running agent from a roster so `direct`
+// without --agent never mistargets; zero or several running agents are errors
+// that name the live set rather than defaulting to the top-level mailbox.
+func soleRunningAgent(roster []agent.Info) (string, error) {
+	var running []string
+	for _, a := range roster {
+		if a.Status == agent.StatusRunning {
+			running = append(running, a.AgentID)
+		}
+	}
+	switch len(running) {
+	case 0:
+		return "", errors.New("no running handler agent")
+	case 1:
+		return running[0], nil
+	default:
+		return "", fmt.Errorf("direct needs --agent: running agents are %s", strings.Join(running, ", "))
+	}
 }
 
 // newRoundCmd force-advances the round or titles the current one, printing the

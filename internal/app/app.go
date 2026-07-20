@@ -7,6 +7,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/yasyf/cc-interact/channel"
 	"github.com/yasyf/cc-interact/cmd"
@@ -92,10 +93,38 @@ func serve(ctx context.Context) error {
 	return ccdaemon.Serve(ctx, Paths(), version.String(), cfg.Bind, token, loader, meshtrust.Detect())
 }
 
-// channelTools advertises zero domain tools: the cc-present channel is a pure
-// notification transport, so it round-trips nothing back through a tool. The
-// substrate still streams every subject event down the channel as a
-// notification. channel.NewServer accepts the empty tool list.
-func channelTools(context.Context, string, string) ([]channel.Tool, string, string, error) {
-	return nil, channelNotifyMethod, channelInstructions, nil
+// awaitTimeout is the await tool's default long-poll window, under typical HTTP
+// idle limits.
+const awaitTimeout = 4 * time.Minute
+
+// channelTools advertises the await MCP tool: a handler agent long-polls it for
+// operator directives and teed human interactions addressed to its agent_id.
+// Every subject event still streams down the channel as a notification.
+func channelTools(_ context.Context, session, scope string) ([]channel.Tool, string, string, error) {
+	await := channel.NewAwaitTool(channel.AwaitSpec{
+		Resolve: func(ctx context.Context) (string, int, error) {
+			raw, err := NewClient(ctx)
+			if err != nil {
+				return "", 0, err
+			}
+			defer func() { _ = raw.Close() }()
+			cl := ccdaemon.NewClient(raw)
+			for {
+				subjectID, port, err := cl.Resolve(ctx, session, scope, procs.ClaudePID())
+				if err != nil {
+					return "", 0, err
+				}
+				if subjectID != "" {
+					return subjectID, port, nil
+				}
+				select {
+				case <-ctx.Done():
+					return "", 0, ctx.Err()
+				case <-time.After(time.Second):
+				}
+			}
+		},
+		Timeout: awaitTimeout,
+	})
+	return []channel.Tool{await}, channelNotifyMethod, channelInstructions, nil
 }

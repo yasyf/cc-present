@@ -4,8 +4,15 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"io"
+	"net/http"
+	"net/url"
+	"strings"
 
+	"github.com/yasyf/cc-interact/agent"
 	ccd "github.com/yasyf/cc-interact/daemon"
+	ccevent "github.com/yasyf/cc-interact/event"
 )
 
 // resolveConsumer names the CLI's resolve poll, distinct from the stream
@@ -136,4 +143,56 @@ func (cl *Client) Close(ctx context.Context, session, scope string, pid int, sum
 func (cl *Client) Outcomes(ctx context.Context, session, scope string, pid int) (json.RawMessage, error) {
 	_, res, err := cl.do(ctx, OpOutcomes, session, scope, pid, body{})
 	return res.State, err
+}
+
+// Direct enqueues an operator steering directive addressed to agentID (empty
+// targets the window's top-level agent) and returns the queued directive's id.
+func (cl *Client) Direct(ctx context.Context, session, scope string, pid int, agentID, text string) (int64, error) {
+	raw, err := json.Marshal(map[string]string{"agent_id": agentID, "origin": ccevent.OriginHuman, "text": text})
+	if err != nil {
+		return 0, err
+	}
+	reply, err := cl.c.Do(ctx, ccd.Envelope{Op: ccd.OpAgentDirect, Session: session, ClaudePID: pid, Scope: scope, Body: raw})
+	if err != nil {
+		return 0, err
+	}
+	if !reply.OK {
+		return 0, errors.New(reply.Error)
+	}
+	var r struct {
+		DirectiveID int64 `json:"directive_id"`
+	}
+	if len(reply.Body) > 0 {
+		if err := json.Unmarshal(reply.Body, &r); err != nil {
+			return 0, err
+		}
+	}
+	return r.DirectiveID, nil
+}
+
+// Roster returns the artifact subject's agent participants by querying the
+// daemon's /agents endpoint over loopback (port from Resolve). It reports every
+// agent regardless of status; callers filter to the live set.
+func (cl *Client) Roster(ctx context.Context, subjectID string, port int) ([]agent.Info, error) {
+	endpoint := fmt.Sprintf("http://127.0.0.1:%d/agents?subject=%s", port, url.QueryEscape(subjectID))
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return nil, fmt.Errorf("build roster request: %w", err)
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("roster request: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		b, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("roster status %d: %s", resp.StatusCode, strings.TrimSpace(string(b)))
+	}
+	var reply struct {
+		Agents []agent.Info `json:"agents"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&reply); err != nil {
+		return nil, fmt.Errorf("decode roster: %w", err)
+	}
+	return reply.Agents, nil
 }
