@@ -3,10 +3,171 @@ package cli
 import (
 	"encoding/json"
 	"errors"
+	"slices"
 	"testing"
 
 	"github.com/yasyf/cc-present/internal/doc"
 )
+
+// reducedFixture is a reduced-state document with a top-level markdown, a card
+// nesting a choice and an approval, and a top-level input, plus interactions on
+// each interactive block — the input for filterBlock's client-side filter.
+const reducedFixture = `{
+  "doc": {
+    "version": 1,
+    "title": "T",
+    "blocks": [
+      {"id":"m1","type":"markdown","md":"hi"},
+      {"id":"card1","type":"card","children":[
+        {"id":"ch1","type":"choice","options":[{"id":"o1","label":"A"}]},
+        {"id":"ap1","type":"approval","prompt":"ok?"}
+      ]},
+      {"id":"in1","type":"input","label":"Notes"}
+    ]
+  },
+  "interactions": {
+    "decisions": {"ap1": {"verdict":"approved","round":1}},
+    "choices": {"ch1": {"optionIds":["o1"],"round":1}},
+    "inputs": {"in1": {"text":"hello","round":1}},
+    "packs": {},
+    "feedback": {"ap1": [{"id":"f1","text":"x","round":1}], "ch1": [{"id":"f2","text":"y","round":1}]},
+    "replies": {},
+    "submitted": {"value":true,"revision":0},
+    "closed": {"value":false}
+  },
+  "rounds": {"current":1,"blockRounds":{},"history":[]},
+  "revising": {"blockIds":[]}
+}`
+
+func docBlockIDs(t *testing.T, raw json.RawMessage) []string {
+	t.Helper()
+	var m map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &m); err != nil {
+		t.Fatalf("unmarshal state: %v", err)
+	}
+	var dd doc.Doc
+	if err := json.Unmarshal(m["doc"], &dd); err != nil {
+		t.Fatalf("unmarshal doc: %v", err)
+	}
+	ids := make([]string, len(dd.Blocks))
+	for i, b := range dd.Blocks {
+		ids[i] = b.BlockID()
+	}
+	return ids
+}
+
+func cardChildIDs(t *testing.T, raw json.RawMessage) []string {
+	t.Helper()
+	var m map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &m); err != nil {
+		t.Fatalf("unmarshal state: %v", err)
+	}
+	var dd doc.Doc
+	if err := json.Unmarshal(m["doc"], &dd); err != nil {
+		t.Fatalf("unmarshal doc: %v", err)
+	}
+	card, ok := dd.Blocks[0].(*doc.Card)
+	if !ok {
+		t.Fatalf("first block is %T, want *doc.Card", dd.Blocks[0])
+	}
+	ids := make([]string, len(card.Children))
+	for i, b := range card.Children {
+		ids[i] = b.BlockID()
+	}
+	return ids
+}
+
+func interactionKeys(t *testing.T, raw json.RawMessage, group string) []string {
+	t.Helper()
+	var m map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &m); err != nil {
+		t.Fatalf("unmarshal state: %v", err)
+	}
+	var inter map[string]json.RawMessage
+	if err := json.Unmarshal(m["interactions"], &inter); err != nil {
+		t.Fatalf("unmarshal interactions: %v", err)
+	}
+	var g map[string]json.RawMessage
+	if err := json.Unmarshal(inter[group], &g); err != nil {
+		t.Fatalf("unmarshal %s: %v", group, err)
+	}
+	keys := make([]string, 0, len(g))
+	for k := range g {
+		keys = append(keys, k)
+	}
+	slices.Sort(keys)
+	return keys
+}
+
+func TestFilterBlockUnknownID(t *testing.T) {
+	_, err := filterBlock(json.RawMessage(reducedFixture), "nope")
+	if err == nil || err.Error() != `no block "nope" in the current document` {
+		t.Fatalf("filterBlock() error = %v, want unknown-block error", err)
+	}
+}
+
+func TestFilterBlock(t *testing.T) {
+	tests := []struct {
+		name          string
+		id            string
+		wantDoc       []string
+		wantChildren  []string // children of the kept card, nil to skip
+		wantDecisions []string
+		wantChoices   []string
+		wantInputs    []string
+		wantFeedback  []string
+	}{
+		{
+			name:       "top-level input keeps its own subtree and interactions",
+			id:         "in1",
+			wantDoc:    []string{"in1"},
+			wantInputs: []string{"in1"},
+		},
+		{
+			name:         "child choice keeps the enclosing card and its own interactions",
+			id:           "ch1",
+			wantDoc:      []string{"card1"},
+			wantChildren: []string{"ch1", "ap1"},
+			wantChoices:  []string{"ch1"},
+			wantFeedback: []string{"ch1"},
+		},
+		{
+			name:         "top-level card keeps the card but no child interactions",
+			id:           "card1",
+			wantDoc:      []string{"card1"},
+			wantChildren: []string{"ch1", "ap1"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := filterBlock(json.RawMessage(reducedFixture), tt.id)
+			if err != nil {
+				t.Fatalf("filterBlock() error = %v", err)
+			}
+			if ids := docBlockIDs(t, got); !slices.Equal(ids, tt.wantDoc) {
+				t.Fatalf("doc block ids = %v, want %v", ids, tt.wantDoc)
+			}
+			if tt.wantChildren != nil {
+				if ids := cardChildIDs(t, got); !slices.Equal(ids, tt.wantChildren) {
+					t.Fatalf("card child ids = %v, want %v", ids, tt.wantChildren)
+				}
+			}
+			for _, g := range []struct {
+				group string
+				want  []string
+			}{
+				{"decisions", tt.wantDecisions},
+				{"choices", tt.wantChoices},
+				{"inputs", tt.wantInputs},
+				{"feedback", tt.wantFeedback},
+			} {
+				if keys := interactionKeys(t, got, g.group); !slices.Equal(keys, g.want) {
+					t.Fatalf("%s keys = %v, want %v", g.group, keys, g.want)
+				}
+			}
+		})
+	}
+}
 
 func TestLineCol(t *testing.T) {
 	tests := []struct {

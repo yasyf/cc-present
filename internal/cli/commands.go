@@ -18,6 +18,7 @@ import (
 	ccdaemon "github.com/yasyf/cc-present/internal/daemon"
 	"github.com/yasyf/cc-present/internal/doc"
 	"github.com/yasyf/cc-present/internal/packs"
+	"github.com/yasyf/cc-present/internal/version"
 )
 
 const noArtifact = "no cc-present artifact for this window; run `cc-present start` first"
@@ -522,7 +523,7 @@ func newRevisingCmd(d cmd.Deps) *cobra.Command {
 // newOutcomesCmd prints the artifact's reduced state as JSON — the post-submit
 // drain.
 func newOutcomesCmd(d cmd.Deps) *cobra.Command {
-	var session, cwd string
+	var session, cwd, block string
 	var noDoc bool
 	c := &cobra.Command{
 		Use:   "outcomes",
@@ -542,6 +543,12 @@ func newOutcomesCmd(d cmd.Deps) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			if block != "" {
+				raw, err = filterBlock(raw, block)
+				if err != nil {
+					return err
+				}
+			}
 			if noDoc {
 				raw, err = stripDocKey(raw)
 				if err != nil {
@@ -557,9 +564,99 @@ func newOutcomesCmd(d cmd.Deps) *cobra.Command {
 		},
 	}
 	c.Flags().BoolVar(&noDoc, "no-doc", false, "omit the reduced document, printing only the human interactions and rounds")
+	c.Flags().StringVar(&block, "block", "", "filter the state to a single block id (a child id filters to its own entries; the doc keeps the enclosing card)")
 	c.Flags().StringVar(&session, "session", "", "Claude session id (defaults to $CLAUDE_CODE_SESSION_ID)")
 	c.Flags().StringVar(&cwd, "cwd", "", "working directory (recorded on the request; artifacts are per-window, not resolved by directory)")
 	return c
+}
+
+// filterBlock narrows reduced-state JSON to a single block: the document keeps
+// only the enclosing top-level block's subtree, and each block-keyed interaction
+// map keeps only the block's own entries. An id no block carries is an error. A
+// child id resolves through doc.Locate — its own interactions, its enclosing
+// card's subtree.
+func filterBlock(raw json.RawMessage, id string) (json.RawMessage, error) {
+	var m map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &m); err != nil {
+		return nil, err
+	}
+	var dd doc.Doc
+	if err := json.Unmarshal(m["doc"], &dd); err != nil {
+		return nil, err
+	}
+	loc, ok := doc.Locate(&dd, id)
+	if !ok {
+		return nil, fmt.Errorf("no block %q in the current document", id)
+	}
+	kept := make([]doc.Block, 0, 1)
+	for _, b := range dd.Blocks {
+		if b.BlockID() == loc.TopID {
+			kept = append(kept, b)
+		}
+	}
+	dd.Blocks = kept
+	docJSON, err := json.Marshal(&dd)
+	if err != nil {
+		return nil, err
+	}
+	m["doc"] = docJSON
+	if inter, ok := m["interactions"]; ok {
+		filtered, err := filterInteractions(inter, id)
+		if err != nil {
+			return nil, err
+		}
+		m["interactions"] = filtered
+	}
+	return json.Marshal(m)
+}
+
+// filterInteractions keeps only id's entries in each block-keyed interaction map
+// (decisions, choices, inputs, packs, feedback, replies), leaving the non-keyed
+// submit and close signals untouched.
+func filterInteractions(raw json.RawMessage, id string) (json.RawMessage, error) {
+	var m map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &m); err != nil {
+		return nil, err
+	}
+	for _, key := range []string{"decisions", "choices", "inputs", "packs", "feedback", "replies"} {
+		sub, ok := m[key]
+		if !ok {
+			continue
+		}
+		filtered, err := filterMapByKey(sub, id)
+		if err != nil {
+			return nil, err
+		}
+		m[key] = filtered
+	}
+	return json.Marshal(m)
+}
+
+// filterMapByKey narrows a JSON object to the single entry under id, preserving
+// that entry's value bytes verbatim; a missing id yields an empty object.
+func filterMapByKey(raw json.RawMessage, id string) (json.RawMessage, error) {
+	var mm map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &mm); err != nil {
+		return nil, err
+	}
+	out := map[string]json.RawMessage{}
+	if v, ok := mm[id]; ok {
+		out[id] = v
+	}
+	return json.Marshal(out)
+}
+
+// newVersionCmd prints the build version — the same string as --version.
+func newVersionCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "version",
+		Short: "Print the build version",
+		Args:  cobra.NoArgs,
+		RunE: func(c *cobra.Command, _ []string) error {
+			_, _ = fmt.Fprintln(c.OutOrStdout(), version.String())
+			return nil
+		},
+	}
 }
 
 // newCloseCmd terminally closes this window's artifact.

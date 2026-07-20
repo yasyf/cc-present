@@ -43,6 +43,8 @@ func NewRootCmd() *cobra.Command {
 		newRevisingCmd(d),
 		newOutcomesCmd(d),
 		newCloseCmd(d),
+		newSessionsCmd(d),
+		newVersionCmd(),
 		// Host network access: LAN pairing and synckit mesh trust.
 		newPairCmd(d),
 		newTrustCmd(d),

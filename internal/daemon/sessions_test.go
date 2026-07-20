@@ -57,7 +57,12 @@ func (h *sessionsHarness) seed(t *testing.T, id, slug, status string, updated ti
 
 func (h *sessionsHarness) get(t *testing.T) *httptest.ResponseRecorder {
 	t.Helper()
-	req := httptest.NewRequest(http.MethodGet, "/api/sessions", nil)
+	return h.getURL(t, "/api/sessions")
+}
+
+func (h *sessionsHarness) getURL(t *testing.T, target string) *httptest.ResponseRecorder {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodGet, target, nil)
 	w := httptest.NewRecorder()
 	h.rs.handleSessions(w, req)
 	if w.Code != http.StatusOK {
@@ -118,6 +123,48 @@ func TestSessionsTitleAndRevisionFromLatestDoc(t *testing.T) {
 	}
 	if got[0].Revision != 3 {
 		t.Fatalf("revision = %d, want 3 (count of doc.replaced)", got[0].Revision)
+	}
+}
+
+func TestSessionsAllIncludesClosed(t *testing.T) {
+	h := newSessionsHarness(t)
+	base := time.Unix(1_700_000_000, 0)
+	h.seed(t, "open1", "a--0001", statusOpen, base.Add(1*time.Minute), "Alpha")
+	h.seed(t, "gone", "c--0003", statusClosed, base.Add(2*time.Minute), "Gamma")
+
+	var got []sessionSummary
+	if err := json.Unmarshal(h.getURL(t, "/api/sessions?all=true").Body.Bytes(), &got); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("got %d sessions, want 2 (closed included): %+v", len(got), got)
+	}
+	// ORDER BY updated_at DESC: gone (t+2m) before open1 (t+1m).
+	if got[0].Subject != "gone" || got[0].Status != statusClosed {
+		t.Fatalf("first = %s/%s, want gone/closed", got[0].Subject, got[0].Status)
+	}
+	if got[1].Subject != "open1" || got[1].Status != statusOpen {
+		t.Fatalf("second = %s/%s, want open1/open", got[1].Subject, got[1].Status)
+	}
+}
+
+func TestSessionsSessionIDAndEventCount(t *testing.T) {
+	h := newSessionsHarness(t)
+	h.seed(t, "s1", "board--abcd", statusOpen, time.Unix(1_700_000_000, 0), "First", "Second")
+
+	var got []sessionSummary
+	if err := json.Unmarshal(h.get(t).Body.Bytes(), &got); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("got %d sessions, want 1", len(got))
+	}
+	// seed binds session "s-"+id and appends one doc.replaced per title.
+	if got[0].SessionID != "s-s1" {
+		t.Fatalf("sessionId = %q, want s-s1", got[0].SessionID)
+	}
+	if got[0].EventCount != 2 {
+		t.Fatalf("eventCount = %d, want 2 (one per seeded doc)", got[0].EventCount)
 	}
 }
 
