@@ -6,6 +6,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-07-21
+
+### Added
+- Two built-in review blocks across all three surfaces (daemon, web, iOS).
+  `draft` presents a document as numbered source lines a human annotates by
+  selecting a line or range: each annotation carries a content-hashed line
+  anchor (`12-18#f6zy`), so notes re-anchor across agent redrafts — a moved
+  line keeps its marker with a "was L12" tag, a vanished one drops to a
+  Detached notes section with its frozen quote. The daemon validates each
+  anchor resolves against the current text and stamps the quote server-side.
+  `triage` puts per-item accept/reject verdicts on a list of up to 50 rich
+  items (markdown, facts, detail, visuals), with optional per-item notes,
+  Accept all / Reject all, and submit gating on every item decided. Closed
+  rounds tally triage verdicts item-by-item alongside approvals.
+- The line-anchor scheme is now a wire contract (`docs/contract.md`
+  "Line anchors"), with the daemon consuming the canonical
+  `github.com/yasyf/cc-context/anchor` package and the SPA and iOS carrying
+  conformant ports pinned by a shared fixture corpus.
+
 ## [0.13.0] - 2026-07-20
 
 ### Added
@@ -442,7 +461,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   marketplace.
 - `examples/opener-board.json`, a complete sample document.
 
-[Unreleased]: https://github.com/yasyf/cc-present/compare/v0.13.0...main
+[Unreleased]: https://github.com/yasyf/cc-present/compare/v0.14.0...main
+[0.14.0]: https://github.com/yasyf/cc-present/compare/v0.13.0...v0.14.0
 [0.13.0]: https://github.com/yasyf/cc-present/compare/v0.12.1...v0.13.0
 [0.12.1]: https://github.com/yasyf/cc-present/compare/v0.12.0...v0.12.1
 [0.12.0]: https://github.com/yasyf/cc-present/compare/v0.11.0...v0.12.0
