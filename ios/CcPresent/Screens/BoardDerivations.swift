@@ -168,6 +168,8 @@ func roundTally(_ record: RoundRecord) -> RoundTally {
     var rejected = 0
     var picks = 0
     var filledInputs = 0
+    var triageNotes = 0
+    var annotationNotes = 0
     var feedbackNotes = 0
     for block in flatten(record.blocks) {
         switch block {
@@ -190,6 +192,7 @@ func roundTally(_ record: RoundRecord) -> RoundTally {
                 default: break
                 }
             }
+            triageNotes += verdicts.values.filter { !($0.note ?? "").isEmpty }.count
         case let .input(input):
             let text = record.inputs[input.id]?.text.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             if !text.isEmpty {
@@ -203,6 +206,12 @@ func roundTally(_ record: RoundRecord) -> RoundTally {
             break
         }
         feedbackNotes += record.feedback[block.id]?.count ?? 0
+        annotationNotes += record.annotations[block.id]?.count ?? 0
     }
-    return RoundTally(approved: approved, rejected: rejected, picks: picks, notes: filledInputs + feedbackNotes)
+    return RoundTally(
+        approved: approved,
+        rejected: rejected,
+        picks: picks,
+        notes: filledInputs + triageNotes + annotationNotes + feedbackNotes
+    )
 }

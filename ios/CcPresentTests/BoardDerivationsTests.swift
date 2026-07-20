@@ -122,19 +122,22 @@ private func triage(_ id: String, _ itemIds: [String]) -> Block {
         blocks: [
             .approval(Block.Approval(id: "ap1")),
             triage("t1", ["i1", "i2", "i3"]),
+            .draft(Block.Draft(id: "d1", lang: "markdown", text: "one\ntwo")),
         ],
         decisions: ["ap1": Decision(verdict: "approved")],
+        annotations: ["d1": [Annotation(id: "an1", anchor: "2-2#tbzs", text: "tighten", quote: "two")]],
         triage: ["t1": [
             "i1": Decision(verdict: "approved"),
             "i2": Decision(verdict: "approved"),
-            "i3": Decision(verdict: "rejected"),
+            "i3": Decision(verdict: "rejected", note: "flaky on CI"),
         ]]
     )
 
     let tally = roundTally(record)
 
-    // Two item approvals plus the approval block, one item rejection; no picks or notes.
-    #expect(tally == RoundTally(approved: 3, rejected: 1, picks: 0, notes: 0))
+    // Two item approvals plus the approval block, one item rejection; the
+    // triage note and the draft annotation both count as notes, matching web.
+    #expect(tally == RoundTally(approved: 3, rejected: 1, picks: 0, notes: 2))
 }
 
 @Test func isDecidedTreatsEmptyChoiceSelectionAsUndecided() {
