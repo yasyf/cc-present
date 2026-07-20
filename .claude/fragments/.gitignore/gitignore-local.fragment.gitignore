@@ -1,0 +1,16 @@
+# Web (npm/bun)
+web/node_modules/
+
+# Example pack (bun) — deps, lockfile, and bundle are rebuilt by CI
+examples/packs/example/node_modules/
+examples/packs/example/dist/
+examples/packs/example/bun.lock
+
+# Embedded SPA build output — rebuilt by the web build; keep only .gitkeep so
+# //go:embed all:dist compiles in a clean tree.
+internal/web/dist/*
+!internal/web/dist/.gitkeep
+
+# Plugin binary + installer log (installer-managed)
+plugin/bin/
+plugin/install-binary.log
