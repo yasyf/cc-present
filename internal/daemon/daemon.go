@@ -137,11 +137,12 @@ func BuildServer(ctx context.Context, p paths.Paths, role daemonrole.Classifier,
 		// are a pure reduction of the event log. ScopeResolve canonicalizes every
 		// raw cwd to the window sentinel.
 		ScopeResolve: resolveScope,
-		// The agent plane: tee human interactions to a handler, mute them on the
-		// channel stream under its presence, and greet it with its await identity.
-		Subscribe:     presentSubscribe,
-		MuteConsumer:  channelConsumer,
-		AgentGreeting: agentGreeting,
+		// The agent plane: tee human interactions to one live handler per board
+		// (a new dispatch supersedes the old), muting the channel under presence.
+		Subscribe:           presentSubscribe,
+		MuteConsumer:        channelConsumer,
+		AgentGreeting:       agentGreeting,
+		SingletonSubscriber: true,
 	}
 	if tp != nil {
 		mgr = newCertManager(filepath.Join(p.StateDir(), "tls"))

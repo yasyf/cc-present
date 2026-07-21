@@ -77,6 +77,8 @@ github.com/yasyf/cc-context v0.28.5-0.20260720034201-f18e537f26a5 h1:KITFFVZaBYI
 github.com/yasyf/cc-context v0.28.5-0.20260720034201-f18e537f26a5/go.mod h1:jKWoW+L218X0RxqdKTQlLgn1mFbD6jtjwwSX2nWfeOY=
 github.com/yasyf/cc-interact v0.14.1-0.20260721021908-d3a0a7a9502b h1:rKqkTg6PEf+2ZqH02s4QN7SxV4B9MF0lj46EywSyPEI=
 github.com/yasyf/cc-interact v0.14.1-0.20260721021908-d3a0a7a9502b/go.mod h1:20WWlJq6Ti3PO8siVzDn5bfZsKUNg3IiuEAX5ASSTyM=
+github.com/yasyf/cc-interact v0.14.1-0.20260721051035-29a3366375e5 h1:L3kdG1elvRCa5X2+bw9n3Ojui+SrWmtxgUhO2HZPd1o=
+github.com/yasyf/cc-interact v0.14.1-0.20260721051035-29a3366375e5/go.mod h1:KDiUCur02PR9tkyJ8SVYvBJ54AkIHSicIL7GYK8ErKE=
 github.com/yasyf/daemonkit v0.1.1-0.20260721013056-c39154cdbd0a h1:7VR17Wh0qR5/yJ0Pus0zvtNnH3opiJDgZtCViDnsCHQ=
 github.com/yasyf/daemonkit v0.1.1-0.20260721013056-c39154cdbd0a/go.mod h1:nJvh9FlJ3XPTuDkUb3PMcW0ZupIXsJJCkTGzfE40r/I=
 github.com/yasyf/daemonkit v0.1.1-0.20260721044346-f090a23cf11f h1:62b8r257juDkyGAVAmOPhy8rIjronPSc8RtRutmY1KA=

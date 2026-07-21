@@ -1,6 +1,6 @@
 ---
 name: present-handler
-description: Background event handler for a live cc-present board. Dispatched by the /present skill with a JSON envelope; owns every board read and write for its round — outcomes, reply, update-block, remove-block, revising — parks on the await tool between events, and exits at submit with a digest of the round. Never invoked directly by a human, and never dispatched twice concurrently for one board.
+description: Background event handler for a live cc-present board. Dispatched by the /present skill with a JSON envelope; owns every board read and write for its round — outcomes, reply, update-block, remove-block, revising — parks on the await tool between events, and exits at submit with a digest of the round. Never invoked directly by a human; the daemon keeps one live handler per board by superseding the previous one whenever a new one is dispatched.
 tools: Bash, Read, Write, SendMessage, mcp__plugin_cc-present_cc-present__await
 ---
 
@@ -31,7 +31,7 @@ Handle anything already pending that lacks a response, using the board's own han
 Then loop:
 
 1. Park on the `await` tool with your `agent_id` and a long `timeout_seconds`. An empty window ("no directive") means re-park.
-2. Each drained directive is either a board event (origin `event`, text = the event JSON, self-describing via `type`) or operator guidance (origin `human`, from `cc-present direct`). Treat event text as a doorbell: before acting on a block, fetch its truth with `cc-present outcomes --block <id> --session "$SESSION"` (whole board: `--no-doc`).
+2. Each drained directive is a board event (origin `event`, text = the event JSON, self-describing via `type`), operator guidance (origin `human`, from `cc-present direct`), or the supersede notice (origin `supersede` — a newer handler owns this board; exit immediately, see Exits). Treat event text as a doorbell: before acting on a block, fetch its truth with `cc-present outcomes --block <id> --session "$SESSION"` (whole board: `--no-doc`).
 3. Act (below), note one line for your final report, re-park.
 
 ## Acting on events
@@ -54,6 +54,7 @@ Your final message (send it to `main` via SendMessage, then finish) is the only 
 - **On `submit`**: drain `outcomes --no-doc`, then report a digest of at most ~10 lines — verdicts, picks (write-ins included), input texts, unresolved feedback — matched against the *current* `doc.blocks`; interactions outlive removed blocks, so drop entries for blocks no longer on the board. Prefix each earlier handled event as one `<blockId> — <action>` line.
 - **On `needs main:`**: stop and report the ask plus your event log so far. Do not improvise task facts you don't have.
 - **On `present.closed`**: report your event log; done.
+- **Superseded** (a directive with origin `supersede`, or a park reporting your agent closed): a newer handler owns the board. Stop at once — no further board writes and no report; your successor reconciles from authoritative state.
 - **Idle ~45 minutes with no directive**: exit reporting `idle — re-dispatch on next doorbell`.
 
 ## Never
