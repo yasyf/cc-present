@@ -524,8 +524,37 @@
   overflow-wrap: anywhere;
 }
 
-/* --- Responsive: at --bp-compact the jump dots grow their hit area. The shared
-   button system owns the footer controls' 44px touch floor. --- */
+/* --- Responsive: --bp-rail gives each jump dot a 44px tap target and each strip seg
+   a 44px-tall band (width kept, so which-seg-you-hit holds); --bp-compact grows the
+   dot glyph padding. --- */
+@media (max-width: 720px) {
+  .focus-dot {
+    position: relative;
+  }
+  /* Mirrors .strip-dot: glyph stays put, a centered pseudo carries the tap to 44px
+     (neighbors overlap, which is fine). */
+  .focus-dot::after {
+    content: '';
+    position: absolute;
+    inset: 50% auto auto 50%;
+    width: 44px;
+    height: 44px;
+    transform: translate(-50%, -50%);
+  }
+  .focus-strip-seg {
+    position: relative;
+  }
+  /* Vertical-only band: the seg's width stays (segment identity holds), height to 44px. */
+  .focus-strip-seg::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 50%;
+    height: 44px;
+    transform: translateY(-50%);
+  }
+}
 @media (max-width: 440px) {
   .focus-dot {
     padding: 8px;

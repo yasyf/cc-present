@@ -5,7 +5,7 @@ import { createRoot } from 'react-dom/client';
 import type { Root } from 'react-dom/client';
 import { PresentContext } from './present';
 import type { PresentApi } from './present';
-import { KeyboardProvider } from './keyboard';
+import { KeyboardProvider, nearestInViewport } from './keyboard';
 import { Lightbox } from './components/Lightbox';
 import { emptyState } from './reduce';
 import type { Interactions } from './events';
@@ -106,5 +106,61 @@ describe('keyboard global-shortcut gate behind a modal dialog', () => {
     render(toggle, false, onClose);
     press('v');
     expect(toggle).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('nearestInViewport — null-cursor ring entry', () => {
+  const vh = 900;
+
+  it('returns null when nothing is registered', () => {
+    expect(nearestInViewport([], vh)).toBe(null);
+  });
+
+  it('lands on the visible block, not the last ring member (k over-scroll regression)', () => {
+    // A fresh board at scrollY 0: the first decidable is in view while the final
+    // approval sits ~4500px below. Entry must pick the visible one, never the end.
+    const id = nearestInViewport(
+      [
+        { id: 'service-shape', top: 120, bottom: 520 },
+        { id: 'consistency-model', top: 700, bottom: 1100 },
+        { id: 'architecture-approval', top: 4500, bottom: 4900 },
+      ],
+      vh,
+    );
+    expect(id).toBe('service-shape');
+  });
+
+  it('breaks ties by document order, so the topmost visible member wins', () => {
+    const id = nearestInViewport(
+      [
+        { id: 'first', top: 40, bottom: 240 },
+        { id: 'second', top: 300, bottom: 500 },
+      ],
+      vh,
+    );
+    expect(id).toBe('first');
+  });
+
+  it('picks the closest off-screen member when none intersect the viewport', () => {
+    const id = nearestInViewport(
+      [
+        { id: 'far-above', top: -2000, bottom: -1800 },
+        { id: 'just-above', top: -140, bottom: -20 },
+        { id: 'far-below', top: 3000, bottom: 3200 },
+      ],
+      vh,
+    );
+    expect(id).toBe('just-above');
+  });
+
+  it('treats a member spanning the whole viewport as visible', () => {
+    const id = nearestInViewport(
+      [
+        { id: 'above', top: -600, bottom: -100 },
+        { id: 'spanning', top: -200, bottom: 1200 },
+      ],
+      vh,
+    );
+    expect(id).toBe('spanning');
   });
 });

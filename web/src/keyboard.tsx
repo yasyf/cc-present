@@ -118,6 +118,26 @@ function scrollBehavior(): ScrollBehavior {
   return window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth';
 }
 
+// nearestInViewport picks the id whose rect is closest to the viewport band
+// [0, viewportHeight] (an intersecting one scores 0), ties resolving to the
+// topmost. It resolves where a null cursor enters the ring, so j/k lands on the
+// visible block, never a ring end. Rects in, id out — no layout needed.
+export function nearestInViewport(
+  candidates: { id: string; top: number; bottom: number }[],
+  viewportHeight: number,
+): string | null {
+  let best: string | null = null;
+  let bestDist = Infinity;
+  for (const c of candidates) {
+    const dist = c.bottom < 0 ? -c.bottom : c.top > viewportHeight ? c.top - viewportHeight : 0;
+    if (dist < bestDist) {
+      bestDist = dist;
+      best = c.id;
+    }
+  }
+  return best;
+}
+
 export interface KeyboardProviderProps {
   blocks: Block[];
   interactions: Interactions;
@@ -218,12 +238,27 @@ export function KeyboardProvider({ blocks, interactions, closed, round, onViewTo
   }, [announce, jumpTo]);
   const moveCursor = useCallback(
     (delta: 1 | -1) => {
-      const next = step(ringRef.current, cursorRef.current, delta);
+      const ring = ringRef.current;
+      const from = cursorRef.current;
+      // No in-ring cursor: enter on the member nearest the viewport rather than the
+      // ring end step() would pick, so j/k never teleports past the page.
+      const next =
+        from !== null
+          ? step(ring, from, delta)
+          : nearestInViewport(
+              ring.flatMap((id) => {
+                const el = registry.get(id)?.elRef.current;
+                if (!el) return [];
+                const { top, bottom } = el.getBoundingClientRect();
+                return [{ id, top, bottom }];
+              }),
+              window.innerHeight,
+            );
       if (next === null) return;
       setCursorId(next);
       scrollToId(next, 'nearest');
     },
-    [scrollToId],
+    [registry, scrollToId],
   );
 
   const prevRound = useRef(round);
