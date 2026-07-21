@@ -6,12 +6,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.14.2] - 2026-07-21
+
+### Added
+- Explicit round intent. A `push` or `update-block` that adds a new top-level
+  block to a mid-review round — dirty, and the human has already interacted —
+  is rejected until the agent declares intent: `--round current` extends the
+  review in progress, `--round new` closes the round into history and opens
+  the next with the unanswered blocks carried forward (`round.started` gains a
+  `carry` payload all three reducers restamp), and `--round-title` names the
+  round it opens. `cc-present round` itself now always carries, so advancing
+  never freezes the human's open controls.
+
+### Fixed
+- A `round.started` carry id that stops naming a top-level block between the
+  daemon's snapshot and the append is skipped instead of failing the
+  reduction, so a concurrent removal can no longer poison a subject's replay.
+- A cleared choice (empty selection, no write-in) and an empty input text now
+  count as unanswered when computing carry — an owed control rides into the
+  new round instead of freezing as answered.
+- A card child promoted to top level in a push counts as a new top-level block
+  for the round-intent guard.
+- Tailnet display URLs advertise nothing when every bound leg is stale against
+  the live self-address set; a dead port is never named, and reconcile revives
+  a live leg on its next pass.
+- Triage item visuals resolve in `doc.Locate`, so pointing errors name the
+  enclosing triage block.
+
+### Changed
+- Repinned daemonkit to the exact session-v1 release.
+
 ## [0.14.1] - 2026-07-21
 
 ### Changed
 - Bumped the embedded cc-interact daemon to v0.14.0: each watcher tracks its own
   watch cursor, and connected watchers are now listed in `cc-present status`.
 - Repinned daemonkit to its hard-cut release.
+
+### Fixed
+- The revising working set now clears wholesale at round boundaries (`submit`
+  and `round.started`) in all three reducer ports, so a rewrite delivered as a
+  new block no longer leaves the announced ids' banner dangling forever;
+  `revising --clear` is the explicit escape, equivalent to the documented bare
+  call.
+- `start` and `push` print one tailnet URL per name on a canonical port (live
+  self-address leg, then the primary port, then lowest) instead of one URL per
+  scattered leg port.
 
 ## [0.14.0] - 2026-07-21
 
