@@ -245,11 +245,11 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--space-4);
-  padding: var(--space-3) var(--space-4);
+  padding: var(--space-3) var(--space-5);
   margin-top: var(--space-4);
   background: var(--surface);
   border-top: 2px solid var(--accent-fill);
-  box-shadow: var(--shadow-up);
+  box-shadow: var(--shadow-up), var(--edge-lift);
 }
 .submit-status {
   display: flex;

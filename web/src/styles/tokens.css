@@ -1,18 +1,16 @@
-/* Blue Pencil tokens: the raw palette, the frozen alias contract (ui.tokens),
-   squared radii, the three type voices, motion tokens, and the reduced-motion
-   contract. Loaded first — every other sheet resolves against these vars. */
+/* Blue Pencil tokens: raw palette, frozen alias contract, radii, four type
+   voices, motion, and the reduced-motion contract. Loaded and resolved first. */
 
 :root {
-  /* ── Blue Pencil raw palette — light "bond paper" / dark "graphite ground".
-     The agent typesets in ink; every human trace is drawn in pencil blue or
-     stamped in verdict ink. All pairs resolve per-theme via light-dark(). ── */
-  --paper: light-dark(#fbfbf9, #171a21);
-  --ink: light-dark(#1f2430, #e7eaf1);
-  --graphite: light-dark(#5c6472, #98a0af);
-  --pencil: light-dark(#3d56c5, #91a3f2);
-  --approve: light-dark(#1e7b4f, #5bc489);
-  --reject: light-dark(#bf3b2f, #ee8273);
-  --hold: light-dark(#8f6400, #dca847);
+  /* Blue Pencil raw palette — light bond paper, dark warm ink-black desk; human
+     traces are pencil blue or verdict ink, pairs resolve via light-dark(). */
+  --paper: light-dark(#fbfaf6, #161310);
+  --ink: light-dark(#1f2430, #ece7db);
+  --graphite: light-dark(#5c6472, #a69d8d);
+  --pencil: light-dark(#3d56c5, #96a8f8);
+  --approve: light-dark(#1e7b4f, #54c787);
+  --reject: light-dark(#bf3b2f, #ef7f6c);
+  --hold: light-dark(#8f6400, #d9a64a);
 
   /* Retained raw names, now derived from the Blue Pencil layer so existing
      library rules re-ink for free. Surfaces and hairlines mix ink into paper. */
@@ -20,9 +18,11 @@
   --pending: var(--hold);
   --accent-fill: var(--pencil);
   --accent-ink: var(--pencil);
-  --card: light-dark(#ffffff, #1e222b);
+  --card: light-dark(#ffffff, #1f1b15);
+  /* +2 elevation tier: dialogs, peek, submit bar, rail slide-over. */
+  --card-lift: light-dark(#ffffff, #262119);
   --line: color-mix(in srgb, var(--ink) 14%, var(--paper));
-  --mono-bg: light-dark(#f1f1ef, #12141a);
+  --mono-bg: light-dark(#f1f1ef, #0f0d0a);
   --reject-bg: color-mix(in srgb, var(--reject) 12%, var(--paper));
   --pending-bg: color-mix(in srgb, var(--hold) 15%, var(--paper));
   --chip-bg: color-mix(in srgb, var(--ink) 6%, var(--paper));
@@ -37,9 +37,9 @@
   --text: var(--ink);
   --dim: var(--muted);
   --accent: var(--accent-fill);
-  --accent-fg: light-dark(#ffffff, #14161c);
+  --accent-fg: light-dark(#ffffff, #161310);
   --surface: var(--card);
-  --surface-raised: var(--card);
+  --surface-raised: var(--card-lift);
   --focus-ring: color-mix(in srgb, var(--pencil) 50%, transparent);
   --danger: var(--reject);
   --warn: var(--pending);
@@ -51,11 +51,13 @@
   --radius-lg: 6px;
   --radius-pill: 2px;
 
-  /* Three type voices: system-ui prose (agent body), the condensed stamp face
-     (structural chrome + human stamps), and mono (code / diffs / numerals). */
-  --font-prose: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+  /* Four self-hosted voices (see main.tsx): Barlow prose, Source Serif 4 display
+     for doc titles/headlines, Barlow Condensed stamp chrome, JetBrains Mono. */
+  --font-prose: 'Barlow', system-ui, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif;
+  --font-display: 'Source Serif 4 Variable', Georgia, 'Times New Roman', serif;
   --font-stamp: 'Barlow Condensed', 'Arial Narrow', sans-serif;
-  --font-mono: ui-monospace, 'SF Mono', 'SFMono-Regular', Menlo, Consolas, monospace;
+  --font-mono: 'JetBrains Mono Variable', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  --text-display: clamp(1.75rem, 1.3rem + 2.5vw, 2.75rem);
   --track-caps: 0.1em;
 
   /* Motion tokens: four durations and the "drawn stroke" easing for pencil
@@ -77,8 +79,32 @@
      the edge. Both the masthead and the main column read it so they stay aligned. */
   --page-pad: var(--space-4);
 
-  /* Softer upward elevation for the sticky submit bar than base's --shadow-up. */
-  --shadow-up: 0 -8px 22px rgb(0 0 0 / 10%), 0 -2px 6px rgb(0 0 0 / 6%);
+  /* Margin-rail geometry, the sticky ladder, and .btn control heights.
+     --bp-margin documents the rail fold; --shell-max re-widens below to seat it. */
+  --bp-margin: 1100px;
+  --rail-w: clamp(300px, 26vw, 340px);
+  --rail-gap: var(--space-7);
+  --shell-max: var(--content-width);
+
+  --z-sticky: 1;
+  --z-bar: 2;
+  --z-scrim: 39;
+  --z-rail: 40;
+
+  --control-h: 2.25rem;
+  --control-h-sm: 1.75rem;
+  --control-h-lg: 2.75rem;
+
+  /* Dark elevation = surface lift + a faint inset top edge-light; shadows re-tint
+     warm-black to read on the dark ground where base's near-greys vanish. */
+  --edge-lift: inset 0 1px 0 light-dark(rgb(255 255 255 / 0%), rgb(255 255 255 / 5%));
+  --shadow-1: 0 1px 2px light-dark(rgb(9 10 12 / 5%), rgb(0 0 0 / 35%));
+  --shadow-2: 0 4px 12px light-dark(rgb(9 10 12 / 8%), rgb(0 0 0 / 45%)),
+    0 2px 4px light-dark(rgb(9 10 12 / 5%), rgb(0 0 0 / 30%));
+  --shadow-3: 0 12px 32px light-dark(rgb(9 10 12 / 12%), rgb(0 0 0 / 55%)),
+    0 4px 8px light-dark(rgb(9 10 12 / 6%), rgb(0 0 0 / 35%));
+  --shadow-up: 0 -8px 22px light-dark(rgb(0 0 0 / 10%), rgb(0 0 0 / 45%)),
+    0 -2px 6px light-dark(rgb(0 0 0 / 6%), rgb(0 0 0 / 30%));
 
   font-family: var(--font-prose);
   color-scheme: light dark;
@@ -99,6 +125,28 @@
   }
 }
 
+/* At >=--bp-margin the shell widens to seat the margin rail beside the stage. */
+@media (min-width: 1100px) {
+  :root {
+    --shell-max: calc(var(--content-width) + var(--rail-gap) + var(--rail-w));
+  }
+}
+
+/* Selected text takes a faint pencil wash. */
+::selection {
+  background: color-mix(in srgb, var(--pencil) 30%, transparent);
+}
+
+/* Thin ink-toned scrollbars on the domain's own scroll surfaces. */
+.diff-table,
+.table-block,
+.focus-card-body,
+.focus-media,
+.margin-rail {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+
 /* ── Type recast ──
    The agent typesets quietly in system-ui prose; structural chrome speaks in the
    condensed stamp face. Mono is reserved for code, diffs, gutters, and numerals.
@@ -113,8 +161,6 @@
 .submit-round,
 .submit-count,
 .submit-done,
-.submit-btn,
-.verdict,
 .code-title,
 .diff-title,
 .cc-group-header {

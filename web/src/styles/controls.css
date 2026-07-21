@@ -1,0 +1,143 @@
+/* Control system: the .btn family, wizard footer grid, and one field skin.
+   Every state selector keeps :not(:disabled) to out-specify base's button hover. */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: var(--control-h);
+  padding: 0 var(--space-4);
+  font-family: var(--font-stamp);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--ink);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  transition:
+    background var(--dur-1) var(--ease-out),
+    border-color var(--dur-1) var(--ease-out),
+    color var(--dur-1) var(--ease-out);
+}
+.btn:hover:not(:disabled) {
+  background: var(--mono-bg);
+  border-color: var(--border-strong);
+}
+.btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.btn:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+/* Variants. Secondary is the base look, restated so the class is self-describing. */
+.btn-primary {
+  background: var(--accent-fill);
+  border-color: transparent;
+  color: var(--accent-fg);
+}
+.btn-primary:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent-fill) 88%, #000);
+  border-color: transparent;
+}
+.btn-secondary {
+  background: var(--card);
+  border-color: var(--line);
+  color: var(--ink);
+}
+.btn-ghost {
+  background: transparent;
+  border-color: transparent;
+  color: var(--muted);
+}
+.btn-ghost:hover:not(:disabled) {
+  background: var(--mono-bg);
+  border-color: transparent;
+  color: var(--ink);
+}
+.btn-danger {
+  background: transparent;
+  color: var(--reject);
+  border-color: color-mix(in srgb, var(--reject) 45%, transparent);
+}
+.btn-danger:hover:not(:disabled) {
+  background: var(--reject);
+  border-color: transparent;
+  color: var(--accent-fg);
+}
+
+/* Pressed: own :active at (0,3,0) so base's button:active can't repaint the fill
+   on keyboard activation; each variant keeps its hover look while held. */
+.btn:active:not(:disabled) {
+  transform: translateY(1px);
+  background: var(--mono-bg);
+  border-color: var(--border-strong);
+}
+.btn-primary:active:not(:disabled) {
+  background: color-mix(in srgb, var(--accent-fill) 82%, #000);
+  border-color: transparent;
+}
+.btn-ghost:active:not(:disabled) {
+  background: var(--mono-bg);
+  border-color: transparent;
+  color: var(--ink);
+}
+.btn-danger:active:not(:disabled) {
+  background: var(--reject);
+  border-color: transparent;
+  color: var(--accent-fg);
+}
+
+/* Sizes and the square icon button. */
+.btn-sm {
+  min-height: var(--control-h-sm);
+  padding: 0 var(--space-3);
+  font-size: var(--text-2xs);
+}
+.btn-lg {
+  min-height: var(--control-h-lg);
+  padding: 0 var(--space-6);
+}
+.btn-icon {
+  width: var(--control-h);
+  padding: 0;
+}
+.btn-sm.btn-icon {
+  width: var(--control-h-sm);
+}
+
+/* Wizard footer: Back ghost | progress | Next primary. */
+.wizard-bar {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: var(--space-3);
+}
+.wizard-bar > :first-child {
+  justify-self: start;
+}
+.wizard-bar > :last-child {
+  justify-self: end;
+}
+
+/* One shared field skin — feedback textarea, input block, write-in. */
+.field {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--card);
+  color: var(--ink);
+  padding: var(--space-2) var(--space-3);
+  font: inherit;
+  resize: vertical;
+}
+
+/* Touch-target floor for every .btn, replacing per-cluster minimums. */
+@media (max-width: 720px) {
+  .btn {
+    min-height: 44px;
+  }
+}

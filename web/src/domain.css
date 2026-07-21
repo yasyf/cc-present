@@ -1,9 +1,9 @@
 /* cc-present domain styling — Blue Pencil identity, split by concern. main.tsx
-   imports this manifest; Vite inlines the @imports at build time. Import order
-   is load-bearing: tokens (palette + alias contract + motion) first, then marks
-   (human traces), shell (board chrome), blocks (the builtins), focus (the deck). */
+   imports this manifest; import order is load-bearing:
+   tokens -> marks -> controls -> shell -> blocks -> focus. */
 @import './styles/tokens.css';
 @import './styles/marks.css';
+@import './styles/controls.css';
 @import './styles/shell.css';
 @import './styles/blocks.css';
 @import './styles/focus.css';
