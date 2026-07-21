@@ -3,7 +3,7 @@ package doc
 import "slices"
 
 // LocationKind classifies where a block sits in a document: at the top level, as
-// a card's child, or as a choice option's visual.
+// a card's child, as a choice option's visual, or as a triage item's visual.
 type LocationKind int
 
 const (
@@ -13,12 +13,14 @@ const (
 	CardChild
 	// OptionVisual is a leaf block carried in a choice option's visual stage.
 	OptionVisual
+	// ItemVisual is a leaf block carried in a triage item's visual stage.
+	ItemVisual
 )
 
 // Location is a block's resolved position: its kind, the block itself, and the
 // enclosing top-level block's id and index. ChildIndex is the index within its
 // card (CardChild only); ChoiceID and OptionID name the carrier (OptionVisual
-// only).
+// only); TriageID and ItemID name the carrier (ItemVisual only).
 type Location struct {
 	Kind       LocationKind
 	Block      Block
@@ -27,11 +29,17 @@ type Location struct {
 	ChildIndex int
 	ChoiceID   string
 	OptionID   string
+	TriageID   string
+	ItemID     string
 }
 
+// Visual reports whether the location is a choice option's or triage item's
+// carried visual, addressable only through its carrier.
+func (l Location) Visual() bool { return l.Kind == OptionVisual || l.Kind == ItemVisual }
+
 // Locate finds the block with id anywhere Doc.Validate registers one — a
-// top-level block, a card child, or a choice option's visual — reporting false
-// when no block carries id.
+// top-level block, a card child, a choice option's visual, or a triage item's
+// visual — reporting false when no block carries id.
 func Locate(d *Doc, id string) (Location, bool) {
 	for ti, b := range d.Blocks {
 		if b.BlockID() == id {
@@ -53,21 +61,34 @@ func Locate(d *Doc, id string) (Location, bool) {
 }
 
 func locateVisual(b Block, id, topID string, topIndex int) (Location, bool) {
-	ch, ok := b.(*Choice)
-	if !ok {
-		return Location{}, false
-	}
-	for i := range ch.Options {
-		v := ch.Options[i].Visual
-		if v != nil && v.BlockID() == id {
-			return Location{
-				Kind:     OptionVisual,
-				Block:    v,
-				TopID:    topID,
-				TopIndex: topIndex,
-				ChoiceID: ch.ID,
-				OptionID: ch.Options[i].ID,
-			}, true
+	switch b := b.(type) {
+	case *Choice:
+		for i := range b.Options {
+			v := b.Options[i].Visual
+			if v != nil && v.BlockID() == id {
+				return Location{
+					Kind:     OptionVisual,
+					Block:    v,
+					TopID:    topID,
+					TopIndex: topIndex,
+					ChoiceID: b.ID,
+					OptionID: b.Options[i].ID,
+				}, true
+			}
+		}
+	case *Triage:
+		for i := range b.Items {
+			v := b.Items[i].Visual
+			if v != nil && v.BlockID() == id {
+				return Location{
+					Kind:     ItemVisual,
+					Block:    v,
+					TopID:    topID,
+					TopIndex: topIndex,
+					TriageID: b.ID,
+					ItemID:   b.Items[i].ID,
+				}, true
+			}
 		}
 	}
 	return Location{}, false

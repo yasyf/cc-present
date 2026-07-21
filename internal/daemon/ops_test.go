@@ -92,6 +92,8 @@ const choiceVisualDoc = `{"version":1,"title":"Board","blocks":[{"id":"ch1","typ
 // one and leave the other awaiting, exercising the carry/freeze split.
 const twoApprovalDoc = `{"version":1,"title":"Board","blocks":[{"id":"a1","type":"approval"},{"id":"a2","type":"approval"}]}`
 
+const triageVisualDoc = `{"version":1,"title":"Board","blocks":[{"id":"t1","type":"triage","items":[{"id":"i1","label":"One","visual":{"id":"tv1","type":"code","lang":"go","code":"x"}}]}]}`
+
 // nilDisplay is the no-trust display func the handler tests pass by default: a
 // start or push then carries no tailnet URLs.
 func nilDisplay(context.Context, string, int) []string { return nil }
@@ -351,6 +353,12 @@ func TestUpsertBlockAddressing(t *testing.T) {
 			wantErr: `block "v1" is the visual of option "o1" on choice "ch1"; address the choice`,
 		},
 		{
+			name:    "triage visual id cannot be upserted directly",
+			seed:    triageVisualDoc,
+			block:   `{"id":"tv1","type":"code","lang":"go","code":"changed"}`,
+			wantErr: `block "tv1" is the visual of item "i1" on triage "t1"; address the triage`,
+		},
+		{
 			name:    "visual id cannot be an insertion point",
 			seed:    choiceVisualDoc,
 			block:   `{"id":"a2","type":"approval"}`,
@@ -484,6 +492,12 @@ func TestRemoveBlock(t *testing.T) {
 			seed:    choiceVisualDoc,
 			id:      "v1",
 			wantErr: `block "v1" is the visual of option "o1" on choice "ch1"; address the choice`,
+		},
+		{
+			name:    "triage item visual",
+			seed:    triageVisualDoc,
+			id:      "tv1",
+			wantErr: `block "tv1" is the visual of item "i1" on triage "t1"; address the triage`,
 		},
 		{
 			name:    "closed artifact",

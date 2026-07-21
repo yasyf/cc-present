@@ -4,7 +4,7 @@
 // Replaying the log from seq 0 reconstructs a fresh tab's state. Both reducers
 // are driven by the same internal/state/testdata/*.json fixtures (reduce.test.ts).
 
-import type { Block, Card, ChildBlock, Choice, Doc } from './schema';
+import type { Block, Card, ChildBlock, Choice, Doc, Triage } from './schema';
 import type {
   Annotation,
   Closed,
@@ -82,7 +82,7 @@ export function applyEvent(state: PresentState, ev: PresentEvent): PresentState 
     }
     case 'block.removed': {
       const loc = locate(state.doc.blocks, ev.payload.id);
-      if (!loc || loc.kind === 'option-visual') return state;
+      if (!loc || loc.kind === 'option-visual' || loc.kind === 'item-visual') return state;
       const blocks = remove(state.doc.blocks, ev.payload.id);
       const blockRounds = { ...state.rounds.blockRounds };
       if (loc.kind === 'card-child') blockRounds[loc.topId] = state.rounds.current;
@@ -410,9 +410,10 @@ function filterClone<T>(map: Record<string, T>, ids: Set<string>, clone: (v: T) 
 }
 
 // A block's resolved position, mirroring doc.Location: whether it sits at the top
-// level, as a card child, or as a choice option's visual, plus the id of the
-// enclosing top-level block whose round and revising bookkeeping the block keys.
-type LocationKind = 'top-level' | 'card-child' | 'option-visual';
+// level, as a card child, as a choice option's visual, or as a triage item's
+// visual, plus the id of the enclosing top-level block whose round and revising
+// bookkeeping the block keys.
+type LocationKind = 'top-level' | 'card-child' | 'option-visual' | 'item-visual';
 
 interface Location {
   kind: LocationKind;
@@ -420,16 +421,19 @@ interface Location {
 }
 
 // locate mirrors doc.Locate: it finds `id` anywhere the document registers a
-// block — a top-level block, a card child, or a choice option's visual — and
-// reports the enclosing top-level id. undefined when no block carries `id`.
+// block — a top-level block, a card child, a choice option's visual, or a triage
+// item's visual — and reports the enclosing top-level id. undefined when no block
+// carries `id`.
 function locate(blocks: readonly Block[], id: string): Location | undefined {
   for (const b of blocks) {
     if (b.id === id) return { kind: 'top-level', topId: b.id };
     if (b.type === 'choice' && hasOptionVisual(b, id)) return { kind: 'option-visual', topId: b.id };
+    if (b.type === 'triage' && hasItemVisual(b, id)) return { kind: 'item-visual', topId: b.id };
     if (b.type === 'card') {
       for (const child of b.children) {
         if (child.id === id) return { kind: 'card-child', topId: b.id };
         if (child.type === 'choice' && hasOptionVisual(child, id)) return { kind: 'option-visual', topId: b.id };
+        if (child.type === 'triage' && hasItemVisual(child, id)) return { kind: 'item-visual', topId: b.id };
       }
     }
   }
@@ -438,6 +442,10 @@ function locate(blocks: readonly Block[], id: string): Location | undefined {
 
 function hasOptionVisual(choice: Choice, id: string): boolean {
   return choice.options.some((o) => o.visual?.id === id);
+}
+
+function hasItemVisual(triage: Triage, id: string): boolean {
+  return triage.items.some((it) => it.visual?.id === id);
 }
 
 // enclosingTopId resolves the top-level id a block.upserted keys its round and

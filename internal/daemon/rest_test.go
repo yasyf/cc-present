@@ -25,7 +25,8 @@ const seedDoc = `{"version":1,"title":"T","blocks":[
   {"id":"a2","type":"approval"},
   {"id":"ch1","type":"choice","options":[{"id":"o1","label":"A","visual":{"id":"v1","type":"code","lang":"go","code":"x"}},{"id":"o2","label":"B"}]},
   {"id":"ch2","type":"choice","multi":true,"options":[{"id":"m1","label":"A"},{"id":"m2","label":"B"}]},
-  {"id":"in1","type":"input","label":"Name"}
+  {"id":"in1","type":"input","label":"Name"},
+  {"id":"t1","type":"triage","items":[{"id":"i1","label":"A","visual":{"id":"tv1","type":"code","lang":"go","code":"x"}}]}
 ]}`
 
 // draftTriageDoc seeds a draft and two triage blocks (one forbidding notes) for
@@ -164,6 +165,7 @@ func TestInteractionValidation(t *testing.T) {
 		{"input on visual points to choice", `{"subject":"board--abcd0000","nonce":"visual-input","interaction":{"type":"input.submitted","blockId":"v1","text":"x"}}`, 400, `block "v1" is the visual of option "o1" on choice "ch1"; address the choice`},
 		{"pack interaction on visual points to choice", `{"subject":"board--abcd0000","nonce":"visual-pack","interaction":{"type":"pack.interaction","blockId":"v1","payload":{}}}`, 400, `block "v1" is the visual of option "o1" on choice "ch1"; address the choice`},
 		{"feedback on visual points to choice", `{"subject":"board--abcd0000","nonce":"visual-feedback","interaction":{"type":"feedback.created","blockId":"v1","text":"x"}}`, 400, `block "v1" is the visual of option "o1" on choice "ch1"; address the choice`},
+		{"decision on triage visual points to triage", `{"subject":"board--abcd0000","nonce":"triage-visual-decision","interaction":{"type":"decision.created","blockId":"tv1","verdict":"approved"}}`, 400, `block "tv1" is the visual of item "i1" on triage "t1"; address the triage`},
 		{"wrong kind", `{"subject":"board--abcd0000","nonce":"n5","interaction":{"type":"decision.created","blockId":"ch1","verdict":"approved"}}`, 400, "not an approval"},
 		{"bad verdict", `{"subject":"board--abcd0000","nonce":"n6","interaction":{"type":"decision.created","blockId":"a2","verdict":"maybe"}}`, 400, "invalid verdict"},
 		{"unknown choice option", `{"subject":"board--abcd0000","nonce":"n7","interaction":{"type":"choice.selected","blockId":"ch1","optionIds":["o9"]}}`, 400, "no option"},

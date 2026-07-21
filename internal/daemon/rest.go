@@ -545,13 +545,16 @@ func findBlock(d *doc.Doc, id string) (doc.Block, string, error) {
 	if !ok {
 		return nil, "", fmt.Errorf("unknown block %q", id)
 	}
-	if loc.Kind == doc.OptionVisual {
+	if loc.Visual() {
 		return nil, "", pointingError(id, loc)
 	}
 	return loc.Block, loc.TopID, nil
 }
 
 func pointingError(id string, loc doc.Location) error {
+	if loc.Kind == doc.ItemVisual {
+		return fmt.Errorf("block %q is the visual of item %q on triage %q; address the triage", id, loc.ItemID, loc.TriageID)
+	}
 	return fmt.Errorf("block %q is the visual of option %q on choice %q; address the choice", id, loc.OptionID, loc.ChoiceID)
 }
 

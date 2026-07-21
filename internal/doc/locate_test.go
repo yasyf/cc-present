@@ -39,6 +39,28 @@ const locationDoc = `{
               "visual": {"id": "child-visual", "type": "code", "lang": "go", "code": "package child"}
             }
           ]
+        },
+        {
+          "id": "child-triage",
+          "type": "triage",
+          "items": [
+            {
+              "id": "child-item",
+              "label": "Child item",
+              "visual": {"id": "child-item-visual", "type": "code", "lang": "go", "code": "package childitem"}
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "top-triage",
+      "type": "triage",
+      "items": [
+        {
+          "id": "top-item",
+          "label": "Top item",
+          "visual": {"id": "top-item-visual", "type": "code", "lang": "go", "code": "package topitem"}
         }
       ]
     }
@@ -75,6 +97,8 @@ func TestLocate(t *testing.T) {
 		childIndex int
 		choiceID   string
 		optionID   string
+		triageID   string
+		itemID     string
 	}{
 		{
 			name:     "top level",
@@ -117,6 +141,28 @@ func TestLocate(t *testing.T) {
 			choiceID: "child-choice",
 			optionID: "child-option",
 		},
+		{
+			name:     "top-level triage visual",
+			id:       "top-item-visual",
+			found:    true,
+			kind:     doc.ItemVisual,
+			blockID:  "top-item-visual",
+			topID:    "top-triage",
+			topIndex: 2,
+			triageID: "top-triage",
+			itemID:   "top-item",
+		},
+		{
+			name:     "card-child triage visual",
+			id:       "child-item-visual",
+			found:    true,
+			kind:     doc.ItemVisual,
+			blockID:  "child-item-visual",
+			topID:    "card",
+			topIndex: 1,
+			triageID: "child-triage",
+			itemID:   "child-item",
+		},
 		{name: "absent", id: "missing"},
 	}
 	for _, tt := range tests {
@@ -151,6 +197,12 @@ func TestLocate(t *testing.T) {
 			}
 			if got.OptionID != tt.optionID {
 				t.Errorf("Locate(%q).OptionID = %q, want %q", tt.id, got.OptionID, tt.optionID)
+			}
+			if got.TriageID != tt.triageID {
+				t.Errorf("Locate(%q).TriageID = %q, want %q", tt.id, got.TriageID, tt.triageID)
+			}
+			if got.ItemID != tt.itemID {
+				t.Errorf("Locate(%q).ItemID = %q, want %q", tt.id, got.ItemID, tt.itemID)
 			}
 		})
 	}

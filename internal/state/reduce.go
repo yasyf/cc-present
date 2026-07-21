@@ -242,7 +242,7 @@ func (s *State) apply(ev Event) error {
 			return err
 		}
 		loc, ok := doc.Locate(s.Doc, p.ID)
-		if !ok || loc.Kind == doc.OptionVisual {
+		if !ok || loc.Visual() {
 			return nil
 		}
 		blocks, topID := doc.RemoveBlock(s.Doc.Blocks, p.ID)

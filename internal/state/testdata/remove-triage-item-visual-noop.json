@@ -1,0 +1,53 @@
+{
+  "name": "remove-triage-item-visual-noop",
+  "events": [
+    {
+      "origin": "agent",
+      "type": "doc.replaced",
+      "seq": 1,
+      "payload": {
+        "revision": 1,
+        "doc": {
+          "version": 1,
+          "title": "T",
+          "blocks": [
+            {
+              "id": "tr1",
+              "type": "triage",
+              "prompt": "Review",
+              "items": [
+                {
+                  "id": "i1",
+                  "label": "First",
+                  "visual": { "id": "tv1", "type": "code", "lang": "go", "code": "x" }
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    { "origin": "agent", "type": "block.removed", "seq": 2, "payload": { "id": "tv1" } }
+  ],
+  "expected": {
+    "doc": {
+      "version": 1,
+      "title": "T",
+      "blocks": [
+        {
+          "id": "tr1",
+          "type": "triage",
+          "prompt": "Review",
+          "items": [
+            {
+              "id": "i1",
+              "label": "First",
+              "visual": { "id": "tv1", "type": "code", "lang": "go", "code": "x" }
+            }
+          ]
+        }
+      ]
+    },
+    "rounds": { "current": 1, "blockRounds": { "tr1": 1 }, "history": [] }
+  }
+}

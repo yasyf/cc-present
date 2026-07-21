@@ -352,7 +352,7 @@ func handleUpsertBlock(hc ccd.HandlerCtx, pt doc.PackTypes) ccd.Reply {
 	if err != nil {
 		return errReply(err.Error())
 	}
-	if loc, ok := doc.Locate(st.Doc, blk.BlockID()); ok && loc.Kind == doc.OptionVisual {
+	if loc, ok := doc.Locate(st.Doc, blk.BlockID()); ok && loc.Visual() {
 		return errReply(pointingError(blk.BlockID(), loc).Error())
 	}
 	if b.After != "" {
@@ -360,7 +360,7 @@ func handleUpsertBlock(hc ccd.HandlerCtx, pt doc.PackTypes) ccd.Reply {
 		if !ok {
 			return errReply(fmt.Sprintf("--after names %q, not in the current document; omit --after to append at the end", b.After))
 		}
-		if loc.Kind == doc.OptionVisual {
+		if loc.Visual() {
 			return errReply(pointingError(b.After, loc).Error())
 		}
 	}
@@ -430,7 +430,7 @@ func handleRemoveBlock(hc ccd.HandlerCtx) ccd.Reply {
 	if !ok {
 		return errReply(fmt.Sprintf("no block %q in the current document", b.ID))
 	}
-	if loc.Kind == doc.OptionVisual {
+	if loc.Visual() {
 		return errReply(pointingError(b.ID, loc).Error())
 	}
 	if _, err := appendEvent(hc.Ctx, hc.Append, &ccevent.Event{
@@ -545,7 +545,7 @@ func handleRevising(hc ccd.HandlerCtx) ccd.Reply {
 			if !ok {
 				return errReply(fmt.Sprintf("revising names %q, which is not in the current document", id))
 			}
-			if loc.Kind == doc.OptionVisual {
+			if loc.Visual() {
 				return errReply(pointingError(id, loc).Error())
 			}
 			if !seen[loc.TopID] {
