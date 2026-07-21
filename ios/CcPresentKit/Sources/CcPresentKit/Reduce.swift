@@ -93,10 +93,11 @@ public struct Annotation: Decodable, Equatable, Sendable {
     }
 }
 
-/// ReduceError is a failure folding an event into state: a triage verdict outside
-/// the approved/rejected/cleared set, mirroring the Go reducer's error return.
+/// ReduceError is a failure folding an event into state, mirroring the Go
+/// reducer's error return.
 public enum ReduceError: Error, Equatable {
     case invalidVerdict(String)
+    case invalidCarry(String)
 }
 
 /// validTriageVerdicts is the accepted verdict set a triage merge is checked against,
@@ -449,17 +450,31 @@ private extension BoardState {
                 rounds.currentTitle = ""
             }
         case let .roundStarted(payload):
-            revising = Revising()
-            if dirty() {
-                rounds.history.append(closeRound(revision: nil))
-                rounds.current += 1
-            }
-            rounds.currentTitle = payload.title ?? ""
+            try applyRoundStarted(payload)
         case let .revisingChanged(payload):
             revising = Revising(blockIds: payload.blockIds, note: payload.note)
         case .channelChanged:
             return
         }
+    }
+
+    /// applyRoundStarted clears the revising set, closes a dirty round — restamping
+    /// each carried id into the freshly advanced round — and titles the current one.
+    /// Carry on a clean round is ignored; an id that is not a current top-level
+    /// block fails the reduction.
+    mutating func applyRoundStarted(_ payload: RoundStartedPayload) throws {
+        revising = Revising()
+        if dirty() {
+            rounds.history.append(closeRound(revision: nil))
+            rounds.current += 1
+            for id in payload.carry ?? [] {
+                guard let location = locate(id), location.kind == .topLevel else {
+                    throw ReduceError.invalidCarry(id)
+                }
+                rounds.blockRounds[id] = rounds.current
+            }
+        }
+        rounds.currentTitle = payload.title ?? ""
     }
 
     /// revisingOnUpsert drops id as its revision lands, draining the note whenever

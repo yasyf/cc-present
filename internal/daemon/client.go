@@ -37,11 +37,13 @@ type StartResult struct {
 	TailnetURLs  []string
 }
 
-// PushResult is what a push reports back to the CLI.
+// PushResult is what a push reports back to the CLI. Round is the round the push
+// advanced into (0 when it did not open a new round).
 type PushResult struct {
 	Revision    int
 	URL         string
 	TailnetURLs []string
+	Round       int
 }
 
 func (cl *Client) do(ctx context.Context, op ccd.Op, session, scope string, pid int, b body) (ccd.Reply, result, error) {
@@ -90,20 +92,23 @@ func (cl *Client) Start(ctx context.Context, session, scope string, pid int, fre
 	return StartResult{SubjectID: reply.SubjectID, URL: res.URL, ChannelState: res.ChannelState, TailnetURLs: res.TailnetURLs}, nil
 }
 
-// Push replaces the document and returns the new revision plus the artifact's
-// display URLs.
-func (cl *Client) Push(ctx context.Context, session, scope string, pid int, docJSON json.RawMessage) (PushResult, error) {
-	_, res, err := cl.do(ctx, OpPush, session, scope, pid, body{Doc: docJSON})
+// Push replaces the document and returns the new revision, the artifact's
+// display URLs, and the round it advanced into. round is the caller's declared
+// round intent ("", "current", or "new"); roundTitle titles a newly opened round.
+func (cl *Client) Push(ctx context.Context, session, scope string, pid int, docJSON json.RawMessage, round, roundTitle string) (PushResult, error) {
+	_, res, err := cl.do(ctx, OpPush, session, scope, pid, body{Doc: docJSON, Round: round, Title: roundTitle})
 	if err != nil {
 		return PushResult{}, err
 	}
-	return PushResult{Revision: res.Revision, URL: res.URL, TailnetURLs: res.TailnetURLs}, nil
+	return PushResult{Revision: res.Revision, URL: res.URL, TailnetURLs: res.TailnetURLs, Round: res.Round}, nil
 }
 
-// UpsertBlock inserts or replaces a single block, optionally after another.
-func (cl *Client) UpsertBlock(ctx context.Context, session, scope string, pid int, blockJSON json.RawMessage, after string) error {
-	_, _, err := cl.do(ctx, OpUpsertBlock, session, scope, pid, body{Block: blockJSON, After: after})
-	return err
+// UpsertBlock inserts or replaces a single block, optionally after another. round
+// is the caller's declared round intent ("", "current", or "new") and roundTitle
+// titles a newly opened round; it returns the round an advance opened (0 if none).
+func (cl *Client) UpsertBlock(ctx context.Context, session, scope string, pid int, blockJSON json.RawMessage, after, round, roundTitle string) (int, error) {
+	_, res, err := cl.do(ctx, OpUpsertBlock, session, scope, pid, body{Block: blockJSON, After: after, Round: round, Title: roundTitle})
+	return res.Round, err
 }
 
 // RemoveBlock removes a block by id.

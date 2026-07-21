@@ -93,6 +93,13 @@ func (r *Registry) ValidateBlock(typeName string, payload json.RawMessage) error
 	return nil
 }
 
+// Interactive reports whether the installed type declares an interaction schema;
+// an uninstalled or built-in type is not interactive.
+func (r *Registry) Interactive(typeName string) bool {
+	bt, ok := r.byType[typeName]
+	return ok && bt.Interaction != nil
+}
+
 // ValidateInteraction validates a pack interaction payload against the installed
 // interaction schema for its dotted type. An uninstalled type or a
 // non-interactive one (no declared interaction schema) is rejected.

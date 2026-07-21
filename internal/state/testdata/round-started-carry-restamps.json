@@ -1,0 +1,54 @@
+{
+  "name": "round-started-carry-restamps",
+  "events": [
+    {
+      "origin": "agent",
+      "type": "doc.replaced",
+      "seq": 1,
+      "payload": {
+        "revision": 1,
+        "doc": {
+          "version": 1,
+          "title": "T",
+          "blocks": [
+            { "id": "card-a", "type": "card", "children": [{ "id": "a1", "type": "approval" }] },
+            { "id": "card-b", "type": "card", "children": [{ "id": "b1", "type": "approval" }] }
+          ]
+        }
+      }
+    },
+    { "origin": "human", "type": "decision.created", "seq": 2, "payload": { "blockId": "a1", "verdict": "approved" } },
+    { "origin": "agent", "type": "round.started", "seq": 3, "payload": { "title": "round two", "carry": ["card-b"] } }
+  ],
+  "expected": {
+    "doc": {
+      "version": 1,
+      "title": "T",
+      "blocks": [
+        { "id": "card-a", "type": "card", "children": [{ "id": "a1", "type": "approval" }] },
+        { "id": "card-b", "type": "card", "children": [{ "id": "b1", "type": "approval" }] }
+      ]
+    },
+    "interactions": {
+      "decisions": { "a1": { "verdict": "approved" } }
+    },
+    "rounds": {
+      "current": 2,
+      "currentTitle": "round two",
+      "blockRounds": { "card-a": 1, "card-b": 2 },
+      "history": [
+        {
+          "number": 1,
+          "blocks": [
+            { "id": "card-a", "type": "card", "children": [{ "id": "a1", "type": "approval" }] },
+            { "id": "card-b", "type": "card", "children": [{ "id": "b1", "type": "approval" }] }
+          ],
+          "decisions": { "a1": { "verdict": "approved" } },
+          "choices": {},
+          "inputs": {},
+          "feedback": {}
+        }
+      ]
+    }
+  }
+}

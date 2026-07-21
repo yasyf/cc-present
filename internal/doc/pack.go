@@ -81,6 +81,9 @@ func (p *PackBlock) PayloadJSON() json.RawMessage {
 // NoPacks.
 type PackTypes interface {
 	ValidateBlock(typeName string, payload json.RawMessage) error
+	// Interactive reports whether the type declares a human interaction; a
+	// non-interactive or uninstalled type is false.
+	Interactive(typeName string) bool
 }
 
 // NoPacks is a PackTypes with no packs installed; it rejects every pack block.
@@ -91,3 +94,5 @@ type noPacks struct{}
 func (noPacks) ValidateBlock(typeName string, _ json.RawMessage) error {
 	return fmt.Errorf("pack block type %q is not installed", typeName)
 }
+
+func (noPacks) Interactive(string) bool { return false }

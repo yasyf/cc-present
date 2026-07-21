@@ -1,0 +1,82 @@
+{
+  "name": "round-started-carried-block-actionable",
+  "events": [
+    {
+      "origin": "agent",
+      "type": "doc.replaced",
+      "seq": 1,
+      "payload": {
+        "revision": 1,
+        "doc": {
+          "version": 1,
+          "title": "T",
+          "blocks": [
+            { "id": "card-a", "type": "card", "children": [{ "id": "a1", "type": "approval" }] },
+            { "id": "card-b", "type": "card", "children": [{ "id": "b1", "type": "approval" }] }
+          ]
+        }
+      }
+    },
+    { "origin": "human", "type": "decision.created", "seq": 2, "payload": { "blockId": "a1", "verdict": "approved" } },
+    { "origin": "agent", "type": "round.started", "seq": 3, "payload": { "title": "round two", "carry": ["card-b"] } },
+    {
+      "origin": "agent",
+      "type": "block.upserted",
+      "seq": 4,
+      "payload": {
+        "after": "card-b",
+        "block": { "id": "card-c", "type": "card", "children": [{ "id": "c1", "type": "approval" }] }
+      }
+    },
+    { "origin": "human", "type": "decision.created", "seq": 5, "payload": { "blockId": "b1", "verdict": "rejected" } },
+    { "origin": "human", "type": "submit", "seq": 6, "payload": { "revision": 1 } }
+  ],
+  "expected": {
+    "doc": {
+      "version": 1,
+      "title": "T",
+      "blocks": [
+        { "id": "card-a", "type": "card", "children": [{ "id": "a1", "type": "approval" }] },
+        { "id": "card-b", "type": "card", "children": [{ "id": "b1", "type": "approval" }] },
+        { "id": "card-c", "type": "card", "children": [{ "id": "c1", "type": "approval" }] }
+      ]
+    },
+    "interactions": {
+      "decisions": {
+        "a1": { "verdict": "approved" },
+        "b1": { "verdict": "rejected" }
+      },
+      "submitted": { "value": true, "revision": 1 }
+    },
+    "rounds": {
+      "current": 3,
+      "blockRounds": { "card-a": 1, "card-b": 2, "card-c": 2 },
+      "history": [
+        {
+          "number": 1,
+          "blocks": [
+            { "id": "card-a", "type": "card", "children": [{ "id": "a1", "type": "approval" }] },
+            { "id": "card-b", "type": "card", "children": [{ "id": "b1", "type": "approval" }] }
+          ],
+          "decisions": { "a1": { "verdict": "approved" } },
+          "choices": {},
+          "inputs": {},
+          "feedback": {}
+        },
+        {
+          "number": 2,
+          "title": "round two",
+          "blocks": [
+            { "id": "card-b", "type": "card", "children": [{ "id": "b1", "type": "approval" }] },
+            { "id": "card-c", "type": "card", "children": [{ "id": "c1", "type": "approval" }] }
+          ],
+          "decisions": { "b1": { "verdict": "rejected" } },
+          "choices": {},
+          "inputs": {},
+          "feedback": {},
+          "submittedRevision": 1
+        }
+      ]
+    }
+  }
+}

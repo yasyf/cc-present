@@ -95,9 +95,21 @@ export function applyEvent(state: PresentState, ev: PresentEvent): PresentState 
       return withInteractions(state, { replies: append(state.interactions.replies, blockId, { id, md }) });
     }
     case 'round.started': {
-      const { title } = ev.payload;
-      const cleared = { ...state, revising: { blockIds: [] } };
-      const advanced = isDirty(cleared) ? closeRound(cleared, undefined) : cleared;
+      const { title, carry } = ev.payload;
+      const cleared: PresentState = { ...state, revising: { blockIds: [] } };
+      let advanced = cleared;
+      if (isDirty(cleared)) {
+        advanced = closeRound(cleared, undefined);
+        const blockRounds = { ...advanced.rounds.blockRounds };
+        for (const id of carry ?? []) {
+          const loc = locate(advanced.doc.blocks, id);
+          if (!loc || loc.kind !== 'top-level') {
+            throw new Error(`round.started carries "${id}", which is not a current top-level block`);
+          }
+          blockRounds[id] = advanced.rounds.current;
+        }
+        advanced = { ...advanced, rounds: { ...advanced.rounds, blockRounds } };
+      }
       const rounds = { ...advanced.rounds };
       if (title) rounds.currentTitle = title;
       else delete rounds.currentTitle;

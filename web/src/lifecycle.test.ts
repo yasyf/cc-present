@@ -79,6 +79,16 @@ const cases: Case[] = [
     expected: { kind: 'live', blocks: [a2] },
   },
   {
+    name: 'a carry-advance keeps only the carried block live',
+    events: [
+      upserted(a1, 1),
+      upserted(a2, 2),
+      { origin: 'human', type: 'decision.created', seq: 3, payload: { blockId: 'a1', verdict: 'approved' } },
+      { origin: 'agent', type: 'round.started', seq: 4, payload: { carry: ['a2'] } },
+    ],
+    expected: { kind: 'live', blocks: [a2] },
+  },
+  {
     name: 'closing mid-round is closed, keeping the live blocks read-only',
     events: [upserted(a1, 1), closed(2, 'All set')],
     expected: { kind: 'closed', blocks: [a1], summary: 'All set' },

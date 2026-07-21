@@ -81,6 +81,14 @@ func TestReduceErrors(t *testing.T) {
 			events:  []state.Event{{Origin: "agent", Type: "block.upserted", Seq: 1, Payload: []byte(`{"block":{"id":"x","type":"bogus"}}`)}},
 			wantErr: "unknown type",
 		},
+		{
+			name: "round.started carries unknown id",
+			events: []state.Event{
+				{Origin: "agent", Type: "doc.replaced", Seq: 1, Payload: []byte(`{"revision":1,"doc":{"version":1,"title":"T","blocks":[{"id":"card-a","type":"approval"}]}}`)},
+				{Origin: "agent", Type: "round.started", Seq: 2, Payload: []byte(`{"carry":["ghost"]}`)},
+			},
+			wantErr: "ghost",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

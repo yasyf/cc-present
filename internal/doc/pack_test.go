@@ -24,6 +24,8 @@ func (s *stubPacks) ValidateBlock(typeName string, payload json.RawMessage) erro
 	return &stubErr{typeName}
 }
 
+func (s *stubPacks) Interactive(typeName string) bool { return s.valid[typeName] }
+
 type stubErr struct{ typ string }
 
 func (e *stubErr) Error() string { return "stub rejects " + e.typ }

@@ -52,7 +52,7 @@ const (
 // envelope itself.
 type body struct {
 	New      bool            `json:"new,omitempty"`      // start
-	Title    string          `json:"title,omitempty"`    // start | round
+	Title    string          `json:"title,omitempty"`    // start | round | push,upsert-block round-title
 	Doc      json.RawMessage `json:"doc,omitempty"`      // start | push
 	Block    json.RawMessage `json:"block,omitempty"`    // upsert-block
 	After    string          `json:"after,omitempty"`    // upsert-block
@@ -62,6 +62,7 @@ type body struct {
 	Summary  string          `json:"summary,omitempty"`  // close
 	BlockIDs []string        `json:"blockIds,omitempty"` // revising
 	Note     string          `json:"note,omitempty"`     // revising
+	Round    string          `json:"round,omitempty"`    // push | upsert-block ("" | "current" | "new")
 }
 
 // result is the domain payload a handler returns in Reply.Body. Envelope-level

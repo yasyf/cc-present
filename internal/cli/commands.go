@@ -50,6 +50,20 @@ func readInput(arg string, in io.Reader) ([]byte, error) {
 	return os.ReadFile(arg)
 }
 
+// validateRoundFlags rejects an unknown --round value and a --round-title given
+// without --round new — the two client-side usage errors caught before dialing.
+func validateRoundFlags(round, roundTitle string) error {
+	switch round {
+	case "", "current", "new":
+	default:
+		return errors.New(`--round must be "current" or "new"`)
+	}
+	if roundTitle != "" && round != "new" {
+		return errors.New(`--round-title requires --round new`)
+	}
+	return nil
+}
+
 func client(ctx context.Context, d cmd.Deps) (*ccdaemon.Client, error) {
 	raw, err := d.NewClient(ctx)
 	if err != nil {
@@ -258,15 +272,20 @@ func newStartCmd(d cmd.Deps) *cobra.Command {
 }
 
 // newPushCmd replaces the artifact's document. --dry-run validates the document
-// locally and exits non-zero with the validation error on stdout.
+// locally and exits non-zero with the validation error on stdout. --round
+// current|new declares intent when the push adds a top-level block to an engaged
+// round, and --round-title titles a round --round new opens.
 func newPushCmd(d cmd.Deps) *cobra.Command {
-	var session, cwd string
+	var session, cwd, round, roundTitle string
 	var dryRun bool
 	c := &cobra.Command{
 		Use:   "push <file|->",
 		Short: "Replace the artifact's document",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(c *cobra.Command, args []string) error {
+			if err := validateRoundFlags(round, roundTitle); err != nil {
+				return err
+			}
 			raw, err := readInput(args[0], c.InOrStdin())
 			if err != nil {
 				return err
@@ -314,12 +333,15 @@ func newPushCmd(d cmd.Deps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			res, err := cl.Push(ctx, sess, scope, pid, docJSON)
+			res, err := cl.Push(ctx, sess, scope, pid, docJSON, round, roundTitle)
 			if err != nil {
 				return err
 			}
 			out := c.OutOrStdout()
 			_, _ = fmt.Fprintf(out, "revision: %d\n", res.Revision)
+			if res.Round > 0 {
+				_, _ = fmt.Fprintf(out, "round: %d\n", res.Round)
+			}
 			_, _ = fmt.Fprintf(out, "url: %s\n", res.URL)
 			for _, u := range res.TailnetURLs {
 				_, _ = fmt.Fprintf(out, "tailnet: %s\n", u)
@@ -333,18 +355,26 @@ func newPushCmd(d cmd.Deps) *cobra.Command {
 	c.Flags().StringVar(&session, "session", "", "Claude session id (defaults to $CLAUDE_CODE_SESSION_ID)")
 	c.Flags().StringVar(&cwd, "cwd", "", "working directory (recorded on the request; artifacts are per-window, not resolved by directory)")
 	c.Flags().BoolVar(&dryRun, "dry-run", false, "validate the document only; print every violation and exit non-zero")
+	c.Flags().StringVar(&round, "round", "", `round intent when a new top-level block lands in an engaged round: "current" (add to it) or "new" (close it and open the next)`)
+	c.Flags().StringVar(&roundTitle, "round-title", "", "title for the round opened by --round new")
 	return c
 }
 
 // newUpdateBlockCmd inserts or replaces a single block, optionally after another.
+// --round current|new declares intent when the upsert adds a top-level block to
+// an engaged round, and --round-title titles a round --round new opens; it prints
+// round: N only when the upsert opened round N.
 func newUpdateBlockCmd(d cmd.Deps) *cobra.Command {
-	var session, cwd, after string
+	var session, cwd, after, round, roundTitle string
 	var dryRun bool
 	c := &cobra.Command{
 		Use:   "update-block <file|->",
 		Short: "Insert or replace a single block",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(c *cobra.Command, args []string) error {
+			if err := validateRoundFlags(round, roundTitle); err != nil {
+				return err
+			}
 			raw, err := readInput(args[0], c.InOrStdin())
 			if err != nil {
 				return err
@@ -389,13 +419,22 @@ func newUpdateBlockCmd(d cmd.Deps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return cl.UpsertBlock(ctx, sess, scope, pid, blockJSON, after)
+			n, err := cl.UpsertBlock(ctx, sess, scope, pid, blockJSON, after, round, roundTitle)
+			if err != nil {
+				return err
+			}
+			if n > 0 {
+				_, _ = fmt.Fprintf(c.OutOrStdout(), "round: %d\n", n)
+			}
+			return nil
 		},
 	}
 	c.Flags().StringVar(&session, "session", "", "Claude session id (defaults to $CLAUDE_CODE_SESSION_ID)")
 	c.Flags().StringVar(&cwd, "cwd", "", "working directory (recorded on the request; artifacts are per-window, not resolved by directory)")
 	c.Flags().StringVar(&after, "after", "", "insert a new block after a top-level block, or into a card after a child (unknown ids error)")
 	c.Flags().BoolVar(&dryRun, "dry-run", false, "validate the single block only; print every violation and exit non-zero")
+	c.Flags().StringVar(&round, "round", "", `round intent when the block is a new top-level block in an engaged round: "current" (add to it) or "new" (close it and open the next)`)
+	c.Flags().StringVar(&roundTitle, "round-title", "", "title for the round opened by --round new")
 	return c
 }
 

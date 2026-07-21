@@ -40,6 +40,7 @@ export interface PresentClosedPayload {
 
 export interface RoundStartedPayload {
   title?: string;
+  carry?: string[];
 }
 
 // --- Human-origin payloads ---

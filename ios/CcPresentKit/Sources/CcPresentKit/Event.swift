@@ -50,6 +50,7 @@ public struct ReplyCreatedPayload: Decodable, Equatable, Sendable {
 /// RoundStartedPayload titles the current round.
 public struct RoundStartedPayload: Decodable, Equatable, Sendable {
     public var title: String?
+    public var carry: [String]?
 }
 
 // --- System-origin payloads ---

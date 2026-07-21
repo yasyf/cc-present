@@ -3,6 +3,7 @@ package daemon
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -86,6 +87,10 @@ const approvalDoc = `{"version":1,"title":"Board","blocks":[{"id":"a1","type":"a
 const cardDoc = `{"version":1,"title":"Board","blocks":[{"id":"c1","type":"card","children":[{"id":"in1","type":"input","label":"Name"},{"id":"m2","type":"markdown","md":"child"}]},{"id":"m1","type":"markdown","md":"note"}]}`
 
 const choiceVisualDoc = `{"version":1,"title":"Board","blocks":[{"id":"ch1","type":"choice","options":[{"id":"o1","label":"One","visual":{"id":"v1","type":"code","lang":"go","code":"x"}}]}]}`
+
+// twoApprovalDoc holds two top-level approvals so a round-intent test can answer
+// one and leave the other awaiting, exercising the carry/freeze split.
+const twoApprovalDoc = `{"version":1,"title":"Board","blocks":[{"id":"a1","type":"approval"},{"id":"a2","type":"approval"}]}`
 
 // nilDisplay is the no-trust display func the handler tests pass by default: a
 // start or push then carries no tailnet URLs.
@@ -673,7 +678,7 @@ func TestRound(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			h := newHarness(t)
 			tt.setup(t, h)
-			reply := handleRound(h.hc(body{Title: tt.title}))
+			reply := handleRound(h.hc(body{Title: tt.title}), doc.NoPacks)
 			if tt.wantErr != "" {
 				if reply.OK || !strings.Contains(reply.Error, tt.wantErr) {
 					t.Fatalf("round: ok=%v err=%q, want %q", reply.OK, reply.Error, tt.wantErr)
@@ -692,6 +697,42 @@ func TestRound(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("advance carries unanswered tops and freezes answered ones", func(t *testing.T) {
+		h := newHarness(t)
+		start := handleStart(h.hc(body{Doc: json.RawMessage(twoApprovalDoc)}), doc.NoPacks, nilDisplay)
+		engageDecision(t, h, start.SubjectID, "a1")
+		reply := handleRound(h.hc(body{}), doc.NoPacks)
+		if !reply.OK {
+			t.Fatalf("round not ok: %s", reply.Error)
+		}
+		starts := h.eventsOfType(t, start.SubjectID, EventRoundStarted)
+		if len(starts) != 1 {
+			t.Fatalf("round.started events = %d, want 1", len(starts))
+		}
+		var payload struct {
+			Carry []string `json:"carry"`
+		}
+		if err := json.Unmarshal(starts[0].Payload, &payload); err != nil {
+			t.Fatalf("decode round.started: %v", err)
+		}
+		if !slices.Equal(payload.Carry, []string{"a2"}) {
+			t.Fatalf("carry = %v, want [a2]", payload.Carry)
+		}
+		st := reduceSubject(t, h, start.SubjectID)
+		if got := st.Rounds.BlockRounds["a1"]; got != 1 {
+			t.Fatalf("a1 round = %d, want 1 (answered, frozen)", got)
+		}
+		if got := st.Rounds.BlockRounds["a2"]; got != 2 {
+			t.Fatalf("a2 round = %d, want 2 (unanswered, carried)", got)
+		}
+		if st.Rounds.Current != 2 {
+			t.Fatalf("current = %d, want 2", st.Rounds.Current)
+		}
+		if len(st.Rounds.History) != 1 {
+			t.Fatalf("history len = %d, want 1", len(st.Rounds.History))
+		}
+	})
 }
 
 func TestRevising(t *testing.T) {
@@ -821,6 +862,329 @@ func reduceSubject(t *testing.T, h *harness, subjectID string) state.State {
 		t.Fatalf("reduce: %v", err)
 	}
 	return st
+}
+
+// engageDecision records a human approval on blockID directly on the log, as the
+// REST plane would, so the block's round counts as engaged.
+func engageDecision(t *testing.T, h *harness, subjectID, blockID string) {
+	t.Helper()
+	if _, err := h.cc.AppendEvent(context.Background(), &ccevent.Event{
+		SubjectID: subjectID, Origin: ccevent.OriginHuman, Type: EventDecisionCreated,
+		Payload: json.RawMessage(fmt.Sprintf(`{"blockId":%q,"verdict":"approved"}`, blockID)),
+	}); err != nil {
+		t.Fatalf("append decision: %v", err)
+	}
+}
+
+// submitRevision records a human submit on rev, closing the dirty round it names
+// and advancing to the next (clean) round.
+func submitRevision(t *testing.T, h *harness, subjectID string, rev int) {
+	t.Helper()
+	if _, err := h.cc.AppendEvent(context.Background(), &ccevent.Event{
+		SubjectID: subjectID, Origin: ccevent.OriginHuman, Type: EventSubmit,
+		Payload: json.RawMessage(fmt.Sprintf(`{"revision":%d}`, rev)),
+	}); err != nil {
+		t.Fatalf("append submit: %v", err)
+	}
+}
+
+func TestUpsertBlockRoundIntent(t *testing.T) {
+	const newTop = `{"id":"b1","type":"approval"}`
+
+	t.Run("engaged round demands an explicit intent", func(t *testing.T) {
+		h := newHarness(t)
+		start := handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks, nilDisplay)
+		engageDecision(t, h, start.SubjectID, "a1")
+		reply := handleUpsertBlock(h.hc(body{Block: json.RawMessage(newTop)}), doc.NoPacks)
+		if reply.OK {
+			t.Fatalf("engaged upsert without intent: ok=%v", reply.OK)
+		}
+		for _, want := range []string{"--round current", "--round new"} {
+			if !strings.Contains(reply.Error, want) {
+				t.Fatalf("error %q missing %q", reply.Error, want)
+			}
+		}
+		if got := h.eventsOfType(t, start.SubjectID, EventBlockUpserted); len(got) != 0 {
+			t.Fatalf("rejected upsert appended %d block.upserted, want 0", len(got))
+		}
+	})
+
+	t.Run("current joins the engaged round", func(t *testing.T) {
+		h := newHarness(t)
+		start := handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks, nilDisplay)
+		engageDecision(t, h, start.SubjectID, "a1")
+		reply := handleUpsertBlock(h.hc(body{Block: json.RawMessage(newTop), Round: "current"}), doc.NoPacks)
+		if !reply.OK {
+			t.Fatalf("current upsert not ok: %s", reply.Error)
+		}
+		var res result
+		if err := json.Unmarshal(reply.Body, &res); err != nil {
+			t.Fatalf("decode result: %v", err)
+		}
+		if res.Round != 0 {
+			t.Fatalf("round = %d, want 0 (no advance)", res.Round)
+		}
+		if got := h.eventsOfType(t, start.SubjectID, EventRoundStarted); len(got) != 0 {
+			t.Fatalf("current appended %d round.started, want 0", len(got))
+		}
+		st := reduceSubject(t, h, start.SubjectID)
+		if got := st.Rounds.BlockRounds["b1"]; got != 1 {
+			t.Fatalf("b1 round = %d, want 1 (joined current)", got)
+		}
+		if len(st.Rounds.History) != 0 {
+			t.Fatalf("history len = %d, want 0", len(st.Rounds.History))
+		}
+	})
+
+	t.Run("new closes the engaged round and carries unanswered tops", func(t *testing.T) {
+		h := newHarness(t)
+		start := handleStart(h.hc(body{Doc: json.RawMessage(twoApprovalDoc)}), doc.NoPacks, nilDisplay)
+		engageDecision(t, h, start.SubjectID, "a1") // a1 answered; a2 still awaiting
+		reply := handleUpsertBlock(h.hc(body{Block: json.RawMessage(newTop), Round: "new", Title: "Round Two"}), doc.NoPacks)
+		if !reply.OK {
+			t.Fatalf("new upsert not ok: %s", reply.Error)
+		}
+		var res result
+		if err := json.Unmarshal(reply.Body, &res); err != nil {
+			t.Fatalf("decode result: %v", err)
+		}
+		if res.Round != 2 {
+			t.Fatalf("round = %d, want 2", res.Round)
+		}
+		starts := h.eventsOfType(t, start.SubjectID, EventRoundStarted)
+		if len(starts) != 1 {
+			t.Fatalf("round.started events = %d, want 1", len(starts))
+		}
+		var payload struct {
+			Title string   `json:"title"`
+			Carry []string `json:"carry"`
+		}
+		if err := json.Unmarshal(starts[0].Payload, &payload); err != nil {
+			t.Fatalf("decode round.started: %v", err)
+		}
+		if payload.Title != "Round Two" {
+			t.Fatalf("title = %q, want %q", payload.Title, "Round Two")
+		}
+		if !slices.Equal(payload.Carry, []string{"a2"}) {
+			t.Fatalf("carry = %v, want [a2]", payload.Carry)
+		}
+		st := reduceSubject(t, h, start.SubjectID)
+		if got := st.Rounds.BlockRounds["a1"]; got != 1 {
+			t.Fatalf("a1 round = %d, want 1 (answered, frozen)", got)
+		}
+		if got := st.Rounds.BlockRounds["a2"]; got != 2 {
+			t.Fatalf("a2 round = %d, want 2 (unanswered, carried)", got)
+		}
+		if got := st.Rounds.BlockRounds["b1"]; got != 2 {
+			t.Fatalf("b1 round = %d, want 2 (new top)", got)
+		}
+		if len(st.Rounds.History) != 1 {
+			t.Fatalf("history len = %d, want 1", len(st.Rounds.History))
+		}
+	})
+
+	t.Run("re-upsert of an existing id while engaged needs no intent", func(t *testing.T) {
+		h := newHarness(t)
+		start := handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks, nilDisplay)
+		engageDecision(t, h, start.SubjectID, "a1")
+		reply := handleUpsertBlock(h.hc(body{Block: json.RawMessage(`{"id":"a1","type":"markdown","md":"replaced"}`)}), doc.NoPacks)
+		if !reply.OK {
+			t.Fatalf("re-upsert of existing id not ok: %s", reply.Error)
+		}
+	})
+
+	t.Run("new top on a dirty but unengaged round needs no intent", func(t *testing.T) {
+		h := newHarness(t)
+		handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks, nilDisplay)
+		reply := handleUpsertBlock(h.hc(body{Block: json.RawMessage(newTop)}), doc.NoPacks)
+		if !reply.OK {
+			t.Fatalf("unengaged upsert not ok: %s", reply.Error)
+		}
+	})
+
+	t.Run("new top on a clean round needs no intent", func(t *testing.T) {
+		h := newHarness(t)
+		start := handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks, nilDisplay)
+		submitRevision(t, h, start.SubjectID, 1)
+		reply := handleUpsertBlock(h.hc(body{Block: json.RawMessage(newTop)}), doc.NoPacks)
+		if !reply.OK {
+			t.Fatalf("clean-round upsert not ok: %s", reply.Error)
+		}
+	})
+
+	t.Run("an unknown round intent is rejected", func(t *testing.T) {
+		h := newHarness(t)
+		handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks, nilDisplay)
+		reply := handleUpsertBlock(h.hc(body{Block: json.RawMessage(newTop), Round: "bogus"}), doc.NoPacks)
+		if reply.OK || !strings.Contains(reply.Error, "unknown round intent") {
+			t.Fatalf("bogus intent: ok=%v err=%q", reply.OK, reply.Error)
+		}
+	})
+
+	t.Run("new on a clean round appends no round.started", func(t *testing.T) {
+		h := newHarness(t)
+		start := handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks, nilDisplay)
+		submitRevision(t, h, start.SubjectID, 1)
+		reply := handleUpsertBlock(h.hc(body{Block: json.RawMessage(newTop), Round: "new"}), doc.NoPacks)
+		if !reply.OK {
+			t.Fatalf("new on clean round not ok: %s", reply.Error)
+		}
+		var res result
+		if err := json.Unmarshal(reply.Body, &res); err != nil {
+			t.Fatalf("decode result: %v", err)
+		}
+		if res.Round != 0 {
+			t.Fatalf("round = %d, want 0 (no-op on clean round)", res.Round)
+		}
+		if got := h.eventsOfType(t, start.SubjectID, EventRoundStarted); len(got) != 0 {
+			t.Fatalf("clean-round --round new appended %d round.started, want 0", len(got))
+		}
+	})
+}
+
+func TestPushRoundIntent(t *testing.T) {
+	const newTopDoc = `{"version":1,"title":"Board","blocks":[{"id":"a1","type":"approval"},{"id":"b1","type":"approval"}]}`
+	const sameIDDoc = `{"version":1,"title":"Board","blocks":[{"id":"a1","type":"markdown","md":"same"}]}`
+
+	push := func(h *harness, docJSON, round, title string) ccd.Reply {
+		return handlePush(h.hc(body{Doc: json.RawMessage(docJSON), Round: round, Title: title}), doc.NoPacks, nilDisplay)
+	}
+
+	t.Run("engaged round demands an explicit intent", func(t *testing.T) {
+		h := newHarness(t)
+		start := handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks, nilDisplay)
+		engageDecision(t, h, start.SubjectID, "a1")
+		reply := push(h, newTopDoc, "", "")
+		if reply.OK {
+			t.Fatalf("engaged push without intent: ok=%v", reply.OK)
+		}
+		for _, want := range []string{"--round current", "--round new"} {
+			if !strings.Contains(reply.Error, want) {
+				t.Fatalf("error %q missing %q", reply.Error, want)
+			}
+		}
+		if got := h.eventsOfType(t, start.SubjectID, EventDocReplaced); len(got) != 1 {
+			t.Fatalf("rejected push changed doc.replaced count to %d, want 1 (seed only)", len(got))
+		}
+	})
+
+	t.Run("current joins the engaged round", func(t *testing.T) {
+		h := newHarness(t)
+		start := handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks, nilDisplay)
+		engageDecision(t, h, start.SubjectID, "a1")
+		reply := push(h, newTopDoc, "current", "")
+		if !reply.OK {
+			t.Fatalf("current push not ok: %s", reply.Error)
+		}
+		var res result
+		if err := json.Unmarshal(reply.Body, &res); err != nil {
+			t.Fatalf("decode result: %v", err)
+		}
+		if res.Round != 0 {
+			t.Fatalf("round = %d, want 0 (no advance)", res.Round)
+		}
+		if got := h.eventsOfType(t, start.SubjectID, EventRoundStarted); len(got) != 0 {
+			t.Fatalf("current appended %d round.started, want 0", len(got))
+		}
+		st := reduceSubject(t, h, start.SubjectID)
+		if got := st.Rounds.BlockRounds["b1"]; got != 1 {
+			t.Fatalf("b1 round = %d, want 1 (joined current)", got)
+		}
+		if len(st.Rounds.History) != 0 {
+			t.Fatalf("history len = %d, want 0", len(st.Rounds.History))
+		}
+	})
+
+	t.Run("new closes the engaged round and stamps the whole doc forward", func(t *testing.T) {
+		h := newHarness(t)
+		start := handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks, nilDisplay)
+		engageDecision(t, h, start.SubjectID, "a1")
+		reply := push(h, newTopDoc, "new", "Round Two")
+		if !reply.OK {
+			t.Fatalf("new push not ok: %s", reply.Error)
+		}
+		var res result
+		if err := json.Unmarshal(reply.Body, &res); err != nil {
+			t.Fatalf("decode result: %v", err)
+		}
+		if res.Round != 2 {
+			t.Fatalf("round = %d, want 2", res.Round)
+		}
+		starts := h.eventsOfType(t, start.SubjectID, EventRoundStarted)
+		if len(starts) != 1 {
+			t.Fatalf("round.started events = %d, want 1", len(starts))
+		}
+		// A push restamps the whole doc into the new round, so its round.started
+		// carries no ids — the carry key is absent, not empty.
+		if strings.Contains(string(starts[0].Payload), "carry") {
+			t.Fatalf("push round.started carries ids: %s", starts[0].Payload)
+		}
+		st := reduceSubject(t, h, start.SubjectID)
+		if got := st.Rounds.BlockRounds["a1"]; got != 2 {
+			t.Fatalf("a1 round = %d, want 2 (restamped)", got)
+		}
+		if got := st.Rounds.BlockRounds["b1"]; got != 2 {
+			t.Fatalf("b1 round = %d, want 2 (restamped)", got)
+		}
+		if len(st.Rounds.History) != 1 {
+			t.Fatalf("history len = %d, want 1", len(st.Rounds.History))
+		}
+	})
+
+	t.Run("a push with no new top while engaged needs no intent", func(t *testing.T) {
+		h := newHarness(t)
+		start := handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks, nilDisplay)
+		engageDecision(t, h, start.SubjectID, "a1")
+		if reply := push(h, sameIDDoc, "", ""); !reply.OK {
+			t.Fatalf("same-id push not ok: %s", reply.Error)
+		}
+	})
+
+	t.Run("new top on a dirty but unengaged round needs no intent", func(t *testing.T) {
+		h := newHarness(t)
+		handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks, nilDisplay)
+		if reply := push(h, newTopDoc, "", ""); !reply.OK {
+			t.Fatalf("unengaged push not ok: %s", reply.Error)
+		}
+	})
+
+	t.Run("new top on a clean round needs no intent", func(t *testing.T) {
+		h := newHarness(t)
+		start := handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks, nilDisplay)
+		submitRevision(t, h, start.SubjectID, 1)
+		if reply := push(h, newTopDoc, "", ""); !reply.OK {
+			t.Fatalf("clean-round push not ok: %s", reply.Error)
+		}
+	})
+
+	t.Run("an unknown round intent is rejected", func(t *testing.T) {
+		h := newHarness(t)
+		handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks, nilDisplay)
+		reply := push(h, newTopDoc, "bogus", "")
+		if reply.OK || !strings.Contains(reply.Error, "unknown round intent") {
+			t.Fatalf("bogus intent: ok=%v err=%q", reply.OK, reply.Error)
+		}
+	})
+
+	t.Run("new on a clean round appends no round.started", func(t *testing.T) {
+		h := newHarness(t)
+		start := handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks, nilDisplay)
+		submitRevision(t, h, start.SubjectID, 1)
+		reply := push(h, newTopDoc, "new", "")
+		if !reply.OK {
+			t.Fatalf("new on clean round not ok: %s", reply.Error)
+		}
+		var res result
+		if err := json.Unmarshal(reply.Body, &res); err != nil {
+			t.Fatalf("decode result: %v", err)
+		}
+		if res.Round != 0 {
+			t.Fatalf("round = %d, want 0 (no-op on clean round)", res.Round)
+		}
+		if got := h.eventsOfType(t, start.SubjectID, EventRoundStarted); len(got) != 0 {
+			t.Fatalf("clean-round --round new appended %d round.started, want 0", len(got))
+		}
+	})
 }
 
 func TestOutcomes(t *testing.T) {

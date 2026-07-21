@@ -162,7 +162,7 @@ func BuildServer(ctx context.Context, p paths.Paths, role daemonrole.Classifier,
 	s.Register(OpUpsertBlock, func(hc ccd.HandlerCtx) ccd.Reply { return handleUpsertBlock(hc, loader.Current()) })
 	s.Register(OpRemoveBlock, handleRemoveBlock)
 	s.Register(OpReply, handleReply)
-	s.Register(OpRound, handleRound)
+	s.Register(OpRound, func(hc ccd.HandlerCtx) ccd.Reply { return handleRound(hc, loader.Current()) })
 	s.Register(OpRevising, handleRevising)
 	s.Register(OpClose, func(hc ccd.HandlerCtx) ccd.Reply { return handleClose(hc, ast) })
 	s.Register(OpOutcomes, handleOutcomes)
@@ -265,9 +265,16 @@ func handleStart(hc ccd.HandlerCtx, pt doc.PackTypes, display displayFunc) ccd.R
 }
 
 // handlePush validates the document, then replaces it with an incremented
-// revision. A closed artifact rejects the push.
+// revision. A closed artifact rejects the push. When the push adds a new
+// top-level block to a round the human has engaged, an unspecified round intent
+// is rejected; --round new closes the dirty round into history and opens the
+// next before the replacement lands.
 func handlePush(hc ccd.HandlerCtx, pt doc.PackTypes, display displayFunc) ccd.Reply {
 	b := decodeBody(hc.Env.Body)
+	intent, err := parseRoundIntent(b.Round)
+	if err != nil {
+		return errReply(err.Error())
+	}
 	d := &doc.Doc{}
 	if err := json.Unmarshal(b.Doc, d); err != nil {
 		return errReply("decode doc: " + err.Error())
@@ -279,6 +286,29 @@ func handlePush(hc ccd.HandlerCtx, pt doc.PackTypes, display displayFunc) ccd.Re
 	if err != nil {
 		return errReply(err.Error())
 	}
+	events, err := loadEvents(hc.Ctx, hc.DB, sub.ID)
+	if err != nil {
+		return errReply(err.Error())
+	}
+	st, err := state.Reduce(events)
+	if err != nil {
+		return errReply(err.Error())
+	}
+	if err := roundGuard(&st, intent, "push", newTopIDs(&st, d)); err != nil {
+		return errReply(err.Error())
+	}
+	round := 0
+	if intent == roundNew && roundDirty(&st) {
+		// No carry: the doc.replaced below restamps every block into the freshly
+		// advanced round, so no id needs to ride forward explicitly.
+		if _, err := appendEvent(hc.Ctx, hc.Append, &ccevent.Event{
+			SubjectID: sub.ID, Origin: ccevent.OriginAgent, Type: EventRoundStarted,
+			Payload: roundStartedPayload(b.Title, nil),
+		}); err != nil {
+			return errReply(err.Error())
+		}
+		round = st.Rounds.Current + 1
+	}
 	rev, err := nextRevision(hc.Ctx, hc.DB, sub.ID)
 	if err != nil {
 		return errReply(err.Error())
@@ -289,15 +319,20 @@ func handlePush(hc ccd.HandlerCtx, pt doc.PackTypes, display displayFunc) ccd.Re
 	}); err != nil {
 		return errReply(err.Error())
 	}
-	return okReply(result{Revision: rev, URL: artifactURL(hc.HTTPPort, sub.Slug), TailnetURLs: display(hc.Ctx, sub.Slug, hc.HTTPPort)})
+	return okReply(result{Revision: rev, URL: artifactURL(hc.HTTPPort, sub.Slug), TailnetURLs: display(hc.Ctx, sub.Slug, hc.HTTPPort), Round: round})
 }
 
-// handleUpsertBlock inserts or replaces a single block. An unknown type or a
-// block failing per-type validation is rejected, as is a closed artifact. The
-// resulting document is validated whole, so an invalid child, duplicate id, or
-// document growing past MaxDocBytes is rejected before it is appended.
+// handleUpsertBlock inserts or replaces a single block. An unknown type, a block
+// failing per-type validation, or a closed artifact is rejected, and the whole
+// document is validated so an invalid child, duplicate id, or oversized document
+// fails before append. Adding a new top-level block to an engaged round demands
+// an explicit round intent; --round new opens the next round first.
 func handleUpsertBlock(hc ccd.HandlerCtx, pt doc.PackTypes) ccd.Reply {
 	b := decodeBody(hc.Env.Body)
+	intent, err := parseRoundIntent(b.Round)
+	if err != nil {
+		return errReply(err.Error())
+	}
 	blk, err := doc.DecodeBlock(b.Block)
 	if err != nil {
 		return errReply(err.Error())
@@ -332,13 +367,32 @@ func handleUpsertBlock(hc ccd.HandlerCtx, pt doc.PackTypes) ccd.Reply {
 	if err := upsertedDoc(st.Doc, blk, b.After).Validate(pt); err != nil {
 		return errReply(err.Error())
 	}
+	var newTops []string
+	if upsertNewTop(&st, blk, b.After) {
+		newTops = []string{blk.BlockID()}
+	}
+	if err := roundGuard(&st, intent, "update-block", newTops); err != nil {
+		return errReply(err.Error())
+	}
+	// Validation is done; only appends follow. A clean round skips round.started,
+	// so a post-submit --round new stays a no-op.
+	round := 0
+	if intent == roundNew && roundDirty(&st) {
+		if _, err := appendEvent(hc.Ctx, hc.Append, &ccevent.Event{
+			SubjectID: sub.ID, Origin: ccevent.OriginAgent, Type: EventRoundStarted,
+			Payload: roundStartedPayload(b.Title, carryIDs(&st, pt)),
+		}); err != nil {
+			return errReply(err.Error())
+		}
+		round = st.Rounds.Current + 1
+	}
 	if _, err := appendEvent(hc.Ctx, hc.Append, &ccevent.Event{
 		SubjectID: sub.ID, Origin: ccevent.OriginAgent, Type: EventBlockUpserted,
 		Payload: blockUpsertedPayload(b.Block, b.After),
 	}); err != nil {
 		return errReply(err.Error())
 	}
-	return okReply(result{})
+	return okReply(result{Round: round})
 }
 
 // upsertedDoc returns the document the upsert of blk (after `after`) produces
@@ -428,24 +482,15 @@ func handleReply(hc ccd.HandlerCtx) ccd.Reply {
 	return okReply(result{})
 }
 
-// handleRound appends an agent round.started under the agent origin, then
-// reduces the log to report the resulting current round. A dirty round (a live
-// top-level block stamped with the current round) force-advances; a clean one is
-// merely retitled. A closed artifact rejects the round. round.started carries no
-// revision, so unlike a doc write it never bumps the revision counter.
-func handleRound(hc ccd.HandlerCtx) ccd.Reply {
+// handleRound reduces the log, then appends an agent round.started carrying the
+// unanswered current-round blocks, and re-reduces to report the resulting round.
+// A dirty round force-advances (its answered blocks freeze, its unanswered ones
+// carry forward); a clean one is merely retitled. A closed artifact is rejected.
+// round.started carries no revision, so it never bumps the revision counter.
+func handleRound(hc ccd.HandlerCtx, pt doc.PackTypes) ccd.Reply {
 	b := decodeBody(hc.Env.Body)
 	sub, err := resolveOpen(hc)
 	if err != nil {
-		return errReply(err.Error())
-	}
-	payload := json.RawMessage("{}")
-	if b.Title != "" {
-		payload = mustJSON(map[string]string{"title": b.Title})
-	}
-	if _, err := appendEvent(hc.Ctx, hc.Append, &ccevent.Event{
-		SubjectID: sub.ID, Origin: ccevent.OriginAgent, Type: EventRoundStarted, Payload: payload,
-	}); err != nil {
 		return errReply(err.Error())
 	}
 	events, err := loadEvents(hc.Ctx, hc.DB, sub.ID)
@@ -453,6 +498,20 @@ func handleRound(hc ccd.HandlerCtx) ccd.Reply {
 		return errReply(err.Error())
 	}
 	st, err := state.Reduce(events)
+	if err != nil {
+		return errReply(err.Error())
+	}
+	if _, err := appendEvent(hc.Ctx, hc.Append, &ccevent.Event{
+		SubjectID: sub.ID, Origin: ccevent.OriginAgent, Type: EventRoundStarted,
+		Payload: roundStartedPayload(b.Title, carryIDs(&st, pt)),
+	}); err != nil {
+		return errReply(err.Error())
+	}
+	events, err = loadEvents(hc.Ctx, hc.DB, sub.ID)
+	if err != nil {
+		return errReply(err.Error())
+	}
+	st, err = state.Reduce(events)
 	if err != nil {
 		return errReply(err.Error())
 	}

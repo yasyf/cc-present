@@ -374,6 +374,34 @@ func TestInteractionClosedRound(t *testing.T) {
 	}
 }
 
+func TestInteractionCarriedRound(t *testing.T) {
+	h := newRestHarness(t)
+	// A human approves a2, engaging round 1.
+	if w := h.post(t, `{"subject":"board--abcd0000","nonce":"eng","interaction":{"type":"decision.created","blockId":"a2","verdict":"approved"}}`); w.Code != http.StatusOK {
+		t.Fatalf("engage status = %d (%s)", w.Code, w.Body.String())
+	}
+	// The agent advances the round, carrying the un-answered a1 forward; every
+	// other seed block (a2 included) freezes into the closed round.
+	if _, err := h.cc.AppendEvent(context.Background(), &ccevent.Event{
+		SubjectID: h.id, Origin: ccevent.OriginAgent, Type: EventRoundStarted,
+		Payload: roundStartedPayload("", []string{"a1"}),
+	}); err != nil {
+		t.Fatalf("advance round: %v", err)
+	}
+	// The carried block rides into the current round, so it still accepts input.
+	if w := h.post(t, `{"subject":"board--abcd0000","nonce":"car","interaction":{"type":"decision.created","blockId":"a1","verdict":"approved"}}`); w.Code != http.StatusOK {
+		t.Fatalf("carried-round status = %d, want 200 (body %q)", w.Code, w.Body.String())
+	}
+	// The frozen answered block is rejected as belonging to a closed round.
+	w := h.post(t, `{"subject":"board--abcd0000","nonce":"frz","interaction":{"type":"decision.created","blockId":"a2","verdict":"approved"}}`)
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("closed-round status = %d, want 400 (body %q)", w.Code, w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), "closed round") {
+		t.Fatalf("body = %q, want 'closed round'", w.Body.String())
+	}
+}
+
 func TestInteractionDedup(t *testing.T) {
 	h := newRestHarness(t)
 	const b = `{"subject":"board--abcd0000","nonce":"same","interaction":{"type":"decision.created","blockId":"a2","verdict":"approved"}}`

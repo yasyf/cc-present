@@ -354,7 +354,7 @@ columns below omit that injected field; both reducers tolerate it.
 | agent | `block.upserted` | `{block, after?}` | If a block with `block.id` exists — at top level or one level deep as a card child — replace it in place as a whole block, so nothing from the old block survives, and stamp the enclosing top-level block's round. Otherwise insert: after a top-level `after` at top level, after a card-child `after` inside that card, or append at top level when `after` is absent or unknown (the reducer keeps that append fallback for replay; the daemon edge rejects unknown and option-visual `after` ids). |
 | agent | `block.removed` | `{id}` | Remove the top-level block with that id, or splice a card child from its card and restamp the card's round. An unknown id is a reducer no-op (the daemon edge rejects it). |
 | agent | `reply.created` | `{id, blockId, md}` | Append to the block's reply thread. The thread renders under every block type, and the daemon rejects a reply whose `blockId` names no block in the current document — top level or a card child — with an error. |
-| agent | `round.started` | `{title?}` | When the round is dirty (a live top-level block is stamped with the current round), snapshot it into `rounds.history` without a `submittedRevision` and advance `rounds.current`; then set the current round's title. When clean, only the title changes — so a `round.started` right after a submit names the round the submit already opened. Either way the revising working set clears wholesale (see Live revision). Never bumps the revision, which counts `doc.replaced` events only. |
+| agent | `round.started` | `{title?, carry?}` | When the round is dirty (a live top-level block is stamped with the current round), snapshot it into `rounds.history` without a `submittedRevision`, advance `rounds.current`, and restamp each id in `carry` into the new round — the daemon computes `carry` as the closing round's unanswered top-level blocks, and an id that is not a current top-level block fails the reduction. When clean, `carry` is ignored and only the title changes — so a `round.started` right after a submit names the round the submit already opened. Either way the revising working set clears wholesale (see Live revision). Never bumps the revision, which counts `doc.replaced` events only. |
 | system | `present.closed` | `{summary?}` | Set closed. Terminal for the reduction: any event ordered after it is a no-op (see below). Recorded with a `system` origin, not `agent`, so it survives the agent-side `watch`/channel `exclude_origin=agent` filter — `watch` terminates on it. |
 | human | `decision.created` | `{blockId, verdict, note?}` | Last-write-wins per block. `verdict` is one of `approved`, `rejected`, `cleared`; `cleared` removes the decision, returning the block to undecided. |
 | human | `choice.selected` | `{blockId, optionIds, other?}` | Last-write-wins per block. `other` is a free-text write-in outside the authored option set; it may stand alone (single-select write-in, empty `optionIds`) or coexist with `optionIds` (multi-select). A re-pick replaces the whole selection, so it drops a prior `other`. |
@@ -438,6 +438,18 @@ and only when it is dirty — a live top-level block is stamped with the current
 round. A clean submit records only the revision; a clean `round.started` only
 retitles the current round.
 
+**Explicit round intent.** `push` and `upsert-block` bodies carry an optional
+`round` field (`"current"` or `"new"`). The daemon requires it when the write
+introduces a new top-level block into a round that is both dirty and engaged —
+some current-round block already carries a human interaction — and rejects the
+write with an error naming both options. `"current"` lands the new blocks in
+the round in progress. `"new"` first appends a `round.started`: with the
+round's unanswered blocks as `carry` for `upsert-block`, and with no carry for
+`push`, since `doc.replaced` restamps the whole incoming document anyway. On a
+clean round `"new"` appends nothing extra — a fresh round is already open, and
+the skip protects a title set right after a submit. Re-upserts of existing ids
+and child inserts never need the field.
+
 **Carry-forward.** `block.upserted` stamps the enclosing top-level block into the
 current round — re-upserting a block, even byte-identical, is how it stays
 actionable across a boundary, and upserting or removing a card child restamps
@@ -445,6 +457,11 @@ its card (so the card's interactive children stay actionable in the round the
 child write landed in). `doc.replaced` stamps the entire new document. Closing a
 round never prunes `doc.blocks`: untouched blocks stay in the document, stamped
 with the closed round, and the REST plane rejects interactions on them (below).
+Carry is the second mechanism: `round.started` restamps its `carry` ids into
+the round it opens, so an agent-side mid-review boundary never freezes the
+human's open controls — the frozen snapshot keeps the round as presented while
+the carried id lives on. Across a submit boundary, carry-forward stays the
+explicit re-upsert above.
 
 **Snapshots.** Each closed round lands in `history` as a `RoundRecord`: deep
 copies of the blocks stamped with that round, plus the decisions, choices,

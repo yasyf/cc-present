@@ -117,7 +117,7 @@ func TestArtifactResolutionIsCwdIndependent(t *testing.T) {
 		if _, err := cl.Round(ctx, "s1", "/plugin/cache/elsewhere", 0, "Round Two"); err != nil {
 			t.Fatalf("round from a foreign cwd: %v", err)
 		}
-		if err := cl.UpsertBlock(ctx, "s1", "/tmp/other", 0, json.RawMessage(markdownBlock), ""); err != nil {
+		if _, err := cl.UpsertBlock(ctx, "s1", "/tmp/other", 0, json.RawMessage(markdownBlock), "", "", ""); err != nil {
 			t.Fatalf("upsert-block from a foreign cwd: %v", err)
 		}
 		if _, err := cl.Outcomes(ctx, "s1", "/yet/another", 0); err != nil {
