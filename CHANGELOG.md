@@ -6,6 +6,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.14.1] - 2026-07-21
+
+### Changed
+- Bumped the embedded cc-interact daemon to v0.14.0: each watcher tracks its own
+  watch cursor, and connected watchers are now listed in `cc-present status`.
+- Repinned daemonkit to its hard-cut release.
+
 ## [0.14.0] - 2026-07-21
 
 ### Added
@@ -461,7 +468,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   marketplace.
 - `examples/opener-board.json`, a complete sample document.
 
-[Unreleased]: https://github.com/yasyf/cc-present/compare/v0.14.0...main
+[Unreleased]: https://github.com/yasyf/cc-present/compare/v0.14.1...main
+[0.14.1]: https://github.com/yasyf/cc-present/compare/v0.14.0...v0.14.1
 [0.14.0]: https://github.com/yasyf/cc-present/compare/v0.13.0...v0.14.0
 [0.13.0]: https://github.com/yasyf/cc-present/compare/v0.12.1...v0.13.0
 [0.12.1]: https://github.com/yasyf/cc-present/compare/v0.12.0...v0.12.1
