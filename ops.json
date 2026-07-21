@@ -1,1 +1,1 @@
-{"v":1,"lamport":3,"session":"9bf91d9d-9dd8-4d52-9f86-0f69cc96df93","ops":[{"kind":"set_branch","branch":"main"}]}
+{"v":1,"lamport":4,"session":"9bf91d9d-9dd8-4d52-9f86-0f69cc96df93","ops":[{"kind":"set_criterion_status","id":"3a6f41eef83769c9343cf80bed41da98","status":"met","note":"Pinned by TestSingletonSupersedesSameType and TestSingletonConcurrentRegistrationsConverge (8 concurrent registrations → exactly one live subscriber, -race, stressed 10x) in cc-interact b03eaec, on origin/main at 29a3366."}]}
