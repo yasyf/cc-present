@@ -72,7 +72,8 @@ export function applyEvent(state: PresentState, ev: PresentEvent): PresentState 
       const blockRounds: Record<string, number> = {};
       for (const b of doc.blocks) blockRounds[b.id] = state.rounds.current;
       for (const id of retained ?? []) {
-        if (Object.hasOwn(prior, id)) blockRounds[id] = prior[id];
+        const round = Object.hasOwn(prior, id) ? prior[id] : undefined;
+        if (round !== undefined) blockRounds[id] = round;
       }
       return { ...state, doc, rounds: { ...state.rounds, blockRounds }, revising: { blockIds: [] } };
     }
