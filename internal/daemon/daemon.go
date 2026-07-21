@@ -133,9 +133,9 @@ func BuildServer(ctx context.Context, p paths.Paths, role daemonrole.Classifier,
 		BindAddr:    bind,
 		HTTPToken:   token,
 		OnHTTPStart: bonjour,
-		// Gate nil → no edit gate; Migrate nil → no domain tables (document and
-		// interaction state are a pure reduction of the event log). ScopeResolve
-		// canonicalizes every raw cwd to the window sentinel.
+		// There is no edit gate or domain schema: document and interaction state
+		// are a pure reduction of the event log. ScopeResolve canonicalizes every
+		// raw cwd to the window sentinel.
 		ScopeResolve: resolveScope,
 		// The agent plane: tee human interactions to a handler, mute them on the
 		// channel stream under its presence, and greet it with its await identity.
