@@ -59,7 +59,7 @@ private struct ThreadItem<Content: View>: View {
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
             Text(who.label.uppercased())
-                .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                .voice(.mono, size: 10, weight: .semibold)
                 .tracking(0.8)
                 .foregroundStyle(who.tint)
                 .frame(width: 42, alignment: .leading)

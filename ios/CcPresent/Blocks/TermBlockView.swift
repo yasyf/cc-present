@@ -23,7 +23,7 @@ struct TermBlockView: View {
         VStack(alignment: .leading, spacing: 6) {
             if presentation.showsNativeTitle, let title = block.title, !title.isEmpty {
                 Text(title)
-                    .font(.system(size: 11, design: .monospaced))
+                    .voice(.mono, size: 11)
                     .foregroundStyle(BlockPalette.muted)
                     .lineLimit(1)
             }
@@ -55,12 +55,12 @@ struct TermBlockView: View {
     }
 
     private var skeleton: some View {
-        RoundedRectangle(cornerRadius: 4)
+        RoundedRectangle(cornerRadius: Metrics.radiusMd)
             .fill(BlockPalette.monoBg)
             .frame(height: Self.skeletonHeight)
             .frame(maxWidth: .infinity)
             .overlay(ProgressView().tint(BlockPalette.muted))
-            .overlay(RoundedRectangle(cornerRadius: 4).strokeBorder(BlockPalette.line))
+            .overlay(RoundedRectangle(cornerRadius: Metrics.radiusMd).strokeBorder(BlockPalette.line))
     }
 
     private var fallbackPanel: some View {
@@ -72,14 +72,14 @@ struct TermBlockView: View {
             Text(Self.stripAnsi(block.output))
                 .foregroundStyle(BlockPalette.ink)
         }
-        .font(.system(size: 13, design: .monospaced))
+        .voice(.mono, size: 13)
         .textSelection(.enabled)
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
         .background(BlockPalette.monoBg)
-        .clipShape(RoundedRectangle(cornerRadius: 4))
-        .overlay(RoundedRectangle(cornerRadius: 4).strokeBorder(BlockPalette.line))
+        .clipShape(RoundedRectangle(cornerRadius: Metrics.radiusMd))
+        .overlay(RoundedRectangle(cornerRadius: Metrics.radiusMd).strokeBorder(BlockPalette.line))
     }
 
     private static let ansiEscape =

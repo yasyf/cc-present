@@ -131,9 +131,9 @@ private struct PackPlaceholderView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(12)
-        .background(BlockPalette.chipBg, in: RoundedRectangle(cornerRadius: 8))
+        .background(BlockPalette.chipBg, in: RoundedRectangle(cornerRadius: Metrics.radiusLg))
         .overlay(
-            RoundedRectangle(cornerRadius: 8)
+            RoundedRectangle(cornerRadius: Metrics.radiusLg)
                 .stroke(BlockPalette.line, lineWidth: 1)
         )
     }

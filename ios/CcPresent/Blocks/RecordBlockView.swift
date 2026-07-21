@@ -41,44 +41,44 @@ struct RecordBlockView: View {
     }
 
     private var skeleton: some View {
-        RoundedRectangle(cornerRadius: 4)
+        RoundedRectangle(cornerRadius: Metrics.radiusMd)
             .fill(BlockPalette.monoBg)
             .frame(height: Self.skeletonHeight)
             .frame(maxWidth: .infinity)
             .overlay(ProgressView().tint(BlockPalette.muted))
-            .overlay(RoundedRectangle(cornerRadius: 4).strokeBorder(BlockPalette.line))
+            .overlay(RoundedRectangle(cornerRadius: Metrics.radiusMd).strokeBorder(BlockPalette.line))
     }
 
     private var sourcePanel: some View {
         VStack(alignment: .leading, spacing: 6) {
             if let title = block.title, !title.isEmpty {
                 Text(title)
-                    .font(.system(size: 13, weight: .semibold))
+                    .voice(.prose, size: 13, weight: .semibold)
                     .foregroundStyle(BlockPalette.ink)
             }
             if let chips = block.chips, !chips.isEmpty {
                 Text(chips.map { "[\($0.label)]" }.joined(separator: " "))
-                    .font(.system(size: 11, design: .monospaced))
+                    .voice(.mono, size: 11)
                     .foregroundStyle(BlockPalette.muted)
             }
             ForEach(block.facts.indices, id: \.self) { index in
                 let fact = block.facts[index]
                 Text("\(fact.label ?? ""): \(fact.value)")
-                    .font(.system(size: 13, design: .monospaced))
+                    .voice(.mono, size: 13)
                     .textSelection(.enabled)
             }
             if let links = block.links, !links.isEmpty {
                 ForEach(links.indices, id: \.self) { index in
                     let link = links[index]
                     Text("\(link.label) — \(link.url)")
-                        .font(.system(size: 12))
+                        .voice(.prose, size: 12)
                         .foregroundStyle(BlockPalette.accentInk)
                 }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(12)
-        .background(BlockPalette.chipBg, in: RoundedRectangle(cornerRadius: 8))
-        .overlay(RoundedRectangle(cornerRadius: 8).stroke(BlockPalette.line, lineWidth: 1))
+        .background(BlockPalette.chipBg, in: RoundedRectangle(cornerRadius: Metrics.radiusLg))
+        .overlay(RoundedRectangle(cornerRadius: Metrics.radiusLg).stroke(BlockPalette.line, lineWidth: 1))
     }
 }

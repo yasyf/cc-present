@@ -41,9 +41,9 @@ struct ImageBlockView: View {
                 .resizable()
                 .scaledToFit()
                 .frame(maxWidth: .infinity)
-                .clipShape(RoundedRectangle(cornerRadius: 10))
+                .clipShape(RoundedRectangle(cornerRadius: Metrics.radiusLg))
                 .overlay {
-                    RoundedRectangle(cornerRadius: 10)
+                    RoundedRectangle(cornerRadius: Metrics.radiusLg)
                         .strokeBorder(Color(.separator))
                 }
                 .accessibilityLabel(block.alt)
@@ -57,7 +57,7 @@ struct ImageBlockView: View {
     }
 
     private func placeholder(@ViewBuilder _ label: () -> some View) -> some View {
-        RoundedRectangle(cornerRadius: 10)
+        RoundedRectangle(cornerRadius: Metrics.radiusLg)
             .fill(Color(.secondarySystemFill))
             .frame(maxWidth: .infinity, minHeight: 140)
             .overlay(label())

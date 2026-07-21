@@ -84,7 +84,7 @@ struct CardView: View {
                     .fill(BlockPalette.reject)
                     .frame(width: 3)
             }
-            .clipShape(RoundedRectangle(cornerRadius: 4))
+            .clipShape(RoundedRectangle(cornerRadius: Metrics.radiusMd))
     }
 
     /// railColor resolves the left-rail tint from the card's approval children,

@@ -70,7 +70,7 @@ struct ChoiceBlockView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: Metrics.space2) {
             if !suppressPrompt, let prompt = block.prompt, !prompt.isEmpty {
                 Text(prompt)
                     .font(.body)
@@ -111,7 +111,7 @@ struct ChoiceBlockView: View {
 
     @ViewBuilder
     private var optionsGroup: some View {
-        let stack = VStack(alignment: .leading, spacing: 8) {
+        let stack = VStack(alignment: .leading, spacing: Metrics.space2) {
             if aligned, let axes {
                 factAxesHeader(axes)
             }
@@ -130,12 +130,12 @@ struct ChoiceBlockView: View {
     }
 
     private func optionRow(_ option: Block.Option, isOn: Bool) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .top, spacing: 12) {
+        VStack(alignment: .leading, spacing: Metrics.space3) {
+            HStack(alignment: .top, spacing: Metrics.space3) {
                 OptionIndicator(multi: multi, isOn: isOn)
                     .padding(.top, 2)
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack(alignment: .firstTextBaseline, spacing: 6) {
+                VStack(alignment: .leading, spacing: Metrics.space1) {
+                    HStack(alignment: .firstTextBaseline, spacing: Metrics.space2) {
                         Text(option.label)
                             .font(.body)
                             .fontWeight(.semibold)
@@ -178,14 +178,14 @@ struct ChoiceBlockView: View {
                     .padding(.leading, 30)
             }
         }
-        .padding(12)
+        .padding(Metrics.space3)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             isOn ? BlockPalette.accentInk.opacity(0.08) : Color.clear,
-            in: RoundedRectangle(cornerRadius: 8)
+            in: RoundedRectangle(cornerRadius: Metrics.radiusLg)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 8)
+            RoundedRectangle(cornerRadius: Metrics.radiusLg)
                 .strokeBorder(isOn ? BlockPalette.accentInk : BlockPalette.line)
         )
         .opacity(locked ? 0.55 : 1)
@@ -194,7 +194,7 @@ struct ChoiceBlockView: View {
     /// otherRow is the chrome write-in: a selection marker and an inline field committing
     /// on submit. Its selected look follows a committed `other`, and the field mirrors it.
     private var otherRow: some View {
-        HStack(alignment: .center, spacing: 12) {
+        HStack(alignment: .center, spacing: Metrics.space3) {
             OptionIndicator(multi: multi, isOn: otherSelected)
             TextField("Other…", text: $otherDraft)
                 .textFieldStyle(.plain)
@@ -206,76 +206,69 @@ struct ChoiceBlockView: View {
                 .onSubmit(commitOther)
                 .accessibilityLabel("Other, write-in answer")
         }
-        .padding(12)
+        .padding(Metrics.space3)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             otherSelected ? BlockPalette.accentInk.opacity(0.08) : Color.clear,
-            in: RoundedRectangle(cornerRadius: 8)
+            in: RoundedRectangle(cornerRadius: Metrics.radiusLg)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 8)
+            RoundedRectangle(cornerRadius: Metrics.radiusLg)
                 .strokeBorder(otherSelected ? BlockPalette.accentInk : BlockPalette.line)
         )
         .opacity(locked ? 0.55 : 1)
     }
 
     private func factAxesHeader(_ axes: [String]) -> some View {
-        HStack(alignment: .top, spacing: 12) {
+        HStack(alignment: .top, spacing: Metrics.space3) {
             Spacer(minLength: 0)
-            HStack(spacing: 10) {
+            HStack(spacing: Metrics.space3) {
                 ForEach(Array(axes.enumerated()), id: \.offset) { _, label in
                     Text(label)
-                        .font(.system(size: 10, weight: .medium))
-                        .textCase(.uppercase)
-                        .tracking(0.4)
+                        .voice(.stamp, size: 10, weight: .medium)
                         .foregroundStyle(BlockPalette.muted)
                         .frame(width: factColumnWidth, alignment: .trailing)
                         .multilineTextAlignment(.trailing)
                 }
             }
         }
-        .padding(.horizontal, 12)
+        .padding(.horizontal, Metrics.space3)
         .accessibilityHidden(true)
     }
 
     @ViewBuilder
     private var noteAffordance: some View {
         if noteComposing {
-            VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: Metrics.space3) {
                 TextField("Add a note for the agent…", text: $noteDraft, axis: .vertical)
                     .lineLimit(2 ... 5)
                     .font(.subheadline)
-                    .padding(10)
-                    .background(BlockPalette.monoBg, in: RoundedRectangle(cornerRadius: 8))
+                    .padding(Metrics.space3)
+                    .background(BlockPalette.monoBg, in: RoundedRectangle(cornerRadius: Metrics.radiusMd))
                     .overlay(
-                        RoundedRectangle(cornerRadius: 8).strokeBorder(BlockPalette.line, lineWidth: 1)
+                        RoundedRectangle(cornerRadius: Metrics.radiusMd).strokeBorder(BlockPalette.line, lineWidth: 1)
                     )
                     .focused($noteFocused)
                     .disabled(locked)
                     .accessibilityLabel("Note for the agent")
 
-                HStack(spacing: 12) {
+                HStack(spacing: Metrics.space3) {
                     Button("Send", action: sendNote)
-                        .buttonStyle(.borderedProminent)
-                        .tint(BlockPalette.accentInk)
+                        .buttonStyle(PrimaryButtonStyle())
                         .disabled(locked || noteDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
 
                     Button("Cancel") {
                         noteComposing = false
                         noteDraft = ""
                     }
-                    .buttonStyle(.bordered)
-                    .tint(BlockPalette.muted)
+                    .buttonStyle(GhostButtonStyle(tint: BlockPalette.muted))
                 }
-                .font(.system(size: 14, weight: .semibold))
             }
         } else if !locked {
             Button("Add note") {
                 noteComposing = true
             }
-            .buttonStyle(.plain)
-            .font(.system(size: 13, weight: .semibold))
-            .foregroundStyle(BlockPalette.accentInk)
+            .buttonStyle(GhostButtonStyle())
         }
     }
 
@@ -357,10 +350,10 @@ private struct OptionVisualDisclosure: View {
     var body: some View {
         DisclosureGroup(isExpanded: $expanded) {
             OptionVisualView(visual: visual, context: context, client: client)
-                .padding(.top, 8)
+                .padding(.top, Metrics.space2)
         } label: {
             Text(optionVisualTitle(visual))
-                .font(.system(.caption, design: .monospaced))
+                .voice(.mono, .caption)
                 .foregroundStyle(BlockPalette.accentInk)
                 .lineLimit(1)
         }
@@ -435,9 +428,7 @@ func choiceOtherPost(multi: Bool, selectedIds: [String], otherText: String?, dra
 private struct RecommendedStamp: View {
     var body: some View {
         Text("Recommended")
-            .font(.system(size: 9, weight: .semibold, design: .monospaced))
-            .textCase(.uppercase)
-            .tracking(0.5)
+            .voice(.stamp, size: 9, weight: .semibold)
             .foregroundStyle(BlockPalette.accentInk)
             .padding(.vertical, 2)
             .padding(.horizontal, 5)
@@ -461,16 +452,16 @@ private struct OptionIndicator: View {
     @ViewBuilder
     private var marker: some View {
         if multi {
-            RoundedRectangle(cornerRadius: 4, style: .continuous)
+            RoundedRectangle(cornerRadius: Metrics.radiusMd, style: .continuous)
                 .fill(isOn ? BlockPalette.accentInk : Color.clear)
                 .overlay(
-                    RoundedRectangle(cornerRadius: 4, style: .continuous)
+                    RoundedRectangle(cornerRadius: Metrics.radiusMd, style: .continuous)
                         .strokeBorder(borderColor, lineWidth: 1.5)
                 )
                 .overlay {
                     if isOn {
                         Image(systemName: "checkmark")
-                            .font(.system(size: 10, weight: .bold))
+                            .voice(.prose, size: 10, weight: .bold)
                             .foregroundStyle(BlockPalette.monoBg)
                     }
                 }
@@ -500,7 +491,7 @@ private struct AlignedFactValues: View {
     let facts: [Block.Fact]
 
     var body: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: Metrics.space3) {
             ForEach(Array(axes.enumerated()), id: \.offset) { index, _ in
                 let fact = facts.indices.contains(index) ? facts[index] : nil
                 Text(fact?.value ?? "")
@@ -521,7 +512,7 @@ private struct FactsCluster: View {
     let facts: [Block.Fact]
 
     var body: some View {
-        VStack(alignment: .trailing, spacing: 6) {
+        VStack(alignment: .trailing, spacing: Metrics.space2) {
             ForEach(Array(facts.enumerated()), id: \.offset) { _, fact in
                 VStack(alignment: .trailing, spacing: 1) {
                     Text(fact.value)
@@ -530,9 +521,7 @@ private struct FactsCluster: View {
                         .multilineTextAlignment(.trailing)
                     if let label = fact.label, !label.isEmpty {
                         Text(label)
-                            .font(.system(size: 10, weight: .medium))
-                            .textCase(.uppercase)
-                            .tracking(0.4)
+                            .voice(.stamp, size: 10, weight: .medium)
                             .foregroundStyle(BlockPalette.muted)
                             .multilineTextAlignment(.trailing)
                     }

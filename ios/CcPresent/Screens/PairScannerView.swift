@@ -65,19 +65,19 @@ struct PairScannerView: View {
             DataScannerRepresentable(onScan: { pairing.pair(scanned: $0) })
                 .id(scanToken)
                 .ignoresSafeArea()
-            VStack(spacing: 12) {
+            VStack(spacing: Metrics.space3) {
                 Text("Point the camera at the pairing QR code.")
                     .font(.subheadline)
-                    .padding(10)
+                    .padding(Metrics.space3)
                     .background(.ultraThinMaterial, in: Capsule())
                 NavigationLink {
                     manualEntry
                 } label: {
                     Label("Enter Token Manually", systemImage: "keyboard")
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(PrimaryButtonStyle())
             }
-            .padding(.bottom, 32)
+            .padding(.bottom, Metrics.space6)
         }
     }
 
@@ -92,7 +92,7 @@ struct PairScannerView: View {
             } label: {
                 Text("Enter Manually")
             }
-            .buttonStyle(.borderedProminent)
+            .buttonStyle(PrimaryButtonStyle())
             if showSettings {
                 Button("Open Settings") {
                     if let url = URL(string: UIApplication.openSettingsURLString) {

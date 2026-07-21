@@ -35,9 +35,9 @@ struct TriageBlockView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: Metrics.space3) {
             header
-            VStack(spacing: 10) {
+            VStack(spacing: Metrics.space2) {
                 ForEach(block.items, id: \.id) { item in
                     itemRow(item)
                 }
@@ -57,7 +57,7 @@ struct TriageBlockView: View {
     // MARK: - Header
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: Metrics.space2) {
             if !suppressPrompt, let prompt = block.prompt, !prompt.isEmpty {
                 Text(prompt)
                     .font(.body)
@@ -65,7 +65,7 @@ struct TriageBlockView: View {
                     .foregroundStyle(BlockPalette.ink)
                     .receiptContent()
             }
-            HStack(spacing: 10) {
+            HStack(spacing: Metrics.space2) {
                 Text("\(decidedCount) of \(block.items.count) decided")
                     .font(.caption)
                     .monospacedDigit()
@@ -73,13 +73,11 @@ struct TriageBlockView: View {
                 Spacer(minLength: 8)
                 if !isClosed {
                     Button("Accept all") { bulk("approved") }
-                        .foregroundStyle(BlockPalette.approve)
+                        .buttonStyle(GhostButtonStyle(tint: BlockPalette.approve))
                     Button("Reject all") { bulk("rejected") }
-                        .foregroundStyle(BlockPalette.reject)
+                        .buttonStyle(GhostButtonStyle(tint: BlockPalette.reject))
                 }
             }
-            .font(.system(size: 13, weight: .semibold))
-            .buttonStyle(.plain)
         }
     }
 
@@ -88,9 +86,9 @@ struct TriageBlockView: View {
     private func itemRow(_ item: Block.Item) -> some View {
         let verdict = verdicts[item.id]?.verdict
         let note = verdicts[item.id]?.note
-        return VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .top, spacing: 12) {
-                VStack(alignment: .leading, spacing: 4) {
+        return VStack(alignment: .leading, spacing: Metrics.space2) {
+            HStack(alignment: .top, spacing: Metrics.space3) {
+                VStack(alignment: .leading, spacing: Metrics.space1) {
                     Text(item.label)
                         .font(.body)
                         .fontWeight(.semibold)
@@ -126,19 +124,19 @@ struct TriageBlockView: View {
                 noteAffordance(item, verdict: verdict, note: note)
             }
         }
-        .padding(12)
+        .padding(Metrics.space3)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             verdict != nil ? BlockPalette.accentInk.opacity(0.06) : Color.clear,
-            in: RoundedRectangle(cornerRadius: 8)
+            in: RoundedRectangle(cornerRadius: Metrics.radiusLg)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 8).strokeBorder(BlockPalette.line)
+            RoundedRectangle(cornerRadius: Metrics.radiusLg).strokeBorder(BlockPalette.line)
         )
     }
 
     private func verdictPair(_ item: Block.Item, verdict: String?, note: String?) -> some View {
-        HStack(spacing: 10) {
+        HStack(spacing: Metrics.space3) {
             verdictButton(item, target: "approved", label: "Approve", glyph: "checkmark",
                           color: BlockPalette.approve, verdict: verdict, note: note)
             verdictButton(item, target: "rejected", label: "Reject", glyph: "xmark",
@@ -164,22 +162,9 @@ struct TriageBlockView: View {
                 verdicts: [item.id: triageFlip(current: verdict, note: note, target: target)]
             )
         } label: {
-            HStack(spacing: 6) {
-                Image(systemName: glyph)
-                    .font(.system(size: 12, weight: .bold))
-                Text(label)
-                    .font(.system(size: 14, weight: .semibold))
-            }
-            .frame(maxWidth: .infinity, minHeight: 44)
-            .foregroundStyle(active ? BlockPalette.accentFg : color)
-            .background(active ? color : Color.clear)
-            .clipShape(RoundedRectangle(cornerRadius: 8))
-            .overlay(
-                RoundedRectangle(cornerRadius: 8)
-                    .strokeBorder(color.opacity(active ? 0 : 0.55), lineWidth: 1)
-            )
+            VerdictLabel(glyph: glyph, title: label)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(VerdictButtonStyle(tint: color, active: active))
         .disabled(isClosed)
         .accessibilityLabel(label)
         .accessibilityAddTraits(active ? [.isSelected] : [])
@@ -189,9 +174,7 @@ struct TriageBlockView: View {
         Button((note ?? "").isEmpty ? "Add note" : "Edit note") {
             noteTarget = TriageNoteTarget(itemId: item.id, verdict: verdict, note: note ?? "")
         }
-        .buttonStyle(.plain)
-        .font(.system(size: 13, weight: .semibold))
-        .foregroundStyle(BlockPalette.accentInk)
+        .buttonStyle(GhostButtonStyle())
     }
 
     // MARK: - Intent
@@ -232,9 +215,7 @@ private struct TriageFacts: View {
                         .foregroundStyle(factTone(fact.tone))
                     if let label = fact.label, !label.isEmpty {
                         Text(label)
-                            .font(.system(size: 9, weight: .medium))
-                            .textCase(.uppercase)
-                            .tracking(0.4)
+                            .voice(.stamp, size: 9, weight: .medium)
                             .foregroundStyle(BlockPalette.muted)
                     }
                 }
@@ -265,10 +246,10 @@ private struct TriageVisualDisclosure: View {
     var body: some View {
         DisclosureGroup(isExpanded: $expanded) {
             OptionVisualView(visual: visual, context: context, client: client)
-                .padding(.top, 8)
+                .padding(.top, Metrics.space2)
         } label: {
             Text(optionVisualTitle(visual))
-                .font(.system(.caption, design: .monospaced))
+                .voice(.mono, .caption)
                 .foregroundStyle(BlockPalette.accentInk)
                 .lineLimit(1)
         }
@@ -305,7 +286,7 @@ private struct TriageNoteSheet: View {
 
     var body: some View {
         NavigationStack {
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: Metrics.space3) {
                 TextField("Add a note for the agent…", text: $text, axis: .vertical)
                     .lineLimit(3 ... 8)
                     .font(.body)
@@ -313,7 +294,7 @@ private struct TriageNoteSheet: View {
                     .accessibilityLabel("Item note")
                 Spacer()
             }
-            .padding(16)
+            .padding(Metrics.space4)
             .navigationTitle("Note")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

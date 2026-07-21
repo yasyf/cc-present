@@ -64,8 +64,8 @@ struct DraftBlockView: View {
                 }
             }
             .padding(.vertical, 8)
-            .background(BlockPalette.monoBg, in: RoundedRectangle(cornerRadius: 6))
-            .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(BlockPalette.line))
+            .background(BlockPalette.monoBg, in: RoundedRectangle(cornerRadius: Metrics.radiusLg))
+            .overlay(RoundedRectangle(cornerRadius: Metrics.radiusLg).strokeBorder(BlockPalette.line))
 
             if !detached.isEmpty {
                 detachedSection
@@ -94,7 +94,7 @@ struct DraftBlockView: View {
             HStack(spacing: 8) {
                 if let title = block.title, !title.isEmpty {
                     Text(title)
-                        .font(.system(size: 13, weight: .semibold, design: .monospaced))
+                        .voice(.mono, size: 13, weight: .semibold)
                         .foregroundStyle(BlockPalette.ink)
                         .lineLimit(1)
                 }
@@ -126,7 +126,7 @@ struct DraftBlockView: View {
                 tapLine(number)
             } label: {
                 Text("\(number)")
-                    .font(.system(size: 13, design: .monospaced))
+                    .voice(.mono, size: 13)
                     .monospacedDigit()
                     .foregroundStyle(anchored ? BlockPalette.accentFg : BlockPalette.muted)
                     .frame(width: gutterWidth, alignment: .trailing)
@@ -139,7 +139,7 @@ struct DraftBlockView: View {
             .accessibilityHint(isClosed ? "" : "Tap to start or extend an annotation")
 
             Text(text.isEmpty ? " " : text)
-                .font(.system(size: 13, design: .monospaced))
+                .voice(.mono, size: 13)
                 .foregroundStyle(BlockPalette.ink)
                 .textSelection(.enabled)
                 .fixedSize(horizontal: false, vertical: true)
@@ -154,7 +154,7 @@ struct DraftBlockView: View {
         return VStack(alignment: .leading, spacing: 6) {
             if let resolution, resolution.moved {
                 Text("moved · was L\(resolution.from)")
-                    .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                    .voice(.mono, size: 10, weight: .semibold)
                     .textCase(.uppercase)
                     .foregroundStyle(BlockPalette.warn)
             }
@@ -169,13 +169,13 @@ struct DraftBlockView: View {
                     Button("Remove") { store.removeAnnotation(id: annotation.id, blockId: block.id) }
                         .foregroundStyle(BlockPalette.reject)
                 }
-                .font(.system(size: 12, weight: .semibold))
+                .voice(.prose, size: 12, weight: .semibold)
                 .buttonStyle(.plain)
             }
         }
         .padding(10)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(BlockPalette.accentInk.opacity(0.08), in: RoundedRectangle(cornerRadius: 6))
+        .background(BlockPalette.accentInk.opacity(0.08), in: RoundedRectangle(cornerRadius: Metrics.radiusLg))
         .padding(.leading, gutterWidth + 18)
         .padding(.trailing, 10)
         .padding(.vertical, 3)
@@ -184,14 +184,14 @@ struct DraftBlockView: View {
     private var detachedSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Detached notes")
-                .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                .voice(.mono, size: 10, weight: .semibold)
                 .textCase(.uppercase)
                 .tracking(0.6)
                 .foregroundStyle(BlockPalette.muted)
             ForEach(detached, id: \.id) { annotation in
                 VStack(alignment: .leading, spacing: 6) {
                     Text(annotation.quote)
-                        .font(.system(size: 12, design: .monospaced))
+                        .voice(.mono, size: 12)
                         .foregroundStyle(BlockPalette.was)
                         .lineLimit(3)
                     Text(annotation.text)
@@ -199,14 +199,14 @@ struct DraftBlockView: View {
                         .foregroundStyle(BlockPalette.ink)
                     if !isClosed {
                         Button("Remove") { store.removeAnnotation(id: annotation.id, blockId: block.id) }
-                            .font(.system(size: 12, weight: .semibold))
+                            .voice(.prose, size: 12, weight: .semibold)
                             .buttonStyle(.plain)
                             .foregroundStyle(BlockPalette.reject)
                     }
                 }
                 .padding(10)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(BlockPalette.chipBg, in: RoundedRectangle(cornerRadius: 6))
+                .background(BlockPalette.chipBg, in: RoundedRectangle(cornerRadius: Metrics.radiusLg))
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -320,12 +320,12 @@ private struct DraftComposerSheet: View {
             VStack(alignment: .leading, spacing: 12) {
                 if !quote.isEmpty {
                     Text(quote)
-                        .font(.system(size: 12, design: .monospaced))
+                        .voice(.mono, size: 12)
                         .foregroundStyle(BlockPalette.muted)
                         .lineLimit(4)
                         .padding(10)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(BlockPalette.monoBg, in: RoundedRectangle(cornerRadius: 6))
+                        .background(BlockPalette.monoBg, in: RoundedRectangle(cornerRadius: Metrics.radiusLg))
                 }
                 TextField("Add a note on these lines…", text: $text, axis: .vertical)
                     .lineLimit(3 ... 8)

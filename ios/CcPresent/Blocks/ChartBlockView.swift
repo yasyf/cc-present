@@ -22,7 +22,7 @@ struct ChartBlockView: View {
         VStack(alignment: .leading, spacing: 6) {
             if presentation.showsNativeTitle, let title = block.title, !title.isEmpty {
                 Text(title)
-                    .font(.system(size: 11, design: .monospaced))
+                    .voice(.mono, size: 11)
                     .foregroundStyle(BlockPalette.muted)
                     .lineLimit(1)
             }
@@ -54,19 +54,19 @@ struct ChartBlockView: View {
     }
 
     private var skeleton: some View {
-        RoundedRectangle(cornerRadius: 4)
+        RoundedRectangle(cornerRadius: Metrics.radiusMd)
             .fill(BlockPalette.monoBg)
             .frame(height: Self.skeletonHeight)
             .frame(maxWidth: .infinity)
             .overlay(ProgressView().tint(BlockPalette.muted))
-            .overlay(RoundedRectangle(cornerRadius: 4).strokeBorder(BlockPalette.line))
+            .overlay(RoundedRectangle(cornerRadius: Metrics.radiusMd).strokeBorder(BlockPalette.line))
     }
 
     private var fallbackPanel: some View {
         VStack(alignment: .leading, spacing: 4) {
             ForEach(block.series.indices, id: \.self) { index in
                 Text(Self.line(for: block.series[index]))
-                    .font(.system(size: 13, design: .monospaced))
+                    .voice(.mono, size: 13)
                     .textSelection(.enabled)
             }
         }
@@ -74,8 +74,8 @@ struct ChartBlockView: View {
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
         .background(BlockPalette.monoBg)
-        .clipShape(RoundedRectangle(cornerRadius: 4))
-        .overlay(RoundedRectangle(cornerRadius: 4).strokeBorder(BlockPalette.line))
+        .clipShape(RoundedRectangle(cornerRadius: Metrics.radiusMd))
+        .overlay(RoundedRectangle(cornerRadius: Metrics.radiusMd).strokeBorder(BlockPalette.line))
     }
 
     static func line(for series: Block.Series) -> String {

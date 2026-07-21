@@ -21,7 +21,7 @@ struct DiffBlockView: View {
         VStack(alignment: .leading, spacing: 6) {
             if let title = block.title, !title.isEmpty {
                 Text(title)
-                    .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                    .voice(.mono, size: 10, weight: .semibold)
                     .tracking(1)
                     .foregroundStyle(BlockPalette.muted)
                     .lineLimit(1)
@@ -42,9 +42,9 @@ struct DiffBlockView: View {
             }
             .fixedSize(horizontal: true, vertical: false)
         }
-        .clipShape(RoundedRectangle(cornerRadius: 4))
+        .clipShape(RoundedRectangle(cornerRadius: Metrics.radiusMd))
         .overlay(
-            RoundedRectangle(cornerRadius: 4).strokeBorder(BlockPalette.line)
+            RoundedRectangle(cornerRadius: Metrics.radiusMd).strokeBorder(BlockPalette.line)
         )
     }
 
@@ -54,7 +54,7 @@ struct DiffBlockView: View {
             Color.clear.frame(width: Self.gutterWidth)
             Color.clear.frame(width: Self.markWidth)
             Text(heading.isEmpty ? "@@" : "@@ \(heading)")
-                .font(.system(size: 12, design: .monospaced))
+                .voice(.mono, size: 12)
                 .foregroundStyle(BlockPalette.muted)
                 .fixedSize(horizontal: true, vertical: false)
                 .padding(.trailing, 8)
@@ -73,11 +73,11 @@ private struct DiffRowView: View {
             gutter(row.oldNo)
             gutter(row.newNo)
             Text(mark)
-                .font(.system(size: 12, design: .monospaced))
+                .voice(.mono, size: 12)
                 .foregroundStyle(markColor)
                 .frame(width: DiffBlockView.markWidth)
             Text(row.text)
-                .font(.system(size: 12, design: .monospaced))
+                .voice(.mono, size: 12)
                 .foregroundStyle(BlockPalette.ink)
                 .fixedSize(horizontal: true, vertical: false)
                 .padding(.trailing, 8)
@@ -88,7 +88,7 @@ private struct DiffRowView: View {
 
     private func gutter(_ number: Int?) -> some View {
         Text(number.map(String.init) ?? "")
-            .font(.system(size: 10, design: .monospaced))
+            .voice(.mono, size: 10)
             .foregroundStyle(BlockPalette.was)
             .frame(width: DiffBlockView.gutterTextWidth, alignment: .trailing)
             .padding(.trailing, DiffBlockView.gutterTrailingPad)

@@ -53,9 +53,9 @@ struct SubmitBarView: View {
     }
 
     private var bar: some View {
-        HStack(spacing: 16) {
+        HStack(spacing: Metrics.space4) {
             VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 8) {
+                HStack(spacing: Metrics.space2) {
                     if hasHistory {
                         Text("Round \(store.state.rounds.current)")
                             .font(.caption2)
@@ -80,12 +80,11 @@ struct SubmitBarView: View {
             }
             Spacer(minLength: 8)
             Button(label, action: attemptSubmit)
-                .buttonStyle(.borderedProminent)
-                .tint(BlockPalette.accentInk)
+                .buttonStyle(PrimaryButtonStyle())
                 .disabled(store.isClosed)
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
+        .padding(.horizontal, Metrics.space4)
+        .padding(.vertical, Metrics.space3)
         .background(.bar)
         .overlay(alignment: .top) {
             Rectangle()

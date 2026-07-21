@@ -23,7 +23,7 @@ struct FileTreeBlockView: View {
         VStack(alignment: .leading, spacing: 6) {
             if presentation.showsNativeTitle, let title = block.title, !title.isEmpty {
                 Text(title)
-                    .font(.system(size: 11, design: .monospaced))
+                    .voice(.mono, size: 11)
                     .foregroundStyle(BlockPalette.muted)
                     .lineLimit(1)
             }
@@ -55,19 +55,19 @@ struct FileTreeBlockView: View {
     }
 
     private var skeleton: some View {
-        RoundedRectangle(cornerRadius: 4)
+        RoundedRectangle(cornerRadius: Metrics.radiusMd)
             .fill(BlockPalette.monoBg)
             .frame(height: Self.skeletonHeight)
             .frame(maxWidth: .infinity)
             .overlay(ProgressView().tint(BlockPalette.muted))
-            .overlay(RoundedRectangle(cornerRadius: 4).strokeBorder(BlockPalette.line))
+            .overlay(RoundedRectangle(cornerRadius: Metrics.radiusMd).strokeBorder(BlockPalette.line))
     }
 
     private var fallbackPanel: some View {
         VStack(alignment: .leading, spacing: 2) {
             ForEach(Self.rows(from: block.entries)) { row in
                 Text(Self.line(for: row))
-                    .font(.system(size: 13, design: .monospaced))
+                    .voice(.mono, size: 13)
                     .foregroundStyle(row.isDirectory ? BlockPalette.muted : BlockPalette.ink)
                     .textSelection(.enabled)
             }
@@ -76,8 +76,8 @@ struct FileTreeBlockView: View {
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
         .background(BlockPalette.monoBg)
-        .clipShape(RoundedRectangle(cornerRadius: 4))
-        .overlay(RoundedRectangle(cornerRadius: 4).strokeBorder(BlockPalette.line))
+        .clipShape(RoundedRectangle(cornerRadius: Metrics.radiusMd))
+        .overlay(RoundedRectangle(cornerRadius: Metrics.radiusMd).strokeBorder(BlockPalette.line))
     }
 }
 
@@ -154,8 +154,8 @@ private final class FileTreeNode {
         for entry in entries {
             let segments = entry.path.split(separator: "/").map(String.init)
             var cursor = root
-            for (i, name) in segments.enumerated() {
-                if i == segments.count - 1 {
+            for (depth, name) in segments.enumerated() {
+                if depth == segments.count - 1 {
                     cursor.children.append(FileTreeNode(name: name, entry: entry))
                     break
                 }
@@ -173,12 +173,16 @@ private final class FileTreeNode {
     }
 
     private func sortRecursively() {
-        children.sort { a, b in
-            let aDir = a.entry == nil
-            let bDir = b.entry == nil
-            if aDir != bDir { return aDir }
-            return a.name < b.name
+        children.sort { lhs, rhs in
+            let lhsDir = lhs.entry == nil
+            let rhsDir = rhs.entry == nil
+            if lhsDir != rhsDir {
+                return lhsDir
+            }
+            return lhs.name < rhs.name
         }
-        for child in children { child.sortRecursively() }
+        for child in children {
+            child.sortRecursively()
+        }
     }
 }

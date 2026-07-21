@@ -99,7 +99,7 @@ private struct ClampedMarkdown: View {
                     withAnimation(.easeInOut(duration: 0.15)) { expanded.toggle() }
                 }
                 .buttonStyle(.plain)
-                .font(.system(size: 12, weight: .semibold, design: .monospaced))
+                .voice(.mono, size: 12, weight: .semibold)
                 .foregroundStyle(BlockPalette.accentInk)
                 // Expansion is a read-only affordance, so it stays live inside a
                 // history round's `.disabled(true)` subtree. `.disabled(false)` can't

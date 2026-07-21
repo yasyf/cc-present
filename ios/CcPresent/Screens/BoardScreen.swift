@@ -281,9 +281,9 @@ private struct ClosedBannerView: View {
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(BlockPalette.monoBg, in: RoundedRectangle(cornerRadius: 10))
+        .background(BlockPalette.monoBg, in: RoundedRectangle(cornerRadius: Metrics.radiusLg))
         .overlay(
-            RoundedRectangle(cornerRadius: 10).strokeBorder(BlockPalette.line)
+            RoundedRectangle(cornerRadius: Metrics.radiusLg).strokeBorder(BlockPalette.line)
         )
     }
 }
@@ -345,12 +345,12 @@ private struct SectionHeaderView: View {
 private struct BoardSkeletonView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
-            RoundedRectangle(cornerRadius: 8)
+            RoundedRectangle(cornerRadius: Metrics.radiusLg)
                 .fill(BlockPalette.chipBg)
                 .frame(height: 32)
                 .frame(maxWidth: 220)
             ForEach(0 ..< 3, id: \.self) { _ in
-                RoundedRectangle(cornerRadius: 10)
+                RoundedRectangle(cornerRadius: Metrics.radiusLg)
                     .fill(BlockPalette.chipBg)
                     .frame(height: 96)
             }

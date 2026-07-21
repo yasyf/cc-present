@@ -43,7 +43,7 @@ struct ApprovalBlockView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: Metrics.space4) {
             if !suppressPrompt, let prompt = block.prompt, !prompt.isEmpty {
                 Text(prompt)
                     .font(.body)
@@ -83,7 +83,7 @@ struct ApprovalBlockView: View {
     // MARK: - Verdict
 
     private var verdictPair: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: Metrics.space3) {
             verdictButton(.approved, label: "Approve", glyph: "checkmark", color: BlockPalette.approve)
             verdictButton(.rejected, label: "Reject", glyph: "xmark", color: BlockPalette.reject)
         }
@@ -96,23 +96,9 @@ struct ApprovalBlockView: View {
         return Button {
             choose(target)
         } label: {
-            HStack(spacing: 6) {
-                Image(systemName: glyph)
-                    .font(.system(size: 13, weight: .bold))
-                Text(label)
-                    .font(.system(size: 15, weight: .semibold))
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 11)
-            .foregroundStyle(active ? BlockPalette.accentFg : color)
-            .background(active ? color : Color.clear)
-            .clipShape(RoundedRectangle(cornerRadius: 8))
-            .overlay(
-                RoundedRectangle(cornerRadius: 8)
-                    .strokeBorder(color.opacity(active ? 0 : 0.55), lineWidth: 1)
-            )
+            VerdictLabel(glyph: glyph, title: label)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(VerdictButtonStyle(tint: color, active: active))
         .disabled(isClosed)
         .accessibilityLabel(label)
         .accessibilityAddTraits(active ? [.isSelected] : [])
@@ -129,40 +115,35 @@ struct ApprovalBlockView: View {
     @ViewBuilder
     private var feedbackAffordance: some View {
         if composing {
-            VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: Metrics.space2) {
                 TextField("Add feedback for the agent…", text: $draft, axis: .vertical)
                     .lineLimit(2 ... 5)
                     .font(.subheadline)
-                    .padding(10)
-                    .background(BlockPalette.monoBg, in: RoundedRectangle(cornerRadius: 8))
+                    .padding(Metrics.space3)
+                    .background(BlockPalette.monoBg, in: RoundedRectangle(cornerRadius: Metrics.radiusMd))
                     .overlay(
-                        RoundedRectangle(cornerRadius: 8).strokeBorder(BlockPalette.line, lineWidth: 1)
+                        RoundedRectangle(cornerRadius: Metrics.radiusMd).strokeBorder(BlockPalette.line, lineWidth: 1)
                     )
                     .focused($composerFocused)
                     .accessibilityLabel("Feedback for the agent")
 
-                HStack(spacing: 12) {
+                HStack(spacing: Metrics.space3) {
                     Button("Send", action: sendFeedback)
-                        .buttonStyle(.borderedProminent)
-                        .tint(BlockPalette.accentInk)
+                        .buttonStyle(PrimaryButtonStyle())
                         .disabled(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
 
                     Button("Cancel") {
                         composing = false
                         draft = ""
                     }
-                    .buttonStyle(.bordered)
-                    .tint(BlockPalette.muted)
+                    .buttonStyle(GhostButtonStyle(tint: BlockPalette.muted))
                 }
-                .font(.system(size: 14, weight: .semibold))
             }
         } else {
             Button("Add feedback") {
                 composing = true
             }
-            .buttonStyle(.plain)
-            .font(.system(size: 13, weight: .semibold))
-            .foregroundStyle(BlockPalette.accentInk)
+            .buttonStyle(GhostButtonStyle())
         }
     }
 

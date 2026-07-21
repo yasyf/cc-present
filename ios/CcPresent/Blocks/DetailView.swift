@@ -49,7 +49,7 @@ struct DetailView: View {
 
     private var affordanceLabel: some View {
         Text("Details")
-            .font(.system(size: 13, weight: .semibold))
+            .voice(.prose, size: 13, weight: .semibold)
             .foregroundStyle(BlockPalette.accentInk)
     }
 }
@@ -89,7 +89,7 @@ private struct TradeoffList: View {
             ForEach(Array(items.enumerated()), id: \.offset) { _, item in
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
                     Image(systemName: glyph)
-                        .font(.system(size: 11, weight: .bold))
+                        .voice(.prose, size: 11, weight: .bold)
                         .foregroundStyle(tint)
                     Text(item)
                         .font(.subheadline)

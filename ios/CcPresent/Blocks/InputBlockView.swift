@@ -97,7 +97,7 @@ private struct UncontrolledField: View {
             .disabled(disabled)
             .padding(10)
             .overlay(
-                RoundedRectangle(cornerRadius: 8)
+                RoundedRectangle(cornerRadius: Metrics.radiusLg)
                     .strokeBorder(focused ? BlockPalette.accentInk : BlockPalette.line)
             )
             .onChange(of: focused) { _, isFocused in

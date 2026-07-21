@@ -51,16 +51,16 @@ struct CodeBlockView: View {
             HStack(spacing: 8) {
                 if !block.lang.isEmpty {
                     Text(block.lang.uppercased())
-                        .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                        .voice(.mono, size: 10, weight: .semibold)
                         .tracking(1)
                         .foregroundStyle(BlockPalette.muted)
                         .padding(.horizontal, 6)
                         .padding(.vertical, 2)
-                        .background(BlockPalette.chipBg, in: RoundedRectangle(cornerRadius: 2))
+                        .background(BlockPalette.chipBg, in: RoundedRectangle(cornerRadius: Metrics.radiusSm))
                 }
                 if let title = block.title, !title.isEmpty {
                     Text(title)
-                        .font(.system(size: 11, design: .monospaced))
+                        .voice(.mono, size: 11)
                         .foregroundStyle(BlockPalette.muted)
                         .lineLimit(1)
                 }
@@ -71,16 +71,16 @@ struct CodeBlockView: View {
     private var codePanel: some View {
         ScrollView(.horizontal, showsIndicators: true) {
             Text(highlighter.highlight(block.code, language: block.lang, colorScheme: colorScheme))
-                .font(.system(size: 13, design: .monospaced))
+                .voice(.mono, size: 13)
                 .textSelection(.enabled)
                 .fixedSize(horizontal: true, vertical: false)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 10)
         }
         .background(BlockPalette.monoBg)
-        .clipShape(RoundedRectangle(cornerRadius: 4))
+        .clipShape(RoundedRectangle(cornerRadius: Metrics.radiusMd))
         .overlay(
-            RoundedRectangle(cornerRadius: 4).strokeBorder(BlockPalette.line)
+            RoundedRectangle(cornerRadius: Metrics.radiusMd).strokeBorder(BlockPalette.line)
         )
     }
 }

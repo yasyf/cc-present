@@ -572,7 +572,7 @@ private struct RevisingBanner: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             decayed ? BlockPalette.chipBg : BlockPalette.warn.opacity(0.12),
-            in: RoundedRectangle(cornerRadius: 8)
+            in: RoundedRectangle(cornerRadius: Metrics.radiusLg)
         )
         .accessibilityElement(children: .combine)
     }
@@ -597,7 +597,7 @@ private struct RevisionCallout: View {
         .padding(.vertical, 6)
         .padding(.horizontal, 10)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(BlockPalette.accentInk.opacity(0.1), in: RoundedRectangle(cornerRadius: 8))
+        .background(BlockPalette.accentInk.opacity(0.1), in: RoundedRectangle(cornerRadius: Metrics.radiusLg))
         .accessibilityElement(children: .combine)
     }
 }
@@ -648,8 +648,8 @@ struct FocusPeekView: View {
         }
         .padding(18)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(BlockPalette.monoBg, in: RoundedRectangle(cornerRadius: 12))
-        .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(BlockPalette.line))
+        .background(BlockPalette.monoBg, in: RoundedRectangle(cornerRadius: Metrics.radiusLg))
+        .overlay(RoundedRectangle(cornerRadius: Metrics.radiusLg).strokeBorder(BlockPalette.line))
     }
 }
 
@@ -726,8 +726,8 @@ struct FocusCardView: View {
         }
         .padding(18)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(BlockPalette.monoBg, in: RoundedRectangle(cornerRadius: 12))
-        .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(BlockPalette.line))
+        .background(BlockPalette.monoBg, in: RoundedRectangle(cornerRadius: Metrics.radiusLg))
+        .overlay(RoundedRectangle(cornerRadius: Metrics.radiusLg).strokeBorder(BlockPalette.line))
     }
 
     @ViewBuilder
@@ -995,7 +995,7 @@ struct SwipeableFocusCard: View {
             .foregroundStyle(color)
             .padding(.vertical, 5)
             .padding(.horizontal, 12)
-            .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(color, lineWidth: 3))
+            .overlay(RoundedRectangle(cornerRadius: Metrics.radiusLg).strokeBorder(color, lineWidth: 3))
             .rotationEffect(.degrees(tilt))
             .padding(22)
             .opacity(Double(max(0, min(1, magnitude / commitDistance))))
@@ -1037,8 +1037,8 @@ struct FocusSummaryView: View {
         }
         .padding(18)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(BlockPalette.monoBg, in: RoundedRectangle(cornerRadius: 12))
-        .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(BlockPalette.line))
+        .background(BlockPalette.monoBg, in: RoundedRectangle(cornerRadius: Metrics.radiusLg))
+        .overlay(RoundedRectangle(cornerRadius: Metrics.radiusLg).strokeBorder(BlockPalette.line))
     }
 
     private func receipt(_ step: FocusStep) -> some View {
@@ -1129,30 +1129,26 @@ struct FocusNavView: View {
     }
 
     var body: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: Metrics.space3) {
             Button(action: onBack) {
                 Label("Back", systemImage: "chevron.left")
             }
-            .buttonStyle(.bordered)
-            .tint(BlockPalette.muted)
+            .buttonStyle(GhostButtonStyle(tint: BlockPalette.muted))
             .disabled(index <= 0)
 
             Spacer(minLength: 8)
 
             Button("Skip", action: onSkip)
-                .buttonStyle(.bordered)
-                .tint(BlockPalette.muted)
+                .buttonStyle(GhostButtonStyle(tint: BlockPalette.muted))
                 .disabled(onSummary)
 
             Button(action: onNext) {
                 Label("Next", systemImage: "chevron.right")
                     .labelStyle(.titleAndIcon)
             }
-            .buttonStyle(.borderedProminent)
-            .tint(BlockPalette.accentInk)
+            .buttonStyle(PrimaryButtonStyle())
             .disabled(total == 0)
         }
-        .font(.system(size: 14, weight: .semibold))
         .frame(maxWidth: .infinity)
     }
 }
