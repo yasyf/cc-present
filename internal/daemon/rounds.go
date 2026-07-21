@@ -93,66 +93,6 @@ func hasInteraction(in *state.Interactions, id string) bool {
 	return ok
 }
 
-// carryIDs returns, in document order, the id of every live current-round
-// top-level block still awaiting a human interaction — the blocks that ride
-// forward into the next round instead of freezing into the closed one.
-func carryIDs(st *state.State, pt doc.PackTypes) []string {
-	var ids []string
-	for _, b := range currentRoundTops(st) {
-		if awaiting(b, st, pt) {
-			ids = append(ids, b.BlockID())
-		}
-	}
-	return ids
-}
-
-// awaiting reports whether b still needs a human interaction: an approval,
-// choice, or input without its recorded value; a triage until every item is
-// decided; a draft always; an interactive pack block without its recorded
-// interaction; and a card whenever any child is awaiting. Pure content types
-// never await.
-func awaiting(b doc.Block, st *state.State, pt doc.PackTypes) bool {
-	id := b.BlockID()
-	switch b.BlockType() {
-	case "approval":
-		_, ok := st.Interactions.Decisions[id]
-		return !ok
-	case "choice":
-		selection, ok := st.Interactions.Choices[id]
-		return !ok || len(selection.OptionIDs) == 0 && selection.Other == ""
-	case "input":
-		value, ok := st.Interactions.Inputs[id]
-		return !ok || value.Text == ""
-	case "triage":
-		return triageAwaiting(b.(*doc.Triage), st.Interactions.Triage[id])
-	case "draft":
-		return true
-	case "card":
-		for _, child := range doc.Children(b) {
-			if awaiting(child, st, pt) {
-				return true
-			}
-		}
-		return false
-	default:
-		if pt.Interactive(b.BlockType()) {
-			_, ok := st.Interactions.Packs[id]
-			return !ok
-		}
-		return false
-	}
-}
-
-// triageAwaiting reports whether any item in t lacks a recorded verdict.
-func triageAwaiting(t *doc.Triage, verdicts map[string]state.Decision) bool {
-	for i := range t.Items {
-		if _, ok := verdicts[t.Items[i].ID]; !ok {
-			return true
-		}
-	}
-	return false
-}
-
 // newTopIDs returns the ids of the incoming document's top-level blocks that no
 // top-level block in the current document carries — the new tops a push introduces.
 func newTopIDs(st *state.State, d *doc.Doc) []string {
@@ -187,15 +127,31 @@ func roundGuard(st *state.State, intent roundIntent, op string, newTops []string
 	}
 	cur := st.Rounds.Current
 	return fmt.Errorf("round %d is mid-review: the human has interacted with its blocks, and this %s adds new top-level block(s) %v. "+
-		"Pass --round current to add them to the round in progress, or --round new to close round %d into history and open round %d (unanswered blocks carry forward and stay actionable)",
+		"Pass --round current to add them to the round in progress, or --round new to close round %d into history and open round %d (blocks not re-upserted freeze read-only)",
 		cur, op, newTops, cur, cur+1)
 }
 
-// roundStartedPayload builds a round.started event payload with an optional
-// title and the ids to carry forward into the advanced round.
-func roundStartedPayload(title string, carry []string) json.RawMessage {
+// roundStartedPayload builds a round.started event payload with an optional title.
+func roundStartedPayload(title string) json.RawMessage {
 	return mustJSON(struct {
-		Title string   `json:"title,omitempty"`
-		Carry []string `json:"carry,omitempty"`
-	}{Title: title, Carry: carry})
+		Title string `json:"title,omitempty"`
+	}{Title: title})
+}
+
+// retainedTopIDs returns the ids of the incoming document's top-level blocks whose
+// decoded subtree is byte-identical to a same-id top-level block in the current
+// document — the blocks a push leaves in their existing round. A card whose child
+// changed re-enters, since the comparison marshals the whole subtree.
+func retainedTopIDs(st *state.State, d *doc.Doc) []string {
+	prior := make(map[string]string, len(st.Doc.Blocks))
+	for _, b := range st.Doc.Blocks {
+		prior[b.BlockID()] = string(mustJSON(b))
+	}
+	var ids []string
+	for _, b := range d.Blocks {
+		if enc, ok := prior[b.BlockID()]; ok && enc == string(mustJSON(b)) {
+			ids = append(ids, b.BlockID())
+		}
+	}
+	return ids
 }

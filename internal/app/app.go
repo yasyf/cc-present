@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"os/exec"
 	"path/filepath"
-	"time"
 
 	"github.com/yasyf/cc-interact/channel"
 	"github.com/yasyf/cc-interact/cmd"
@@ -39,13 +38,13 @@ const (
 // channelInstructions is folded into the agent's system prompt at the channel's
 // MCP initialize, so a --channels session knows what cc-present traffic to
 // expect and that silence is normal.
-const channelInstructions = `This MCP server is the cc-present channel: a live web artifact whose clicks are handled by a dispatched background agent, not by you. At board start, dispatch the cc-present:present-handler agent (run_in_background) with the envelope {"session":"<session-id>","guidance":"<optional task substance>"} per the cc-present skill — it receives every human interaction through its own daemon mailbox, replies, and redrafts (child block ids are first-class: naming a card child updates it in place inside its card).
+const channelInstructions = `This MCP server is the cc-present channel: a live web artifact whose every human click streams back to you. Activity reaches you as <channel source="cc-present" type="..."> tags whose inner JSON has a "type" field naming the event; the tag's payload is the event and is authoritative.
 
-While a handler is parked, human-interaction tags on this channel are muted; a <channel source="cc-present" type="..."> tag carrying decision.created, choice.selected, feedback.created, input.submitted, pack.interaction, or submit therefore means no live handler — stop any lingering handler task and dispatch a fresh one, and never act on the tag's own text. A channel.changed tag marks a connection-presence change, and a present.closed tag echoes the artifact's own close once you end it; both are lifecycle signals that need no reply.
+A channel.changed tag marks a connection-presence change, and a present.closed tag echoes the artifact's own close once you end it; both are lifecycle signals that carry no task and need no reply. Informational interactions — choice.selected, input.submitted, a decision.created that approves without a note — cost you one ledger line; submit collects their substance. Actionable interactions — feedback.created, a rejecting or change-asking decision.created, a pack.interaction whose pack demands a response — route per the cc-present skill to a short-lived delegate: one background writer for a lone event, one cc-present:present-triage worker for a burst. Never park a background handler on the board, and never write the reply or redraft prose yourself.
 
-Steer a live handler with cc-present direct "<guidance>" (it reaches the sole running handler's mailbox). On the handler's submit digest: summarize it in chat, apply it to the task, then start another round (author its blocks, re-dispatch) or close. Mid-review, a push or update-block that adds a new top-level block must declare round intent: --round current extends the review in progress, --round new advances the round with unanswered blocks carried forward.
+On submit, drain cc-present outcomes --no-doc in this session, summarize in chat, apply to the task, then start another round or close. Mid-review, a push or update-block that adds a new top-level block must declare round intent: --round current extends the review in progress, --round new advances the round — blocks not re-upserted freeze read-only. Your own mid-round authoring needs no agent lifecycle action at all.
 
-The channel never speaks unsolicited: outside a cc-present run it is silent, and silence — especially while a handler works a busy board — is the healthy state and needs nothing from you.`
+The channel never speaks unsolicited: outside a cc-present run it is silent, and silence needs nothing from you.`
 
 // Paths is the state-directory layout for ~/.cc-present.
 func Paths() paths.Paths { return paths.Paths{App: appDir} }
@@ -139,38 +138,8 @@ func serve(ctx context.Context) error {
 	return ccdaemon.Serve(ctx, Paths(), role, build, build, cfg.Bind, token, loader, meshtrust.Detect())
 }
 
-// awaitTimeout is the await tool's default long-poll window, under typical HTTP
-// idle limits.
-const awaitTimeout = 4 * time.Minute
-
-// channelTools advertises the await MCP tool: a handler agent long-polls it for
-// operator directives and teed human interactions addressed to its agent_id.
-// Every subject event still streams down the channel as a notification.
-func channelTools(_ context.Context, session, scope string) ([]channel.Tool, string, string, error) {
-	await := channel.NewAwaitTool(channel.AwaitSpec{
-		Resolve: func(ctx context.Context) (string, int, error) {
-			raw, err := NewClient(ctx)
-			if err != nil {
-				return "", 0, err
-			}
-			defer func() { _ = raw.Close() }()
-			cl := ccdaemon.NewClient(raw)
-			for {
-				subjectID, port, err := cl.Resolve(ctx, session, scope, procs.ClaudePID())
-				if err != nil {
-					return "", 0, err
-				}
-				if subjectID != "" {
-					return subjectID, port, nil
-				}
-				select {
-				case <-ctx.Done():
-					return "", 0, ctx.Err()
-				case <-time.After(time.Second):
-				}
-			}
-		},
-		Timeout: awaitTimeout,
-	})
-	return []channel.Tool{await}, channelNotifyMethod, channelInstructions, nil
+// channelTools advertises no MCP tools on the cc-present channel: every subject
+// event streams down as a notification and the model reacts to the tags inline.
+func channelTools(_ context.Context, _, _ string) ([]channel.Tool, string, string, error) {
+	return nil, channelNotifyMethod, channelInstructions, nil
 }

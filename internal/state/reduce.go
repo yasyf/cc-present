@@ -201,14 +201,22 @@ func (s *State) apply(ev Event) error {
 		var p struct {
 			Doc      *doc.Doc `json:"doc"`
 			Revision int      `json:"revision"`
+			Retained []string `json:"retained"`
 		}
 		if err := json.Unmarshal(ev.Payload, &p); err != nil {
 			return err
 		}
+		prior := s.Rounds.BlockRounds
 		s.Doc = p.Doc
 		s.Rounds.BlockRounds = map[string]int{}
 		for _, b := range s.Doc.Blocks {
 			s.Rounds.BlockRounds[b.BlockID()] = s.Rounds.Current
+		}
+		// A retained id keeps its prior round; an absent retained key stamps all.
+		for _, id := range p.Retained {
+			if r, ok := prior[id]; ok {
+				s.Rounds.BlockRounds[id] = r
+			}
 		}
 		s.Revising = Revising{BlockIDs: []string{}}
 		return nil
@@ -440,9 +448,10 @@ func (s *State) apply(ev Event) error {
 		}
 		return nil
 	case "round.started":
+		// A legacy payload's carry key decodes-and-ignores; restamping now lives in
+		// doc.replaced's retained set, so round.started only closes the dirty round.
 		var p struct {
-			Title string   `json:"title"`
-			Carry []string `json:"carry,omitempty"`
+			Title string `json:"title"`
 		}
 		if err := json.Unmarshal(ev.Payload, &p); err != nil {
 			return err
@@ -455,14 +464,6 @@ func (s *State) apply(ev Event) error {
 			}
 			s.Rounds.History = append(s.Rounds.History, rec)
 			s.Rounds.Current++
-			// Skip, never error: carry comes from a daemon snapshot a concurrent
-			// append may have outrun, and a reduction error is permanent replay
-			// failure for the subject.
-			for _, id := range p.Carry {
-				if loc, ok := doc.Locate(s.Doc, id); ok && loc.Kind == doc.TopLevel {
-					s.Rounds.BlockRounds[id] = s.Rounds.Current
-				}
-			}
 		}
 		s.Rounds.CurrentTitle = p.Title
 		return nil

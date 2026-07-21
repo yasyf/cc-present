@@ -357,15 +357,25 @@ public func reduce(events: [Event]) throws -> BoardState {
 }
 
 private extension BoardState {
+    mutating func applyDocReplaced(_ payload: DocReplacedPayload) {
+        let prior = rounds.blockRounds
+        doc = payload.doc
+        rounds.blockRounds = [:]
+        for block in doc.blocks {
+            rounds.blockRounds[block.id] = rounds.current
+        }
+        for id in payload.retained ?? [] {
+            if let round = prior[id] {
+                rounds.blockRounds[id] = round
+            }
+        }
+        revising = Revising()
+    }
+
     mutating func apply(_ event: Event) throws {
         switch try event.payload {
         case let .docReplaced(payload):
-            doc = payload.doc
-            rounds.blockRounds = [:]
-            for block in doc.blocks {
-                rounds.blockRounds[block.id] = rounds.current
-            }
-            revising = Revising()
+            applyDocReplaced(payload)
         case let .blockUpserted(payload):
             let topID = upsertTopID(payload.block.id, after: payload.after)
             upsert(payload.block, after: payload.after)
@@ -449,7 +459,7 @@ private extension BoardState {
                 rounds.currentTitle = ""
             }
         case let .roundStarted(payload):
-            try applyRoundStarted(payload)
+            applyRoundStarted(payload)
         case let .revisingChanged(payload):
             revising = Revising(blockIds: payload.blockIds, note: payload.note)
         case .channelChanged:
@@ -457,23 +467,13 @@ private extension BoardState {
         }
     }
 
-    /// applyRoundStarted clears the revising set, closes a dirty round — restamping
-    /// each carried id into the freshly advanced round — and titles the current one.
-    /// Carry on a clean round is ignored; an id that is not a current top-level
-    /// block fails the reduction.
-    mutating func applyRoundStarted(_ payload: RoundStartedPayload) throws {
+    /// applyRoundStarted clears the revising set, closes a dirty round to advance
+    /// the current one, and titles it.
+    mutating func applyRoundStarted(_ payload: RoundStartedPayload) {
         revising = Revising()
         if dirty() {
             rounds.history.append(closeRound(revision: nil))
             rounds.current += 1
-            // Skip, never error: carry comes from a daemon snapshot a concurrent
-            // append may have outrun, and a reduction error is permanent replay
-            // failure for the subject.
-            for id in payload.carry ?? [] {
-                if let location = locate(id), location.kind == .topLevel {
-                    rounds.blockRounds[id] = rounds.current
-                }
-            }
         }
         rounds.currentTitle = payload.title ?? ""
     }

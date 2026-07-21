@@ -23,10 +23,12 @@ public enum Verdict: String, Codable, Sendable {
 
 // --- Agent-origin payloads ---
 
-/// DocReplacedPayload replaces the whole document. Revision is transport metadata.
+/// DocReplacedPayload replaces the whole document. Revision is transport metadata;
+/// retained ids keep their prior round stamp instead of the current-round restamp.
 public struct DocReplacedPayload: Decodable, Equatable, Sendable {
     public var doc: Doc
     public var revision: Int
+    public var retained: [String]?
 }
 
 /// BlockUpsertedPayload upserts a block, inserting after `after` (or appending).
@@ -50,7 +52,6 @@ public struct ReplyCreatedPayload: Decodable, Equatable, Sendable {
 /// RoundStartedPayload titles the current round.
 public struct RoundStartedPayload: Decodable, Equatable, Sendable {
     public var title: String?
-    public var carry: [String]?
 }
 
 // --- System-origin payloads ---

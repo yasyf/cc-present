@@ -1,0 +1,66 @@
+{
+  "name": "doc-replaced-retained-no-prior-stamp",
+  "events": [
+    {
+      "origin": "agent",
+      "type": "doc.replaced",
+      "seq": 1,
+      "payload": {
+        "revision": 1,
+        "doc": {
+          "version": 1,
+          "title": "T",
+          "blocks": [{ "id": "a1", "type": "approval" }]
+        }
+      }
+    },
+    { "origin": "human", "type": "decision.created", "seq": 2, "payload": { "blockId": "a1", "verdict": "approved" } },
+    { "origin": "human", "type": "submit", "seq": 3, "payload": { "revision": 1 } },
+    {
+      "origin": "agent",
+      "type": "doc.replaced",
+      "seq": 4,
+      "payload": {
+        "revision": 2,
+        "retained": ["a1", "b1"],
+        "doc": {
+          "version": 1,
+          "title": "T",
+          "blocks": [
+            { "id": "a1", "type": "approval" },
+            { "id": "b1", "type": "approval" }
+          ]
+        }
+      }
+    }
+  ],
+  "expected": {
+    "doc": {
+      "version": 1,
+      "title": "T",
+      "blocks": [
+        { "id": "a1", "type": "approval" },
+        { "id": "b1", "type": "approval" }
+      ]
+    },
+    "interactions": {
+      "decisions": { "a1": { "verdict": "approved" } },
+      "submitted": { "value": true, "revision": 1 }
+    },
+    "rounds": {
+      "current": 2,
+      "blockRounds": { "a1": 1, "b1": 2 },
+      "history": [
+        {
+          "number": 1,
+          "blocks": [{ "id": "a1", "type": "approval" }],
+          "decisions": { "a1": { "verdict": "approved" } },
+          "choices": {},
+          "inputs": {},
+          "feedback": {},
+          "submittedRevision": 1
+        }
+      ]
+    }
+  }
+}

@@ -13,6 +13,7 @@ import (
 	ccevent "github.com/yasyf/cc-interact/event"
 	ccstore "github.com/yasyf/cc-interact/store"
 	"github.com/yasyf/cc-interact/subject"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/yasyf/cc-present/internal/assets"
 	"github.com/yasyf/cc-present/internal/doc"
@@ -692,7 +693,7 @@ func TestRound(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			h := newHarness(t)
 			tt.setup(t, h)
-			reply := handleRound(h.hc(body{Title: tt.title}), doc.NoPacks)
+			reply := handleRound(h.hc(body{Title: tt.title}))
 			if tt.wantErr != "" {
 				if reply.OK || !strings.Contains(reply.Error, tt.wantErr) {
 					t.Fatalf("round: ok=%v err=%q, want %q", reply.OK, reply.Error, tt.wantErr)
@@ -712,11 +713,11 @@ func TestRound(t *testing.T) {
 		})
 	}
 
-	t.Run("advance carries unanswered tops and freezes answered ones", func(t *testing.T) {
+	t.Run("advance freezes all tops and emits no carry", func(t *testing.T) {
 		h := newHarness(t)
 		start := handleStart(h.hc(body{Doc: json.RawMessage(twoApprovalDoc)}), doc.NoPacks, nilDisplay)
 		engageDecision(t, h, start.SubjectID, "a1")
-		reply := handleRound(h.hc(body{}), doc.NoPacks)
+		reply := handleRound(h.hc(body{}))
 		if !reply.OK {
 			t.Fatalf("round not ok: %s", reply.Error)
 		}
@@ -724,93 +725,21 @@ func TestRound(t *testing.T) {
 		if len(starts) != 1 {
 			t.Fatalf("round.started events = %d, want 1", len(starts))
 		}
-		var payload struct {
-			Carry []string `json:"carry"`
-		}
-		if err := json.Unmarshal(starts[0].Payload, &payload); err != nil {
-			t.Fatalf("decode round.started: %v", err)
-		}
-		if !slices.Equal(payload.Carry, []string{"a2"}) {
-			t.Fatalf("carry = %v, want [a2]", payload.Carry)
+		if strings.Contains(string(starts[0].Payload), "carry") {
+			t.Fatalf("round.started carries ids: %s", starts[0].Payload)
 		}
 		st := reduceSubject(t, h, start.SubjectID)
 		if got := st.Rounds.BlockRounds["a1"]; got != 1 {
-			t.Fatalf("a1 round = %d, want 1 (answered, frozen)", got)
+			t.Fatalf("a1 round = %d, want 1 (frozen)", got)
 		}
-		if got := st.Rounds.BlockRounds["a2"]; got != 2 {
-			t.Fatalf("a2 round = %d, want 2 (unanswered, carried)", got)
+		if got := st.Rounds.BlockRounds["a2"]; got != 1 {
+			t.Fatalf("a2 round = %d, want 1 (frozen; no carry)", got)
 		}
 		if st.Rounds.Current != 2 {
 			t.Fatalf("current = %d, want 2", st.Rounds.Current)
 		}
 		if len(st.Rounds.History) != 1 {
 			t.Fatalf("history len = %d, want 1", len(st.Rounds.History))
-		}
-	})
-
-	t.Run("advance carries choices and inputs by answered value", func(t *testing.T) {
-		tests := []struct {
-			name      string
-			doc       string
-			eventType string
-			payload   string
-			wantCarry []string
-		}{
-			{
-				name:      "cleared choice is unanswered",
-				doc:       choiceVisualDoc,
-				eventType: EventChoiceSelected,
-				payload:   `{"blockId":"ch1","optionIds":[]}`,
-				wantCarry: []string{"ch1"},
-			},
-			{
-				name:      "choice write-in is answered",
-				doc:       choiceVisualDoc,
-				eventType: EventChoiceSelected,
-				payload:   `{"blockId":"ch1","optionIds":[],"other":"write-in"}`,
-			},
-			{
-				name:      "empty input is unanswered",
-				doc:       cardDoc,
-				eventType: EventInputSubmitted,
-				payload:   `{"blockId":"in1","text":""}`,
-				wantCarry: []string{"c1"},
-			},
-			{
-				name:      "non-empty input is answered",
-				doc:       cardDoc,
-				eventType: EventInputSubmitted,
-				payload:   `{"blockId":"in1","text":"Yas"}`,
-			},
-		}
-		for _, tt := range tests {
-			t.Run(tt.name, func(t *testing.T) {
-				h := newHarness(t)
-				start := handleStart(h.hc(body{Doc: json.RawMessage(tt.doc)}), doc.NoPacks, nilDisplay)
-				if _, err := h.cc.AppendEvent(context.Background(), &ccevent.Event{
-					SubjectID: start.SubjectID, Origin: ccevent.OriginHuman, Type: tt.eventType,
-					Payload: json.RawMessage(tt.payload),
-				}); err != nil {
-					t.Fatalf("append interaction: %v", err)
-				}
-				reply := handleRound(h.hc(body{}), doc.NoPacks)
-				if !reply.OK {
-					t.Fatalf("round not ok: %s", reply.Error)
-				}
-				starts := h.eventsOfType(t, start.SubjectID, EventRoundStarted)
-				if len(starts) != 1 {
-					t.Fatalf("round.started events = %d, want 1", len(starts))
-				}
-				var payload struct {
-					Carry []string `json:"carry"`
-				}
-				if err := json.Unmarshal(starts[0].Payload, &payload); err != nil {
-					t.Fatalf("decode round.started: %v", err)
-				}
-				if !slices.Equal(payload.Carry, tt.wantCarry) {
-					t.Fatalf("carry = %v, want %v", payload.Carry, tt.wantCarry)
-				}
-			})
 		}
 	})
 }
@@ -979,7 +908,7 @@ func TestUpsertBlockRoundIntent(t *testing.T) {
 		if reply.OK {
 			t.Fatalf("engaged upsert without intent: ok=%v", reply.OK)
 		}
-		for _, want := range []string{"--round current", "--round new"} {
+		for _, want := range []string{"--round current", "--round new", "freeze read-only"} {
 			if !strings.Contains(reply.Error, want) {
 				t.Fatalf("error %q missing %q", reply.Error, want)
 			}
@@ -1016,7 +945,7 @@ func TestUpsertBlockRoundIntent(t *testing.T) {
 		}
 	})
 
-	t.Run("new closes the engaged round and carries unanswered tops", func(t *testing.T) {
+	t.Run("new closes the engaged round; new top enters, prior tops freeze", func(t *testing.T) {
 		h := newHarness(t)
 		start := handleStart(h.hc(body{Doc: json.RawMessage(twoApprovalDoc)}), doc.NoPacks, nilDisplay)
 		engageDecision(t, h, start.SubjectID, "a1") // a1 answered; a2 still awaiting
@@ -1036,8 +965,7 @@ func TestUpsertBlockRoundIntent(t *testing.T) {
 			t.Fatalf("round.started events = %d, want 1", len(starts))
 		}
 		var payload struct {
-			Title string   `json:"title"`
-			Carry []string `json:"carry"`
+			Title string `json:"title"`
 		}
 		if err := json.Unmarshal(starts[0].Payload, &payload); err != nil {
 			t.Fatalf("decode round.started: %v", err)
@@ -1045,70 +973,21 @@ func TestUpsertBlockRoundIntent(t *testing.T) {
 		if payload.Title != "Round Two" {
 			t.Fatalf("title = %q, want %q", payload.Title, "Round Two")
 		}
-		if !slices.Equal(payload.Carry, []string{"a2"}) {
-			t.Fatalf("carry = %v, want [a2]", payload.Carry)
+		if strings.Contains(string(starts[0].Payload), "carry") {
+			t.Fatalf("round.started carries ids: %s", starts[0].Payload)
 		}
 		st := reduceSubject(t, h, start.SubjectID)
 		if got := st.Rounds.BlockRounds["a1"]; got != 1 {
 			t.Fatalf("a1 round = %d, want 1 (answered, frozen)", got)
 		}
-		if got := st.Rounds.BlockRounds["a2"]; got != 2 {
-			t.Fatalf("a2 round = %d, want 2 (unanswered, carried)", got)
+		if got := st.Rounds.BlockRounds["a2"]; got != 1 {
+			t.Fatalf("a2 round = %d, want 1 (frozen; no carry)", got)
 		}
 		if got := st.Rounds.BlockRounds["b1"]; got != 2 {
-			t.Fatalf("b1 round = %d, want 2 (new top)", got)
+			t.Fatalf("b1 round = %d, want 2 (new top, upserted into current)", got)
 		}
 		if len(st.Rounds.History) != 1 {
 			t.Fatalf("history len = %d, want 1", len(st.Rounds.History))
-		}
-	})
-
-	t.Run("new carries choices by answered value", func(t *testing.T) {
-		tests := []struct {
-			name      string
-			payload   string
-			wantCarry []string
-		}{
-			{
-				name:      "cleared choice is unanswered",
-				payload:   `{"blockId":"ch1","optionIds":[]}`,
-				wantCarry: []string{"ch1"},
-			},
-			{
-				name:    "choice write-in is answered",
-				payload: `{"blockId":"ch1","optionIds":[],"other":"write-in"}`,
-			},
-		}
-		for _, tt := range tests {
-			t.Run(tt.name, func(t *testing.T) {
-				h := newHarness(t)
-				start := handleStart(h.hc(body{Doc: json.RawMessage(choiceVisualDoc)}), doc.NoPacks, nilDisplay)
-				if _, err := h.cc.AppendEvent(context.Background(), &ccevent.Event{
-					SubjectID: start.SubjectID, Origin: ccevent.OriginHuman, Type: EventChoiceSelected,
-					Payload: json.RawMessage(tt.payload),
-				}); err != nil {
-					t.Fatalf("append choice: %v", err)
-				}
-				reply := handleUpsertBlock(h.hc(body{
-					Block: json.RawMessage(newTop), Round: "new",
-				}), doc.NoPacks)
-				if !reply.OK {
-					t.Fatalf("new upsert not ok: %s", reply.Error)
-				}
-				starts := h.eventsOfType(t, start.SubjectID, EventRoundStarted)
-				if len(starts) != 1 {
-					t.Fatalf("round.started events = %d, want 1", len(starts))
-				}
-				var payload struct {
-					Carry []string `json:"carry"`
-				}
-				if err := json.Unmarshal(starts[0].Payload, &payload); err != nil {
-					t.Fatalf("decode round.started: %v", err)
-				}
-				if !slices.Equal(payload.Carry, tt.wantCarry) {
-					t.Fatalf("carry = %v, want %v", payload.Carry, tt.wantCarry)
-				}
-			})
 		}
 	})
 
@@ -1189,7 +1068,7 @@ func TestPushRoundIntent(t *testing.T) {
 		if reply.OK {
 			t.Fatalf("engaged push without intent: ok=%v", reply.OK)
 		}
-		for _, want := range []string{"--round current", "--round new"} {
+		for _, want := range []string{"--round current", "--round new", "freeze read-only"} {
 			if !strings.Contains(reply.Error, want) {
 				t.Fatalf("error %q missing %q", reply.Error, want)
 			}
@@ -1226,7 +1105,7 @@ func TestPushRoundIntent(t *testing.T) {
 		}
 	})
 
-	t.Run("new closes the engaged round and stamps the whole doc forward", func(t *testing.T) {
+	t.Run("new closes the engaged round; unchanged tops stay, new tops enter", func(t *testing.T) {
 		h := newHarness(t)
 		start := handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks, nilDisplay)
 		engageDecision(t, h, start.SubjectID, "a1")
@@ -1245,17 +1124,15 @@ func TestPushRoundIntent(t *testing.T) {
 		if len(starts) != 1 {
 			t.Fatalf("round.started events = %d, want 1", len(starts))
 		}
-		// A push restamps the whole doc into the new round, so its round.started
-		// carries no ids — the carry key is absent, not empty.
 		if strings.Contains(string(starts[0].Payload), "carry") {
 			t.Fatalf("push round.started carries ids: %s", starts[0].Payload)
 		}
 		st := reduceSubject(t, h, start.SubjectID)
-		if got := st.Rounds.BlockRounds["a1"]; got != 2 {
-			t.Fatalf("a1 round = %d, want 2 (restamped)", got)
+		if got := st.Rounds.BlockRounds["a1"]; got != 1 {
+			t.Fatalf("a1 round = %d, want 1 (unchanged, retained in closed round)", got)
 		}
 		if got := st.Rounds.BlockRounds["b1"]; got != 2 {
-			t.Fatalf("b1 round = %d, want 2 (restamped)", got)
+			t.Fatalf("b1 round = %d, want 2 (new top enters current)", got)
 		}
 		if len(st.Rounds.History) != 1 {
 			t.Fatalf("history len = %d, want 1", len(st.Rounds.History))
@@ -1290,7 +1167,7 @@ func TestPushRoundIntent(t *testing.T) {
 					t.Fatalf("push: ok=%v err=%q, want ok=%v", reply.OK, reply.Error, tt.wantOK)
 				}
 				if !tt.wantOK {
-					for _, want := range []string{"--round current", "--round new"} {
+					for _, want := range []string{"--round current", "--round new", "freeze read-only"} {
 						if !strings.Contains(reply.Error, want) {
 							t.Fatalf("error %q missing %q", reply.Error, want)
 						}
@@ -1383,6 +1260,162 @@ func TestOutcomes(t *testing.T) {
 	}
 	if st.Doc.Title != "Board" {
 		t.Fatalf("reduced doc title = %q, want Board", st.Doc.Title)
+	}
+}
+
+func TestPushRoundRetention(t *testing.T) {
+	const (
+		a1v1     = `{"version":1,"title":"Board","blocks":[{"id":"a1","type":"markdown","md":"v1"}]}`
+		a1v2     = `{"version":1,"title":"Board","blocks":[{"id":"a1","type":"markdown","md":"v2"}]}`
+		a1v1b1   = `{"version":1,"title":"Board","blocks":[{"id":"a1","type":"markdown","md":"v1"},{"id":"b1","type":"markdown","md":"x"}]}`
+		b1only   = `{"version":1,"title":"Board","blocks":[{"id":"b1","type":"markdown","md":"x"}]}`
+		twoV1W1  = `{"version":1,"title":"Board","blocks":[{"id":"a1","type":"markdown","md":"v1"},{"id":"a2","type":"markdown","md":"w1"}]}`
+		twoV1W2  = `{"version":1,"title":"Board","blocks":[{"id":"a1","type":"markdown","md":"v1"},{"id":"a2","type":"markdown","md":"w2"}]}`
+		cardsV1  = `{"version":1,"title":"Board","blocks":[{"id":"card-a","type":"card","children":[{"id":"x1","type":"markdown","md":"v1"}]},{"id":"card-b","type":"card","children":[{"id":"y1","type":"markdown","md":"same"}]}]}`
+		cardsChg = `{"version":1,"title":"Board","blocks":[{"id":"card-a","type":"card","children":[{"id":"x1","type":"markdown","md":"v2"}]},{"id":"card-b","type":"card","children":[{"id":"y1","type":"markdown","md":"same"}]}]}`
+	)
+	tests := []struct {
+		name         string
+		seed         string
+		advance      bool // submit to close the seed round before the test push
+		push         string
+		round        string
+		wantRounds   map[string]int
+		wantRetained []string // nil => the retained key must be absent from the payload
+	}{
+		{
+			name:         "unchanged block keeps its round across a submit boundary",
+			seed:         a1v1,
+			advance:      true,
+			push:         a1v1,
+			wantRounds:   map[string]int{"a1": 1},
+			wantRetained: []string{"a1"},
+		},
+		{
+			name:       "content-changed block re-enters the current round",
+			seed:       a1v1,
+			advance:    true,
+			push:       a1v2,
+			wantRounds: map[string]int{"a1": 2},
+		},
+		{
+			name:         "new block enters while the unchanged one stays",
+			seed:         a1v1,
+			advance:      true,
+			push:         a1v1b1,
+			wantRounds:   map[string]int{"a1": 1, "b1": 2},
+			wantRetained: []string{"a1"},
+		},
+		{
+			name:         "a child-content change re-enters the parent card",
+			seed:         cardsV1,
+			advance:      true,
+			push:         cardsChg,
+			wantRounds:   map[string]int{"card-a": 2, "card-b": 1},
+			wantRetained: []string{"card-b"},
+		},
+		{
+			name:         "unchanged plus --round new stays in the old round while changed enters",
+			seed:         twoV1W1,
+			push:         twoV1W2,
+			round:        "new",
+			wantRounds:   map[string]int{"a1": 1, "a2": 2},
+			wantRetained: []string{"a1"},
+		},
+		{
+			name:         "--round current adds the new block to the current round",
+			seed:         a1v1,
+			advance:      true,
+			push:         a1v1b1,
+			round:        "current",
+			wantRounds:   map[string]int{"a1": 1, "b1": 2},
+			wantRetained: []string{"a1"},
+		},
+		{
+			name:       "retained key is absent when nothing is unchanged",
+			seed:       a1v1,
+			advance:    true,
+			push:       b1only,
+			wantRounds: map[string]int{"b1": 2},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := newHarness(t)
+			start := handleStart(h.hc(body{Doc: json.RawMessage(tt.seed)}), doc.NoPacks, nilDisplay)
+			if !start.OK {
+				t.Fatalf("start not ok: %s", start.Error)
+			}
+			if tt.advance {
+				submitRevision(t, h, start.SubjectID, 1)
+			}
+			reply := handlePush(h.hc(body{Doc: json.RawMessage(tt.push), Round: tt.round}), doc.NoPacks, nilDisplay)
+			if !reply.OK {
+				t.Fatalf("push not ok: %s", reply.Error)
+			}
+			st := reduceSubject(t, h, start.SubjectID)
+			if len(st.Rounds.BlockRounds) != len(tt.wantRounds) {
+				t.Fatalf("blockRounds = %v, want %v", st.Rounds.BlockRounds, tt.wantRounds)
+			}
+			for id, r := range tt.wantRounds {
+				if got := st.Rounds.BlockRounds[id]; got != r {
+					t.Fatalf("blockRounds[%q] = %d, want %d (full %v)", id, got, r, st.Rounds.BlockRounds)
+				}
+			}
+			docs := h.eventsOfType(t, start.SubjectID, EventDocReplaced)
+			last := string(docs[len(docs)-1].Payload)
+			hasKey := strings.Contains(last, `"retained"`)
+			if tt.wantRetained == nil {
+				if hasKey {
+					t.Fatalf("retained key present, want absent: %s", last)
+				}
+				return
+			}
+			var p struct {
+				Retained []string `json:"retained"`
+			}
+			if err := json.Unmarshal([]byte(last), &p); err != nil {
+				t.Fatalf("decode doc.replaced: %v", err)
+			}
+			if !slices.Equal(p.Retained, tt.wantRetained) {
+				t.Fatalf("retained = %v, want %v", p.Retained, tt.wantRetained)
+			}
+		})
+	}
+}
+
+func TestPushRevisionsConcurrent(t *testing.T) {
+	h := newHarness(t)
+	start := handleStart(h.hc(body{Title: "T"}), doc.NoPacks, nilDisplay)
+	if !start.OK {
+		t.Fatalf("start not ok: %s", start.Error)
+	}
+	const n = 16
+	revs := make([]int, n)
+	var g errgroup.Group
+	for i := range n {
+		g.Go(func() error {
+			reply := handlePush(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks, nilDisplay)
+			if !reply.OK {
+				return fmt.Errorf("push %d: %s", i, reply.Error)
+			}
+			var res result
+			if err := json.Unmarshal(reply.Body, &res); err != nil {
+				return fmt.Errorf("decode push %d: %w", i, err)
+			}
+			revs[i] = res.Revision
+			return nil
+		})
+	}
+	if err := g.Wait(); err != nil {
+		t.Fatalf("concurrent pushes: %v", err)
+	}
+	got := append([]int(nil), revs...)
+	slices.Sort(got)
+	for i := range n {
+		if got[i] != i+1 {
+			t.Fatalf("revisions = %v, want exactly 1..%d with no duplicates", got, n)
+		}
 	}
 }
 

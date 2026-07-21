@@ -15,6 +15,9 @@ export type Verdict = 'approved' | 'rejected' | 'cleared';
 export interface DocReplacedPayload {
   doc: Doc;
   revision: number;
+  // Ids whose prior round stamp is restored after every top-level block is
+  // stamped into the current round; an absent key stamps every block.
+  retained?: string[];
 }
 
 export interface BlockUpsertedPayload {
@@ -40,7 +43,6 @@ export interface PresentClosedPayload {
 
 export interface RoundStartedPayload {
   title?: string;
-  carry?: string[];
 }
 
 // --- Human-origin payloads ---

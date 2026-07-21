@@ -67,9 +67,13 @@ export function applyEvent(state: PresentState, ev: PresentEvent): PresentState 
   if (ev.type.startsWith('agent.')) return state;
   switch (ev.type) {
     case 'doc.replaced': {
-      const doc = ev.payload.doc;
+      const { doc, retained } = ev.payload;
+      const prior = state.rounds.blockRounds;
       const blockRounds: Record<string, number> = {};
       for (const b of doc.blocks) blockRounds[b.id] = state.rounds.current;
+      for (const id of retained ?? []) {
+        if (Object.hasOwn(prior, id)) blockRounds[id] = prior[id];
+      }
       return { ...state, doc, rounds: { ...state.rounds, blockRounds }, revising: { blockIds: [] } };
     }
     case 'block.upserted': {
@@ -95,21 +99,11 @@ export function applyEvent(state: PresentState, ev: PresentEvent): PresentState 
       return withInteractions(state, { replies: append(state.interactions.replies, blockId, { id, md }) });
     }
     case 'round.started': {
-      const { title, carry } = ev.payload;
+      const { title } = ev.payload;
       const cleared: PresentState = { ...state, revising: { blockIds: [] } };
       let advanced = cleared;
       if (isDirty(cleared)) {
         advanced = closeRound(cleared, undefined);
-        const blockRounds = { ...advanced.rounds.blockRounds };
-        // A carried id can stop naming a top-level block between the daemon's
-        // snapshot and the append — skip it rather than poisoning replay.
-        for (const id of carry ?? []) {
-          const loc = locate(advanced.doc.blocks, id);
-          if (loc && loc.kind === 'top-level') {
-            blockRounds[id] = advanced.rounds.current;
-          }
-        }
-        advanced = { ...advanced, rounds: { ...advanced.rounds, blockRounds } };
       }
       const rounds = { ...advanced.rounds };
       if (title) rounds.currentTitle = title;

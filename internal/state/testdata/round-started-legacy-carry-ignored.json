@@ -1,5 +1,5 @@
 {
-  "name": "round-started-carry-restamps",
+  "name": "round-started-legacy-carry-ignored",
   "events": [
     {
       "origin": "agent",
@@ -35,7 +35,7 @@
     "rounds": {
       "current": 2,
       "currentTitle": "round two",
-      "blockRounds": { "card-a": 1, "card-b": 2 },
+      "blockRounds": { "card-a": 1, "card-b": 1 },
       "history": [
         {
           "number": 1,

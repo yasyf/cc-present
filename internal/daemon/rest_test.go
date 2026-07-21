@@ -93,7 +93,7 @@ func newRestHarnessWith(t *testing.T, docJSON string, loader *packs.Loader) *res
 	}
 	if _, err := cc.AppendEvent(context.Background(), &ccevent.Event{
 		SubjectID: sub.ID, Origin: ccevent.OriginAgent, Type: EventDocReplaced,
-		Payload: docReplacedPayload(json.RawMessage(docJSON), 1),
+		Payload: docReplacedPayload(json.RawMessage(docJSON), 1, nil),
 	}); err != nil {
 		t.Fatalf("seed doc: %v", err)
 	}
@@ -376,25 +376,25 @@ func TestInteractionClosedRound(t *testing.T) {
 	}
 }
 
-func TestInteractionCarriedRound(t *testing.T) {
+func TestInteractionReUpsertedBlockNewRound(t *testing.T) {
 	h := newRestHarness(t)
-	// A human approves a2, engaging round 1.
-	if w := h.post(t, `{"subject":"board--abcd0000","nonce":"eng","interaction":{"type":"decision.created","blockId":"a2","verdict":"approved"}}`); w.Code != http.StatusOK {
-		t.Fatalf("engage status = %d (%s)", w.Code, w.Body.String())
+	// Submit round 1; every seed block freezes into the closed round.
+	if w := h.post(t, `{"subject":"board--abcd0000","nonce":"sub","interaction":{"type":"submit","revision":1}}`); w.Code != http.StatusOK {
+		t.Fatalf("submit status = %d (%s)", w.Code, w.Body.String())
 	}
-	// The agent advances the round, carrying the un-answered a1 forward; every
-	// other seed block (a2 included) freezes into the closed round.
+	// The agent re-upserts a1, restamping it into the new current round — the
+	// explicit carry mechanism now that round.started no longer carries ids.
 	if _, err := h.cc.AppendEvent(context.Background(), &ccevent.Event{
-		SubjectID: h.id, Origin: ccevent.OriginAgent, Type: EventRoundStarted,
-		Payload: roundStartedPayload("", []string{"a1"}),
+		SubjectID: h.id, Origin: ccevent.OriginAgent, Type: EventBlockUpserted,
+		Payload: blockUpsertedPayload(json.RawMessage(`{"id":"a1","type":"approval"}`), ""),
 	}); err != nil {
-		t.Fatalf("advance round: %v", err)
+		t.Fatalf("re-upsert a1: %v", err)
 	}
-	// The carried block rides into the current round, so it still accepts input.
-	if w := h.post(t, `{"subject":"board--abcd0000","nonce":"car","interaction":{"type":"decision.created","blockId":"a1","verdict":"approved"}}`); w.Code != http.StatusOK {
-		t.Fatalf("carried-round status = %d, want 200 (body %q)", w.Code, w.Body.String())
+	// The re-upserted block rides in the current round, so it still accepts input.
+	if w := h.post(t, `{"subject":"board--abcd0000","nonce":"cur","interaction":{"type":"decision.created","blockId":"a1","verdict":"approved"}}`); w.Code != http.StatusOK {
+		t.Fatalf("re-upserted-block status = %d, want 200 (body %q)", w.Code, w.Body.String())
 	}
-	// The frozen answered block is rejected as belonging to a closed round.
+	// A sibling left untouched stays frozen in the closed round.
 	w := h.post(t, `{"subject":"board--abcd0000","nonce":"frz","interaction":{"type":"decision.created","blockId":"a2","verdict":"approved"}}`)
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("closed-round status = %d, want 400 (body %q)", w.Code, w.Body.String())

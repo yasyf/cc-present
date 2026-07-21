@@ -14,7 +14,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/yasyf/cc-interact/agent"
 	"github.com/yasyf/cc-interact/channel"
 	ccd "github.com/yasyf/cc-interact/daemon"
 	ccevent "github.com/yasyf/cc-interact/event"
@@ -56,38 +55,10 @@ var lifecycle = subject.Lifecycle{Initial: statusOpen, Closed: statusClosed}
 
 var slugStrip = regexp.MustCompile(`[^a-z0-9]+`)
 
-// presentHandlerType is the agent_type suffix a cc-present handler agent
-// registers under; the steering channel targets only these agents.
-const presentHandlerType = "cc-present:present-handler"
-
-// IsPresentHandler reports whether info is a cc-present handler agent — the only
-// participant the human-interaction tee and the await greeting address.
-func IsPresentHandler(info agent.Info) bool {
-	return strings.HasSuffix(info.AgentType, presentHandlerType)
-}
-
-// presentSubscribe tees the six human-interaction events into a handler agent's
-// mailbox as directives; every other agent subscribes to nothing.
-func presentSubscribe(_ subject.Subject, info agent.Info) []string {
-	if !IsPresentHandler(info) {
-		return nil
-	}
-	return []string{
-		EventDecisionCreated, EventChoiceSelected, EventFeedbackCreated,
-		EventInputSubmitted, EventPackInteraction, EventSubmit,
-	}
-}
-
-// agentGreeting bootstraps a handler agent's identity on the steering channel,
-// naming its agent_id so it can park with the await tool; non-handlers get none.
-func agentGreeting(info agent.Info) string {
-	if !IsPresentHandler(info) {
-		return ""
-	}
-	return fmt.Sprintf("You are agent %s on the cc-present steering channel. "+
-		"Park with the await tool, passing this agent_id, to receive operator directives and human interactions as they arrive; "+
-		"act on each once, then continue or finish your task.", info.AgentID)
-}
+// writeMu serializes the load-derive-append critical section of the round-aware
+// mutating ops (push, upsert-block, round), so a concurrent pair cannot both read
+// the same revision count or round guard and then race their appends past it.
+var writeMu sync.Mutex
 
 // BuildServer composes the cc-present daemon: presence via channel.Connectivity,
 // no edit gate, window-owned scope, and optional mesh trust tp (nil =
@@ -137,12 +108,6 @@ func BuildServer(ctx context.Context, p paths.Paths, role daemonrole.Classifier,
 		// are a pure reduction of the event log. ScopeResolve canonicalizes every
 		// raw cwd to the window sentinel.
 		ScopeResolve: resolveScope,
-		// The agent plane: tee human interactions to one live handler per board
-		// (a new dispatch supersedes the old), muting the channel under presence.
-		Subscribe:           presentSubscribe,
-		MuteConsumer:        channelConsumer,
-		AgentGreeting:       agentGreeting,
-		SingletonSubscriber: true,
 	}
 	if tp != nil {
 		mgr = newCertManager(filepath.Join(p.StateDir(), "tls"))
@@ -163,7 +128,7 @@ func BuildServer(ctx context.Context, p paths.Paths, role daemonrole.Classifier,
 	s.Register(OpUpsertBlock, func(hc ccd.HandlerCtx) ccd.Reply { return handleUpsertBlock(hc, loader.Current()) })
 	s.Register(OpRemoveBlock, handleRemoveBlock)
 	s.Register(OpReply, handleReply)
-	s.Register(OpRound, func(hc ccd.HandlerCtx) ccd.Reply { return handleRound(hc, loader.Current()) })
+	s.Register(OpRound, handleRound)
 	s.Register(OpRevising, handleRevising)
 	s.Register(OpClose, func(hc ccd.HandlerCtx) ccd.Reply { return handleClose(hc, ast) })
 	s.Register(OpOutcomes, handleOutcomes)
@@ -248,14 +213,7 @@ func handleStart(hc ccd.HandlerCtx, pt doc.PackTypes, display displayFunc) ccd.R
 		return errReply(err.Error())
 	}
 	if d != nil {
-		rev, err := nextRevision(hc.Ctx, hc.DB, sub.ID)
-		if err != nil {
-			return errReply(err.Error())
-		}
-		if _, err := appendEvent(hc.Ctx, hc.Append, &ccevent.Event{
-			SubjectID: sub.ID, Origin: ccevent.OriginAgent, Type: EventDocReplaced,
-			Payload: docReplacedPayload(b.Doc, rev),
-		}); err != nil {
+		if err := appendSeedDoc(hc, sub.ID, b.Doc, d); err != nil {
 			return errReply(err.Error())
 		}
 	}
@@ -270,6 +228,28 @@ func handleStart(hc ccd.HandlerCtx, pt doc.PackTypes, display displayFunc) ccd.R
 // top-level block to a round the human has engaged, an unspecified round intent
 // is rejected; --round new closes the dirty round into history and opens the
 // next before the replacement lands.
+func appendSeedDoc(hc ccd.HandlerCtx, subID string, raw json.RawMessage, d *doc.Doc) error {
+	writeMu.Lock()
+	defer writeMu.Unlock()
+	events, err := loadEvents(hc.Ctx, hc.DB, subID)
+	if err != nil {
+		return err
+	}
+	st, err := state.Reduce(events)
+	if err != nil {
+		return err
+	}
+	rev, err := nextRevision(hc.Ctx, hc.DB, subID)
+	if err != nil {
+		return err
+	}
+	_, err = appendEvent(hc.Ctx, hc.Append, &ccevent.Event{
+		SubjectID: subID, Origin: ccevent.OriginAgent, Type: EventDocReplaced,
+		Payload: docReplacedPayload(raw, rev, retainedTopIDs(&st, d)),
+	})
+	return err
+}
+
 func handlePush(hc ccd.HandlerCtx, pt doc.PackTypes, display displayFunc) ccd.Reply {
 	b := decodeBody(hc.Env.Body)
 	intent, err := parseRoundIntent(b.Round)
@@ -287,6 +267,8 @@ func handlePush(hc ccd.HandlerCtx, pt doc.PackTypes, display displayFunc) ccd.Re
 	if err != nil {
 		return errReply(err.Error())
 	}
+	writeMu.Lock()
+	defer writeMu.Unlock()
 	events, err := loadEvents(hc.Ctx, hc.DB, sub.ID)
 	if err != nil {
 		return errReply(err.Error())
@@ -298,13 +280,12 @@ func handlePush(hc ccd.HandlerCtx, pt doc.PackTypes, display displayFunc) ccd.Re
 	if err := roundGuard(&st, intent, "push", newTopIDs(&st, d)); err != nil {
 		return errReply(err.Error())
 	}
+	retained := retainedTopIDs(&st, d)
 	round := 0
 	if intent == roundNew && roundDirty(&st) {
-		// No carry: the doc.replaced below restamps every block into the freshly
-		// advanced round, so no id needs to ride forward explicitly.
 		if _, err := appendEvent(hc.Ctx, hc.Append, &ccevent.Event{
 			SubjectID: sub.ID, Origin: ccevent.OriginAgent, Type: EventRoundStarted,
-			Payload: roundStartedPayload(b.Title, nil),
+			Payload: roundStartedPayload(b.Title),
 		}); err != nil {
 			return errReply(err.Error())
 		}
@@ -316,7 +297,7 @@ func handlePush(hc ccd.HandlerCtx, pt doc.PackTypes, display displayFunc) ccd.Re
 	}
 	if _, err := appendEvent(hc.Ctx, hc.Append, &ccevent.Event{
 		SubjectID: sub.ID, Origin: ccevent.OriginAgent, Type: EventDocReplaced,
-		Payload: docReplacedPayload(b.Doc, rev),
+		Payload: docReplacedPayload(b.Doc, rev, retained),
 	}); err != nil {
 		return errReply(err.Error())
 	}
@@ -345,6 +326,8 @@ func handleUpsertBlock(hc ccd.HandlerCtx, pt doc.PackTypes) ccd.Reply {
 	if err != nil {
 		return errReply(err.Error())
 	}
+	writeMu.Lock()
+	defer writeMu.Unlock()
 	events, err := loadEvents(hc.Ctx, hc.DB, sub.ID)
 	if err != nil {
 		return errReply(err.Error())
@@ -381,7 +364,7 @@ func handleUpsertBlock(hc ccd.HandlerCtx, pt doc.PackTypes) ccd.Reply {
 	if intent == roundNew && roundDirty(&st) {
 		if _, err := appendEvent(hc.Ctx, hc.Append, &ccevent.Event{
 			SubjectID: sub.ID, Origin: ccevent.OriginAgent, Type: EventRoundStarted,
-			Payload: roundStartedPayload(b.Title, carryIDs(&st, pt)),
+			Payload: roundStartedPayload(b.Title),
 		}); err != nil {
 			return errReply(err.Error())
 		}
@@ -483,15 +466,23 @@ func handleReply(hc ccd.HandlerCtx) ccd.Reply {
 	return okReply(result{})
 }
 
-// handleRound reduces the log, then appends an agent round.started carrying the
-// unanswered current-round blocks, and re-reduces to report the resulting round.
-// A dirty round force-advances (its answered blocks freeze, its unanswered ones
-// carry forward); a clean one is merely retitled. A closed artifact is rejected.
-// round.started carries no revision, so it never bumps the revision counter.
-func handleRound(hc ccd.HandlerCtx, pt doc.PackTypes) ccd.Reply {
+// handleRound appends an agent round.started, then re-reduces to report the
+// resulting round. A dirty round force-advances and freezes ALL its blocks into
+// history; a block stays live only through an explicit re-upsert. A clean round is
+// merely retitled. A closed artifact is rejected. round.started carries no
+// revision, so it never bumps the revision counter.
+func handleRound(hc ccd.HandlerCtx) ccd.Reply {
 	b := decodeBody(hc.Env.Body)
 	sub, err := resolveOpen(hc)
 	if err != nil {
+		return errReply(err.Error())
+	}
+	writeMu.Lock()
+	defer writeMu.Unlock()
+	if _, err := appendEvent(hc.Ctx, hc.Append, &ccevent.Event{
+		SubjectID: sub.ID, Origin: ccevent.OriginAgent, Type: EventRoundStarted,
+		Payload: roundStartedPayload(b.Title),
+	}); err != nil {
 		return errReply(err.Error())
 	}
 	events, err := loadEvents(hc.Ctx, hc.DB, sub.ID)
@@ -499,20 +490,6 @@ func handleRound(hc ccd.HandlerCtx, pt doc.PackTypes) ccd.Reply {
 		return errReply(err.Error())
 	}
 	st, err := state.Reduce(events)
-	if err != nil {
-		return errReply(err.Error())
-	}
-	if _, err := appendEvent(hc.Ctx, hc.Append, &ccevent.Event{
-		SubjectID: sub.ID, Origin: ccevent.OriginAgent, Type: EventRoundStarted,
-		Payload: roundStartedPayload(b.Title, carryIDs(&st, pt)),
-	}); err != nil {
-		return errReply(err.Error())
-	}
-	events, err = loadEvents(hc.Ctx, hc.DB, sub.ID)
-	if err != nil {
-		return errReply(err.Error())
-	}
-	st, err = state.Reduce(events)
 	if err != nil {
 		return errReply(err.Error())
 	}
@@ -673,11 +650,12 @@ func artifactURL(port int, slug string) string {
 	return fmt.Sprintf("http://127.0.0.1:%d/p/%s", port, slug)
 }
 
-func docReplacedPayload(rawDoc json.RawMessage, revision int) json.RawMessage {
+func docReplacedPayload(rawDoc json.RawMessage, revision int, retained []string) json.RawMessage {
 	return mustJSON(struct {
 		Doc      json.RawMessage `json:"doc"`
 		Revision int             `json:"revision"`
-	}{rawDoc, revision})
+		Retained []string        `json:"retained,omitempty"`
+	}{rawDoc, revision, retained})
 }
 
 func blockUpsertedPayload(rawBlock json.RawMessage, after string) json.RawMessage {
