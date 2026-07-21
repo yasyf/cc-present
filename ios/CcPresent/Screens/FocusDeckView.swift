@@ -102,6 +102,12 @@ final class FocusDeckModel {
         go(steps, to: idx)
     }
 
+    /// jump navigates to the step owning `id` using the reconciled step list — the
+    /// comments sheet's jump handler, which has no step list of its own.
+    func jump(to id: String) {
+        jump(steps, to: id)
+    }
+
     func reset(_ steps: [FocusStep]) {
         cancelAdvance()
         self.steps = steps
@@ -176,10 +182,10 @@ private struct FocusContentHeightKey: PreferenceKey {
     }
 }
 
-/// FocusDeckView is the tinder-style deck: a progress header, a centered focal card
-/// with the next step peeking behind it, and Back/Skip/Next controls. It keys the
-/// card on `round:stepId` so a mid-deck round close remounts at step 0, and drives
-/// the approval auto-advance off an undecided→decided transition. Mirrors
+/// FocusDeckView is the tinder-style deck: a slim tier head, a centered focal card with
+/// the next step peeking behind it, and a wizard bar (Back/Skip · step dots · Next). It
+/// keys the card on `round:stepId` so a mid-deck round close remounts at step 0, and
+/// drives the approval auto-advance off an undecided→decided transition. Mirrors
 /// web/src/components/FocusDeck.tsx.
 struct FocusDeckView: View {
     let steps: [FocusStep]
@@ -189,6 +195,7 @@ struct FocusDeckView: View {
     var packContext: PackContext?
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.commentsHost) private var commentsHost
     @State private var model: FocusDeckModel
     @State private var stageWidth: CGFloat = 360
     @AccessibilityFocusState private var cardFocused: Bool
@@ -240,22 +247,19 @@ struct FocusDeckView: View {
     }
 
     var body: some View {
-        VStack(spacing: 16) {
-            FocusProgressView(
-                steps: steps,
-                index: index,
-                interactions: interactions,
-                packInteractive: packInteractive,
-                revisions: revisions,
-                onJump: jump
-            )
+        VStack(spacing: Metrics.space4) {
+            FocusProgressView(steps: steps, index: index)
             if let note = revisions.docDraftingNote {
                 FocusDraftingLine(note: note)
             }
             stage
             FocusNavView(
+                steps: steps,
                 index: index,
-                total: steps.count,
+                interactions: interactions,
+                packInteractive: packInteractive,
+                revisions: revisions,
+                onJump: jump,
                 onBack: { model.move(steps, -1) },
                 onSkip: { model.move(steps, 1) },
                 onNext: { model.next(steps, interactions, packInteractive, Set(revisions.revising.blockIds)) }
@@ -263,7 +267,13 @@ struct FocusDeckView: View {
         }
         .frame(maxWidth: .infinity)
         .environment(\.focusComposer, model.composer)
-        .onAppear { model.reconcile(steps) }
+        .onAppear {
+            model.reconcile(steps)
+            commentsHost?.attachDeck(composer: model.composer, jump: { [model] id in model.jump(to: id) })
+            commentsHost?.focusActiveId = currentStep?.primary?.id
+        }
+        .onDisappear { commentsHost?.detachDeck() }
+        .onChange(of: currentStep?.primary?.id) { _, id in commentsHost?.focusActiveId = id }
         .onChange(of: steps.map(\.id)) { _, _ in model.reconcile(steps) }
         .onChange(of: round) { _, _ in model.reset(steps) }
         .onChange(of: advanceKey) { old, new in model.reconcileAdvance(from: old, to: new) }
@@ -346,10 +356,33 @@ struct FocusDeckView: View {
     }
 }
 
-/// FocusProgressView is the deck header: a mono step counter, the tier label, and a
-/// tap-to-jump dot rail that fills decided dots with the verdict color, collapsing
-/// to a proportional bar past ten steps. Mirrors web/src/components/FocusProgress.tsx.
+/// FocusProgressView is the deck's slim tier head: the current step's tier eyebrow in
+/// the stamp voice, shown only when the step declares one. The step counter and the
+/// tap-to-jump dot rail fold into the wizard bar (FocusNavView). Mirrors the slimmed
+/// web FocusProgress head.
 struct FocusProgressView: View {
+    let steps: [FocusStep]
+    let index: Int
+
+    var body: some View {
+        if index < steps.count, let tier = steps[index].tier, !tier.isEmpty {
+            HStack(spacing: Metrics.space2) {
+                Text(tier)
+                    .voice(.stamp, .caption, weight: .semibold)
+                    .foregroundStyle(BlockPalette.accentInk)
+                    .lineLimit(1)
+                Spacer(minLength: 0)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+}
+
+/// FocusStepDots is the deck's tap-to-jump progress rail, compacted for the wizard bar
+/// center: one dot per step keyed to its verdict (dotAppearance), the current step
+/// ringed and a revised step badged, collapsing to a proportional bar past ten steps.
+/// Folded out of FocusProgressView. Mirrors the web StepDots.
+struct FocusStepDots: View {
     let steps: [FocusStep]
     let index: Int
     let interactions: Interactions
@@ -360,34 +393,15 @@ struct FocusProgressView: View {
     private let railMax = 10
 
     var body: some View {
-        let total = steps.count
-        let onSummary = index >= total
-        let shown = min(index + 1, total)
-        let tier = index < total ? steps[index].tier : nil
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 10) {
-                Text(onSummary ? "REVIEW" : "STEP \(shown) / \(total)")
-                    .font(.system(.caption, design: .monospaced).weight(.semibold))
-                    .foregroundStyle(BlockPalette.muted)
-                if let tier, !tier.isEmpty {
-                    Text(tier.uppercased())
-                        .font(.system(.caption2, design: .monospaced))
-                        .foregroundStyle(BlockPalette.accentInk)
-                        .lineLimit(1)
+        if steps.count <= railMax {
+            HStack(spacing: Metrics.space1) {
+                ForEach(Array(steps.enumerated()), id: \.element.id) { position, step in
+                    dot(step, position: position)
                 }
-                Spacer(minLength: 0)
             }
-            if total <= railMax {
-                HStack(spacing: 4) {
-                    ForEach(Array(steps.enumerated()), id: \.element.id) { position, step in
-                        dot(step, position: position)
-                    }
-                }
-            } else {
-                bar(shown: shown, total: total)
-            }
+        } else {
+            bar(shown: min(index + 1, steps.count), total: steps.count)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func dot(_ step: FocusStep, position: Int) -> some View {
@@ -418,7 +432,6 @@ struct FocusProgressView: View {
                     }
                 }
                 .frame(width: 22, height: 22)
-                .frame(maxWidth: .infinity, minHeight: 44)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -450,7 +463,7 @@ struct FocusProgressView: View {
                     .frame(width: proxy.size.width * CGFloat(shown) / CGFloat(max(total, 1)))
             }
         }
-        .frame(height: 4)
+        .frame(width: 120, height: 4)
         .accessibilityElement()
         .accessibilityLabel("Step progress")
         .accessibilityValue("Step \(shown) of \(total)")
@@ -629,14 +642,14 @@ struct FocusPeekView: View {
     let step: FocusStep
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: Metrics.space2) {
             if let tier = step.tier, !tier.isEmpty {
-                Text(tier.uppercased())
-                    .font(.system(.caption2, design: .monospaced))
+                Text(tier)
+                    .voice(.stamp, .caption2)
                     .foregroundStyle(BlockPalette.accentInk)
             }
             Text(stepTitle(step))
-                .font(.headline)
+                .voice(.display, .headline)
                 .foregroundStyle(BlockPalette.ink)
                 .lineLimit(2)
             if case let .card(card) = step.block, let summary = card.summary, !summary.isEmpty {
@@ -646,7 +659,7 @@ struct FocusPeekView: View {
                     .lineLimit(2)
             }
         }
-        .padding(18)
+        .padding(Metrics.space4)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(BlockPalette.monoBg, in: RoundedRectangle(cornerRadius: Metrics.radiusLg))
         .overlay(RoundedRectangle(cornerRadius: Metrics.radiusLg).strokeBorder(BlockPalette.line))
@@ -684,11 +697,11 @@ struct FocusCardView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: Metrics.space3) {
             metaRow
             if let text = headline.text, !text.isEmpty {
                 Text(text)
-                    .font(.title3.weight(.semibold))
+                    .voice(.display, .title2, weight: .semibold)
                     .foregroundStyle(BlockPalette.ink)
                     .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -701,9 +714,9 @@ struct FocusCardView: View {
                 RevisionCallout(mark: mark)
             }
             ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
+                VStack(alignment: .leading, spacing: Metrics.space4) {
                     if !step.context.isEmpty {
-                        VStack(alignment: .leading, spacing: 12) {
+                        VStack(alignment: .leading, spacing: Metrics.space3) {
                             ForEach(step.context, id: \.id) { block in
                                 FocusContextBlock(block: block, store: store, client: client, packContext: packContext)
                             }
@@ -724,7 +737,7 @@ struct FocusCardView: View {
             .scrollBounceBehavior(.basedOnSize)
             .onPreferenceChange(FocusContentHeightKey.self) { contentHeight = $0 }
         }
-        .padding(18)
+        .padding(Metrics.space4)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(BlockPalette.monoBg, in: RoundedRectangle(cornerRadius: Metrics.radiusLg))
         .overlay(RoundedRectangle(cornerRadius: Metrics.radiusLg).strokeBorder(BlockPalette.line))
@@ -736,19 +749,19 @@ struct FocusCardView: View {
         let chips = card?.chips ?? []
         let hasMeta = (eyebrow?.isEmpty == false) || (status?.isEmpty == false) || !chips.isEmpty
         if hasMeta {
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
+            HStack(alignment: .firstTextBaseline, spacing: Metrics.space2) {
                 if let eyebrow, !eyebrow.isEmpty {
-                    Text(eyebrow.uppercased())
-                        .font(.system(.caption2, design: .monospaced))
+                    Text(eyebrow)
+                        .voice(.stamp, .caption2)
                         .foregroundStyle(BlockPalette.accentInk)
                         .lineLimit(1)
                 }
                 if let status, !status.isEmpty {
                     FocusMetaStatus(status: status)
                 }
-                Spacer(minLength: 8)
+                Spacer(minLength: Metrics.space2)
                 if !chips.isEmpty {
-                    HStack(spacing: 4) {
+                    HStack(spacing: Metrics.space1) {
                         ForEach(Array(chips.enumerated()), id: \.offset) { _, chip in
                             FocusMetaChip(chip: chip)
                         }
@@ -991,13 +1004,13 @@ struct SwipeableFocusCard: View {
 
     private func verdictLabel(_ text: String, color: Color, tilt: Double, magnitude: CGFloat) -> some View {
         Text(text)
-            .font(.system(.title3, design: .monospaced).weight(.heavy))
+            .voice(.stamp, .title2, weight: .heavy)
             .foregroundStyle(color)
-            .padding(.vertical, 5)
-            .padding(.horizontal, 12)
-            .overlay(RoundedRectangle(cornerRadius: Metrics.radiusLg).strokeBorder(color, lineWidth: 3))
+            .padding(.vertical, Metrics.space1)
+            .padding(.horizontal, Metrics.space3)
+            .overlay(RoundedRectangle(cornerRadius: Metrics.radiusMd).strokeBorder(color, lineWidth: 3))
             .rotationEffect(.degrees(tilt))
-            .padding(22)
+            .padding(Metrics.space5)
             .opacity(Double(max(0, min(1, magnitude / commitDistance))))
     }
 }
@@ -1017,9 +1030,9 @@ struct FocusSummaryView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: Metrics.space3) {
             Text("REVIEW")
-                .font(.system(.caption, design: .monospaced).weight(.semibold))
+                .voice(.stamp, .caption, weight: .semibold)
                 .foregroundStyle(BlockPalette.muted)
             if revisingCount > 0 {
                 Label("Claude is still revising \(revisingCount) steps", systemImage: "pencil.line")
@@ -1035,7 +1048,7 @@ struct FocusSummaryView: View {
                 }
             }
         }
-        .padding(18)
+        .padding(Metrics.space4)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(BlockPalette.monoBg, in: RoundedRectangle(cornerRadius: Metrics.radiusLg))
         .overlay(RoundedRectangle(cornerRadius: Metrics.radiusLg).strokeBorder(BlockPalette.line))
@@ -1044,21 +1057,21 @@ struct FocusSummaryView: View {
     private func receipt(_ step: FocusStep) -> some View {
         let status = stepStatus(step, interactions, packInteractive)
         let answers = chosenAnswers(step)
-        return VStack(alignment: .leading, spacing: 4) {
+        return VStack(alignment: .leading, spacing: Metrics.space1) {
             HStack {
                 Text(stepTitle(step))
                     .font(.subheadline)
                     .foregroundStyle(BlockPalette.ink)
                     .lineLimit(1)
-                Spacer(minLength: 8)
+                Spacer(minLength: Metrics.space2)
                 if status == .undecided {
                     Button("Decide") { onJump(step.id) }
-                        .font(.system(.caption, design: .monospaced).weight(.semibold))
+                        .voice(.stamp, .caption, weight: .semibold)
                         .foregroundStyle(BlockPalette.accentInk)
                         .buttonStyle(.plain)
                 } else {
-                    Text((status?.rawValue ?? "—").uppercased())
-                        .font(.system(.caption2, design: .monospaced))
+                    Text(status?.rawValue ?? "—")
+                        .voice(.stamp, .caption2, weight: .semibold)
                         .foregroundStyle(color(status))
                 }
             }
@@ -1075,7 +1088,7 @@ struct FocusSummaryView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.vertical, 10)
+        .padding(.vertical, Metrics.space3)
     }
 
     /// chosenAnswers reads back a step's decided choices for the receipt: each choice's
@@ -1114,33 +1127,66 @@ struct FocusSummaryView: View {
     }
 }
 
-/// FocusNavView is the deck's Back / Skip / Next control. Back steps to the prior
-/// card; Skip advances one card without deciding; Next jumps to the nearest
-/// undecided step, wrapping, and lands on the review summary when nothing is left.
+/// FocusNavView is the deck's wizard bar: Back and Skip as ghost controls on the left,
+/// the compact tap-to-jump step dots over an `n / total` counter centered, and Next as
+/// the primary control on the right. Mirrors the web `.wizard-bar`.
 struct FocusNavView: View {
+    let steps: [FocusStep]
     let index: Int
-    let total: Int
+    let interactions: Interactions
+    let packInteractive: Set<String>
+    let revisions: RevisionState
+    let onJump: (String) -> Void
     let onBack: () -> Void
     let onSkip: () -> Void
     let onNext: () -> Void
+
+    private var total: Int {
+        steps.count
+    }
 
     private var onSummary: Bool {
         index >= total
     }
 
+    private var shown: Int {
+        min(index + 1, total)
+    }
+
     var body: some View {
-        HStack(spacing: Metrics.space3) {
-            Button(action: onBack) {
-                Label("Back", systemImage: "chevron.left")
-            }
-            .buttonStyle(GhostButtonStyle(tint: BlockPalette.muted))
-            .disabled(index <= 0)
-
-            Spacer(minLength: 8)
-
-            Button("Skip", action: onSkip)
+        HStack(spacing: Metrics.space2) {
+            HStack(spacing: Metrics.space1) {
+                Button(action: onBack) {
+                    Label("Back", systemImage: "chevron.left")
+                        .labelStyle(.iconOnly)
+                }
                 .buttonStyle(GhostButtonStyle(tint: BlockPalette.muted))
-                .disabled(onSummary)
+                .disabled(index <= 0)
+
+                Button("Skip", action: onSkip)
+                    .buttonStyle(GhostButtonStyle(tint: BlockPalette.muted))
+                    .disabled(onSummary)
+            }
+
+            Spacer(minLength: Metrics.space2)
+
+            VStack(spacing: Metrics.space1) {
+                FocusStepDots(
+                    steps: steps,
+                    index: index,
+                    interactions: interactions,
+                    packInteractive: packInteractive,
+                    revisions: revisions,
+                    onJump: onJump
+                )
+                Text("\(shown) / \(total)")
+                    .voice(.mono, .caption2, weight: .semibold)
+                    .foregroundStyle(BlockPalette.muted)
+                    .monospacedDigit()
+                    .accessibilityHidden(true)
+            }
+
+            Spacer(minLength: Metrics.space2)
 
             Button(action: onNext) {
                 Label("Next", systemImage: "chevron.right")

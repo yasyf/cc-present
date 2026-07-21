@@ -16,6 +16,7 @@ struct BoardScreen: View {
     @State private var store: BoardStore
     @State private var viewOverride: ViewMode?
     @State private var declaredInteractive: Set<String>?
+    @State private var commentsModel = CommentsModel()
     private let client: APIClient
     private let bearerToken: String?
 
@@ -71,10 +72,14 @@ struct BoardScreen: View {
             .navigationTitle(subject)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .topBarTrailing) { commentsButton }
                 ToolbarItem(placement: .topBarTrailing) { viewToggle }
             }
             .safeAreaInset(edge: .top, spacing: 0) { connectionBanner }
             .safeAreaInset(edge: .bottom, spacing: 0) { submitBar }
+            .sheet(isPresented: Bindable(commentsModel).isPresented) {
+                CommentsSheetView(store: store, comments: commentsModel)
+            }
             .task {
                 let sse = SSEClient(baseURL: machine.baseURL, session: subject, bearerToken: bearerToken)
                 let connection = await sse.connect()
@@ -97,6 +102,17 @@ struct BoardScreen: View {
     }
 
     private var board: some View {
+        ScrollViewReader { proxy in
+            boardScroll
+                .onAppear {
+                    commentsModel.boardScrollTo = { id in
+                        withAnimation { proxy.scrollTo(id, anchor: .top) }
+                    }
+                }
+        }
+    }
+
+    private var boardScroll: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 24, pinnedViews: [.sectionHeaders]) {
                 docHeader
@@ -138,6 +154,7 @@ struct BoardScreen: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .environment(\.blockReplies, state.interactions.replies)
+        .environment(\.commentsHost, commentsModel)
     }
 
     @ViewBuilder
@@ -148,6 +165,7 @@ struct BoardScreen: View {
         ForEach(group.blocks, id: \.id) { block in
             BlockView(block: block, store: store, client: client, packContext: packContext)
                 .environment(\.receiptReceded, blockDecided(block, state.interactions, packInteractive))
+                .id(block.id)
         }
     }
 
@@ -197,6 +215,26 @@ struct BoardScreen: View {
             title += " · \(state.rounds.currentTitle)"
         }
         return title
+    }
+
+    @ViewBuilder
+    private var commentsButton: some View {
+        if hasContent {
+            let count = totalCommentCount(state.interactions)
+            Button {
+                commentsModel.present(pin: nil)
+            } label: {
+                if count > 0 {
+                    HStack(spacing: 3) {
+                        Image(systemName: "bubble.left.and.bubble.right")
+                        Text("\(count)").font(.caption.monospacedDigit())
+                    }
+                } else {
+                    Image(systemName: "bubble.left.and.bubble.right")
+                }
+            }
+            .accessibilityLabel(count > 0 ? "Comments, \(count)" : "Comments")
+        }
     }
 
     @ViewBuilder

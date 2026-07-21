@@ -17,6 +17,7 @@ struct ApprovalBlockView: View {
     @Environment(\.blockReplies) private var blockReplies
     @Environment(\.focusComposer) private var focusComposer
     @Environment(\.focusHeadlineId) private var focusHeadlineId
+    @Environment(\.commentsHost) private var commentsHost
 
     private var suppressPrompt: Bool {
         focusHeadlineId == block.id
@@ -58,14 +59,20 @@ struct ApprovalBlockView: View {
 
             verdictPair
 
-            if allowFeedback, !isClosed {
-                feedbackAffordance
-            }
+            if let commentsHost {
+                CommentChip(feedbackCount: feedback.count, replyCount: replies.count) {
+                    commentsHost.present(pin: block.id)
+                }
+            } else {
+                if allowFeedback, !isClosed {
+                    feedbackAffordance
+                }
 
-            if !feedback.isEmpty || !replies.isEmpty {
-                Divider().overlay(BlockPalette.line)
-                FeedbackThreadView(feedback: feedback, replies: replies)
-                    .receiptContent()
+                if !feedback.isEmpty || !replies.isEmpty {
+                    Divider().overlay(BlockPalette.line)
+                    FeedbackThreadView(feedback: feedback, replies: replies)
+                        .receiptContent()
+                }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)

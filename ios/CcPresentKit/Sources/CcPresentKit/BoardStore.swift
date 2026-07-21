@@ -35,6 +35,10 @@ public final class BoardStore {
         state.interactions.closed.value
     }
 
+    /// lastInteracted is the id of the block a human most recently acted on, recorded at
+    /// each `send`. The comments sheet pins to it when no focus step names a decidable.
+    public private(set) var lastInteracted: String?
+
     /// revisions is the client-local seen store, fed one frame at a time from the SSE
     /// event-application path (not per SwiftUI render), so live-change marks and the
     /// revising banner survive view identity and board/focus mode switches. The focus
@@ -100,6 +104,9 @@ public final class BoardStore {
     @discardableResult
     public func send(_ interaction: Interaction) -> Task<Void, Never> {
         guard !isClosed else { return Task {} }
+        if let blockId = interaction.blockId {
+            lastInteracted = blockId
+        }
         guard let event = try? Event.wireFrame(JSONEncoder().encode(interaction)) else {
             return Task {}
         }

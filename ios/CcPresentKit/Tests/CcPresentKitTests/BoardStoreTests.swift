@@ -107,6 +107,32 @@ struct BoardStoreTests {
         #expect(store.state.interactions.feedback["b1"]?.count == 1)
     }
 
+    @Test("send records the interacting block, and submit (no block) leaves it untouched")
+    func lastInteractedTracksBlockScopedSends() {
+        let store = BoardStore(subject: "s", transport: ScriptedTransport(seqs: [1, 2, 3]))
+        #expect(store.lastInteracted == nil)
+
+        store.send(.decision(blockId: "b1", verdict: .approved))
+        #expect(store.lastInteracted == "b1")
+
+        store.send(.feedback(id: "f", blockId: "b2", text: "note"))
+        #expect(store.lastInteracted == "b2")
+
+        // submit is document-scoped: it carries no block, so the pin holds.
+        store.send(.submit(revision: 1))
+        #expect(store.lastInteracted == "b2")
+    }
+
+    @Test("a closed board records no last-interacted block")
+    func lastInteractedIgnoresClosedBoard() throws {
+        let store = BoardStore(subject: "s", transport: ScriptedTransport(seqs: []))
+        try store.ingest(frame(type: "present.closed", seq: 1))
+        #expect(store.isClosed)
+
+        store.send(.decision(blockId: "b1", verdict: .approved))
+        #expect(store.lastInteracted == nil)
+    }
+
     @Test("an interaction after present.closed is a no-op — no overlay, no POST")
     func interactionAfterCloseIsNoOp() async throws {
         let transport = ScriptedTransport(seqs: [])

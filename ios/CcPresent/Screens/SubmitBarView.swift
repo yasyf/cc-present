@@ -58,15 +58,13 @@ struct SubmitBarView: View {
                 HStack(spacing: Metrics.space2) {
                     if hasHistory {
                         Text("Round \(store.state.rounds.current)")
-                            .font(.caption2)
-                            .fontWeight(.semibold)
+                            .voice(.mono, .caption2, weight: .semibold)
                             .foregroundStyle(BlockPalette.accentInk)
                             .monospacedDigit()
                     }
                     if total > 0 {
                         Text("\(decided)/\(total) decided")
-                            .font(.caption2)
-                            .fontWeight(.bold)
+                            .voice(.mono, .caption2, weight: .bold)
                             .monospacedDigit()
                             .foregroundStyle(decided == total ? BlockPalette.approve : BlockPalette.muted)
                     }
@@ -78,14 +76,14 @@ struct SubmitBarView: View {
                         .lineLimit(1)
                 }
             }
-            Spacer(minLength: 8)
+            Spacer(minLength: Metrics.space2)
             Button(label, action: attemptSubmit)
                 .buttonStyle(PrimaryButtonStyle())
                 .disabled(store.isClosed)
         }
         .padding(.horizontal, Metrics.space4)
         .padding(.vertical, Metrics.space3)
-        .background(.bar)
+        .background(BlockPalette.cardLift)
         .overlay(alignment: .top) {
             Rectangle()
                 .fill(BlockPalette.accentInk)

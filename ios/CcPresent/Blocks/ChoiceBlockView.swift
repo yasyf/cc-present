@@ -15,10 +15,12 @@ struct ChoiceBlockView: View {
     @Environment(\.focusHeadlineId) private var focusHeadlineId
     @Environment(\.focusComposer) private var focusComposer
     @Environment(\.blockReplies) private var blockReplies
+    @Environment(\.commentsHost) private var commentsHost
 
     @State private var otherDraft = ""
     @State private var noteDraft = ""
     @State private var noteComposing = false
+    @State private var activeCardId: String?
     @FocusState private var otherFocused: Bool
     @FocusState private var noteFocused: Bool
 
@@ -50,15 +52,28 @@ struct ChoiceBlockView: View {
         focusHeadlineId == block.id
     }
 
-    /// axes is the shared fact-label sequence, non-nil only when every fact-carrying
-    /// option matches; `aligned` renders the comparison grid, gated to regular width so
-    /// a compact iPhone deck keeps the self-labeled per-option chips.
-    private var axes: [String]? {
-        factAxes(block.options)
+    /// strip opts the options into the horizontal snap carousel at three or more, mirroring
+    /// the web `data-strip` threshold; two or fewer keep the vertical stack.
+    private var strip: Bool {
+        block.options.count >= 3
     }
 
-    private var aligned: Bool {
-        axes != nil && sizeClass == .regular
+    /// cardsVisible is how many cards the carousel shows at once — ~2.2 in a regular-width
+    /// deck, ~1.15 plus an edge peek on a compact iPhone.
+    private var cardsVisible: CGFloat {
+        sizeClass == .regular ? 2.2 : 1.15
+    }
+
+    /// otherCardId names the trailing write-in card in the scroll-position and dots id space,
+    /// namespaced by the block id so it never collides with an authored option id.
+    private var otherCardId: String {
+        "\(block.id)::__other"
+    }
+
+    /// cardIds is the carousel's ordered id list — every authored option then the write-in —
+    /// backing both the dot indicators and the `scrollPosition` binding.
+    private var cardIds: [String] {
+        block.options.map(\.id) + [otherCardId]
     }
 
     private var feedback: [Feedback] {
@@ -81,12 +96,18 @@ struct ChoiceBlockView: View {
 
             optionsGroup
 
-            noteAffordance
+            if let commentsHost {
+                CommentChip(feedbackCount: feedback.count, replyCount: replies.count) {
+                    commentsHost.present(pin: block.id)
+                }
+            } else {
+                noteAffordance
 
-            if !feedback.isEmpty || !replies.isEmpty {
-                Divider().overlay(BlockPalette.line)
-                FeedbackThreadView(feedback: feedback, replies: replies)
-                    .receiptContent()
+                if !feedback.isEmpty || !replies.isEmpty {
+                    Divider().overlay(BlockPalette.line)
+                    FeedbackThreadView(feedback: feedback, replies: replies)
+                        .receiptContent()
+                }
             }
         }
         .onAppear { otherDraft = otherText ?? "" }
@@ -111,129 +132,175 @@ struct ChoiceBlockView: View {
 
     @ViewBuilder
     private var optionsGroup: some View {
-        let stack = VStack(alignment: .leading, spacing: Metrics.space2) {
-            if aligned, let axes {
-                factAxesHeader(axes)
+        let group = VStack(alignment: .leading, spacing: Metrics.space3) {
+            if strip {
+                carousel
+            } else {
+                ForEach(Array(block.options.enumerated()), id: \.element.id) { index, option in
+                    optionCard(option, isOn: selectedIds.contains(option.id), position: index + 1)
+                }
+                otherCard(position: cardIds.count)
             }
-            ForEach(block.options, id: \.id) { option in
-                optionRow(option, isOn: selectedIds.contains(option.id))
-            }
-            otherRow
         }
         if suppressPrompt {
-            stack
+            group
                 .accessibilityElement(children: .contain)
                 .accessibilityLabel(block.prompt ?? "Options")
         } else {
-            stack
+            group
         }
     }
 
-    private func optionRow(_ option: Block.Option, isOn: Bool) -> some View {
+    /// carousel is the horizontal snap strip: each card is width-bounded to show ~2.2
+    /// (regular) or ~1.15 + peek (compact) at once, view-aligned snapping, with the leading
+    /// card's id driving the dot indicators below the strip.
+    private var carousel: some View {
         VStack(alignment: .leading, spacing: Metrics.space3) {
-            HStack(alignment: .top, spacing: Metrics.space3) {
-                OptionIndicator(multi: multi, isOn: isOn)
-                    .padding(.top, 2)
-                VStack(alignment: .leading, spacing: Metrics.space1) {
-                    HStack(alignment: .firstTextBaseline, spacing: Metrics.space2) {
-                        Text(option.label)
-                            .font(.body)
-                            .fontWeight(.semibold)
-                            .foregroundStyle(BlockPalette.ink)
-                        if option.recommended == true {
-                            RecommendedStamp()
+            ScrollView(.horizontal) {
+                HStack(alignment: .top, spacing: Metrics.space3) {
+                    ForEach(Array(block.options.enumerated()), id: \.element.id) { index, option in
+                        optionCard(option, isOn: selectedIds.contains(option.id), position: index + 1)
+                            .containerRelativeFrame(.horizontal, alignment: .leading) { width, _ in
+                                width / cardsVisible
+                            }
+                            .id(option.id)
+                    }
+                    otherCard(position: cardIds.count)
+                        .containerRelativeFrame(.horizontal, alignment: .leading) { width, _ in
+                            width / cardsVisible
+                        }
+                        .id(otherCardId)
+                }
+                .scrollTargetLayout()
+            }
+            .scrollTargetBehavior(.viewAligned)
+            .scrollPosition(id: $activeCardId, anchor: .leading)
+            .scrollIndicators(.hidden)
+
+            dots
+        }
+    }
+
+    /// dots marks the carousel position: one tick per card, the leading card's tick inked
+    /// with the accent. Decorative — VoiceOver reads position off each card instead.
+    private var dots: some View {
+        let current = activeCardId ?? cardIds.first
+        return HStack(spacing: Metrics.space2) {
+            ForEach(cardIds, id: \.self) { id in
+                Circle()
+                    .fill(id == current ? BlockPalette.accentInk : BlockPalette.borderStrong)
+                    .frame(width: 6, height: 6)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .accessibilityHidden(true)
+    }
+
+    private func optionCard(_ option: Block.Option, isOn: Bool, position: Int) -> some View {
+        cardChrome(selected: isOn) {
+            VStack(alignment: .leading, spacing: Metrics.space3) {
+                VStack(alignment: .leading, spacing: Metrics.space2) {
+                    HStack(alignment: .top, spacing: Metrics.space3) {
+                        OptionIndicator(multi: multi, isOn: isOn)
+                            .padding(.top, 2)
+                        VStack(alignment: .leading, spacing: Metrics.space1) {
+                            HStack(alignment: .firstTextBaseline, spacing: Metrics.space2) {
+                                Text(option.label)
+                                    .font(.body)
+                                    .fontWeight(.semibold)
+                                    .foregroundStyle(BlockPalette.ink)
+                                if option.recommended == true {
+                                    RecommendedStamp()
+                                }
+                                Spacer(minLength: 0)
+                            }
+                            if let hint = option.hint, !hint.isEmpty {
+                                MarkdownText(hint)
+                                    .font(.caption2)
+                                    .foregroundStyle(BlockPalette.muted)
+                            }
+                            if let body = option.md, !body.isEmpty {
+                                MarkdownText(body, style: .clamped)
+                                    .font(.subheadline)
+                                    .foregroundStyle(BlockPalette.muted)
+                            }
                         }
                     }
-                    if let hint = option.hint, !hint.isEmpty {
-                        MarkdownText(hint)
-                            .font(.caption2)
-                            .foregroundStyle(BlockPalette.muted)
-                    }
-                    if let body = option.md, !body.isEmpty {
-                        MarkdownText(body, style: .clamped)
-                            .font(.subheadline)
-                            .foregroundStyle(BlockPalette.muted)
+                    if let facts = option.facts, !facts.isEmpty {
+                        OptionFactRows(facts: facts)
+                            .padding(.top, Metrics.space1)
                     }
                 }
-                Spacer(minLength: 12)
-                if aligned, let axes {
-                    AlignedFactValues(axes: axes, facts: option.facts ?? [])
-                } else if let facts = option.facts, !facts.isEmpty {
-                    FactsCluster(facts: facts)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
+                .onTapGesture { toggle(option.id) }
+                .accessibilityElement(children: .combine)
+                .accessibilityAddTraits(traits(isOn: isOn))
+                .accessibilityValue("option \(position) of \(cardIds.count)")
+                .accessibilityAction { toggle(option.id) }
+
+                if let detail = option.detail {
+                    DetailView(detail: detail)
                 }
-            }
-            .contentShape(Rectangle())
-            .onTapGesture { toggle(option.id) }
-            .accessibilityElement(children: .combine)
-            .accessibilityAddTraits(traits(isOn: isOn))
-            .accessibilityAction { toggle(option.id) }
-
-            if let detail = option.detail {
-                DetailView(detail: detail)
-                    .padding(.leading, 30)
-            }
-
-            if let visual = option.visual {
-                OptionVisualDisclosure(visual: visual, context: packContext, client: client)
-                    .padding(.leading, 30)
-            }
-        }
-        .padding(Metrics.space3)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            isOn ? BlockPalette.accentInk.opacity(0.08) : Color.clear,
-            in: RoundedRectangle(cornerRadius: Metrics.radiusLg)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: Metrics.radiusLg)
-                .strokeBorder(isOn ? BlockPalette.accentInk : BlockPalette.line)
-        )
-        .opacity(locked ? 0.55 : 1)
-    }
-
-    /// otherRow is the chrome write-in: a selection marker and an inline field committing
-    /// on submit. Its selected look follows a committed `other`, and the field mirrors it.
-    private var otherRow: some View {
-        HStack(alignment: .center, spacing: Metrics.space3) {
-            OptionIndicator(multi: multi, isOn: otherSelected)
-            TextField("Other…", text: $otherDraft)
-                .textFieldStyle(.plain)
-                .font(.body)
-                .foregroundStyle(BlockPalette.ink)
-                .focused($otherFocused)
-                .submitLabel(.done)
-                .disabled(locked)
-                .onSubmit(commitOther)
-                .accessibilityLabel("Other, write-in answer")
-        }
-        .padding(Metrics.space3)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            otherSelected ? BlockPalette.accentInk.opacity(0.08) : Color.clear,
-            in: RoundedRectangle(cornerRadius: Metrics.radiusLg)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: Metrics.radiusLg)
-                .strokeBorder(otherSelected ? BlockPalette.accentInk : BlockPalette.line)
-        )
-        .opacity(locked ? 0.55 : 1)
-    }
-
-    private func factAxesHeader(_ axes: [String]) -> some View {
-        HStack(alignment: .top, spacing: Metrics.space3) {
-            Spacer(minLength: 0)
-            HStack(spacing: Metrics.space3) {
-                ForEach(Array(axes.enumerated()), id: \.offset) { _, label in
-                    Text(label)
-                        .voice(.stamp, size: 10, weight: .medium)
-                        .foregroundStyle(BlockPalette.muted)
-                        .frame(width: factColumnWidth, alignment: .trailing)
-                        .multilineTextAlignment(.trailing)
+                if let visual = option.visual {
+                    OptionVisualDisclosure(visual: visual, context: packContext, client: client)
                 }
             }
         }
-        .padding(.horizontal, Metrics.space3)
-        .accessibilityHidden(true)
+    }
+
+    /// otherCard is the trailing write-in card: a selection marker and an inline field that
+    /// commits on submit, sharing the option cards' chrome and selected accent. Its look
+    /// follows a committed `other`, and the field mirrors it.
+    private func otherCard(position: Int) -> some View {
+        cardChrome(selected: otherSelected) {
+            HStack(alignment: .center, spacing: Metrics.space3) {
+                OptionIndicator(multi: multi, isOn: otherSelected)
+                TextField("Other…", text: $otherDraft)
+                    .textFieldStyle(.plain)
+                    .font(.body)
+                    .foregroundStyle(BlockPalette.ink)
+                    .focused($otherFocused)
+                    .submitLabel(.done)
+                    .disabled(locked)
+                    .onSubmit(commitOther)
+                    .accessibilityLabel("Other, write-in answer")
+                    .accessibilityValue("option \(position) of \(cardIds.count)")
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    /// cardChrome lays an option card on the raised `cardLift` ground: a hairline border, a
+    /// top edge-lift highlight for dark elevation, and the pencil-accent wash plus border
+    /// when selected. A locked board dims the whole card.
+    private func cardChrome(selected: Bool, @ViewBuilder content: () -> some View) -> some View {
+        let shape = RoundedRectangle(cornerRadius: Metrics.radiusLg, style: .continuous)
+        return content()
+            .padding(Metrics.space4)
+            .frame(maxWidth: .infinity, alignment: .topLeading)
+            .background {
+                shape
+                    .fill(BlockPalette.cardLift)
+                    .overlay {
+                        if selected {
+                            shape.fill(BlockPalette.accentInk.opacity(0.1))
+                        }
+                    }
+            }
+            .overlay {
+                shape.strokeBorder(
+                    selected ? BlockPalette.accentInk : BlockPalette.line,
+                    lineWidth: selected ? 1.5 : 1
+                )
+            }
+            .overlay {
+                shape.strokeBorder(
+                    LinearGradient(colors: [BlockPalette.edgeLift, .clear], startPoint: .top, endPoint: .bottom),
+                    lineWidth: 1
+                )
+            }
+            .opacity(locked ? 0.55 : 1)
     }
 
     @ViewBuilder
@@ -305,8 +372,6 @@ struct ChoiceBlockView: View {
         noteComposing = false
     }
 }
-
-private let factColumnWidth: CGFloat = 60
 
 /// OptionVisualView renders an option's restricted visual leaf: a diagram through the
 /// shared single-block webview, code/diff/image through their native views. The switch
@@ -483,48 +548,26 @@ private struct OptionIndicator: View {
     }
 }
 
-/// AlignedFactValues renders an option's fact values only, one per axis in fixed-width
-/// trailing columns so they line up under the shared axes header. A missing fact leaves
-/// its column blank, keeping every option's values in the same columns.
-private struct AlignedFactValues: View {
-    let axes: [String]
+/// OptionFactRows renders an option's Tier-1 facts as per-card label/value rows: the dim
+/// uppercase label on the leading edge, the tone-tinted value trailing. Each card keeps its
+/// facts in factAxes order, replacing the retired cross-row comparison grid.
+private struct OptionFactRows: View {
     let facts: [Block.Fact]
 
     var body: some View {
-        HStack(spacing: Metrics.space3) {
-            ForEach(Array(axes.enumerated()), id: \.offset) { index, _ in
-                let fact = facts.indices.contains(index) ? facts[index] : nil
-                Text(fact?.value ?? "")
-                    .font(.system(size: 14, weight: .semibold, design: .rounded))
-                    .foregroundStyle(factToneColor(fact?.tone))
-                    .frame(width: factColumnWidth, alignment: .trailing)
-                    .multilineTextAlignment(.trailing)
-            }
-        }
-        .accessibilityElement(children: .combine)
-    }
-}
-
-/// FactsCluster renders an option's Tier-1 facts on the row's trailing edge: each
-/// fact's value reads prominent and tone-tinted, with its optional label as a dim
-/// uppercase eyebrow beneath.
-private struct FactsCluster: View {
-    let facts: [Block.Fact]
-
-    var body: some View {
-        VStack(alignment: .trailing, spacing: Metrics.space2) {
+        VStack(alignment: .leading, spacing: Metrics.space1) {
             ForEach(Array(facts.enumerated()), id: \.offset) { _, fact in
-                VStack(alignment: .trailing, spacing: 1) {
-                    Text(fact.value)
-                        .font(.system(size: 14, weight: .semibold, design: .rounded))
-                        .foregroundStyle(factToneColor(fact.tone))
-                        .multilineTextAlignment(.trailing)
+                HStack(alignment: .firstTextBaseline, spacing: Metrics.space3) {
                     if let label = fact.label, !label.isEmpty {
                         Text(label)
                             .voice(.stamp, size: 10, weight: .medium)
                             .foregroundStyle(BlockPalette.muted)
-                            .multilineTextAlignment(.trailing)
                     }
+                    Spacer(minLength: Metrics.space2)
+                    Text(fact.value)
+                        .font(.system(size: 14, weight: .semibold, design: .rounded))
+                        .foregroundStyle(factToneColor(fact.tone))
+                        .multilineTextAlignment(.trailing)
                 }
             }
         }
