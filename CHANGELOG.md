@@ -6,6 +6,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-07-21
+
+### Added
+- One live handler per board, daemon-enforced. Dispatching a new
+  `present-handler` supersedes the previous one via the substrate's
+  `SingletonSubscriber` knob (cc-interact @29a3366): the old handler's parked
+  `await` wakes with a terminal `supersede` directive and it exits on its own,
+  `agent.stopped` lands on the subject log, and stale `StatusRunning` rows —
+  kill-9'd zombies, restart-reconcile losers — are swept by the next dispatch.
+  The skill and agent prose drop the TaskStop-before-redispatch correctness
+  caveat; TaskStop remains hygiene only.
+
 ## [0.14.2] - 2026-07-21
 
 ### Added
