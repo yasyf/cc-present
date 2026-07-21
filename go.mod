@@ -10,7 +10,7 @@ require (
 	github.com/spf13/cobra v1.10.2
 	github.com/yasyf/cc-context v0.28.5-0.20260720034201-f18e537f26a5
 	github.com/yasyf/cc-interact v0.15.0
-	github.com/yasyf/daemonkit v0.3.0
+	github.com/yasyf/daemonkit v0.3.2
 	github.com/yasyf/synckit v0.24.0
 )
 
