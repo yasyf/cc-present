@@ -35,7 +35,7 @@ my-pack/
 ├── schema/              # one JSON Schema per block, plus interaction schemas
 ├── examples/            # one example block object per block
 ├── src/
-│   ├── pack.tsx         # bundle entry: default export { hostApi: 2, blocks }
+│   ├── pack.tsx         # bundle entry: default export { hostApi: 1, blocks }
 │   ├── host/            # react shims + window.CcPresent typings — copy verbatim
 │   └── *.tsx            # your components
 ├── reference/blocks.md  # what an authoring agent reads to compose your blocks
@@ -50,11 +50,8 @@ In `cc-present.toml`, set `name` (the `<pack>` half of every block type),
 schema, an optional interaction schema, and at least one example. The
 field-by-field rules are in [the manifest table](contract.md#manifest).
 
-`host_api` is a floor, not an equality: it declares the minimum host API your
-pack requires, and the daemon loads any pack whose floor it meets. A pack
-declaring `host_api = 1` loads unchanged on today's version-2 daemon; declare
-`2` only when you use the hostApi 2 helpers below, since a floor above the
-daemon's version drops the pack at discovery with a visible reason.
+`host_api` is an exact protocol identity, not a compatibility floor. Set it to
+`1`. Every other value drops the pack at discovery with `host_api <n>, want 1`.
 
 ## Write the schemas and components
 
@@ -88,7 +85,7 @@ import { Rating } from './Rating';
 import { Survey } from './Survey';
 
 export default {
-  hostApi: 2,
+  hostApi: 1,
   blocks: { callout: Callout, rating: Rating, survey: Survey },
 };
 ```

@@ -13,11 +13,9 @@ import (
 	"github.com/yasyf/cc-present/internal/doc"
 )
 
-// HostAPIVersion is the pack host API this daemon implements. A manifest's
-// host_api is the minimum host API the pack requires; the daemon loads any pack
-// whose floor it meets (1 <= host_api <= HostAPIVersion) and echoes this version
-// on /api/packs as the compat gate the SPA and packs check against.
-const HostAPIVersion = 2
+// HostAPIVersion is the exact pack host API this daemon implements and echoes on
+// /api/packs as the identity the SPA and packs require.
+const HostAPIVersion = 1
 
 // maxFileBytes caps the manifest and every manifest-declared file so a malicious
 // pack can't force an unbounded read at scan.
@@ -198,15 +196,15 @@ func (r *Registry) drop(dir, reason string) {
 	r.Dropped = append(r.Dropped, DroppedPack{Dir: dir, Reason: reason})
 }
 
-// buildPack validates a pack root fail-loud: strict manifest, host_api floor met,
+// buildPack validates a pack root fail-loud: strict manifest, exact host_api,
 // declared files present, and every schema compiling as Draft 2020-12.
 func buildPack(root string) (*Pack, error) {
 	m, err := ParseManifest(root)
 	if err != nil {
 		return nil, err
 	}
-	if m.HostAPI < 1 || m.HostAPI > HostAPIVersion {
-		return nil, fmt.Errorf("host_api %d, want 1..%d", m.HostAPI, HostAPIVersion)
+	if m.HostAPI != HostAPIVersion {
+		return nil, fmt.Errorf("host_api %d, want %d", m.HostAPI, HostAPIVersion)
 	}
 	r, err := os.OpenRoot(root)
 	if err != nil {

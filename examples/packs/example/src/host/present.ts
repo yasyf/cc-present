@@ -1,4 +1,4 @@
-// The window.CcPresent contract (hostApi 2) a pack sees. Copy verbatim into your pack.
+// The window.CcPresent contract (hostApi 1) a pack sees. Copy verbatim into your pack.
 
 // ThemeTokens is the frozen ui.tokens contract of CSS-variable reference strings.
 export interface ThemeTokens {
@@ -32,7 +32,7 @@ export interface PackToast {
 
 // CcPresentHost is the window.CcPresent surface installed before any pack loads.
 export interface CcPresentHost {
-  hostApi: 2;
+  hostApi: 1;
   React: typeof import('react');
   jsxRuntime: typeof import('react/jsx-runtime');
   reactDom: { createPortal: (...args: unknown[]) => unknown };

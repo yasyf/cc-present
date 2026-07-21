@@ -15,7 +15,7 @@ Invoke it as bare `cc-present` — Claude Code (≥ 2.1.91) puts the plugin's `b
 cc-present pack init --name <pack> <dir>
 ```
 
-Offline, no daemon. `--name` defaults to the target directory's basename, and the command refuses a non-empty directory. It writes 23 files: a working pack with one content block (`<pack>.callout`) and two interactive blocks (`<pack>.rating`, plus the two-step `<pack>.survey` wizard that exercises the hostApi 2 helpers), renamed to your pack throughout, plus a `.gitignore` that ignores only `node_modules/` — never `dist/`, which a shipped pack commits.
+Offline, no daemon. `--name` defaults to the target directory's basename, and the command refuses a non-empty directory. It writes 23 files: a working pack with one content block (`<pack>.callout`) and two interactive blocks (`<pack>.rating`, plus the two-step `<pack>.survey` wizard that exercises the hostApi 1 helpers), renamed to your pack throughout, plus a `.gitignore` that ignores only `node_modules/` — never `dist/`, which a shipped pack commits.
 
 The name must match `^[a-z][a-z0-9-]*$` and run at most 32 characters. It becomes the `<pack>.` half of every block type; built-in types never contain a dot, so the dotted namespace belongs to packs permanently.
 
@@ -25,7 +25,7 @@ my-pack/
 ├── schema/              # one JSON Schema per block, plus interaction schemas
 ├── examples/            # one example block object per block
 ├── src/
-│   ├── pack.tsx         # bundle entry: default export { hostApi: 2, blocks }
+│   ├── pack.tsx         # bundle entry: default export { hostApi: 1, blocks }
 │   ├── host/            # react shims + window.CcPresent typings — keep verbatim
 │   └── *.tsx            # your components
 ├── reference/blocks.md  # what a consuming agent reads to compose your blocks
@@ -62,7 +62,7 @@ Components import `react` normally; the vite config aliases `react` and `react/j
 
 ```tsx
 export default {
-  hostApi: 2,
+  hostApi: 1,
   blocks: { callout: Callout, rating: Rating, survey: Survey },
 };
 ```
@@ -75,7 +75,7 @@ The host qualifies those bare names with your manifest's pack name and calls eac
 - Blocks also render full-bleed in single-block mode (the iOS webview) — don't assume board chrome around you.
 - In focus mode an interactive block is its own step, your component the card's body — the host reserves no gestures over it: `reference/host-api.md` § Focus mode.
 
-hostApi 2 adds three interactivity helpers, all wrapped by `src/host/present.ts`: `toast({kind, text})` raises a shell toast at commit moments; `usePackState(key, initial)` holds per-tab draft state that survives focus-deck navigation and agent re-upserts (it dies on reload and never enters the event log); and the `context` prop above decomposes `disabled`. A multi-control block declares one object interaction schema and each control submits the merged payload — `submit({...(value ?? {}), field})`. The scaffolded survey block exercises all of it. The manifest's `host_api` is the floor you require. Declare `1` when you use none of this, `2` when you do: `reference/host-api.md` § Versioning.
+Host API 1 includes three interactivity helpers, all wrapped by `src/host/present.ts`: `toast({kind, text})` raises a shell toast at commit moments; `usePackState(key, initial)` holds per-tab draft state that survives focus-deck navigation and agent re-upserts (it dies on reload and never enters the event log); and the `context` prop above decomposes `disabled`. A multi-control block declares one object interaction schema and each control submits the merged payload — `submit({...(value ?? {}), field})`. The scaffolded survey block exercises all of it. Both the manifest's `host_api` and the bundle export's `hostApi` must be exactly `1`: `reference/host-api.md` § Versioning.
 
 ## 4. Build and check
 

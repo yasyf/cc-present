@@ -149,10 +149,10 @@ func TestBuildPackHostAPI(t *testing.T) {
 		hostAPI string
 		wantErr string
 	}{
-		{"floor loads", "host_api = 1", ""},
-		{"current loads", "host_api = 2", ""},
-		{"above ceiling dropped", "host_api = 3", "host_api 3, want 1..2"},
-		{"below floor dropped", "host_api = 0", "host_api 0, want 1..2"},
+		{"exact identity loads", "host_api = 1", ""},
+		{"retired identity dropped", "host_api = 2", "host_api 2, want 1"},
+		{"future identity dropped", "host_api = 3", "host_api 3, want 1"},
+		{"zero identity dropped", "host_api = 0", "host_api 0, want 1"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

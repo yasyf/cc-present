@@ -110,11 +110,11 @@ public struct KeychainError: Error, Equatable {
 }
 
 /// TokenStore keeps a machine's bearer token in the Keychain as a generic-password
-/// item under service `com.yasyf.cc-present`, keyed by the machine id. The calls
+/// item under service `com.yasyf.cc-present.v1`, keyed by the machine id. The calls
 /// are the portable SecItem surface, so they compile on macOS and iOS alike.
 public enum TokenStore {
     /// service is the Keychain service every token item shares.
-    public static let service = "com.yasyf.cc-present"
+    public static let service = "com.yasyf.cc-present.v1"
 
     /// setToken writes (replacing any prior value) the token for `machineID`, bound to
     /// this device and readable by a background read after the first post-boot unlock.
@@ -141,12 +141,11 @@ public enum TokenStore {
         guard retryStatus == errSecSuccess else { throw KeychainError(status: retryStatus) }
     }
 
-    /// token reads the token for `machineID`, or nil when none is stored. A token
-    /// written before the device-only hardening is upgraded to it in place on read.
+    /// token reads the v1 token for `machineID`, or nil when the machine must be
+    /// paired again. Tokens under any older identity are deliberately invisible.
     public static func token(machineID: String) throws -> String? {
         var query = baseQuery(machineID)
         query[kSecReturnData as String] = true
-        query[kSecReturnAttributes as String] = true
         query[kSecMatchLimit as String] = kSecMatchLimitOne
         var result: CFTypeRef?
         let status = SecItemCopyMatching(query as CFDictionary, &result)
@@ -154,13 +153,8 @@ public enum TokenStore {
             return nil
         }
         guard status == errSecSuccess else { throw KeychainError(status: status) }
-        guard let item = result as? [String: Any],
-              let data = item[kSecValueData as String] as? Data
-        else {
+        guard let data = result as? Data else {
             throw KeychainError(status: errSecInternalError)
-        }
-        if needsAccessibilityUpgrade(current: item[kSecAttrAccessible as String] as? String) {
-            try upgradeAccessibility(machineID: machineID)
         }
         guard let token = String(data: data, encoding: .utf8) else {
             throw KeychainError(status: errSecDecode)
@@ -171,33 +165,6 @@ public enum TokenStore {
     /// deleteToken removes the token for `machineID`; a missing item is not an error.
     public static func deleteToken(machineID: String) throws {
         let status = SecItemDelete(baseQuery(machineID) as CFDictionary)
-        guard status == errSecSuccess || status == errSecItemNotFound else {
-            throw KeychainError(status: status)
-        }
-    }
-
-    /// The accessibility classes an earlier build could have written that are NOT
-    /// device-bound. Reading a token stored under one upgrades it in place to the
-    /// hardened class; anything already device-bound — including a stricter class —
-    /// is left as-is, so the migration only ever tightens, never loosens.
-    static let migratableAccessibilityClasses: Set<String> = [
-        kSecAttrAccessibleWhenUnlocked as String,
-        kSecAttrAccessibleAfterFirstUnlock as String,
-    ]
-
-    static func needsAccessibilityUpgrade(current: String?) -> Bool {
-        guard let current else { return false }
-        return migratableAccessibilityClasses.contains(current)
-    }
-
-    /// Best-effort, post-read migration: if the item was deleted out from under us
-    /// between the read and here, there is nothing left to upgrade — that is not a
-    /// failure of the read that already succeeded.
-    private static func upgradeAccessibility(machineID: String) throws {
-        let status = SecItemUpdate(
-            baseQuery(machineID) as CFDictionary,
-            [kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly] as CFDictionary
-        )
         guard status == errSecSuccess || status == errSecItemNotFound else {
             throw KeychainError(status: status)
         }

@@ -1,4 +1,4 @@
-// The window.CcPresent host surface (contract hostApi 2): packs share the host's
+// The window.CcPresent host surface (contract hostApi 1): packs share the host's
 // single React instance via aliased shims. installHost publishes it before imports.
 
 import * as React from 'react';
@@ -13,7 +13,7 @@ import type { PackToast } from './toasts';
 import { usePackState } from './state';
 
 export interface CcPresentHost {
-  hostApi: 2;
+  hostApi: 1;
   React: typeof React;
   jsxRuntime: typeof jsxRuntime;
   reactDom: { createPortal: typeof createPortal };
@@ -38,7 +38,7 @@ declare global {
 export function installHost(): void {
   if (window.CcPresent) return;
   window.CcPresent = {
-    hostApi: 2,
+    hostApi: 1,
     React,
     jsxRuntime,
     reactDom: { createPortal },

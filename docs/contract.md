@@ -199,7 +199,7 @@ root.
 
 | Field | Required | Constraint |
 |---|---|---|
-| `host_api` | yes | The minimum host API the pack requires — a floor, not an equality. The daemon (host API **2**) loads any pack in `1..2`; a floor above the daemon's version drops the pack at discovery with `host_api <n>, want 1..2`. |
+| `host_api` | yes | The exact host API identity. The daemon requires `1`; every other value drops the pack at discovery with `host_api <n>, want 1`. |
 | `name` | yes | Matches `^[a-z][a-z0-9-]*$`, at most 32 characters; the `<pack>` half of every block type. |
 | `version` | yes | Non-empty; cache-busts the bundle and styles URLs. |
 | `description` | no | Prose shown in `/api/packs` and `pack list`. |
@@ -230,7 +230,7 @@ The daemon scans two tiers of pack roots and re-scans on access after a
 Discovery is fail-soft per pack. Any violation drops that pack and records the
 directory and reason in a `dropped` list, visible in `/api/packs` and
 `cc-present pack list`, while every other pack still loads. A manifest error, a
-`host_api` outside `1..2`, a missing declared file, and a schema that fails to
+`host_api` other than `1`, a missing declared file, and a schema that fails to
 compile are each such a violation. The HTTP
 response carries only the dropped directory's base name, never its absolute
 path.
@@ -257,7 +257,7 @@ an ES module.
 
 ```ts
 PacksResponse = {
-  hostApi: 2,
+  hostApi: 1,
   packs: {
     name, version, description,
     bundle,                 // "/packs/<name>/dist/…?v=<version>"
@@ -269,8 +269,8 @@ PacksResponse = {
 ```
 
 `schema` and `interaction` are the raw schema documents, inlined. `hostApi`
-echoes the daemon's host API version — the ceiling every manifest's `host_api`
-floor is checked against.
+echoes the daemon's exact host API identity, which every manifest and bundle
+must match.
 
 ### Single-block mode
 

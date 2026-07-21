@@ -57,20 +57,6 @@ struct PairingTests {
         #expect(loaded == machines)
     }
 
-    @Test(
-        "the migration upgrades only backup-migratable classes and never loosens a device-bound one",
-        arguments: [
-            (nil, false),
-            (kSecAttrAccessibleWhenUnlocked as String, true),
-            (kSecAttrAccessibleAfterFirstUnlock as String, true),
-            (kSecAttrAccessibleWhenUnlockedThisDeviceOnly as String, false),
-            (kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly as String, false),
-        ] as [(String?, Bool)]
-    )
-    func accessibilityUpgradeDecision(current: String?, expected: Bool) {
-        #expect(TokenStore.needsAccessibilityUpgrade(current: current) == expected)
-    }
-
     @Test("a written token round-trips and delete clears it")
     func tokenRoundTrip() throws {
         let machineID = "cc-present-tests-\(UUID().uuidString)"
@@ -85,21 +71,23 @@ struct PairingTests {
         #expect(try TokenStore.token(machineID: machineID) == nil)
     }
 
-    @Test("rewrite-on-read migrates a legacy item without losing the token")
-    func legacyTokenMigratesOnRead() throws {
+    @Test("a token under the retired identity requires manual re-pairing")
+    func retiredTokenRequiresRepair() throws {
         let machineID = "cc-present-tests-\(UUID().uuidString)"
         defer { try? TokenStore.deleteToken(machineID: machineID) }
 
-        let legacyItem: [String: Any] = [
+        let retiredItem: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: TokenStore.service,
+            kSecAttrService as String: "com.yasyf.cc-present",
             kSecAttrAccount as String: machineID,
-            kSecValueData as String: Data("legacy-secret".utf8),
+            kSecValueData as String: Data("retired-secret".utf8),
         ]
-        SecItemDelete(legacyItem as CFDictionary)
-        try #require(SecItemAdd(legacyItem as CFDictionary, nil) == errSecSuccess)
+        SecItemDelete(retiredItem as CFDictionary)
+        defer { SecItemDelete(retiredItem as CFDictionary) }
+        try #require(SecItemAdd(retiredItem as CFDictionary, nil) == errSecSuccess)
 
-        #expect(try TokenStore.token(machineID: machineID) == "legacy-secret")
-        #expect(try TokenStore.token(machineID: machineID) == "legacy-secret")
+        #expect(try TokenStore.token(machineID: machineID) == nil)
+        try TokenStore.setToken("v1-secret", machineID: machineID)
+        #expect(try TokenStore.token(machineID: machineID) == "v1-secret")
     }
 }

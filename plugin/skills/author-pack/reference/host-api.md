@@ -8,16 +8,16 @@ The entry's default export is the pack module:
 
 ```tsx
 export default {
-  hostApi: 2,
+  hostApi: 1,
   blocks: { callout: Callout, rating: Rating, survey: Survey },
 };
 ```
 
-`hostApi` is declared twice — `host_api` in the manifest (checked at discovery) and here in the export, asserted by `bun run smoke` and range-checked again when the SPA imports the bundle. The block keys are the bare halves of your dotted types; the host qualifies them with the manifest's pack name, so the `rating` key backs `<pack>.rating`.
+`hostApi` is declared twice — `host_api` in the manifest (checked at discovery) and here in the export, asserted by `bun run smoke` and checked again when the SPA imports the bundle. Both must equal `1`. The block keys are the bare halves of your dotted types; the host qualifies them with the manifest's pack name, so the `rating` key backs `<pack>.rating`.
 
-## Versioning — the floor rule
+## Versioning — exact identity
 
-`host_api` declares the minimum host API the pack requires, and the daemon loads any pack whose floor it meets: `1 <= host_api <= 2`, the daemon's own version. A pack declaring `1` loads unchanged on today's version-2 host; the v1 surface is a strict subset of v2, so there is nothing to migrate. Declare `2` only when you use `ui.tokens`, `ui.toast`, `ui.usePackState`, or the `context` prop, since a floor above the daemon's version drops the pack at discovery with `host_api <n>, want 1..2`. There is no capability detection. The floor is the whole negotiation.
+`host_api` is the pack protocol identity, not a compatibility floor. The daemon, SPA manifest, and bundle export all require exactly `1`; any other value is rejected with `host_api <n>, want 1` before the pack loads. There is no capability detection, range negotiation, or older host surface.
 
 ## `window.CcPresent`
 
@@ -25,7 +25,7 @@ The host page installs this object before any pack bundle loads. The scaffold's 
 
 | Field | What it is |
 |---|---|
-| `hostApi` | `2` — the version this surface implements; every manifest's `host_api` floor gates against it. |
+| `hostApi` | `1` — the exact version this surface implements and every manifest and bundle must declare. |
 | `React` | The page's single React instance (`typeof import('react')`). |
 | `jsxRuntime` | The automatic-runtime factories: `jsx`, `jsxs`, `Fragment`. |
 | `reactDom.createPortal` | Portal into the host document (tooltips, overlays). |
@@ -165,4 +165,4 @@ Design for it: the component must lay out sanely at full width with nothing arou
 
 A board with decisions opens as a focus deck — one step at a time — and an interactive pack block is one step, your component rendering as the body of a focus card. The single-block rule above already covers the layout: content sizes itself, and nothing about board chrome is assumed. `disabled` semantics are unchanged.
 
-Step participation is automatic: a manifest-declared `interaction` schema makes the block its own step and counts it toward the submit tally, on web and iOS alike; a block without one is context. The component owns all pointer interaction inside its card: a pack step is never swipe-to-decide, and the host reserves no gestures over it. hostApi 2 changes none of this — step participation still comes from the manifest, never from a runtime declaration. What v2 does buy a focus step is `usePackState`: deck navigation unmounts non-current steps, and per-tab draft state is what keeps a half-filled wizard alive across that unmount.
+Step participation is automatic: a manifest-declared `interaction` schema makes the block its own step and counts it toward the submit tally, on web and iOS alike; a block without one is context. The component owns all pointer interaction inside its card: a pack step is never swipe-to-decide, and the host reserves no gestures over it. Step participation comes from the manifest, never from a runtime declaration. `usePackState` keeps a half-filled wizard alive when deck navigation unmounts non-current steps.

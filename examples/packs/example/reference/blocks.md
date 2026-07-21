@@ -49,7 +49,7 @@ through `scale`.
 
 ## example.survey
 
-A two-step wizard built on the hostApi 2 surface. `ui.usePackState` holds the
+A two-step wizard built on the hostApi 1 surface. `ui.usePackState` holds the
 step index and per-step drafts, which survive remounts and board↔focus
 navigation. `ui.tokens` styles every element, and the last step raises a
 `ui.toast` and submits one merged payload.

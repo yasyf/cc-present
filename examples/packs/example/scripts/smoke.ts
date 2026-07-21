@@ -6,7 +6,7 @@ import * as jsxRuntime from 'react/jsx-runtime';
 
 (globalThis as { window?: unknown }).window = {
   CcPresent: {
-    hostApi: 2,
+    hostApi: 1,
     React,
     jsxRuntime,
     reactDom: { createPortal: () => null },
@@ -30,7 +30,7 @@ const problems: string[] = [];
 if (!def) {
   problems.push('missing default export');
 } else {
-  if (def.hostApi !== 2) problems.push(`hostApi = ${String(def.hostApi)}, want 2`);
+  if (def.hostApi !== 1) problems.push(`hostApi = ${String(def.hostApi)}, want 1`);
   const blocks = def.blocks ?? {};
   for (const name of ['callout', 'rating', 'survey']) {
     if (typeof blocks[name] !== 'function') {
@@ -45,4 +45,4 @@ if (problems.length > 0) {
   process.exit(1);
 }
 
-console.log('pack smoke ok: default export { hostApi: 2, blocks: { callout, rating, survey } }');
+console.log('pack smoke ok: default export { hostApi: 1, blocks: { callout, rating, survey } }');

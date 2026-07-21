@@ -1,4 +1,4 @@
-host_api = 2
+host_api = 1
 name = "example"
 version = "0.2.0"
 description = "Reference block pack: a toned callout, an interactive rating, and a two-step survey wizard."
@@ -17,7 +17,7 @@ interaction = "schema/rating.interaction.json"
 examples = ["examples/rating.json"]
 
 [blocks.survey]
-description = "A two-step wizard exercising the hostApi 2 surface: tokens, toast, and usePackState draft persistence."
+description = "A two-step wizard exercising the hostApi 1 surface: tokens, toast, and usePackState draft persistence."
 schema = "schema/survey.json"
 interaction = "schema/survey.interaction.json"
 examples = ["examples/survey.json"]

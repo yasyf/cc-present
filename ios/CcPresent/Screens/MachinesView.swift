@@ -49,11 +49,12 @@ struct KeychainMachineRegistry: MachineRegistry {
 typealias SessionsClientFactory = @Sendable (Machine, String?) -> any SessionsProviding
 
 /// Reachability is the machine-row status dot: unknown until the first probe
-/// resolves, then reachable or unreachable.
+/// resolves, then reachable, unreachable, or requiring a fresh pairing.
 enum Reachability: Sendable {
     case unknown
     case reachable
     case unreachable
+    case pairingRequired
 }
 
 /// MachinesModel owns the paired-machine roster and a lightweight reachability probe
@@ -112,10 +113,13 @@ final class MachinesModel {
         }
     }
 
-    /// probe resolves one machine's reachability by asking it for its sessions with
-    /// the stored token; any failure reads as unreachable.
+    /// probe requires a v1 token before asking the machine for its sessions. A
+    /// missing token requests manual re-pairing; transport failures are unreachable.
     func probe(_ machine: Machine) async {
-        let token = (try? registry.token(for: machine.id)) ?? nil
+        guard let token = try? registry.token(for: machine.id) else {
+            reachability[machine.id] = .pairingRequired
+            return
+        }
         let client = clientFactory(machine, token)
         do {
             _ = try await client.sessions()
@@ -260,6 +264,11 @@ private struct MachineRow: View {
                 Text(machine.baseURL.absoluteString)
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                if case .pairingRequired = reachability {
+                    Text("Forget and pair this machine again.")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                }
             }
         }
         .padding(.vertical, 2)
@@ -270,6 +279,7 @@ private struct MachineRow: View {
         case .unknown: .secondary
         case .reachable: .green
         case .unreachable: .red
+        case .pairingRequired: .orange
         }
     }
 }

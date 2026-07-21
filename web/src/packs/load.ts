@@ -15,12 +15,12 @@ interface PackModule {
   default?: { hostApi?: unknown; blocks?: Record<string, unknown> };
 }
 
-// HOST_API is the highest pack host API this SPA implements; a manifest or bundle
-// declaring any floor it meets (1 <= host_api <= HOST_API) loads.
-const HOST_API = 2;
+// HOST_API is the exact pack host API this SPA implements. Manifests and bundles
+// with any other identity are rejected before registration.
+const HOST_API = 1;
 
 function hostApiSupported(v: unknown): boolean {
-  return typeof v === 'number' && Number.isInteger(v) && v >= 1 && v <= HOST_API;
+  return v === HOST_API;
 }
 
 let loadPromise: Promise<void> | null = null;
