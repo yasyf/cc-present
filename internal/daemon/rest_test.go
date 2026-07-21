@@ -60,7 +60,7 @@ func emptyPackLoader(t *testing.T) *packs.Loader {
 
 func newRestHarnessWith(t *testing.T, docJSON string, loader *packs.Loader) *restHarness {
 	t.Helper()
-	cc, err := ccstore.Open(context.Background(), t.TempDir()+"/t.db", nil)
+	cc, err := ccstore.Open(context.Background(), t.TempDir()+"/t.db", ccstore.Schema{})
 	if err != nil {
 		t.Fatalf("open store: %v", err)
 	}

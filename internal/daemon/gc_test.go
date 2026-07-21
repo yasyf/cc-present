@@ -23,7 +23,7 @@ func TestGCAssets(t *testing.T) {
 	shaUnrefOld := strings.Repeat("d", 64)
 	shaUnrefYoung := strings.Repeat("e", 64)
 
-	cc, err := ccstore.Open(context.Background(), filepath.Join(t.TempDir(), "t.db"), nil)
+	cc, err := ccstore.Open(context.Background(), filepath.Join(t.TempDir(), "t.db"), ccstore.Schema{})
 	if err != nil {
 		t.Fatalf("open store: %v", err)
 	}

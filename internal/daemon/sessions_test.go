@@ -23,7 +23,7 @@ type sessionsHarness struct {
 
 func newSessionsHarness(t *testing.T) *sessionsHarness {
 	t.Helper()
-	cc, err := ccstore.Open(context.Background(), filepath.Join(t.TempDir(), "t.db"), nil)
+	cc, err := ccstore.Open(context.Background(), filepath.Join(t.TempDir(), "t.db"), ccstore.Schema{})
 	if err != nil {
 		t.Fatalf("open store: %v", err)
 	}
