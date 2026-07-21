@@ -5,6 +5,7 @@ import type { Interactions } from '../events';
 import { usePresent } from '../present';
 import { verdictToggle } from '../decide';
 import { useDecidable } from '../keyboard';
+import { Button } from './Button';
 import { Mark } from './Mark';
 import { DetailDisclosure } from './Detail';
 import { FeedbackThread } from './FeedbackThread';
@@ -43,9 +44,10 @@ export function Approval({ block, interactions }: { block: ApprovalBlock; intera
     <div className="approval" ref={ref} data-kbd-cursor={cursor || undefined} data-composing={composing || undefined}>
       {!suppressPrompt && block.prompt && <p className="approval-prompt">{block.prompt}</p>}
       {block.detail && <DetailDisclosure detail={block.detail} interactions={interactions} />}
-      <div className="verdict-pair" role="radiogroup" aria-label={suppressPrompt && block.prompt ? block.prompt : 'verdict'}>
-        <button
-          type="button"
+      <div className="decision-bar" role="radiogroup" aria-label={suppressPrompt && block.prompt ? block.prompt : 'verdict'}>
+        <Button
+          variant="ghost"
+          size="lg"
           role="radio"
           aria-checked={verdict === 'approved'}
           disabled={locked}
@@ -56,9 +58,10 @@ export function Approval({ block, interactions }: { block: ApprovalBlock; intera
             {verdict === 'approved' ? <Mark kind="check" /> : '✓'}
           </span>
           Approve
-        </button>
-        <button
-          type="button"
+        </Button>
+        <Button
+          variant="ghost"
+          size="lg"
           role="radio"
           aria-checked={verdict === 'rejected'}
           disabled={locked}
@@ -69,7 +72,7 @@ export function Approval({ block, interactions }: { block: ApprovalBlock; intera
             {verdict === 'rejected' ? <Mark kind="cross" /> : '✕'}
           </span>
           Reject
-        </button>
+        </Button>
       </div>
 
       <FeedbackThread

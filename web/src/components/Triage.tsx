@@ -8,6 +8,7 @@ import { nextUndecided, verdictToggle } from '../decide';
 import { factAxes } from '../focus';
 import { useDecidable } from '../keyboard';
 import { renderInlineMarkdown } from '../markdown';
+import { Button } from './Button';
 import { Mark } from './Mark';
 import { Clamped } from './Clamped';
 import { DetailDisclosure } from './Detail';
@@ -228,9 +229,10 @@ function TriageRow({
             <DetailDisclosure detail={item.detail} visual={item.visual} interactions={interactions} />
           )}
         </div>
-        <div className="verdict-pair triage-verdicts" role="radiogroup" aria-label={item.label}>
-          <button
-            type="button"
+        <div className="decision-bar triage-verdicts" role="radiogroup" aria-label={item.label}>
+          <Button
+            variant="ghost"
+            size="sm"
             role="radio"
             aria-checked={verdict === 'approved'}
             disabled={locked}
@@ -241,9 +243,10 @@ function TriageRow({
               {verdict === 'approved' ? <Mark kind="check" /> : '✓'}
             </span>
             Approve
-          </button>
-          <button
-            type="button"
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
             role="radio"
             aria-checked={verdict === 'rejected'}
             disabled={locked}
@@ -254,7 +257,7 @@ function TriageRow({
               {verdict === 'rejected' ? <Mark kind="cross" /> : '✕'}
             </span>
             Reject
-          </button>
+          </Button>
         </div>
       </div>
 

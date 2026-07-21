@@ -134,7 +134,7 @@ describe('SubmitBar armed confirm', () => {
     act(() => btn().click());
     expect(btn().textContent).toBe('Submit anyway?');
     expect(container.querySelector('.submit-warn')?.textContent).toBe('1 approval still undecided');
-    act(() => (container.querySelector('.submit-actions .link-btn') as HTMLButtonElement).click());
+    act(() => (container.querySelector('.submit-actions .btn-ghost') as HTMLButtonElement).click());
     expect(btn().textContent).toBe('Submit');
     expect(container.querySelector('.submit-warn')).toBeNull();
   });

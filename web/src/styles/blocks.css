@@ -179,28 +179,17 @@
   font-weight: 550;
   font-size: var(--text-base);
 }
-.verdict-pair {
-  display: inline-flex;
-  gap: var(--space-1);
+.decision-bar {
+  display: flex;
+  gap: var(--space-3);
   margin-top: var(--space-2);
-  padding: var(--space-1);
-  background: var(--mono-bg);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-md);
-  width: fit-content;
+  width: 100%;
+}
+.decision-bar > .verdict {
+  flex: 1;
 }
 .verdict {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  border: 1px solid transparent;
-  border-radius: var(--radius-sm);
-  background: transparent;
   color: var(--muted);
-  padding: var(--space-1) var(--space-3);
-  min-height: 2rem;
-  font-size: var(--text-2xs);
-  font-weight: 600;
 }
 .verdict-glyph {
   font-size: var(--text-xs);
@@ -222,12 +211,12 @@
 .verdict-reject:hover:not(:disabled):not(.active) {
   color: var(--reject);
 }
-.verdict-approve.active {
+.btn.verdict-approve.active {
   background: var(--approve);
   border-color: transparent;
   color: var(--accent-fg);
 }
-.verdict-reject.active {
+.btn.verdict-reject.active {
   background: var(--reject);
   border-color: transparent;
   color: var(--accent-fg);
@@ -259,13 +248,6 @@
 }
 .feedback-editor textarea {
   width: 100%;
-  resize: vertical;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-md);
-  background: var(--card);
-  color: var(--ink);
-  padding: var(--space-2);
-  font: inherit;
 }
 .feedback-actions {
   display: flex;
@@ -348,13 +330,8 @@
   cursor: pointer;
   transition: border-color var(--dur-1) var(--ease-out), background var(--dur-1) var(--ease-out);
 }
-/* The trailing facts column only exists when the option carries facts, so a
-   factless option keeps its full-width body with no dead trailing gutter. */
-.option:has(.option-facts) {
-  grid-template-columns: auto 1fr auto;
-}
 /* The 1–9 keymap index, shown only while the keyboard cursor rests on the block.
-   A surface chip keeps it legible where it overlaps the facts column. */
+   A surface chip keeps it legible where it overlaps the body's top-right corner. */
 .option-index {
   position: absolute;
   top: var(--space-2);
@@ -368,14 +345,9 @@
   background: color-mix(in srgb, var(--surface) 88%, transparent);
   border-radius: var(--radius-sm);
 }
-/* When the cursor's index chip and the facts column share the top-right corner,
-   drop the facts stack below the chip so it never covers the first fact. */
-.option:has(.option-index) .option-facts {
-  padding-top: var(--space-4);
-}
-/* A factless option has no trailing facts column, so its body reaches the right
-   edge at every width — clear the chip's footprint horizontally on the label. */
-.option:not(:has(.option-facts)):has(.option-index) .option-body {
+/* Facts sit in a full-width row below the body, so the body always reaches the
+   chip's top-right corner — reserve the chip's footprint on it at every width. */
+.option:has(.option-index) .option-body {
   padding-right: var(--chip-clear);
 }
 .option:hover:not([aria-disabled='true']) {
@@ -480,22 +452,27 @@
   line-height: var(--leading-normal);
 }
 
-/* Facts: the scannable Tier-1 cluster on the option's trailing edge. A vertical
-   right-aligned stack keeps each fact at a steady offset down the option list. */
+/* Facts: the scannable Tier-1 cluster, a full-width tray foot below the body.
+   Grid auto-placement drops it into its own card-spanning row, set off by a rule. */
 .option-facts {
-  grid-column: 3;
-  grid-row: 1;
+  grid-column: 1 / -1;
+  margin-top: auto;
   display: flex;
   flex-direction: column;
-  align-items: flex-end;
+  align-items: stretch;
   gap: var(--space-2);
   min-width: 0;
-  text-align: right;
+  border-top: 1px solid var(--line);
+  padding-top: var(--space-2);
+  text-align: left;
 }
 .fact {
   display: flex;
-  flex-direction: column;
-  align-items: flex-end;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--space-3);
+  padding: var(--space-1) 0;
   line-height: var(--leading-tight);
 }
 .fact-value {
@@ -542,67 +519,73 @@
   border-color: color-mix(in srgb, var(--accent-fill) 55%, var(--line));
 }
 
-/* Aligned fact grid (factAxes): options become a subgrid so fact values align into
-   columns; --fact-count is inline, mismatched labels fall back to the stack. */
-.options[data-facts-aligned] {
+/* Choice card strip: three or more options opt the container into data-strip, a
+   scroll-snap carousel of .option cards. Per-card foot facts replace the old
+   cross-row alignment. */
+.options[data-strip] {
+  --option-card-w: min(20rem, calc((100% - 2 * var(--space-3)) / 2.5));
   display: grid;
-  grid-template-columns: auto 1fr repeat(var(--fact-count), max-content);
-  row-gap: var(--space-2);
-  column-gap: var(--space-3);
-  align-items: start;
+  grid-auto-flow: column;
+  grid-auto-columns: var(--option-card-w);
+  align-items: stretch;
+  gap: var(--space-3);
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  overscroll-behavior-x: contain;
+  padding-block: var(--space-1) var(--space-2);
+  scrollbar-width: none;
 }
-.options[data-facts-aligned] .option {
-  display: grid;
-  grid-template-columns: subgrid;
-  grid-column: 1 / -1;
+.options[data-strip]::-webkit-scrollbar {
+  display: none;
 }
-.fact-axes {
-  display: grid;
-  grid-template-columns: subgrid;
-  grid-column: 1 / -1;
-  align-items: baseline;
-  padding: 0 var(--space-3);
-}
-.fact-axis-lead {
-  grid-column: 1 / 3;
-}
-.fact-axis {
-  font-family: var(--font-stamp);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  font-size: var(--text-2xs);
-  color: var(--dim);
-  text-align: right;
-}
-.fact-cell {
+.options[data-strip] .option {
+  scroll-snap-align: start;
   display: flex;
   flex-direction: column;
-  align-items: flex-end;
-  line-height: var(--leading-tight);
+  gap: var(--space-2);
+  padding: var(--space-4);
+  box-shadow: var(--edge-lift);
 }
-.fact-cell-value {
-  font-variant-numeric: tabular-nums;
-  font-weight: 600;
-  font-size: var(--text-sm);
-  color: var(--text);
+/* Below the margin breakpoint the stage spans the main column; the strip bleeds
+   into the page gutter so cards peek beneath it, iOS-style. */
+@media (max-width: 1100px) {
+  .options[data-strip] {
+    margin-inline: calc(-1 * var(--page-pad));
+    padding-inline: var(--page-pad);
+    scroll-padding-inline: var(--page-pad);
+  }
 }
-/* Each cell repeats its axis header; hidden here, revealed when facts fold to chips. */
-.fact-cell-label {
-  display: none;
-  font-family: var(--font-stamp);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  font-size: var(--text-2xs);
-  color: var(--dim);
+
+/* Dots + edge arrows, rendered after the scroller; JS toggles .on and disables the
+   edge arrow. Explicit hover keeps base.css's button:hover off the domain dots. */
+.strip-nav {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
 }
-.fact-cell.fact-good .fact-cell-value {
-  color: var(--ok);
+.strip-dots {
+  display: flex;
+  gap: var(--space-2);
+  margin-right: auto;
 }
-.fact-cell.fact-warn .fact-cell-value {
-  color: var(--warn);
+.strip-dot {
+  position: relative;
+  width: 8px;
+  height: 8px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: var(--line);
+  cursor: pointer;
 }
-.fact-cell.fact-bad .fact-cell-value {
-  color: var(--danger);
+.strip-dot:hover:not(:disabled) {
+  background: var(--border-strong);
+}
+.strip-dot.on,
+.strip-dot.on:hover:not(:disabled) {
+  background: var(--accent-fill);
 }
 
 /* Detail: the Tier-2 drill-down, full-width under the option body. The inline
@@ -627,6 +610,11 @@
 .option-detail .cc-group-body {
   padding: var(--space-2) 0 0;
   border-top: none;
+}
+/* Strip cards are height-bounded, so cap an expanded detail and scroll it inside. */
+.options[data-strip] .option-detail .cc-group-body {
+  max-height: 15rem;
+  overflow-y: auto;
 }
 .detail-trigger {
   display: flex;
@@ -1285,47 +1273,14 @@
 }
 
 /* --- Responsive: block controls at the two breakpoints of record. At --bp-rail
-   every human control clears the 44px touch floor; at --bp-compact the verdict pair
-   spreads to a full-width two-up grid and the structural type ramp steps down. --- */
+   choice rows and disclosure controls clear the 44px touch floor; at --bp-compact
+   the decision bar becomes a two-up grid and the structural type ramp steps down. --- */
 
 @media (max-width: 720px) {
-  /* Verdict buttons, choice rows, and the clamp toggle all reach the touch floor.
-     The clamp toggle centers its label within the taller hit area. */
-  .verdict {
-    min-height: 44px;
-  }
+  /* Choice rows and the clamp toggle reach the touch floor. The shared .btn
+     system owns the same floor for verdict controls. */
   .option {
     min-height: 44px;
-  }
-  /* Facts fold to a wrapping row stacked under the body; the trailing column drops. */
-  .option:has(.option-facts) {
-    grid-template-columns: auto 1fr;
-  }
-  /* With facts folded to row 2, the body reaches the card's right edge — where the
-     keymap chip sits. Reserve the chip's footprint so a long label never runs under
-     it, and cancel the desktop rule that drops the (now row-2) facts below the chip:
-     down here the chip clears horizontally, so the vertical pad only leaves a gap. */
-  .option:has(.option-index) .option-body {
-    padding-right: var(--chip-clear);
-  }
-  .option:has(.option-index) .option-facts {
-    padding-top: 0;
-  }
-  .option-facts {
-    grid-column: 2 / -1;
-    grid-row: 2;
-    flex-direction: row;
-    flex-wrap: wrap;
-    align-items: baseline;
-    justify-content: flex-start;
-    gap: var(--space-3);
-    margin-top: var(--space-1);
-    text-align: left;
-  }
-  .fact {
-    flex-direction: row;
-    align-items: baseline;
-    gap: var(--space-1);
   }
   .detail-trigger,
   .option-detail .cc-group-header {
@@ -1338,6 +1293,24 @@
     width: 2.75rem;
     height: 2.75rem;
   }
+  /* The strip narrows to ~1.2 cards and drops its arrows to touch scrolling; the
+     dots stay for position. */
+  .options[data-strip] {
+    --option-card-w: min(17.5rem, 82%);
+  }
+  .strip-nav > .btn {
+    display: none;
+  }
+  /* With the arrows gone the 8px dots are the only strip nav, so extend each to a
+     44px hit area with a centered pseudo; the visible dot stays 8px. */
+  .strip-dot::after {
+    content: '';
+    position: absolute;
+    inset: 50% auto auto 50%;
+    width: 44px;
+    height: 44px;
+    transform: translate(-50%, -50%);
+  }
   .clamp-toggle {
     display: inline-flex;
     align-items: center;
@@ -1346,9 +1319,9 @@
 }
 
 @media (max-width: 440px) {
-  /* The approval verdict pair spreads to a full-width two-column grid so each
+  /* The approval decision bar spreads to a full-width two-column grid so each
      verdict is a broad thumb target; the labels center within their columns. */
-  .verdict-pair {
+  .decision-bar {
     display: grid;
     grid-template-columns: 1fr 1fr;
     width: 100%;
@@ -1363,38 +1336,20 @@
     font-size: var(--text-md);
   }
 
-  /* Aligned facts fold: drop the shared header and subgrid, let each option flow
-     its fact cells to a labeled chip row beside the body. */
-  .fact-axes {
-    display: none;
-  }
-  .options[data-facts-aligned] {
+  /* The strip stands down to a full-width vertical stack — no snap, no nav. */
+  .options[data-strip] {
     display: flex;
     flex-direction: column;
-    gap: var(--space-2);
+    overflow: visible;
+    scroll-snap-type: none;
+    margin-inline: 0;
+    padding-inline: 0;
   }
-  .options[data-facts-aligned] .option {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: baseline;
-    column-gap: var(--space-3);
+  .options[data-strip] .option {
+    padding: var(--space-3);
   }
-  .options[data-facts-aligned] .option-body {
-    flex: 1 1 auto;
-    min-width: 60%;
-  }
-  .options[data-facts-aligned] .fact-cell {
-    flex-direction: row;
-    align-items: baseline;
-    gap: var(--space-1);
-    margin-top: var(--space-1);
-  }
-  .options[data-facts-aligned] .fact-cell-label {
-    display: inline;
-    order: -1;
-  }
-  .options[data-facts-aligned] .option-detail {
-    flex-basis: 100%;
+  .strip-nav {
+    display: none;
   }
 }
 
@@ -1442,10 +1397,9 @@
   color: var(--text);
 }
 
-/* Universal write-in row: an always-present chrome option beneath the authored
-   set, its inline field the escape hatch every choice guarantees. */
+/* Universal write-in row: the always-present trailing card, its inline field the
+   escape hatch every choice guarantees. Container gap owns its spacing. */
 .option-other {
-  margin-top: var(--space-2);
   cursor: default;
 }
 .option-other-input {
@@ -1952,6 +1906,7 @@
 }
 .triage-verdicts {
   flex: none;
+  width: auto;
 }
 .triage-note {
   margin-top: var(--space-1);

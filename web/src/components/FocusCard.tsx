@@ -9,6 +9,7 @@ import type { Block, OptionVisual } from '../schema';
 import type { Interaction, Interactions } from '../events';
 import { usePresent } from '../present';
 import { revisionStore, useRevisingBanner, useUnseenChange } from '../revision';
+import { useMediaQuery } from '../useMediaQuery';
 import { useExpandAll } from '../expand';
 import { renderMarkdown } from '../markdown';
 import { BlockBody, BlockRenderer } from './BlockRenderer';
@@ -63,24 +64,11 @@ function FocusContextBlock({ block, interactions }: { block: Block; interactions
   return <BlockRenderer block={block} interactions={interactions} />;
 }
 
-// useCompact tracks the --bp-compact (440px) breakpoint, mirroring useTheme's
-// media-query subscription, so the stage can collapse on a phone.
-function useCompact(): boolean {
-  const [compact, setCompact] = useState(() => window.matchMedia('(max-width: 440px)').matches);
-  useEffect(() => {
-    const mql = window.matchMedia('(max-width: 440px)');
-    const onChange = (e: MediaQueryListEvent) => setCompact(e.matches);
-    mql.addEventListener('change', onChange);
-    return () => mql.removeEventListener('change', onChange);
-  }, []);
-  return compact;
-}
-
 // StageMedia is the option-visual stage. It always mounts the .focus-media slot
 // (empty until an option publishes a visual); at --bp-compact a present visual
 // collapses to a titled <details> so it never crowds the options, expanding inline.
 function StageMedia({ visual, interactions }: { visual: OptionVisual | null; interactions: Interactions }) {
-  const compact = useCompact();
+  const compact = useMediaQuery('(max-width: 440px)');
   if (!visual) return <div className="focus-media" />;
   if (compact) {
     return (

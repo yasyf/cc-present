@@ -130,7 +130,7 @@ const currentPrompt = (): string | undefined =>
   container.querySelector('.focus-card:not([data-exiting]) .focus-question')?.textContent ?? undefined;
 const peekTitle = (): string | undefined => container.querySelector('.focus-peek-title')?.textContent ?? undefined;
 function clickNext(): void {
-  act(() => (container.querySelector('.focus-nav-btn.primary') as HTMLButtonElement).click());
+  act(() => (container.querySelector('.wizard-bar .btn-primary') as HTMLButtonElement).click());
 }
 function clickDot(i: number): void {
   act(() => (container.querySelectorAll('.focus-dot')[i] as HTMLButtonElement).click());
@@ -176,6 +176,11 @@ describe('FocusDeck navigation', () => {
     render({ blocks: three, interactions: empty() });
     act(() => (container.querySelectorAll('.focus-dot')[2] as HTMLButtonElement).click());
     expect(currentPrompt()).toBe('Ship three');
+  });
+
+  it('mounts exactly one step-dot rail across the deck', () => {
+    render({ blocks: three, interactions: empty() });
+    expect(container.querySelectorAll('.focus-dots, .focus-strip').length).toBe(1);
   });
 
   it('lands on the review summary past the last step', () => {
@@ -313,10 +318,10 @@ describe('FocusDeck advance cue', () => {
     vi.useFakeTimers();
     render({ blocks: three, interactions: empty() });
     render({ blocks: three, interactions: withVerdict('a1', 'approved') });
-    expect(container.querySelector('.focus-nav-btn.advancing')).not.toBeNull();
+    expect(container.querySelector('.wizard-bar .btn-primary.advancing')).not.toBeNull();
     act(() => vi.advanceTimersByTime(AUTO_ADVANCE_MS));
     expect(currentPrompt()).toBe('Ship two');
-    expect(container.querySelector('.focus-nav-btn.advancing')).toBeNull();
+    expect(container.querySelector('.wizard-bar .btn-primary.advancing')).toBeNull();
   });
 
   it('cancels the auto-advance on a keydown inside the deck', () => {
@@ -324,7 +329,7 @@ describe('FocusDeck advance cue', () => {
     render({ blocks: three, interactions: empty() });
     render({ blocks: three, interactions: withVerdict('a1', 'approved') });
     act(() => liveCard().dispatchEvent(new KeyboardEvent('keydown', { key: 'x', bubbles: true })));
-    expect(container.querySelector('.focus-nav-btn.advancing')).toBeNull();
+    expect(container.querySelector('.wizard-bar .btn-primary.advancing')).toBeNull();
     act(() => vi.advanceTimersByTime(AUTO_ADVANCE_MS));
     expect(currentPrompt()).toBe('Ship one');
   });
@@ -334,7 +339,7 @@ describe('FocusDeck advance cue', () => {
     render({ blocks: three, interactions: empty() });
     render({ blocks: three, interactions: withVerdict('a1', 'approved') });
     act(() => liveCard().dispatchEvent(new Event('pointerdown', { bubbles: true })));
-    expect(container.querySelector('.focus-nav-btn.advancing')).toBeNull();
+    expect(container.querySelector('.wizard-bar .btn-primary.advancing')).toBeNull();
     act(() => vi.advanceTimersByTime(AUTO_ADVANCE_MS));
     expect(currentPrompt()).toBe('Ship one');
   });
@@ -348,10 +353,10 @@ describe('FocusDeck advance cue', () => {
     // input: it must not retract the cue.
     const reject = liveCard().querySelector('.verdict-reject') as HTMLButtonElement;
     act(() => reject.dispatchEvent(new Event('pointerdown', { bubbles: true })));
-    expect(container.querySelector('.focus-nav-btn.advancing')).not.toBeNull();
+    expect(container.querySelector('.wizard-bar .btn-primary.advancing')).not.toBeNull();
     // The re-decide re-arms; the deck still advances 450ms after it lands.
     render({ blocks: three, interactions: withVerdict('a1', 'rejected') });
-    expect(container.querySelector('.focus-nav-btn.advancing')).not.toBeNull();
+    expect(container.querySelector('.wizard-bar .btn-primary.advancing')).not.toBeNull();
     act(() => vi.advanceTimersByTime(AUTO_ADVANCE_MS));
     expect(currentPrompt()).toBe('Ship two');
   });
@@ -369,7 +374,7 @@ describe('FocusDeck choice auto-advance', () => {
   const liveCard = (): Element => container.querySelector('.focus-card:not([data-exiting])')!;
   const liveOption = (): HTMLElement =>
     container.querySelector('.focus-card:not([data-exiting]) .option') as HTMLElement;
-  const advancing = (): Element | null => container.querySelector('.focus-nav-btn.advancing');
+  const advancing = (): Element | null => container.querySelector('.wizard-bar .btn-primary.advancing');
   const twoStep: Block[] = [choice('c1', 'Pick one', ['o1', 'o2']), approval('a2', 'Ship two')];
 
   it('arms and advances a lone single-select choice on a pick', () => {

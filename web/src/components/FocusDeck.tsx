@@ -12,7 +12,7 @@ import type { Interactions } from '../events';
 import { FocusCard } from './FocusCard';
 import { FocusPeek } from './FocusPeek';
 import { FocusProgress } from './FocusProgress';
-import { FocusNav } from './FocusNav';
+import { WizardFooter } from './WizardFooter';
 import { FocusSummary } from './FocusSummary';
 import type { ExitCustom } from './focusMotion';
 
@@ -270,13 +270,7 @@ export function FocusDeck({ steps, interactions, round, closed, onEndChange }: F
           onKeyDownCapture={cancelAdvance}
           onPointerDownCapture={cancelAdvance}
         >
-          <FocusProgress
-            steps={steps}
-            index={index}
-            interactions={interactions}
-            packInteractive={packInteractive}
-            onJump={jump}
-          />
+          <FocusProgress steps={steps} index={index} />
           <div className="focus-stage">
             {!onSummary && index + 1 < total && <FocusPeek step={steps[index + 1]!} />}
             <AnimatePresence mode="popLayout" custom={exitCustomForPresence} initial={false}>
@@ -293,12 +287,16 @@ export function FocusDeck({ steps, interactions, round, closed, onEndChange }: F
               )}
             </AnimatePresence>
           </div>
-          <FocusNav
+          <WizardFooter
             index={index}
             total={total}
             advancing={advancing}
             onPrev={() => move(-1)}
             onNext={() => move(1)}
+            steps={steps}
+            interactions={interactions}
+            packInteractive={packInteractive}
+            onJump={jump}
           />
         </div>
       </MotionConfig>

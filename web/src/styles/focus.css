@@ -394,41 +394,30 @@
   overflow: auto;
 }
 
-/* Prev / next controls: real buttons so a click commits a focused input. */
-.focus-nav {
-  display: flex;
-  justify-content: space-between;
-  gap: var(--space-2);
+/* Wizard progress: the shared footer grid owns Back and Next; its center keeps
+   the extracted dot rail and numeric counter together. */
+.wizard-progress {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-1);
+  max-width: 36vw;
 }
-.focus-nav-btn {
+.wizard-progress .focus-dots {
+  justify-content: center;
+}
+.wizard-progress .focus-strip {
+  width: min(16rem, 36vw);
+}
+.wizard-count {
   font-family: var(--font-stamp);
-  font-size: var(--text-sm);
-  font-weight: 700;
-  padding: var(--space-2) var(--space-5);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-md);
-  background: var(--card);
-  color: var(--ink);
-}
-.focus-nav-btn:hover:not(:disabled) {
-  border-color: var(--border-strong);
-  background: var(--mono-bg);
-}
-.focus-nav-btn.primary {
-  background: var(--accent-fill);
-  border-color: transparent;
-  color: var(--accent-fg);
-}
-.focus-nav-btn.primary:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--accent-fill) 88%, #000);
-}
-.focus-nav-btn:disabled {
-  opacity: 0.5;
+  font-size: var(--text-2xs);
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
 }
 /* Auto-advance cue: a pencil underline fills the Next control over the 450ms
    window (mirrors AUTO_ADVANCE_MS in FocusDeck). Any input in the deck retracts
    it. Under reduced motion the fill is swapped for a static standing note. */
-.focus-nav-btn.advancing {
+.wizard-bar .btn.advancing {
   position: relative;
 }
 .focus-advance-fill {
@@ -535,16 +524,9 @@
   overflow-wrap: anywhere;
 }
 
-/* --- Responsive: at --bp-compact the deck's prev/next controls become
-   thumb-reachable — the nav gains bottom breathing room off the screen edge, its
-   buttons clear the 44px touch floor, and the jump dots grow their hit area. --- */
+/* --- Responsive: at --bp-compact the jump dots grow their hit area. The shared
+   button system owns the footer controls' 44px touch floor. --- */
 @media (max-width: 440px) {
-  .focus-nav {
-    padding-bottom: var(--space-4);
-  }
-  .focus-nav-btn {
-    min-height: 44px;
-  }
   .focus-dot {
     padding: 8px;
   }

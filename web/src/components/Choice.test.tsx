@@ -13,7 +13,17 @@ import type { Interactions } from '../events';
 import type { Choice as ChoiceBlock, OptionVisual } from '../schema';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+// OptionStrip's useScrollEdges constructs a ResizeObserver; jsdom ships none, and
+// the strip nav drives scroll APIs the layout-less DOM lacks.
+class ResizeObserverStub {
+  observe(): void {}
+  unobserve(): void {}
+  disconnect(): void {}
+}
+(globalThis as { ResizeObserver?: unknown }).ResizeObserver = ResizeObserverStub;
 Element.prototype.scrollIntoView = () => {};
+Element.prototype.scrollBy = () => {};
+Element.prototype.scrollTo = () => {};
 window.matchMedia = ((query: string) => ({
   matches: false,
   media: query,
@@ -116,10 +126,10 @@ describe('Choice keyboard index tags', () => {
   it('tags each option 1..n once the choice is cursored', () => {
     render(choice('c1', ['A', 'B', 'C']), empty());
     cursorOntoChoice();
-    // The write-in row rides index n+1, so scope to the authored options.
-    const tags = [...container.querySelectorAll('.options .option-index')];
+    // The write-in card rides index n+1, so scope to the authored option cards.
+    const tags = [...container.querySelectorAll('.option:not(.option-other) .option-index')];
     expect(tags.map((t) => t.textContent)).toEqual(['1', '2', '3']);
-    // The chrome write-in row takes the next index (4) so a key lands the composer.
+    // The chrome write-in card takes the next index (4) so a key lands the composer.
     expect(container.querySelector('.option-other .option-index')?.textContent).toBe('4');
   });
 
@@ -239,8 +249,8 @@ describe('Choice detail disclosure', () => {
   });
 });
 
-describe('Choice aligned fact grid', () => {
-  const aligned = (): ChoiceBlock => ({
+describe('Choice per-card facts', () => {
+  const twoWithFacts = (): ChoiceBlock => ({
     id: 'c1',
     type: 'choice',
     multi: false,
@@ -250,23 +260,30 @@ describe('Choice aligned fact grid', () => {
     ],
   });
 
-  it('renders one axis header and aligns fact values into cells when labels match', () => {
-    render(aligned(), empty());
+  it('renders each option facts as its own foot tray in factAxes order', () => {
+    render(twoWithFacts(), empty());
     const options = container.querySelector('.options') as HTMLElement;
-    expect(options.hasAttribute('data-facts-aligned')).toBe(true);
-    expect(options.style.getPropertyValue('--fact-count')).toBe('2');
-    const axes = [...container.querySelectorAll('.fact-axes .fact-axis')].map((a) => a.textContent);
-    expect(axes).toEqual(['Latency', 'Cost']);
-    // Values render as aligned cells, not the per-option stack.
-    expect(container.querySelector('.option-facts')).toBeNull();
-    const cells = [...container.querySelectorAll('.option .fact-cell .fact-cell-value')].map((c) => c.textContent);
-    expect(cells).toEqual(['12ms', '$5', '80ms', '$2']);
-    // Tone survives onto the cell.
-    expect(container.querySelector('.fact-cell.fact-good .fact-cell-value')?.textContent).toBe('12ms');
-    expect(container.querySelector('.fact-cell.fact-bad .fact-cell-value')?.textContent).toBe('$2');
+    // The subgrid alignment system is gone: no aligned attr, no shared axis header.
+    expect(options.hasAttribute('data-facts-aligned')).toBe(false);
+    expect(container.querySelector('.fact-axes')).toBeNull();
+    expect(container.querySelector('.fact-cell')).toBeNull();
+    // Each option carries its own tray with rows in the shared axis order.
+    const trays = container.querySelectorAll('.option-facts');
+    expect(trays.length).toBe(2);
+    const firstRows = [...trays[0]!.querySelectorAll('.fact')].map((f) => [
+      f.querySelector('.fact-value')?.textContent,
+      f.querySelector('.fact-label')?.textContent,
+    ]);
+    expect(firstRows).toEqual([
+      ['12ms', 'Latency'],
+      ['$5', 'Cost'],
+    ]);
+    // Tone survives onto each row.
+    expect(trays[0]!.querySelector('.fact-good .fact-value')?.textContent).toBe('12ms');
+    expect(trays[1]!.querySelector('.fact-bad .fact-value')?.textContent).toBe('$2');
   });
 
-  it('falls back to byte-identical per-option markup on any label mismatch', () => {
+  it('keeps each option facts in its own authored order on a label mismatch', () => {
     const mismatch: ChoiceBlock = {
       id: 'c1',
       type: 'choice',
@@ -277,15 +294,37 @@ describe('Choice aligned fact grid', () => {
       ],
     };
     render(mismatch, empty());
+    const trays = container.querySelectorAll('.option-facts');
+    expect(trays.length).toBe(2);
+    expect(trays[0]!.querySelector('.fact .fact-value')?.textContent).toBe('12ms');
+    expect(trays[0]!.querySelector('.fact .fact-label')?.textContent).toBe('Latency');
+    expect(trays[1]!.querySelector('.fact .fact-label')?.textContent).toBe('Speed');
+  });
+});
+
+describe('Choice card strip', () => {
+  it('opts the container into data-strip at three or more options, with dots and arrows', () => {
+    render(choice('c1', ['A', 'B', 'C']), empty());
     const options = container.querySelector('.options') as HTMLElement;
-    expect(options.hasAttribute('data-facts-aligned')).toBe(false);
-    expect(container.querySelector('.fact-axes')).toBeNull();
-    expect(container.querySelector('.fact-cell')).toBeNull();
-    // The current per-option stack renders unchanged.
-    const stacks = container.querySelectorAll('.option-facts');
-    expect(stacks.length).toBe(2);
-    expect(container.querySelector('.option-facts .fact .fact-value')?.textContent).toBe('12ms');
-    expect(container.querySelector('.option-facts .fact .fact-label')?.textContent).toBe('Latency');
+    expect(options.hasAttribute('data-strip')).toBe(true);
+    // One dot per card, including the trailing Other card (3 + 1 = 4).
+    expect(container.querySelectorAll('.strip-nav .strip-dot').length).toBe(4);
+    // Prev/next arrows render as icon buttons.
+    expect(container.querySelectorAll('.strip-nav .btn-icon').length).toBe(2);
+  });
+
+  it('keeps the vertical stack with no nav at two or fewer options', () => {
+    render(choice('c1', ['A', 'B']), empty());
+    const options = container.querySelector('.options') as HTMLElement;
+    expect(options.hasAttribute('data-strip')).toBe(false);
+    expect(container.querySelector('.strip-nav')).toBeNull();
+  });
+
+  it('places the Other write-in as the trailing card inside the strip', () => {
+    render(choice('c1', ['A', 'B', 'C']), empty());
+    const cards = container.querySelectorAll('.options > .option');
+    expect(cards.length).toBe(4);
+    expect(cards[3]!.classList.contains('option-other')).toBe(true);
   });
 });
 
@@ -314,6 +353,48 @@ describe('Choice universal escape hatch', () => {
     render(choice('c1', ['A', 'B']), empty());
     const link = container.querySelector('.feedback-affordance .link-btn');
     expect(link?.textContent).toBe('Add note');
+  });
+});
+
+describe('Choice write-in selection semantics', () => {
+  it('gives the single-select Other card radio semantics, unchecked and focusable when empty', () => {
+    render(choice('c1', ['A', 'B']), empty());
+    const other = container.querySelector('.option-other') as HTMLElement;
+    expect(other.getAttribute('role')).toBe('radio');
+    expect(other.getAttribute('aria-checked')).toBe('false');
+    expect(other.getAttribute('aria-disabled')).toBe('false');
+    expect(other.getAttribute('tabindex')).toBe('0');
+  });
+
+  it('gives the multi-select Other card checkbox semantics', () => {
+    render(choice('c1', ['A', 'B'], true), empty());
+    const other = container.querySelector('.option-other') as HTMLElement;
+    expect(other.getAttribute('role')).toBe('checkbox');
+    expect(other.getAttribute('aria-checked')).toBe('false');
+  });
+
+  it('marks the Other card checked once a write-in value selects it', () => {
+    render(choice('c1', ['A', 'B']), { ...empty(), choices: { c1: { optionIds: [], other: 'roll our own' } } });
+    const other = container.querySelector('.option-other') as HTMLElement;
+    expect(other.getAttribute('aria-checked')).toBe('true');
+  });
+
+  it('disables the Other card when the block is closed', () => {
+    const present: PresentApi = { post: async () => true, closed: true, currentRound: 1 };
+    const block = choice('c1', ['A', 'B']);
+    const interactions = empty();
+    act(() =>
+      root.render(
+        <PresentContext.Provider value={present}>
+          <KeyboardProvider blocks={[block]} interactions={interactions} closed round={1}>
+            <Choice block={block} interactions={interactions} />
+          </KeyboardProvider>
+        </PresentContext.Provider>,
+      ),
+    );
+    const other = container.querySelector('.option-other') as HTMLElement;
+    expect(other.getAttribute('aria-disabled')).toBe('true');
+    expect(other.getAttribute('tabindex')).toBe('-1');
   });
 });
 

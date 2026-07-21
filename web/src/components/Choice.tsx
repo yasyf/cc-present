@@ -1,5 +1,4 @@
 import { useContext, useEffect, useRef, useState } from 'react';
-import type { CSSProperties } from 'react';
 import { useGroupReadOnly } from '@cc-interact/react';
 import type { Choice as ChoiceBlock } from '../schema';
 import type { Interactions } from '../events';
@@ -7,13 +6,16 @@ import { usePresent } from '../present';
 import { choiceToggle } from '../decide';
 import { factAxes } from '../focus';
 import { useDecidable } from '../keyboard';
-import { renderInlineMarkdown } from '../markdown';
 import { Mark } from './Mark';
-import { Clamped } from './Clamped';
-import { DetailDisclosure } from './Detail';
+import { OptionCard } from './OptionCard';
+import { OptionStrip } from './OptionStrip';
 import { FeedbackThread } from './FeedbackThread';
 import type { FeedbackHandle } from './FeedbackThread';
 import { FocusStageContext, FocusStepContext } from './focusStep';
+
+// At three or more options the choice renders as a scroll-snap card strip; two or
+// fewer stay the vertical stack.
+const STRIP_MIN = 3;
 
 export function Choice({ block, interactions }: { block: ChoiceBlock; interactions: Interactions }) {
   const { post, closed } = usePresent();
@@ -26,12 +28,14 @@ export function Choice({ block, interactions }: { block: ChoiceBlock; interactio
   const selected = selection?.optionIds ?? [];
   const other = selection?.other ?? '';
   const multi = block.multi ?? false;
-  // When every fact-carrying option shares a label sequence, values align into a
-  // comparable subgrid; any mismatch returns null and the per-option cluster renders.
+  // The shared ordered fact labels when options declare a matching sequence; each
+  // card renders its facts in this order so equal-height cards line their rows up.
   const axes = factAxes(block.options);
+  const strip = block.options.length >= STRIP_MIN;
 
   const feedbackRef = useRef<FeedbackHandle>(null);
   const otherRef = useRef<HTMLTextAreaElement>(null);
+  const optionsRef = useRef<HTMLDivElement>(null);
   const [noteComposing, setNoteComposing] = useState(false);
   const [otherComposing, setOtherComposing] = useState(false);
   const [draftOther, setDraftOther] = useState(other);
@@ -64,6 +68,13 @@ export function Choice({ block, interactions }: { block: ChoiceBlock; interactio
   // the cursor in the composer.
   const otherIndex = block.options.length + 1;
 
+  // Bring the nth card into view so the 1-9 keymap stays visibly correct as the
+  // cursor lands a card outside the strip's snap window.
+  function revealCard(cardIndex: number) {
+    const card = optionsRef.current?.children[cardIndex] as HTMLElement | undefined;
+    card?.scrollIntoView({ inline: 'nearest', block: 'nearest' });
+  }
+
   const { ref, cursor } = useDecidable(block.id, {
     kind: 'choice',
     disabled: locked,
@@ -71,10 +82,14 @@ export function Choice({ block, interactions }: { block: ChoiceBlock; interactio
     choose: (n) => {
       if (n === otherIndex) {
         otherRef.current?.focus();
+        revealCard(otherIndex - 1);
         return;
       }
       const option = block.options[n - 1];
-      if (option) toggle(option.id);
+      if (option) {
+        toggle(option.id);
+        revealCard(n - 1);
+      }
     },
   });
 
@@ -94,146 +109,86 @@ export function Choice({ block, interactions }: { block: ChoiceBlock; interactio
   return (
     <div className="choice" ref={ref} data-kbd-cursor={cursor || undefined} data-composing={noteComposing || undefined}>
       {!suppressPrompt && block.prompt && <p className="choice-prompt">{block.prompt}</p>}
-      <div
-        className="options"
+      <OptionStrip
+        strip={strip}
         role={multi ? 'group' : 'radiogroup'}
-        aria-label={suppressPrompt ? block.prompt : undefined}
-        data-facts-aligned={axes ? '' : undefined}
-        style={axes ? ({ '--fact-count': axes.length } as CSSProperties) : undefined}
+        ariaLabel={suppressPrompt ? block.prompt : undefined}
+        cardCount={block.options.length + 1}
+        containerRef={optionsRef}
       >
-        {axes && (
-          <div className="fact-axes" aria-hidden>
-            <span className="fact-axis-lead" />
-            {axes.map((label, ai) => (
-              <span key={ai} className="fact-axis">
-                {label}
-              </span>
-            ))}
-          </div>
-        )}
-        {block.options.map((option, i) => {
-          const on = selected.includes(option.id);
-          return (
-            <div
-              key={option.id}
-              role={multi ? 'checkbox' : 'radio'}
-              aria-checked={on}
-              aria-disabled={locked}
-              tabIndex={locked ? -1 : 0}
-              className={`option${on ? ' selected' : ''}${option.recommended ? ' recommended' : ''}`}
-              onMouseEnter={() => setHovered(option.id)}
-              onMouseLeave={() => setHovered((h) => (h === option.id ? null : h))}
-              onClick={() => {
-                if (!locked) toggle(option.id);
+        {block.options.map((option, i) => (
+          <OptionCard
+            key={option.id}
+            option={option}
+            index={i}
+            selected={selected.includes(option.id)}
+            multi={multi}
+            locked={locked}
+            showIndex={!!cursor && i < 9}
+            stage={stage}
+            interactions={interactions}
+            axes={axes}
+            onToggle={() => toggle(option.id)}
+            onHoverEnter={() => setHovered(option.id)}
+            onHoverLeave={() => setHovered((h) => (h === option.id ? null : h))}
+          />
+        ))}
+        <div
+          role={multi ? 'checkbox' : 'radio'}
+          aria-checked={otherActive}
+          aria-disabled={locked}
+          tabIndex={locked ? -1 : 0}
+          className={`option option-other${otherActive ? ' selected' : ''}`}
+          data-composing={otherComposing || undefined}
+          onClick={(e) => {
+            // Activating the card chrome (label, indicator, padding) lands the
+            // cursor in the write-in; a click on the textarea keeps its native focus.
+            if (!locked && e.target !== otherRef.current) otherRef.current?.focus();
+          }}
+          onKeyDown={(e) => {
+            // Only when the card itself holds focus — a keydown bubbling from the
+            // textarea reports the textarea as target, so literal Space/Enter type
+            // and commit as usual.
+            if ((e.key === 'Enter' || e.key === ' ') && e.target === e.currentTarget) {
+              e.preventDefault();
+              if (!locked) otherRef.current?.focus();
+            }
+          }}
+        >
+          {cursor && otherIndex <= 9 && (
+            <kbd className="option-index" aria-hidden>
+              {otherIndex}
+            </kbd>
+          )}
+          <span className="option-indicator" aria-hidden>
+            {otherActive && <Mark kind={multi ? 'check' : 'ring'} />}
+          </span>
+          <span className="option-body">
+            <span className="option-label">Other</span>
+            <textarea
+              ref={otherRef}
+              className="option-other-input"
+              rows={1}
+              value={draftOther}
+              placeholder="Write in your own answer…"
+              disabled={locked}
+              onFocus={() => setOtherComposing(true)}
+              onChange={(e) => setDraftOther(e.target.value)}
+              onBlur={(e) => {
+                setOtherComposing(false);
+                commitOther(e.target.value);
               }}
               onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
+                if (e.key === 'Enter' && !e.shiftKey) {
                   e.preventDefault();
-                  if (locked) return;
-                  toggle(option.id);
+                  commitOther(e.currentTarget.value);
+                  otherRef.current?.blur();
                 }
               }}
-            >
-              {cursor && i < 9 && (
-                <kbd className="option-index" aria-hidden>
-                  {i + 1}
-                </kbd>
-              )}
-              <span className="option-indicator" aria-hidden>
-                {on && <Mark kind={multi ? 'check' : 'ring'} />}
-              </span>
-              <span className="option-body">
-                {option.recommended ? (
-                  <span className="option-label">
-                    {option.label}
-                    <span className="option-reco">Recommended</span>
-                  </span>
-                ) : (
-                  <span className="option-label">{option.label}</span>
-                )}
-                {option.hint && (
-                  <div
-                    className="option-hint"
-                    dangerouslySetInnerHTML={{ __html: renderInlineMarkdown(option.hint) }}
-                  />
-                )}
-                {option.md && (
-                  <Clamped
-                    html={renderInlineMarkdown(option.md)}
-                    lines={3}
-                    className="option-md prose"
-                  />
-                )}
-              </span>
-              {axes
-                ? axes.map((label, fi) => {
-                    const fact = option.facts?.[fi];
-                    return (
-                      <span key={fi} className={`fact-cell fact-${fact?.tone ?? 'default'}`}>
-                        <span className="fact-cell-value">{fact?.value ?? ''}</span>
-                        <span className="fact-cell-label">{label}</span>
-                      </span>
-                    );
-                  })
-                : option.facts &&
-                  option.facts.length > 0 && (
-                    <span className="option-facts">
-                      {option.facts.map((fact, fi) => (
-                        <span key={fi} className={`fact fact-${fact.tone ?? 'default'}`}>
-                          <span className="fact-value">{fact.value}</span>
-                          {fact.label && <span className="fact-label">{fact.label}</span>}
-                        </span>
-                      ))}
-                    </span>
-                  )}
-              {(option.detail || (!stage && option.visual)) && (
-                <DetailDisclosure
-                  detail={option.detail}
-                  visual={stage ? undefined : option.visual}
-                  interactions={interactions}
-                />
-              )}
-            </div>
-          );
-        })}
-      </div>
-      <div
-        className={`option option-other${otherActive ? ' selected' : ''}`}
-        data-composing={otherComposing || undefined}
-      >
-        {cursor && otherIndex <= 9 && (
-          <kbd className="option-index" aria-hidden>
-            {otherIndex}
-          </kbd>
-        )}
-        <span className="option-indicator" aria-hidden>
-          {otherActive && <Mark kind={multi ? 'check' : 'ring'} />}
-        </span>
-        <span className="option-body">
-          <span className="option-label">Other</span>
-          <textarea
-            ref={otherRef}
-            className="option-other-input"
-            rows={1}
-            value={draftOther}
-            placeholder="Write in your own answer…"
-            disabled={locked}
-            onFocus={() => setOtherComposing(true)}
-            onChange={(e) => setDraftOther(e.target.value)}
-            onBlur={(e) => {
-              setOtherComposing(false);
-              commitOther(e.target.value);
-            }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                commitOther(e.currentTarget.value);
-                otherRef.current?.blur();
-              }
-            }}
-          />
-        </span>
-      </div>
+            />
+          </span>
+        </div>
+      </OptionStrip>
       <FeedbackThread
         ref={feedbackRef}
         blockId={block.id}

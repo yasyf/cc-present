@@ -1,5 +1,6 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { usePresent } from '../present';
+import { Button } from './Button';
 import { ReplyItem } from './ReplyThread';
 import type { Feedback, Reply } from '../events';
 
@@ -62,6 +63,7 @@ export const FeedbackThread = forwardRef<FeedbackHandle, FeedbackThreadProps>(fu
             <div className="feedback-editor">
               <textarea
                 ref={composerRef}
+                className="field"
                 value={draft}
                 rows={2}
                 placeholder={placeholder}
@@ -74,18 +76,19 @@ export const FeedbackThread = forwardRef<FeedbackHandle, FeedbackThreadProps>(fu
                 }}
               />
               <div className="feedback-actions">
-                <button type="button" className="primary" onClick={send}>
+                <Button variant="primary" size="sm" onClick={send}>
                   Send
-                </button>
-                <button
-                  type="button"
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
                   onClick={() => {
                     setComposing(false);
                     setDraft('');
                   }}
                 >
                   Cancel
-                </button>
+                </Button>
               </div>
             </div>
           ) : (

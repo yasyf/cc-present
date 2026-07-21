@@ -142,7 +142,8 @@
 .table-block,
 .focus-card-body,
 .focus-media,
-.margin-rail {
+.margin-rail,
+.options[data-strip] .option-detail .cc-group-body {
   scrollbar-width: thin;
   scrollbar-color: var(--border-strong) transparent;
 }

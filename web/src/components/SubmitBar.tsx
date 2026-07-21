@@ -11,6 +11,7 @@ import type { SubmitItem } from '../decide';
 import { useKeyboardApi } from '../keyboard';
 import { useRevisionSummary } from '../revision';
 import { useInteractivePackTypes } from '../packs/registry';
+import { Button } from './Button';
 
 export interface SubmitBarProps {
   // The current round's live blocks; the decided/total tally spans only these.
@@ -165,18 +166,19 @@ export function SubmitBar({ blocks, showTally, doc, interactions, subject, hasHi
       </div>
       <div className="submit-actions">
         {confirming && (
-          <button type="button" className="link-btn" onClick={() => setArmed(null)}>
+          <Button variant="ghost" size="sm" onClick={() => setArmed(null)}>
             Cancel
-          </button>
+          </Button>
         )}
-        <button
-          type="button"
-          className={`primary submit-btn${confirming ? ' confirm' : ''}${complete && !confirming ? ' submit-ready' : ''}`}
+        <Button
+          variant="primary"
+          size="lg"
+          className={`submit-btn${confirming ? ' confirm' : ''}${complete && !confirming ? ' submit-ready' : ''}`}
           disabled={inFlight}
           onClick={submit}
         >
           {confirming ? 'Submit anyway?' : label}
-        </button>
+        </Button>
       </div>
     </div>
   );
