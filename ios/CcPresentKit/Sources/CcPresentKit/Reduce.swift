@@ -97,7 +97,6 @@ public struct Annotation: Decodable, Equatable, Sendable {
 /// reducer's error return.
 public enum ReduceError: Error, Equatable {
     case invalidVerdict(String)
-    case invalidCarry(String)
 }
 
 /// validTriageVerdicts is the accepted verdict set a triage merge is checked against,
@@ -467,11 +466,13 @@ private extension BoardState {
         if dirty() {
             rounds.history.append(closeRound(revision: nil))
             rounds.current += 1
+            // Skip, never error: carry comes from a daemon snapshot a concurrent
+            // append may have outrun, and a reduction error is permanent replay
+            // failure for the subject.
             for id in payload.carry ?? [] {
-                guard let location = locate(id), location.kind == .topLevel else {
-                    throw ReduceError.invalidCarry(id)
+                if let location = locate(id), location.kind == .topLevel {
+                    rounds.blockRounds[id] = rounds.current
                 }
-                rounds.blockRounds[id] = rounds.current
             }
         }
         rounds.currentTitle = payload.title ?? ""

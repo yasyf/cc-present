@@ -747,6 +747,72 @@ func TestRound(t *testing.T) {
 			t.Fatalf("history len = %d, want 1", len(st.Rounds.History))
 		}
 	})
+
+	t.Run("advance carries choices and inputs by answered value", func(t *testing.T) {
+		tests := []struct {
+			name      string
+			doc       string
+			eventType string
+			payload   string
+			wantCarry []string
+		}{
+			{
+				name:      "cleared choice is unanswered",
+				doc:       choiceVisualDoc,
+				eventType: EventChoiceSelected,
+				payload:   `{"blockId":"ch1","optionIds":[]}`,
+				wantCarry: []string{"ch1"},
+			},
+			{
+				name:      "choice write-in is answered",
+				doc:       choiceVisualDoc,
+				eventType: EventChoiceSelected,
+				payload:   `{"blockId":"ch1","optionIds":[],"other":"write-in"}`,
+			},
+			{
+				name:      "empty input is unanswered",
+				doc:       cardDoc,
+				eventType: EventInputSubmitted,
+				payload:   `{"blockId":"in1","text":""}`,
+				wantCarry: []string{"c1"},
+			},
+			{
+				name:      "non-empty input is answered",
+				doc:       cardDoc,
+				eventType: EventInputSubmitted,
+				payload:   `{"blockId":"in1","text":"Yas"}`,
+			},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				h := newHarness(t)
+				start := handleStart(h.hc(body{Doc: json.RawMessage(tt.doc)}), doc.NoPacks, nilDisplay)
+				if _, err := h.cc.AppendEvent(context.Background(), &ccevent.Event{
+					SubjectID: start.SubjectID, Origin: ccevent.OriginHuman, Type: tt.eventType,
+					Payload: json.RawMessage(tt.payload),
+				}); err != nil {
+					t.Fatalf("append interaction: %v", err)
+				}
+				reply := handleRound(h.hc(body{}), doc.NoPacks)
+				if !reply.OK {
+					t.Fatalf("round not ok: %s", reply.Error)
+				}
+				starts := h.eventsOfType(t, start.SubjectID, EventRoundStarted)
+				if len(starts) != 1 {
+					t.Fatalf("round.started events = %d, want 1", len(starts))
+				}
+				var payload struct {
+					Carry []string `json:"carry"`
+				}
+				if err := json.Unmarshal(starts[0].Payload, &payload); err != nil {
+					t.Fatalf("decode round.started: %v", err)
+				}
+				if !slices.Equal(payload.Carry, tt.wantCarry) {
+					t.Fatalf("carry = %v, want %v", payload.Carry, tt.wantCarry)
+				}
+			})
+		}
+	})
 }
 
 func TestRevising(t *testing.T) {
@@ -997,6 +1063,55 @@ func TestUpsertBlockRoundIntent(t *testing.T) {
 		}
 	})
 
+	t.Run("new carries choices by answered value", func(t *testing.T) {
+		tests := []struct {
+			name      string
+			payload   string
+			wantCarry []string
+		}{
+			{
+				name:      "cleared choice is unanswered",
+				payload:   `{"blockId":"ch1","optionIds":[]}`,
+				wantCarry: []string{"ch1"},
+			},
+			{
+				name:    "choice write-in is answered",
+				payload: `{"blockId":"ch1","optionIds":[],"other":"write-in"}`,
+			},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				h := newHarness(t)
+				start := handleStart(h.hc(body{Doc: json.RawMessage(choiceVisualDoc)}), doc.NoPacks, nilDisplay)
+				if _, err := h.cc.AppendEvent(context.Background(), &ccevent.Event{
+					SubjectID: start.SubjectID, Origin: ccevent.OriginHuman, Type: EventChoiceSelected,
+					Payload: json.RawMessage(tt.payload),
+				}); err != nil {
+					t.Fatalf("append choice: %v", err)
+				}
+				reply := handleUpsertBlock(h.hc(body{
+					Block: json.RawMessage(newTop), Round: "new",
+				}), doc.NoPacks)
+				if !reply.OK {
+					t.Fatalf("new upsert not ok: %s", reply.Error)
+				}
+				starts := h.eventsOfType(t, start.SubjectID, EventRoundStarted)
+				if len(starts) != 1 {
+					t.Fatalf("round.started events = %d, want 1", len(starts))
+				}
+				var payload struct {
+					Carry []string `json:"carry"`
+				}
+				if err := json.Unmarshal(starts[0].Payload, &payload); err != nil {
+					t.Fatalf("decode round.started: %v", err)
+				}
+				if !slices.Equal(payload.Carry, tt.wantCarry) {
+					t.Fatalf("carry = %v, want %v", payload.Carry, tt.wantCarry)
+				}
+			})
+		}
+	})
+
 	t.Run("re-upsert of an existing id while engaged needs no intent", func(t *testing.T) {
 		h := newHarness(t)
 		start := handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks, nilDisplay)
@@ -1059,6 +1174,8 @@ func TestUpsertBlockRoundIntent(t *testing.T) {
 func TestPushRoundIntent(t *testing.T) {
 	const newTopDoc = `{"version":1,"title":"Board","blocks":[{"id":"a1","type":"approval"},{"id":"b1","type":"approval"}]}`
 	const sameIDDoc = `{"version":1,"title":"Board","blocks":[{"id":"a1","type":"markdown","md":"same"}]}`
+	const childApprovalDoc = `{"version":1,"title":"Board","blocks":[{"id":"c1","type":"card","children":[{"id":"a1","type":"approval"}]}]}`
+	const promotedChildDoc = `{"version":1,"title":"Board","blocks":[{"id":"a1","type":"approval"}]}`
 
 	push := func(h *harness, docJSON, round, title string) ccd.Reply {
 		return handlePush(h.hc(body{Doc: json.RawMessage(docJSON), Round: round, Title: title}), doc.NoPacks, nilDisplay)
@@ -1151,6 +1268,44 @@ func TestPushRoundIntent(t *testing.T) {
 		engageDecision(t, h, start.SubjectID, "a1")
 		if reply := push(h, sameIDDoc, "", ""); !reply.OK {
 			t.Fatalf("same-id push not ok: %s", reply.Error)
+		}
+	})
+
+	t.Run("promoting a card child to top level requires intent", func(t *testing.T) {
+		tests := []struct {
+			name   string
+			round  string
+			wantOK bool
+		}{
+			{name: "unspecified is rejected"},
+			{name: "current is accepted", round: "current", wantOK: true},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				h := newHarness(t)
+				start := handleStart(h.hc(body{Doc: json.RawMessage(childApprovalDoc)}), doc.NoPacks, nilDisplay)
+				engageDecision(t, h, start.SubjectID, "a1")
+				reply := push(h, promotedChildDoc, tt.round, "")
+				if reply.OK != tt.wantOK {
+					t.Fatalf("push: ok=%v err=%q, want ok=%v", reply.OK, reply.Error, tt.wantOK)
+				}
+				if !tt.wantOK {
+					for _, want := range []string{"--round current", "--round new"} {
+						if !strings.Contains(reply.Error, want) {
+							t.Fatalf("error %q missing %q", reply.Error, want)
+						}
+					}
+					if got := h.eventsOfType(t, start.SubjectID, EventDocReplaced); len(got) != 1 {
+						t.Fatalf("rejected push changed doc.replaced count to %d, want 1 (seed only)", len(got))
+					}
+					return
+				}
+				st := reduceSubject(t, h, start.SubjectID)
+				loc, ok := doc.Locate(st.Doc, "a1")
+				if !ok || loc.Kind != doc.TopLevel {
+					t.Fatalf("promoted a1 location = %+v, found=%v; want top level", loc, ok)
+				}
+			})
 		}
 	})
 

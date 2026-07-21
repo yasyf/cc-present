@@ -455,15 +455,13 @@ func (s *State) apply(ev Event) error {
 			}
 			s.Rounds.History = append(s.Rounds.History, rec)
 			s.Rounds.Current++
-			// Carried ids ride forward into the freshly advanced round instead
-			// of freezing into the closed one; a carry on a clean round.started
-			// never reaches this branch, so it is ignored by design.
+			// Skip, never error: carry comes from a daemon snapshot a concurrent
+			// append may have outrun, and a reduction error is permanent replay
+			// failure for the subject.
 			for _, id := range p.Carry {
-				loc, ok := doc.Locate(s.Doc, id)
-				if !ok || loc.Kind != doc.TopLevel {
-					return fmt.Errorf("round.started carries %q, which is not a current top-level block", id)
+				if loc, ok := doc.Locate(s.Doc, id); ok && loc.Kind == doc.TopLevel {
+					s.Rounds.BlockRounds[id] = s.Rounds.Current
 				}
-				s.Rounds.BlockRounds[id] = s.Rounds.Current
 			}
 		}
 		s.Rounds.CurrentTitle = p.Title

@@ -118,11 +118,11 @@ func awaiting(b doc.Block, st *state.State, pt doc.PackTypes) bool {
 		_, ok := st.Interactions.Decisions[id]
 		return !ok
 	case "choice":
-		_, ok := st.Interactions.Choices[id]
-		return !ok
+		selection, ok := st.Interactions.Choices[id]
+		return !ok || len(selection.OptionIDs) == 0 && selection.Other == ""
 	case "input":
-		_, ok := st.Interactions.Inputs[id]
-		return !ok
+		value, ok := st.Interactions.Inputs[id]
+		return !ok || value.Text == ""
 	case "triage":
 		return triageAwaiting(b.(*doc.Triage), st.Interactions.Triage[id])
 	case "draft":
@@ -154,11 +154,11 @@ func triageAwaiting(t *doc.Triage, verdicts map[string]state.Decision) bool {
 }
 
 // newTopIDs returns the ids of the incoming document's top-level blocks that no
-// block in the current document carries — the new tops a push introduces.
+// top-level block in the current document carries — the new tops a push introduces.
 func newTopIDs(st *state.State, d *doc.Doc) []string {
 	var ids []string
 	for _, b := range d.Blocks {
-		if _, ok := doc.Locate(st.Doc, b.BlockID()); !ok {
+		if loc, ok := doc.Locate(st.Doc, b.BlockID()); !ok || loc.Kind != doc.TopLevel {
 			ids = append(ids, b.BlockID())
 		}
 	}

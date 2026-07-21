@@ -182,6 +182,11 @@ func canonicalPort(extraAddrs []string, selfAddrs []netip.Addr, primaryPort int)
 		}
 	}
 
+	// All legs stale against a live self-address set: advertise nothing —
+	// reconcile revives a live leg within its next pass.
+	if !hasSelf && len(selfAddrs) > 0 {
+		return 0, false
+	}
 	var lowest uint16
 	found := false
 	for _, ap := range parsed {

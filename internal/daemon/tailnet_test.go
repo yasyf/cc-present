@@ -89,6 +89,13 @@ func TestTailnetURLs(t *testing.T) {
 			[]string{"https://host.ts.net:8080/p/board"},
 		},
 		{
+			"all legs stale against live self addresses advertises nothing",
+			"host.ts.net", true, "host",
+			[]string{"100.9.9.9:8080", "100.9.9.8:9090"},
+			self, 8080,
+			nil,
+		},
+		{
 			"self address beats a stale address on the primary port",
 			"host.ts.net", true, "host",
 			[]string{"100.9.9.9:8080", "100.1.2.3:9090"},
@@ -96,17 +103,17 @@ func TestTailnetURLs(t *testing.T) {
 			[]string{"https://host.ts.net:9090/p/board"},
 		},
 		{
-			"no self address match prefers the primary port",
+			"no self-address info prefers the primary port",
 			"host.ts.net", true, "host",
 			[]string{"100.9.9.9:9090", "100.8.8.8:8080"},
-			self, 8080,
+			nil, 8080,
 			[]string{"https://host.ts.net:8080/p/board"},
 		},
 		{
-			"no self address or primary port match uses the lowest port",
+			"no self-address info or primary-port match uses the lowest port",
 			"host.ts.net", true, "host",
 			[]string{"100.9.9.9:9090", "100.8.8.8:8080"},
-			self, 7070,
+			nil, 7070,
 			[]string{"https://host.ts.net:8080/p/board"},
 		},
 		{
