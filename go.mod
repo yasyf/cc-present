@@ -9,9 +9,9 @@ require (
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.2
 	github.com/spf13/cobra v1.10.2
 	github.com/yasyf/cc-context v0.28.5-0.20260720034201-f18e537f26a5
-	github.com/yasyf/cc-interact v0.14.1-0.20260721051035-29a3366375e5
-	github.com/yasyf/daemonkit v0.1.1-0.20260721044346-f090a23cf11f
-	github.com/yasyf/synckit v0.23.1-0.20260721024529-9b633bf21646
+	github.com/yasyf/cc-interact v0.15.0
+	github.com/yasyf/daemonkit v0.2.0
+	github.com/yasyf/synckit v0.24.0
 )
 
 require (
