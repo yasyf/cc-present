@@ -5,17 +5,22 @@ import type { Interactions } from '../events';
 import { usePresent } from '../present';
 import { verdictToggle } from '../decide';
 import { useDecidable } from '../keyboard';
+import { useActiveBlock } from '../activeBlock';
 import { Button } from './Button';
 import { Mark } from './Mark';
 import { DetailDisclosure } from './Detail';
 import { FeedbackThread } from './FeedbackThread';
 import type { FeedbackHandle } from './FeedbackThread';
+import { CommentChip } from './CommentChip';
 import { FocusStepContext } from './focusStep';
+import { useThreadHost } from './threadHost';
 
 export function Approval({ block, interactions }: { block: ApprovalBlock; interactions: Interactions }) {
   const { post, closed } = usePresent();
   const readOnly = useGroupReadOnly();
   const focus = useContext(FocusStepContext);
+  const rail = useThreadHost() === 'rail';
+  const { requestCompose } = useActiveBlock();
   const suppressPrompt = focus?.headlineId === block.id;
   const feedbackRef = useRef<FeedbackHandle>(null);
   const [composing, setComposing] = useState(false);
@@ -37,8 +42,10 @@ export function Approval({ block, interactions }: { block: ApprovalBlock; intera
     clear: () => {
       if (verdict) post({ type: 'decision.created', blockId: block.id, verdict: 'cleared' });
     },
-    engage: allowFeedback ? () => feedbackRef.current?.open() : undefined,
+    engage: !allowFeedback ? undefined : rail ? requestCompose : () => feedbackRef.current?.open(),
   });
+
+  const commentCount = feedback.length + replies.length;
 
   return (
     <div className="approval" ref={ref} data-kbd-cursor={cursor || undefined} data-composing={composing || undefined}>
@@ -75,16 +82,22 @@ export function Approval({ block, interactions }: { block: ApprovalBlock; intera
         </Button>
       </div>
 
-      <FeedbackThread
-        ref={feedbackRef}
-        blockId={block.id}
-        feedback={feedback}
-        replies={replies}
-        locked={locked || !allowFeedback}
-        addLabel="Add feedback"
-        placeholder="Add feedback for the agent…"
-        onComposingChange={setComposing}
-      />
+      {rail ? (
+        (allowFeedback || commentCount > 0) && (
+          <CommentChip blockId={block.id} count={commentCount} addLabel="Add feedback" />
+        )
+      ) : (
+        <FeedbackThread
+          ref={feedbackRef}
+          blockId={block.id}
+          feedback={feedback}
+          replies={replies}
+          locked={locked || !allowFeedback}
+          addLabel="Add feedback"
+          placeholder="Add feedback for the agent…"
+          onComposingChange={setComposing}
+        />
+      )}
     </div>
   );
 }

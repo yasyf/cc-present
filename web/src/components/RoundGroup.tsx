@@ -78,7 +78,9 @@ export function RoundGroup({ record, interactions }: { record: RoundRecord; inte
   return (
     <CollapsedGroup readOnly header={header}>
       {record.blocks.map((b) => (
-        <BlockRenderer key={b.id} block={b} interactions={frozen} />
+        <div key={b.id} className="round-block" data-block-id={b.id}>
+          <BlockRenderer block={b} interactions={frozen} />
+        </div>
       ))}
     </CollapsedGroup>
   );

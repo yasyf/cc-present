@@ -5,7 +5,7 @@
 /* --- Layout --- */
 
 .main {
-  max-width: var(--content-width);
+  max-width: var(--shell-max);
   margin: 0 auto;
   width: 100%;
   padding-inline: var(--page-pad);
@@ -54,14 +54,8 @@
   will-change: transform;
 }
 
-/* Decided rows recede to a receipt: once every decidable in a board row is
-   decided (data-decided, set by BoardBlocks) its descriptive content dims while
-   the card title, left state rail (the card border), rotated verdict stamp
-   (.approval::after), and every still-enabled control (verdict buttons, feedback
-   composer, choice options) stay full-strength. Opacity can't lift a descendant,
-   so the dim targets only content children — prompts, summaries, threads, and the
-   card body's prose/code — never a decidable container. The 0.7 floor keeps
-   normal ink above 4.5:1 against the paper ground. Hover or focus restores it. */
+/* A decided board row (data-decided) dims its prose to a 0.7 receipt; controls, the
+   card border, and the verdict stamp stay full (opacity can't lift a descendant). */
 .block-row[data-decided] {
   --receipt-dim: 0.7;
 }
@@ -70,7 +64,6 @@
   --receipt-dim: 1;
 }
 .block-row[data-decided] .approval > .approval-prompt,
-.block-row[data-decided] .approval > .thread,
 .block-row[data-decided] .choice > .choice-prompt,
 .block-row[data-decided] .card-summary,
 .block-row[data-decided] .card-body > :not(.approval):not(.choice):not(.card) {
@@ -78,10 +71,137 @@
   transition: opacity var(--dur-1) var(--ease-out);
 }
 
+/* --- Board stage + margin rail --- */
+
+.board-stage {
+  min-width: 0;
+}
+
+/* At >=1100 the board splits into stage + fluid rail. The rail carries no card
+   ground — transparent, one hairline border-left; margin notes, not a panel. */
+@media (min-width: 1100px) {
+  .board {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) var(--rail-w);
+    column-gap: var(--rail-gap);
+    align-items: start;
+  }
+  .margin-rail {
+    position: sticky;
+    top: 0;
+    max-height: 100dvh;
+    overflow-y: auto;
+    padding: var(--space-4) 0 var(--space-6);
+    padding-left: var(--space-5);
+    border-left: 1px solid var(--line);
+  }
+}
+
+/* --- Comments sheet: the rail below the margin breakpoint, a top-layer dialog --- */
+
+.comments-sheet {
+  position: fixed;
+  inset-block: 0;
+  right: 0;
+  left: auto;
+  z-index: var(--z-rail);
+  width: min(92vw, 340px);
+  max-width: none;
+  max-height: none;
+  height: 100dvh;
+  margin: 0;
+  padding: var(--space-5);
+  border: none;
+  border-left: 1px solid var(--line);
+  background: var(--card-lift);
+  box-shadow: var(--shadow-3), var(--edge-lift);
+  overflow-y: auto;
+}
+.comments-sheet::backdrop {
+  z-index: var(--z-scrim);
+  background: rgb(0 0 0 / 40%);
+}
+
+/* --- Rail panel body (shared by the desktop rail and the sheet) --- */
+
+.rail-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+.rail-head {
+  font-family: var(--font-stamp);
+  text-transform: uppercase;
+  letter-spacing: var(--track-caps);
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  color: var(--accent-ink);
+}
+.rail-pinned {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.rail-pin-label,
+.rail-feed-jump {
+  border: none;
+  background: none;
+  padding: 0;
+  text-align: left;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--ink);
+}
+.rail-pin-label:hover:not(:disabled),
+.rail-feed-jump:hover:not(:disabled) {
+  color: var(--accent-ink);
+  background: none;
+}
+.rail-empty {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+}
+.rail-feed {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  border-top: 1px solid var(--line);
+  padding-top: var(--space-4);
+}
+.rail-feed-head {
+  font-size: var(--text-2xs);
+  text-transform: uppercase;
+  letter-spacing: var(--track-caps);
+  color: var(--muted);
+}
+.rail-feed-row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+.rail-feed-row[data-locked] .rail-feed-jump {
+  color: var(--muted);
+}
+
+/* --- Comment chip: the inline stand-in once the thread moves to the rail --- */
+
+.comment-chip-row {
+  margin-top: var(--space-3);
+}
+.comment-chip {
+  gap: var(--space-2);
+  color: var(--muted);
+}
+.comment-chip[data-count] {
+  color: var(--accent-ink);
+}
+
 /* --- Document header (stamp masthead) --- */
 
 .doc-header {
-  max-width: var(--content-width);
+  max-width: var(--shell-max);
   margin: 0 auto;
   width: 100%;
   padding: var(--space-5) var(--page-pad) var(--space-4);
@@ -204,7 +324,7 @@
 .doc-section {
   position: sticky;
   top: 0;
-  z-index: 1;
+  z-index: var(--z-sticky);
   margin-top: var(--space-2);
   padding: var(--space-2) 0;
   background: var(--paper);

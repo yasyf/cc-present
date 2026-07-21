@@ -1,5 +1,6 @@
 import type { Doc } from '../schema';
 import type { ViewMode } from '../viewmode';
+import { Button } from './Button';
 import { StatsBar } from './StatsBar';
 import { ThemeToggle } from './ThemeToggle';
 
@@ -10,9 +11,22 @@ export interface DocHeaderProps {
   peerPresent: boolean | null;
   mode: ViewMode;
   onSetView: (mode: ViewMode) => void;
+  // The margin-rail comments trigger, shown only below the rail breakpoint where
+  // the rail becomes a sheet; both are provided together or not at all.
+  commentCount?: number;
+  onOpenComments?: () => void;
 }
 
-export function DocHeader({ doc, round, connected, peerPresent, mode, onSetView }: DocHeaderProps) {
+export function DocHeader({
+  doc,
+  round,
+  connected,
+  peerPresent,
+  mode,
+  onSetView,
+  commentCount,
+  onOpenComments,
+}: DocHeaderProps) {
   return (
     <header className="doc-header">
       <p className="doc-eyebrow">CC-PRESENT · ROUND {round}</p>
@@ -25,6 +39,20 @@ export function DocHeader({ doc, round, connected, peerPresent, mode, onSetView 
             </span>
           )}
           <WireLamp connected={connected} />
+          {onOpenComments && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="rail-toggle"
+              aria-label={`Comments${commentCount ? ` (${commentCount})` : ''}`}
+              onClick={onOpenComments}
+            >
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" aria-hidden focusable="false">
+                <path d="M4 5h16v11H8l-4 4V5z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
+              </svg>
+              {commentCount ? commentCount : 'Notes'}
+            </Button>
+          )}
           <ViewToggle mode={mode} onSetView={onSetView} />
           <ThemeToggle />
         </span>

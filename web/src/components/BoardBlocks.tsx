@@ -27,6 +27,7 @@ export function BoardBlocks({
           <div
             className="block-row"
             key={block.id}
+            data-block-id={block.id}
             data-flip-key={block.id}
             data-decided={blockDecided(block, interactions, packInteractive) || undefined}
           >

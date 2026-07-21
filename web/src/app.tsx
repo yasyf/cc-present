@@ -4,6 +4,7 @@
 // and the FLIP hook animates top-level reorders on block.upserted.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { ComponentProps, ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { AppShell, ToastStack, useFlip } from '@cc-interact/react';
 import { EventStreamProvider, useEventStream } from './stream';
@@ -20,10 +21,15 @@ import { useInteractivePackTypes } from './packs/registry';
 import { PresentContext } from './present';
 import type { PresentApi } from './present';
 import type { PresentState } from './events';
+import { ActiveBlockProvider, useActiveBlock } from './activeBlock';
+import { useMediaQuery } from './useMediaQuery';
+import { threadFeed } from './threadFeed';
+import type { ThreadEntry, ThreadProjection } from './threadFeed';
 import { interactionErrorText } from './interactionError';
 import { BoardBlocks } from './components/BoardBlocks';
 import { RoundGroup } from './components/RoundGroup';
 import { DocHeader } from './components/DocHeader';
+import type { DocHeaderProps } from './components/DocHeader';
 import { SubmitBar } from './components/SubmitBar';
 import { FocusDeck } from './components/FocusDeck';
 import { WaitingPanel } from './components/WaitingPanel';
@@ -31,6 +37,9 @@ import { BoardSkeleton } from './components/BoardSkeleton';
 import { ClosedBanner } from './components/ClosedBanner';
 import { ConnectError } from './components/ConnectError';
 import { SingleBlockView } from './components/SingleBlockView';
+import { SidebarPanel } from './components/SidebarPanel';
+import { CommentsSheet } from './components/CommentsSheet';
+import { ThreadHostContext } from './components/threadHost';
 
 // A dead EventSource never retries and never flips connected/caughtUp, so a
 // stuck connect gets a visible error after this long.
@@ -210,21 +219,99 @@ function PresentView({ subject }: { subject: string }) {
         onViewToggle={toggleView}
         onExpandAll={expandAll.toggle}
       >
-        <AppShell
-          header={
-            <DocHeader
-              doc={state.doc}
-              round={currentRound}
-              connected={stream.connected}
-              peerPresent={stream.peerPresent}
-              mode={mode}
-              onSetView={setView}
+        <ActiveBlockProvider>
+          <ThreadHostContext.Provider value="rail">
+            <PresentShell
+              state={state}
+              board={board}
+              boardReady={stream.caughtUp || hasContent}
+              connectTimedOut={connectTimedOut}
+              header={{
+                doc: state.doc,
+                round: currentRound,
+                connected: stream.connected,
+                peerPresent: stream.peerPresent,
+                mode,
+                onSetView: setView,
+              }}
+              notifications={stream.notifications}
+              onDismiss={stream.dismiss}
             />
-          }
-          main={stream.caughtUp || hasContent ? board : connectTimedOut ? <ConnectError /> : <BoardSkeleton />}
-        />
-        <ToastStack notifications={stream.notifications} onDismiss={stream.dismiss} />
+          </ThreadHostContext.Provider>
+        </ActiveBlockProvider>
       </KeyboardProvider>
     </PresentContext.Provider>
+  );
+}
+
+function totalComments(projection: ThreadProjection): number {
+  const count = (e: ThreadEntry) => e.feedback.length + e.replies.length;
+  return (projection.pinned ? count(projection.pinned) : 0) + projection.feed.reduce((n, e) => n + count(e), 0);
+}
+
+// PresentShell renders inside the keyboard/active-block providers so it can read
+// the pinned block and the rail breakpoint: at desktop the margin rail sits in a
+// two-column grid beside the stage; below 1100px it collapses to the comments
+// sheet, opened from the DocHeader trigger. body[data-single] never reaches here.
+function PresentShell({
+  state,
+  board,
+  boardReady,
+  connectTimedOut,
+  header,
+  notifications,
+  onDismiss,
+}: {
+  state: PresentState;
+  board: ReactNode;
+  boardReady: boolean;
+  connectTimedOut: boolean;
+  header: Omit<DocHeaderProps, 'commentCount' | 'onOpenComments'>;
+  notifications: ComponentProps<typeof ToastStack>['notifications'];
+  onDismiss: ComponentProps<typeof ToastStack>['onDismiss'];
+}) {
+  const active = useActiveBlock();
+  const isDesktop = useMediaQuery('(min-width: 1100px)');
+  const projection = threadFeed(state, active.activeId);
+
+  const panel = (openComposerOnMount: boolean) => (
+    <SidebarPanel
+      projection={projection}
+      composeEpoch={active.composeEpoch}
+      openComposerOnMount={openComposerOnMount}
+      onJumped={active.closePanel}
+    />
+  );
+
+  const main = boardReady ? (
+    <div className="board">
+      <div className="board-stage">{board}</div>
+      {isDesktop && <aside className="margin-rail">{panel(false)}</aside>}
+    </div>
+  ) : connectTimedOut ? (
+    <ConnectError />
+  ) : (
+    <BoardSkeleton />
+  );
+
+  return (
+    <>
+      <AppShell
+        header={
+          <DocHeader
+            {...header}
+            commentCount={!isDesktop ? totalComments(projection) : undefined}
+            onOpenComments={!isDesktop ? active.openPanel : undefined}
+          />
+        }
+        main={main}
+      />
+      {!isDesktop && (
+        <CommentsSheet open={active.panelOpen} onClose={active.closePanel}>
+          {panel(active.panelCompose)}
+        </CommentsSheet>
+      )}
+      <ToastStack notifications={notifications} onDismiss={onDismiss} />
+    </>
   );
 }

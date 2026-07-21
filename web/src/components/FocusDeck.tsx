@@ -216,7 +216,13 @@ export function FocusDeck({ steps, interactions, round, closed, onEndChange }: F
         id: setTimeout(() => {
           timerRef.current = null;
           setAdvancing(false);
-          if (deckRef.current?.querySelector('.focus-card:not([data-exiting]) [data-composing]')) return;
+          // A composer holds the advance whether it lives inline in the card or out
+          // in the margin rail / comments sheet (rail mode routes `f` there).
+          if (
+            deckRef.current?.querySelector('.focus-card:not([data-exiting]) [data-composing]') ||
+            document.querySelector('.margin-rail [data-composing], dialog [data-composing]')
+          )
+            return;
           const dir: 1 | -1 =
             isApproval && interactionsRef.current.decisions[advancerId]?.verdict === 'rejected' ? -1 : 1;
           setExitCustom({ dir, kind: 'verdict' });

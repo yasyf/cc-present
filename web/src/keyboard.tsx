@@ -63,6 +63,12 @@ export function useKeyboardApi(): KeyboardApi {
   return api;
 }
 
+// useCursor reports the id the ring cursor currently rests on (null off-ring), so
+// the margin rail can pin the active block's thread as the cursor moves.
+export function useCursor(): string | null {
+  return useContext(CursorContext);
+}
+
 // useDecidable joins the ring for `id` while enabled and reports whether the
 // cursor rests on it. Registration is gated on !disabled so a frozen history
 // round — which re-renders the same block ids read-only — never registers, and

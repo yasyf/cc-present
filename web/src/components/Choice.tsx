@@ -6,12 +6,15 @@ import { usePresent } from '../present';
 import { choiceToggle } from '../decide';
 import { factAxes } from '../focus';
 import { useDecidable } from '../keyboard';
+import { useActiveBlock } from '../activeBlock';
 import { Mark } from './Mark';
 import { OptionCard } from './OptionCard';
 import { OptionStrip } from './OptionStrip';
 import { FeedbackThread } from './FeedbackThread';
 import type { FeedbackHandle } from './FeedbackThread';
+import { CommentChip } from './CommentChip';
 import { FocusStageContext, FocusStepContext } from './focusStep';
+import { useThreadHost } from './threadHost';
 
 // At three or more options the choice renders as a scroll-snap card strip; two or
 // fewer stay the vertical stack.
@@ -22,6 +25,8 @@ export function Choice({ block, interactions }: { block: ChoiceBlock; interactio
   const readOnly = useGroupReadOnly();
   const focus = useContext(FocusStepContext);
   const stage = useContext(FocusStageContext);
+  const rail = useThreadHost() === 'rail';
+  const { requestCompose } = useActiveBlock();
   const suppressPrompt = focus?.headlineId === block.id;
   const locked = closed || readOnly;
   const selection = interactions.choices[block.id];
@@ -78,7 +83,7 @@ export function Choice({ block, interactions }: { block: ChoiceBlock; interactio
   const { ref, cursor } = useDecidable(block.id, {
     kind: 'choice',
     disabled: locked,
-    engage: () => feedbackRef.current?.open(),
+    engage: rail ? requestCompose : () => feedbackRef.current?.open(),
     choose: (n) => {
       if (n === otherIndex) {
         otherRef.current?.focus();
@@ -189,16 +194,20 @@ export function Choice({ block, interactions }: { block: ChoiceBlock; interactio
           </span>
         </div>
       </OptionStrip>
-      <FeedbackThread
-        ref={feedbackRef}
-        blockId={block.id}
-        feedback={feedback}
-        replies={replies}
-        locked={locked}
-        addLabel="Add note"
-        placeholder="Add a note for the agent…"
-        onComposingChange={setNoteComposing}
-      />
+      {rail ? (
+        <CommentChip blockId={block.id} count={feedback.length + replies.length} addLabel="Add note" />
+      ) : (
+        <FeedbackThread
+          ref={feedbackRef}
+          blockId={block.id}
+          feedback={feedback}
+          replies={replies}
+          locked={locked}
+          addLabel="Add note"
+          placeholder="Add a note for the agent…"
+          onComposingChange={setNoteComposing}
+        />
+      )}
     </div>
   );
 }

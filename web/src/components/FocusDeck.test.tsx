@@ -273,6 +273,21 @@ describe('FocusDeck auto-advance', () => {
     expect(currentPrompt()).toBe('Ship one');
   });
 
+  it('cancels the auto-advance while a rail composer holds a draft', () => {
+    vi.useFakeTimers();
+    // In rail mode the composer lives outside the deck (the margin rail / sheet),
+    // so the fire guard must reach it there — the latch alone is not enough.
+    const rail = document.createElement('div');
+    rail.className = 'margin-rail';
+    rail.innerHTML = '<div data-composing></div>';
+    document.body.appendChild(rail);
+    render({ blocks: three, interactions: empty() });
+    render({ blocks: three, interactions: withVerdict('a1', 'approved') });
+    act(() => vi.advanceTimersByTime(AUTO_ADVANCE_MS));
+    expect(currentPrompt()).toBe('Ship one');
+    rail.remove();
+  });
+
   it('does not re-arm when re-entering an already-decided approval', () => {
     vi.useFakeTimers();
     render({ blocks: three, interactions: withVerdict('a1', 'approved') });
