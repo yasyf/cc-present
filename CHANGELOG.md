@@ -6,7 +6,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.16.0] - 2026-07-21
+## [0.17.0] - 2026-07-21
 
 ### Removed
 - The present-handler agent plane, entire: the background handler agent, its
@@ -38,6 +38,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Concurrent `push`/`update-block`/`round`/seeded-`start` writes serialize
   under a daemon mutex, closing the duplicate-revision race and the
   round-guard TOCTOU.
+
+## [0.16.1] - 2026-07-21
+
+### Changed
+- Repin daemonkit v0.3.2.
+
+## [0.16.0] - 2026-07-21
+
+### Changed
+- Require daemonkit v0.3.0; pin stable runtime dependencies.
 
 ## [0.15.0] - 2026-07-21
 
