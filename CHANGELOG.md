@@ -6,6 +6,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-07-21
+
+### Removed
+- The present-handler agent plane, entire: the background handler agent, its
+  daemon event subscriptions, channel muting, the `await` MCP tool, the
+  `direct` steering verb, the agent-plane plugin hooks, and the supersede
+  wiring. Four production failures in one live session drove the revert:
+  agent-origin writes never reached a parked handler (forcing a stop and
+  redispatch around every authoring write), a full push re-presented settled
+  round-1 blocks as actionable, the handler stood down after submit with
+  nothing re-dispatched, and a submit raced the redispatch window.
+- Round carry-forward, entire: `round.started` drops its `carry` payload
+  (legacy events decode-and-ignore in all three reducers), and `--round new`
+  freezes every block not explicitly re-upserted. Explicit re-upsert is the
+  only carry.
+
+### Added
+- Inline routing with one-shot delegates replaces the handler: the skill
+  routes events in the main session (informational interactions cost a ledger
+  line; submit drains inline), the new `present-triage` agent classifies an
+  interaction burst in one drain — zero board writes, never prose — and
+  writer agents author replies and redrafts at the session's writing tier.
+- Push round-retention: `doc.replaced` carries a daemon-computed `retained`
+  list of the top-level blocks byte-identical to the previous document; those
+  keep their round assignment, so a full push never revives settled blocks.
+  All three reducers honor it, an absent `retained` replays legacy logs
+  unchanged, and the seeded `start --doc` path is included.
+
+### Fixed
+- Concurrent `push`/`update-block`/`round`/seeded-`start` writes serialize
+  under a daemon mutex, closing the duplicate-revision race and the
+  round-guard TOCTOU.
+
 ## [0.15.0] - 2026-07-21
 
 ### Added
