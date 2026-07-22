@@ -15,3 +15,4 @@ jobs:
     # shared workflow must put bun on PATH before it runs goreleaser.
     with:
       setup-bun: true
+      plugin-manifest: plugin/.claude-plugin/plugin.json
