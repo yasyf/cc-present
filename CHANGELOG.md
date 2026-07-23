@@ -6,6 +6,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.23.1] - 2026-07-23
+
+### Fixed
+- Close the v0.23 release metadata on an immutable fix-forward tag.
+
+## [0.23.0] - 2026-07-23
+
 ### Changed
 - Pin daemonkit v0.9.0 for the exact fleet-wide runtime hard cut.
 
@@ -627,7 +634,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   marketplace.
 - `examples/opener-board.json`, a complete sample document.
 
-[Unreleased]: https://github.com/yasyf/cc-present/compare/v0.22.0...main
+[Unreleased]: https://github.com/yasyf/cc-present/compare/v0.23.1...main
+[0.23.1]: https://github.com/yasyf/cc-present/compare/v0.23.0...v0.23.1
+[0.23.0]: https://github.com/yasyf/cc-present/compare/v0.22.0...v0.23.0
 [0.22.0]: https://github.com/yasyf/cc-present/compare/v0.21.1...v0.22.0
 [0.21.1]: https://github.com/yasyf/cc-present/compare/v0.20.0...v0.21.1
 [0.20.0]: https://github.com/yasyf/cc-present/compare/v0.19.2...v0.20.0
