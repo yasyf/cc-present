@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
+import { loadTheme, saveTheme } from './preferences';
+import type { ThemeMode } from './preferences';
 
-export type ThemeMode = 'system' | 'light' | 'dark';
+export type { ThemeMode } from './preferences';
 
-// Duplicated by the FOUC script in index.html; keep both literals in sync.
-const STORAGE_KEY = 'cc-present:theme';
 const DARK_QUERY = '(prefers-color-scheme: dark)';
 
 export function resolveMode(mode: ThemeMode, systemDark: boolean): 'light' | 'dark' {
@@ -14,18 +14,12 @@ export function resolveMode(mode: ThemeMode, systemDark: boolean): 'light' | 'da
 // applyUrlTheme pins an explicit ?theme=dark|light on the document before first
 // render, so the single-block page a native WKWebView loads renders in the host's
 // appearance instead of resolving color-scheme's light-dark() to the light side. An
-// absent or invalid value leaves today's behavior — the FOUC script, then the OS
-// preference — untouched.
+// absent or invalid value leaves the persisted or OS-resolved appearance untouched.
 export function applyUrlTheme(search: string): void {
   const theme = new URLSearchParams(search).get('theme');
   if (theme === 'light' || theme === 'dark') {
     document.documentElement.dataset.theme = theme;
   }
-}
-
-function readStored(): ThemeMode {
-  const raw = localStorage.getItem(STORAGE_KEY);
-  return raw === 'light' || raw === 'dark' || raw === 'system' ? raw : 'system';
 }
 
 export interface Theme {
@@ -35,7 +29,7 @@ export interface Theme {
 }
 
 export function useTheme(): Theme {
-  const [mode, setMode] = useState<ThemeMode>(readStored);
+  const [mode, setMode] = useState<ThemeMode>(loadTheme);
   const [systemDark, setSystemDark] = useState(() => window.matchMedia(DARK_QUERY).matches);
 
   useEffect(() => {
@@ -49,11 +43,10 @@ export function useTheme(): Theme {
     const root = document.documentElement;
     if (mode === 'system') {
       delete root.dataset.theme;
-      localStorage.removeItem(STORAGE_KEY);
     } else {
       root.dataset.theme = mode;
-      localStorage.setItem(STORAGE_KEY, mode);
     }
+    saveTheme(mode);
   }, [mode]);
 
   const set = useCallback((next: ThemeMode) => setMode(next), []);

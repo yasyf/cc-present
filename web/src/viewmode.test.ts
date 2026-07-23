@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { resolveMode, viewKey } from './viewmode';
+import { resolveMode } from './viewmode';
 import type { ViewMode } from './viewmode';
 import type { FocusStep } from './focus';
 
@@ -35,10 +35,4 @@ describe('resolveMode', () => {
       expect(resolveMode(c.presentation, c.override, c.steps)).toBe(c.expected);
     });
   }
-});
-
-describe('viewKey', () => {
-  it('namespaces the subject ref', () => {
-    expect(viewKey('demo-board')).toBe('cc-present:view:demo-board');
-  });
 });

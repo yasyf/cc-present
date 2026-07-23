@@ -308,7 +308,7 @@ func revisionDotState(isRevising: Bool, changeKind: RevisionState.ChangeKind?) -
 
 /// ViewMode is the resolved board presentation: the tinder-style focus deck or the
 /// flat board scroll.
-enum ViewMode: String {
+enum ViewMode: String, Codable {
     case focus
     case board
 }
@@ -324,22 +324,6 @@ func resolveViewMode(presentation: Doc.Presentation?, override: ViewMode?, steps
         return presentation == .focus ? .focus : .board
     }
     return steps.contains { $0.kind == .decision } ? .focus : .board
-}
-
-/// viewOverrideKey is the per-subject UserDefaults key holding a viewer's explicit
-/// toggle. Mirrors the web `cc-present:view:<ref>` localStorage key.
-func viewOverrideKey(subject: String) -> String {
-    "cc-present:view:\(subject)"
-}
-
-/// loadViewOverride reads a persisted override, treating any non-mode value as absent.
-func loadViewOverride(subject: String, defaults: UserDefaults = .standard) -> ViewMode? {
-    defaults.string(forKey: viewOverrideKey(subject: subject)).flatMap(ViewMode.init(rawValue:))
-}
-
-/// saveViewOverride persists a viewer's explicit toggle so it survives a relaunch.
-func saveViewOverride(subject: String, mode: ViewMode, defaults: UserDefaults = .standard) {
-    defaults.set(mode.rawValue, forKey: viewOverrideKey(subject: subject))
 }
 
 /// presentPackTypes is the all-interactive fallback: every pack type present in the

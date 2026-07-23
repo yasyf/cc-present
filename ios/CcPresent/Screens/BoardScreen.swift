@@ -15,6 +15,7 @@ struct BoardScreen: View {
 
     @State private var store: BoardStore
     @State private var viewOverride: ViewMode?
+    @State private var preferenceError: String?
     @State private var declaredInteractive: Set<String>?
     @State private var commentsModel = CommentsModel()
     private let client: APIClient
@@ -28,7 +29,13 @@ struct BoardScreen: View {
         self.client = client
         bearerToken = token
         _store = State(initialValue: BoardStore(subject: subject, transport: client))
-        _viewOverride = State(initialValue: loadViewOverride(subject: subject))
+        do {
+            _viewOverride = try State(initialValue: loadViewOverride(subject: subject))
+            _preferenceError = State(initialValue: nil)
+        } catch {
+            _viewOverride = State(initialValue: nil)
+            _preferenceError = State(initialValue: error.localizedDescription)
+        }
     }
 
     private var state: BoardState {
@@ -94,7 +101,13 @@ struct BoardScreen: View {
 
     @ViewBuilder
     private var content: some View {
-        if store.isLoading, !hasContent {
+        if let preferenceError {
+            ContentUnavailableView(
+                "Preferences Unavailable",
+                systemImage: "exclamationmark.triangle",
+                description: Text(preferenceError)
+            )
+        } else if store.isLoading, !hasContent {
             BoardSkeletonView()
         } else {
             board
@@ -239,11 +252,15 @@ struct BoardScreen: View {
 
     @ViewBuilder
     private var viewToggle: some View {
-        if !currentBlocks.isEmpty {
+        if preferenceError == nil, !currentBlocks.isEmpty {
             Button {
                 let next: ViewMode = mode == .focus ? .board : .focus
-                viewOverride = next
-                saveViewOverride(subject: subject, mode: next)
+                do {
+                    try saveViewOverride(subject: subject, mode: next)
+                    viewOverride = next
+                } catch {
+                    preferenceError = error.localizedDescription
+                }
             } label: {
                 Image(systemName: mode == .focus ? "list.bullet.rectangle" : "square.stack")
             }
