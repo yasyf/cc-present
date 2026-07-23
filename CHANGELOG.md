@@ -6,6 +6,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.22.0] - 2026-07-23
+
+### Changed
+- Pin cc-interact v0.19.0 so daemon startup verifies the complete live v1
+  `sqlite_schema` object set and rejects missing, extra, or altered definitions.
+
 ## [0.21.1] - 2026-07-23
 
 ### Changed
@@ -618,7 +624,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   marketplace.
 - `examples/opener-board.json`, a complete sample document.
 
-[Unreleased]: https://github.com/yasyf/cc-present/compare/v0.21.1...main
+[Unreleased]: https://github.com/yasyf/cc-present/compare/v0.22.0...main
+[0.22.0]: https://github.com/yasyf/cc-present/compare/v0.21.1...v0.22.0
 [0.21.1]: https://github.com/yasyf/cc-present/compare/v0.20.0...v0.21.1
 [0.20.0]: https://github.com/yasyf/cc-present/compare/v0.19.2...v0.20.0
 [0.19.2]: https://github.com/yasyf/cc-present/compare/v0.19.0...v0.19.2
