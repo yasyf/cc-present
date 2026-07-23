@@ -6,6 +6,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.24.2] - 2026-07-23
+
+### Fixed
+- Preserve the exact signed release bytes and generated cask before publication,
+  then deliver Homebrew from an independently retryable immutable artifact.
+
 ## [0.24.1] - 2026-07-23
 
 ### Fixed
@@ -642,7 +648,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   marketplace.
 - `examples/opener-board.json`, a complete sample document.
 
-[Unreleased]: https://github.com/yasyf/cc-present/compare/v0.24.1...main
+[Unreleased]: https://github.com/yasyf/cc-present/compare/v0.24.2...main
+[0.24.2]: https://github.com/yasyf/cc-present/compare/v0.24.1...v0.24.2
 [0.24.1]: https://github.com/yasyf/cc-present/compare/v0.24.0...v0.24.1
 [0.24.0]: https://github.com/yasyf/cc-present/compare/v0.23.0...v0.24.0
 [0.23.0]: https://github.com/yasyf/cc-present/compare/v0.22.0...v0.23.0
