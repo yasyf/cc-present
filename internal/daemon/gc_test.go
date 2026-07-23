@@ -95,7 +95,7 @@ func seedSubject(t *testing.T, cc *ccstore.Store, id, scope, status, docJSON str
 	payload := fmt.Sprintf(`{"doc":%s,"revision":1}`, docJSON)
 	if _, err := cc.AppendEvent(context.Background(), &ccevent.Event{
 		SubjectID: id, Origin: ccevent.OriginAgent, Type: EventDocReplaced,
-		Payload: json.RawMessage(payload),
+		Payload: injectIdentity(EventDocReplaced, json.RawMessage(payload)),
 	}); err != nil {
 		t.Fatalf("append doc.replaced for %s: %v", id, err)
 	}

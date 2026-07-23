@@ -5,10 +5,11 @@
       "origin": "agent",
       "type": "block.upserted",
       "seq": 1,
-      "payload": { "block": { "id": "c1", "type": "card", "title": "acme", "children": [] } }
+      "payload": { "schemaVersion": 1, "type": "block.upserted", "block": { "id": "c1", "type": "card", "title": "acme", "children": [] } }
     }
   ],
   "expected": {
+    "schemaVersion": 1,
     "doc": {
       "version": 1,
       "title": "",

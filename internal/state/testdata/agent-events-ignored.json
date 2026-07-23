@@ -6,6 +6,8 @@
       "type": "doc.replaced",
       "seq": 1,
       "payload": {
+        "schemaVersion": 1,
+        "type": "doc.replaced",
         "revision": 1,
         "doc": {
           "version": 1,
@@ -30,7 +32,7 @@
       "origin": "human",
       "type": "decision.created",
       "seq": 3,
-      "payload": { "blockId": "a1", "verdict": "approved" }
+      "payload": { "schemaVersion": 1, "type": "decision.created", "blockId": "a1", "verdict": "approved" }
     },
     {
       "origin": "system",
@@ -46,6 +48,7 @@
     }
   ],
   "expected": {
+    "schemaVersion": 1,
     "doc": {
       "version": 1,
       "title": "T",

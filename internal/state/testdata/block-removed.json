@@ -6,6 +6,8 @@
       "type": "doc.replaced",
       "seq": 1,
       "payload": {
+        "schemaVersion": 1,
+        "type": "doc.replaced",
         "revision": 1,
         "doc": {
           "version": 1,
@@ -18,9 +20,10 @@
         }
       }
     },
-    { "origin": "agent", "type": "block.removed", "seq": 2, "payload": { "id": "c2" } }
+    { "origin": "agent", "type": "block.removed", "seq": 2, "payload": { "schemaVersion": 1, "type": "block.removed", "id": "c2" } }
   ],
   "expected": {
+    "schemaVersion": 1,
     "doc": {
       "version": 1,
       "title": "T",

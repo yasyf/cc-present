@@ -6,6 +6,8 @@
       "type": "doc.replaced",
       "seq": 1,
       "payload": {
+        "schemaVersion": 1,
+        "type": "doc.replaced",
         "revision": 1,
         "doc": {
           "version": 1,
@@ -17,17 +19,20 @@
         }
       }
     },
-    { "origin": "human", "type": "decision.created", "seq": 2, "payload": { "blockId": "a1", "verdict": "approved" } },
+    { "origin": "human", "type": "decision.created", "seq": 2, "payload": { "schemaVersion": 1, "type": "decision.created", "blockId": "a1", "verdict": "approved" } },
     {
       "origin": "agent",
       "type": "block.upserted",
       "seq": 3,
       "payload": {
+        "schemaVersion": 1,
+        "type": "block.upserted",
         "block": { "id": "c1", "type": "card", "title": "acme v2", "status": "redrafted", "children": [{ "id": "a1", "type": "approval", "prompt": "v2?" }] }
       }
     }
   ],
   "expected": {
+    "schemaVersion": 1,
     "doc": {
       "version": 1,
       "title": "T",

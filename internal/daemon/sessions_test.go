@@ -44,7 +44,7 @@ func (h *sessionsHarness) seed(t *testing.T, id, slug, status string, updated ti
 		raw := json.RawMessage(fmt.Sprintf(`{"version":1,"title":%q,"blocks":[]}`, title))
 		if _, err := h.cc.AppendEvent(ctx, &ccevent.Event{
 			SubjectID: id, Origin: ccevent.OriginAgent, Type: EventDocReplaced,
-			Payload: docReplacedPayload(raw, i+1, nil),
+			Payload: injectIdentity(EventDocReplaced, docReplacedPayload(raw, i+1, nil)),
 		}); err != nil {
 			t.Fatalf("seed doc %s: %v", id, err)
 		}

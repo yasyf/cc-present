@@ -6,6 +6,8 @@
       "type": "doc.replaced",
       "seq": 1,
       "payload": {
+        "schemaVersion": 1,
+        "type": "doc.replaced",
         "revision": 1,
         "doc": {
           "version": 1,
@@ -17,11 +19,12 @@
         }
       }
     },
-    { "origin": "agent", "type": "revising.changed", "seq": 2, "payload": { "blockIds": ["b1", "b2"], "note": "reworking both" } },
-    { "origin": "agent", "type": "block.upserted", "seq": 3, "payload": { "block": { "id": "b1", "type": "approval" } } },
-    { "origin": "human", "type": "submit", "seq": 4, "payload": { "revision": 1 } }
+    { "origin": "agent", "type": "revising.changed", "seq": 2, "payload": { "schemaVersion": 1, "type": "revising.changed", "blockIds": ["b1", "b2"], "note": "reworking both" } },
+    { "origin": "agent", "type": "block.upserted", "seq": 3, "payload": { "schemaVersion": 1, "type": "block.upserted", "block": { "id": "b1", "type": "approval" } } },
+    { "origin": "human", "type": "submit", "seq": 4, "payload": { "schemaVersion": 1, "type": "submit", "revision": 1 } }
   ],
   "expected": {
+    "schemaVersion": 1,
     "doc": {
       "version": 1,
       "title": "T",

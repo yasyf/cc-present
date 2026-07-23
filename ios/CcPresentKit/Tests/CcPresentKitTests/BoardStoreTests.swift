@@ -21,6 +21,7 @@ private actor ScriptedTransport: InteractionPoster {
 /// frame builds an SSE echo message: a self-describing wire frame stamped with seq.
 private func frame(type: String, seq: Int64, _ fields: [String: Any] = [:]) throws -> SSEClient.Message {
     var object = fields
+    object["schemaVersion"] = 1
     object["type"] = type
     let data = try JSONSerialization.data(withJSONObject: object)
     return try .frame(Event.wireFrame(data, seq: seq))

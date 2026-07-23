@@ -197,6 +197,8 @@ public enum EventPayload: Equatable, Sendable {
 public enum EventError: Error, Equatable {
     case unknownType(String)
     case malformedWireFrame
+    case schemaVersion(Int64?)
+    case payloadType(expected: String, actual: String?)
 }
 
 /// Event is one entry in a subject's log. Type is the reduction discriminant; the
@@ -216,26 +218,42 @@ public struct Event: Decodable, Equatable, Sendable {
     public var payload: EventPayload {
         get throws {
             switch type {
-            case "doc.replaced": return try .docReplaced(rawPayload.decode(DocReplacedPayload.self))
-            case "block.upserted": return try .blockUpserted(rawPayload.decode(BlockUpsertedPayload.self))
-            case "block.removed": return try .blockRemoved(rawPayload.decode(BlockRemovedPayload.self))
-            case "reply.created": return try .replyCreated(rawPayload.decode(ReplyCreatedPayload.self))
-            case "round.started": return try .roundStarted(rawPayload.decode(RoundStartedPayload.self))
-            case "present.closed": return try .presentClosed(rawPayload.decode(PresentClosedPayload.self))
-            case "decision.created": return try .decisionCreated(rawPayload.decode(DecisionCreatedPayload.self))
-            case "choice.selected": return try .choiceSelected(rawPayload.decode(ChoiceSelectedPayload.self))
-            case "feedback.created": return try .feedbackCreated(rawPayload.decode(FeedbackCreatedPayload.self))
-            case "input.submitted": return try .inputSubmitted(rawPayload.decode(InputSubmittedPayload.self))
-            case "annotation.created": return try .annotationCreated(rawPayload.decode(AnnotationCreatedPayload.self))
-            case "annotation.removed": return try .annotationRemoved(rawPayload.decode(AnnotationRemovedPayload.self))
-            case "triage.decided": return try .triageDecided(rawPayload.decode(TriageDecidedPayload.self))
-            case "pack.interaction": return try .packInteraction(rawPayload.decode(PackInteractionPayload.self))
-            case "submit": return try .submit(rawPayload.decode(SubmitPayload.self))
-            case "revising.changed": return try .revisingChanged(rawPayload.decode(RevisingChangedPayload.self))
+            case "doc.replaced": try validateIdentity(); return try .docReplaced(rawPayload.decode(DocReplacedPayload.self))
+            case "block.upserted": try validateIdentity(); return try .blockUpserted(rawPayload.decode(BlockUpsertedPayload.self))
+            case "block.removed": try validateIdentity(); return try .blockRemoved(rawPayload.decode(BlockRemovedPayload.self))
+            case "reply.created": try validateIdentity(); return try .replyCreated(rawPayload.decode(ReplyCreatedPayload.self))
+            case "round.started": try validateIdentity(); return try .roundStarted(rawPayload.decode(RoundStartedPayload.self))
+            case "present.closed": try validateIdentity(); return try .presentClosed(rawPayload.decode(PresentClosedPayload.self))
+            case "decision.created": try validateIdentity(); return try .decisionCreated(rawPayload.decode(DecisionCreatedPayload.self))
+            case "choice.selected": try validateIdentity(); return try .choiceSelected(rawPayload.decode(ChoiceSelectedPayload.self))
+            case "feedback.created": try validateIdentity(); return try .feedbackCreated(rawPayload.decode(FeedbackCreatedPayload.self))
+            case "input.submitted": try validateIdentity(); return try .inputSubmitted(rawPayload.decode(InputSubmittedPayload.self))
+            case "annotation.created": try validateIdentity(); return try .annotationCreated(rawPayload.decode(AnnotationCreatedPayload.self))
+            case "annotation.removed": try validateIdentity(); return try .annotationRemoved(rawPayload.decode(AnnotationRemovedPayload.self))
+            case "triage.decided": try validateIdentity(); return try .triageDecided(rawPayload.decode(TriageDecidedPayload.self))
+            case "pack.interaction": try validateIdentity(); return try .packInteraction(rawPayload.decode(PackInteractionPayload.self))
+            case "submit": try validateIdentity(); return try .submit(rawPayload.decode(SubmitPayload.self))
+            case "revising.changed": try validateIdentity(); return try .revisingChanged(rawPayload.decode(RevisingChangedPayload.self))
             case "channel.changed": return try .channelChanged(rawPayload.decode(ChannelChangedPayload.self))
             default: throw EventError.unknownType(type)
             }
         }
+    }
+
+    private func validateIdentity() throws {
+        guard case let .object(fields) = rawPayload else { throw EventError.malformedWireFrame }
+        let version: Int64? = if case let .int(value)? = fields["schemaVersion"] {
+            value
+        } else {
+            nil
+        }
+        guard version == 1 else { throw EventError.schemaVersion(version) }
+        let payloadType: String? = if case let .string(value)? = fields["type"] {
+            value
+        } else {
+            nil
+        }
+        guard payloadType == type else { throw EventError.payloadType(expected: type, actual: payloadType) }
     }
 
     private init(origin: Origin?, type: String, seq: Int64?, rawPayload: JSONValue) {
@@ -268,7 +286,11 @@ public struct Event: Decodable, Equatable, Sendable {
         guard case let .object(fields) = raw, case let .string(type)? = fields["type"] else {
             throw EventError.malformedWireFrame
         }
-        return Event(origin: nil, type: type, seq: seq, rawPayload: raw)
+        let event = Event(origin: nil, type: type, seq: seq, rawPayload: raw)
+        if type != "channel.changed", !type.hasPrefix("agent.") {
+            try event.validateIdentity()
+        }
+        return event
     }
 }
 

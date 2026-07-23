@@ -134,7 +134,7 @@ func TestPackList(t *testing.T) {
 	delete(droppedFiles, "dist/pack.js") // missing entry → dropped fail-soft
 	writePackFiles(t, dropped, droppedFiles)
 
-	if err := app.WriteConfig(app.Config{PackDirs: []string{good, dropped}}); err != nil {
+	if err := app.WriteConfig(app.Config{SchemaVersion: app.ConfigSchemaVersion, PackDirs: []string{good, dropped}}); err != nil {
 		t.Fatalf("write config: %v", err)
 	}
 
@@ -330,7 +330,7 @@ func TestPushDryRunPackBlock(t *testing.T) {
 	t.Setenv("CLAUDE_CONFIG_DIR", filepath.Join(home, ".claude"))
 
 	good := writeGoodPack(t)
-	if err := app.WriteConfig(app.Config{PackDirs: []string{good}}); err != nil {
+	if err := app.WriteConfig(app.Config{SchemaVersion: app.ConfigSchemaVersion, PackDirs: []string{good}}); err != nil {
 		t.Fatalf("write config: %v", err)
 	}
 

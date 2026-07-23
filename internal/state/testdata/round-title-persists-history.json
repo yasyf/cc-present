@@ -6,6 +6,8 @@
       "type": "doc.replaced",
       "seq": 1,
       "payload": {
+        "schemaVersion": 1,
+        "type": "doc.replaced",
         "revision": 1,
         "doc": {
           "version": 1,
@@ -14,17 +16,18 @@
         }
       }
     },
-    { "origin": "agent", "type": "round.started", "seq": 2, "payload": { "title": "round two" } },
+    { "origin": "agent", "type": "round.started", "seq": 2, "payload": { "schemaVersion": 1, "type": "round.started", "title": "round two" } },
     {
       "origin": "agent",
       "type": "block.upserted",
       "seq": 3,
-      "payload": { "block": { "id": "a1", "type": "approval" } }
+      "payload": { "schemaVersion": 1, "type": "block.upserted", "block": { "id": "a1", "type": "approval" } }
     },
-    { "origin": "human", "type": "decision.created", "seq": 4, "payload": { "blockId": "a1", "verdict": "approved" } },
-    { "origin": "human", "type": "submit", "seq": 5, "payload": { "revision": 1 } }
+    { "origin": "human", "type": "decision.created", "seq": 4, "payload": { "schemaVersion": 1, "type": "decision.created", "blockId": "a1", "verdict": "approved" } },
+    { "origin": "human", "type": "submit", "seq": 5, "payload": { "schemaVersion": 1, "type": "submit", "revision": 1 } }
   ],
   "expected": {
+    "schemaVersion": 1,
     "doc": {
       "version": 1,
       "title": "T",

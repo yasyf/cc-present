@@ -23,12 +23,12 @@ private func reduced(_ events: [Event]) throws -> BoardState {
 private func docReplaced(_ blocks: [Block], seq: Int64) throws -> Event {
     let docData = try JSONEncoder().encode(Doc(title: "deck", blocks: blocks))
     let docObject = try JSONSerialization.jsonObject(with: docData)
-    let frame: [String: Any] = ["type": "doc.replaced", "doc": docObject, "revision": 0]
+    let frame: [String: Any] = ["schemaVersion": 1, "type": "doc.replaced", "doc": docObject, "revision": 0]
     return try Event.wireFrame(JSONSerialization.data(withJSONObject: frame), seq: seq)
 }
 
 private func blockRemoved(_ id: String, seq: Int64) throws -> Event {
-    try Event.wireFrame(JSONSerialization.data(withJSONObject: ["type": "block.removed", "id": id]), seq: seq)
+    try Event.wireFrame(JSONSerialization.data(withJSONObject: ["schemaVersion": 1, "type": "block.removed", "id": id]), seq: seq)
 }
 
 private func currentBlocks(_ state: BoardState) -> [Block] {

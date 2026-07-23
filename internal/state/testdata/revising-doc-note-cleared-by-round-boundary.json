@@ -6,6 +6,8 @@
       "type": "doc.replaced",
       "seq": 1,
       "payload": {
+        "schemaVersion": 1,
+        "type": "doc.replaced",
         "revision": 1,
         "doc": {
           "version": 1,
@@ -14,10 +16,11 @@
         }
       }
     },
-    { "origin": "agent", "type": "revising.changed", "seq": 2, "payload": { "blockIds": [], "note": "drafting the follow-up" } },
-    { "origin": "agent", "type": "round.started", "seq": 3, "payload": {} }
+    { "origin": "agent", "type": "revising.changed", "seq": 2, "payload": { "schemaVersion": 1, "type": "revising.changed", "blockIds": [], "note": "drafting the follow-up" } },
+    { "origin": "agent", "type": "round.started", "seq": 3, "payload": { "schemaVersion": 1, "type": "round.started" } }
   ],
   "expected": {
+    "schemaVersion": 1,
     "doc": {
       "version": 1,
       "title": "T",

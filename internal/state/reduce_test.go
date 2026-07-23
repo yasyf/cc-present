@@ -73,13 +73,38 @@ func TestReduceErrors(t *testing.T) {
 		},
 		{
 			name:    "invalid verdict",
-			events:  []state.Event{{Origin: "human", Type: "decision.created", Seq: 1, Payload: []byte(`{"blockId":"a1","verdict":"maybe"}`)}},
+			events:  []state.Event{{Origin: "human", Type: "decision.created", Seq: 1, Payload: eventPayload(t, "decision.created", `{"blockId":"a1","verdict":"maybe"}`)}},
 			wantErr: "invalid verdict",
 		},
 		{
 			name:    "malformed block on upsert",
-			events:  []state.Event{{Origin: "agent", Type: "block.upserted", Seq: 1, Payload: []byte(`{"block":{"id":"x","type":"bogus"}}`)}},
+			events:  []state.Event{{Origin: "agent", Type: "block.upserted", Seq: 1, Payload: eventPayload(t, "block.upserted", `{"block":{"id":"x","type":"bogus"}}`)}},
 			wantErr: "unknown type",
+		},
+		{
+			name:    "missing event schema",
+			events:  []state.Event{{Origin: "human", Type: "submit", Seq: 1, Payload: []byte(`{"type":"submit","revision":1}`)}},
+			wantErr: "schema version 0",
+		},
+		{
+			name:    "old event schema",
+			events:  []state.Event{{Origin: "human", Type: "submit", Seq: 1, Payload: []byte(`{"schemaVersion":0,"type":"submit","revision":1}`)}},
+			wantErr: "schema version 0",
+		},
+		{
+			name:    "unknown event field",
+			events:  []state.Event{{Origin: "human", Type: "submit", Seq: 1, Payload: []byte(`{"schemaVersion":1,"type":"submit","revision":1,"legacy":true}`)}},
+			wantErr: "unknown field",
+		},
+		{
+			name:    "mismatched event type",
+			events:  []state.Event{{Origin: "human", Type: "submit", Seq: 1, Payload: []byte(`{"schemaVersion":1,"type":"decision.created","revision":1}`)}},
+			wantErr: "does not match",
+		},
+		{
+			name:    "round carry is not v1",
+			events:  []state.Event{{Origin: "agent", Type: "round.started", Seq: 1, Payload: []byte(`{"schemaVersion":1,"type":"round.started","carry":["a1"]}`)}},
+			wantErr: "unknown field",
 		},
 	}
 	for _, tt := range tests {
@@ -103,9 +128,9 @@ func TestReducePackInteraction(t *testing.T) {
 
 	t.Run("last write wins per block", func(t *testing.T) {
 		st, err := state.Reduce([]state.Event{
-			{Origin: "agent", Type: "doc.replaced", Seq: 1, Payload: []byte(packDoc)},
-			{Origin: "human", Type: "pack.interaction", Seq: 2, Payload: []byte(`{"blockId":"r1","payload":{"value":3}}`)},
-			{Origin: "human", Type: "pack.interaction", Seq: 3, Payload: []byte(`{"blockId":"r1","payload":{"value":5}}`)},
+			{Origin: "agent", Type: "doc.replaced", Seq: 1, Payload: eventPayload(t, "doc.replaced", packDoc)},
+			{Origin: "human", Type: "pack.interaction", Seq: 2, Payload: eventPayload(t, "pack.interaction", `{"blockId":"r1","payload":{"value":3}}`)},
+			{Origin: "human", Type: "pack.interaction", Seq: 3, Payload: eventPayload(t, "pack.interaction", `{"blockId":"r1","payload":{"value":5}}`)},
 		})
 		if err != nil {
 			t.Fatalf("Reduce: %v", err)
@@ -117,9 +142,9 @@ func TestReducePackInteraction(t *testing.T) {
 
 	t.Run("snapshot into the closed round on submit", func(t *testing.T) {
 		st, err := state.Reduce([]state.Event{
-			{Origin: "agent", Type: "doc.replaced", Seq: 1, Payload: []byte(packDoc)},
-			{Origin: "human", Type: "pack.interaction", Seq: 2, Payload: []byte(`{"blockId":"r1","payload":{"value":4}}`)},
-			{Origin: "human", Type: "submit", Seq: 3, Payload: []byte(`{"revision":1}`)},
+			{Origin: "agent", Type: "doc.replaced", Seq: 1, Payload: eventPayload(t, "doc.replaced", packDoc)},
+			{Origin: "human", Type: "pack.interaction", Seq: 2, Payload: eventPayload(t, "pack.interaction", `{"blockId":"r1","payload":{"value":4}}`)},
+			{Origin: "human", Type: "submit", Seq: 3, Payload: eventPayload(t, "submit", `{"revision":1}`)},
 		})
 		if err != nil {
 			t.Fatalf("Reduce: %v", err)
@@ -135,6 +160,40 @@ func TestReducePackInteraction(t *testing.T) {
 			t.Fatalf("live packs[r1].value = %d, want 4", got)
 		}
 	})
+}
+
+func TestStateRejectsNonV1AndUnknownFields(t *testing.T) {
+	for _, data := range []string{
+		`{"doc":null,"interactions":{},"rounds":{},"revising":{}}`,
+		`{"schemaVersion":0,"doc":null,"interactions":{},"rounds":{},"revising":{}}`,
+		`{"schemaVersion":2,"doc":null,"interactions":{},"rounds":{},"revising":{}}`,
+		`{"schemaVersion":1,"doc":null,"interactions":{},"rounds":{},"revising":{},"legacy":true}`,
+		`{"schemaVersion":1,"doc":null,"interactions":{},"rounds":{},"revising":{}} {}`,
+	} {
+		var got state.State
+		if err := json.Unmarshal([]byte(data), &got); err == nil {
+			t.Fatalf("State accepted %s", data)
+		}
+	}
+}
+
+func eventPayload(t *testing.T, eventType, body string) json.RawMessage {
+	t.Helper()
+	var payload map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(body), &payload); err != nil {
+		t.Fatalf("decode event payload: %v", err)
+	}
+	payload["schemaVersion"] = json.RawMessage(`1`)
+	typeJSON, err := json.Marshal(eventType)
+	if err != nil {
+		t.Fatalf("marshal event type: %v", err)
+	}
+	payload["type"] = typeJSON
+	raw, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("marshal event payload: %v", err)
+	}
+	return raw
 }
 
 func packValue(t *testing.T, v state.PackValue) int {

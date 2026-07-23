@@ -6,6 +6,8 @@
       "type": "doc.replaced",
       "seq": 1,
       "payload": {
+        "schemaVersion": 1,
+        "type": "doc.replaced",
         "revision": 1,
         "doc": {
           "version": 1,
@@ -29,12 +31,15 @@
       "type": "block.upserted",
       "seq": 2,
       "payload": {
+        "schemaVersion": 1,
+        "type": "block.upserted",
         "after": "a1",
         "block": { "id": "in1", "type": "input", "label": "Inserted" }
       }
     }
   ],
   "expected": {
+    "schemaVersion": 1,
     "doc": {
       "version": 1,
       "title": "T",

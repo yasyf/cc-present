@@ -6,6 +6,8 @@
       "type": "doc.replaced",
       "seq": 1,
       "payload": {
+        "schemaVersion": 1,
+        "type": "doc.replaced",
         "revision": 1,
         "doc": {
           "version": 1,
@@ -14,10 +16,11 @@
         }
       }
     },
-    { "origin": "human", "type": "pack.interaction", "seq": 2, "payload": { "blockId": "k1", "payload": { "value": 3 } } },
-    { "origin": "human", "type": "pack.interaction", "seq": 3, "payload": { "blockId": "k1", "payload": { "value": 5 } } }
+    { "origin": "human", "type": "pack.interaction", "seq": 2, "payload": { "schemaVersion": 1, "type": "pack.interaction", "blockId": "k1", "payload": { "value": 3 } } },
+    { "origin": "human", "type": "pack.interaction", "seq": 3, "payload": { "schemaVersion": 1, "type": "pack.interaction", "blockId": "k1", "payload": { "value": 5 } } }
   ],
   "expected": {
+    "schemaVersion": 1,
     "doc": {
       "version": 1,
       "title": "T",

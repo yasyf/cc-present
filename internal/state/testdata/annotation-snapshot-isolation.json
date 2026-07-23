@@ -6,6 +6,8 @@
       "type": "doc.replaced",
       "seq": 1,
       "payload": {
+        "schemaVersion": 1,
+        "type": "doc.replaced",
         "revision": 1,
         "doc": {
           "version": 1,
@@ -16,11 +18,12 @@
         }
       }
     },
-    { "origin": "human", "type": "annotation.created", "seq": 2, "payload": { "id": "an1", "blockId": "d1", "anchor": "2-2#svvz", "text": "Needs a citation.", "quote": "A claim that needs support." } },
-    { "origin": "human", "type": "submit", "seq": 3, "payload": { "revision": 1 } },
-    { "origin": "human", "type": "annotation.created", "seq": 4, "payload": { "id": "an1", "blockId": "d1", "anchor": "2-2#svvz", "text": "Rewritten note after close.", "quote": "A claim that needs support." } }
+    { "origin": "human", "type": "annotation.created", "seq": 2, "payload": { "schemaVersion": 1, "type": "annotation.created", "id": "an1", "blockId": "d1", "anchor": "2-2#svvz", "text": "Needs a citation.", "quote": "A claim that needs support." } },
+    { "origin": "human", "type": "submit", "seq": 3, "payload": { "schemaVersion": 1, "type": "submit", "revision": 1 } },
+    { "origin": "human", "type": "annotation.created", "seq": 4, "payload": { "schemaVersion": 1, "type": "annotation.created", "id": "an1", "blockId": "d1", "anchor": "2-2#svvz", "text": "Rewritten note after close.", "quote": "A claim that needs support." } }
   ],
   "expected": {
+    "schemaVersion": 1,
     "doc": {
       "version": 1,
       "title": "D",

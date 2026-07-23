@@ -6,6 +6,8 @@
       "type": "doc.replaced",
       "seq": 1,
       "payload": {
+        "schemaVersion": 1,
+        "type": "doc.replaced",
         "revision": 1,
         "doc": {
           "version": 1,
@@ -21,13 +23,15 @@
         }
       }
     },
-    { "origin": "human", "type": "pack.interaction", "seq": 2, "payload": { "blockId": "k1", "payload": { "value": 4 } } },
-    { "origin": "human", "type": "submit", "seq": 3, "payload": { "revision": 1 } },
+    { "origin": "human", "type": "pack.interaction", "seq": 2, "payload": { "schemaVersion": 1, "type": "pack.interaction", "blockId": "k1", "payload": { "value": 4 } } },
+    { "origin": "human", "type": "submit", "seq": 3, "payload": { "schemaVersion": 1, "type": "submit", "revision": 1 } },
     {
       "origin": "agent",
       "type": "block.upserted",
       "seq": 4,
       "payload": {
+        "schemaVersion": 1,
+        "type": "block.upserted",
         "after": "c1",
         "block": {
           "id": "c2",
@@ -37,10 +41,11 @@
         }
       }
     },
-    { "origin": "human", "type": "pack.interaction", "seq": 5, "payload": { "blockId": "k2", "payload": { "value": 9 } } },
-    { "origin": "human", "type": "submit", "seq": 6, "payload": { "revision": 2 } }
+    { "origin": "human", "type": "pack.interaction", "seq": 5, "payload": { "schemaVersion": 1, "type": "pack.interaction", "blockId": "k2", "payload": { "value": 9 } } },
+    { "origin": "human", "type": "submit", "seq": 6, "payload": { "schemaVersion": 1, "type": "submit", "revision": 2 } }
   ],
   "expected": {
+    "schemaVersion": 1,
     "doc": {
       "version": 1,
       "title": "T",

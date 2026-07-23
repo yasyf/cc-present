@@ -43,6 +43,7 @@ function docState(ids: string[], revising: Revising = { blockIds: [] }): Present
   return { ...base, doc: { ...base.doc, blocks: ids.map((id) => ({ id, type: 'markdown', md: id }) as Block) }, revising };
 }
 const revisingFrame = (ids: string[], note?: string): WireFrame => ({
+  schemaVersion: 1,
   type: 'revising.changed',
   blockIds: ids,
   ...(note !== undefined ? { note } : {}),

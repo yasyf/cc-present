@@ -147,7 +147,7 @@ ok: my-pack 0.2.0 (3 blocks)
 Add the pack root to `packDirs` in `~/.cc-present/config.json`:
 
 ```json
-{ "packDirs": ["/path/to/my-pack"] }
+{ "schemaVersion": 1, "packDirs": ["/path/to/my-pack"] }
 ```
 
 The daemon re-scans within a couple of seconds, so the next push sees your

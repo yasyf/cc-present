@@ -6,6 +6,8 @@
       "type": "doc.replaced",
       "seq": 1,
       "payload": {
+        "schemaVersion": 1,
+        "type": "doc.replaced",
         "revision": 1,
         "doc": {
           "version": 1,
@@ -17,11 +19,12 @@
         }
       }
     },
-    { "origin": "human", "type": "input.submitted", "seq": 2, "payload": { "blockId": "in1", "text": "carry me" } },
-    { "origin": "human", "type": "submit", "seq": 3, "payload": { "revision": 1 } },
-    { "origin": "human", "type": "input.submitted", "seq": 4, "payload": { "blockId": "in1", "text": "carry me" } }
+    { "origin": "human", "type": "input.submitted", "seq": 2, "payload": { "schemaVersion": 1, "type": "input.submitted", "blockId": "in1", "text": "carry me" } },
+    { "origin": "human", "type": "submit", "seq": 3, "payload": { "schemaVersion": 1, "type": "submit", "revision": 1 } },
+    { "origin": "human", "type": "input.submitted", "seq": 4, "payload": { "schemaVersion": 1, "type": "input.submitted", "blockId": "in1", "text": "carry me" } }
   ],
   "expected": {
+    "schemaVersion": 1,
     "doc": {
       "version": 1,
       "title": "T",

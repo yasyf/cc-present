@@ -672,7 +672,7 @@ func TestRound(t *testing.T) {
 				// live block keeps its round-1 stamp, so round 2 is clean.
 				if _, err := h.cc.AppendEvent(context.Background(), &ccevent.Event{
 					SubjectID: start.SubjectID, Origin: ccevent.OriginHuman, Type: EventSubmit,
-					Payload: json.RawMessage(`{"revision":1}`),
+					Payload: injectIdentity(EventSubmit, json.RawMessage(`{"revision":1}`)),
 				}); err != nil {
 					t.Fatalf("append submit: %v", err)
 				}
@@ -879,7 +879,7 @@ func engageDecision(t *testing.T, h *harness, subjectID, blockID string) {
 	t.Helper()
 	if _, err := h.cc.AppendEvent(context.Background(), &ccevent.Event{
 		SubjectID: subjectID, Origin: ccevent.OriginHuman, Type: EventDecisionCreated,
-		Payload: json.RawMessage(fmt.Sprintf(`{"blockId":%q,"verdict":"approved"}`, blockID)),
+		Payload: injectIdentity(EventDecisionCreated, json.RawMessage(fmt.Sprintf(`{"blockId":%q,"verdict":"approved"}`, blockID))),
 	}); err != nil {
 		t.Fatalf("append decision: %v", err)
 	}
@@ -891,7 +891,7 @@ func submitRevision(t *testing.T, h *harness, subjectID string, rev int) {
 	t.Helper()
 	if _, err := h.cc.AppendEvent(context.Background(), &ccevent.Event{
 		SubjectID: subjectID, Origin: ccevent.OriginHuman, Type: EventSubmit,
-		Payload: json.RawMessage(fmt.Sprintf(`{"revision":%d}`, rev)),
+		Payload: injectIdentity(EventSubmit, json.RawMessage(fmt.Sprintf(`{"revision":%d}`, rev))),
 	}); err != nil {
 		t.Fatalf("append submit: %v", err)
 	}
@@ -1239,7 +1239,7 @@ func TestOutcomes(t *testing.T) {
 	// A human decision lands directly on the log, as the REST plane would append it.
 	if _, err := h.cc.AppendEvent(context.Background(), &ccevent.Event{
 		SubjectID: start.SubjectID, Origin: ccevent.OriginHuman, Type: EventDecisionCreated,
-		Payload: json.RawMessage(`{"blockId":"a1","verdict":"approved"}`),
+		Payload: injectIdentity(EventDecisionCreated, json.RawMessage(`{"blockId":"a1","verdict":"approved"}`)),
 	}); err != nil {
 		t.Fatalf("append decision: %v", err)
 	}

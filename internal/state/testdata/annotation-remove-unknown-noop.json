@@ -6,6 +6,8 @@
       "type": "doc.replaced",
       "seq": 1,
       "payload": {
+        "schemaVersion": 1,
+        "type": "doc.replaced",
         "revision": 1,
         "doc": {
           "version": 1,
@@ -16,10 +18,11 @@
         }
       }
     },
-    { "origin": "human", "type": "annotation.created", "seq": 2, "payload": { "id": "an1", "blockId": "d1", "anchor": "2-2#svvz", "text": "needs a citation", "quote": "A claim that needs support." } },
-    { "origin": "human", "type": "annotation.removed", "seq": 3, "payload": { "id": "nope", "blockId": "d1" } }
+    { "origin": "human", "type": "annotation.created", "seq": 2, "payload": { "schemaVersion": 1, "type": "annotation.created", "id": "an1", "blockId": "d1", "anchor": "2-2#svvz", "text": "needs a citation", "quote": "A claim that needs support." } },
+    { "origin": "human", "type": "annotation.removed", "seq": 3, "payload": { "schemaVersion": 1, "type": "annotation.removed", "id": "nope", "blockId": "d1" } }
   ],
   "expected": {
+    "schemaVersion": 1,
     "doc": {
       "version": 1,
       "title": "T",

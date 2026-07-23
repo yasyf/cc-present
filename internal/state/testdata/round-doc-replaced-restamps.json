@@ -6,6 +6,8 @@
       "type": "doc.replaced",
       "seq": 1,
       "payload": {
+        "schemaVersion": 1,
+        "type": "doc.replaced",
         "revision": 1,
         "doc": {
           "version": 1,
@@ -17,12 +19,14 @@
         }
       }
     },
-    { "origin": "human", "type": "submit", "seq": 2, "payload": { "revision": 1 } },
+    { "origin": "human", "type": "submit", "seq": 2, "payload": { "schemaVersion": 1, "type": "submit", "revision": 1 } },
     {
       "origin": "agent",
       "type": "doc.replaced",
       "seq": 3,
       "payload": {
+        "schemaVersion": 1,
+        "type": "doc.replaced",
         "revision": 2,
         "doc": {
           "version": 1,
@@ -36,6 +40,7 @@
     }
   ],
   "expected": {
+    "schemaVersion": 1,
     "doc": {
       "version": 1,
       "title": "T",

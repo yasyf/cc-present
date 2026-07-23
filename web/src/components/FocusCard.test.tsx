@@ -352,8 +352,9 @@ function docState(ids: string[], revising: Revising = { blockIds: [] }): Present
   const base = emptyState();
   return { ...base, doc: { ...base.doc, blocks: ids.map((id) => markdown(id, id)) }, revising };
 }
-const upsertFrame = (id: string): WireFrame => ({ type: 'block.upserted', block: markdown(id, id) });
+const upsertFrame = (id: string): WireFrame => ({ schemaVersion: 1, type: 'block.upserted', block: markdown(id, id) });
 const revisingFrame = (ids: string[], note?: string): WireFrame => ({
+  schemaVersion: 1,
   type: 'revising.changed',
   blockIds: ids,
   ...(note !== undefined ? { note } : {}),

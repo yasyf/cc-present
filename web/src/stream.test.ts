@@ -67,7 +67,7 @@ describe('TOAST_TEXT', () => {
 });
 
 describe('toastFor focus-mode suppression', () => {
-  const upserted: WireFrame = { type: 'block.upserted', block: { id: 'b1', type: 'markdown', md: 'x' } };
+  const upserted: WireFrame = { schemaVersion: 1, type: 'block.upserted', block: { id: 'b1', type: 'markdown', md: 'x' } };
 
   afterEach(() => {
     document.body.innerHTML = '';
@@ -88,12 +88,12 @@ describe('toastFor focus-mode suppression', () => {
     const deck = document.createElement('div');
     deck.className = 'focus-deck';
     document.body.appendChild(deck);
-    const replaced: WireFrame = { type: 'doc.replaced', doc: { version: 1, title: '', blocks: [] }, revision: 1 };
+    const replaced: WireFrame = { schemaVersion: 1, type: 'doc.replaced', doc: { version: 1, title: '', blocks: [] }, revision: 1 };
     expect(toastFor(replaced)).toEqual({ kind: 'info', text: 'The board was redrafted' });
   });
 
   it('never toasts a human echo, focus or board', () => {
-    const choice: WireFrame = { type: 'choice.selected', blockId: 'c1', optionIds: ['o1'] };
+    const choice: WireFrame = { schemaVersion: 1, type: 'choice.selected', blockId: 'c1', optionIds: ['o1'] };
     expect(toastFor(choice)).toBeNull();
   });
 });

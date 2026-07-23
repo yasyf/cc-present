@@ -195,7 +195,7 @@ describe('FocusDeck navigation', () => {
 
 describe('FocusDeck revision-aware next', () => {
   const announceRevising = (ids: string[]): void => {
-    act(() => revisionStore.ingest({ type: 'revising.changed', blockIds: ids }, undefined, { blockIds: ids }));
+    act(() => revisionStore.ingest({ schemaVersion: 1, type: 'revising.changed', blockIds: ids }, undefined, { blockIds: ids }));
   };
 
   it('prefers a non-revising undecided step over a revising one on n', () => {

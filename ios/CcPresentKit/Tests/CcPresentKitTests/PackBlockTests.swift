@@ -110,7 +110,7 @@ struct PackBlockTests {
 
     @Test("a pack.interaction wire frame decodes to the typed payload")
     func packInteractionWireFrameDecodes() throws {
-        let frame = Data(#"{"type":"pack.interaction","blockId":"ex-rating","payload":{"value":4}}"#.utf8)
+        let frame = Data(#"{"schemaVersion":1,"type":"pack.interaction","blockId":"ex-rating","payload":{"value":4}}"#.utf8)
         let event = try Event.wireFrame(frame, seq: 7)
         #expect(event.type == "pack.interaction")
         guard case let .packInteraction(payload) = try event.payload else {
@@ -121,21 +121,38 @@ struct PackBlockTests {
         #expect(payload.payload == .object(["value": .int(4)]))
     }
 
+    @Test("domain wire frames require exact schema v1")
+    func domainWireFramesRequireExactSchemaV1() {
+        #expect(throws: EventError.schemaVersion(nil)) {
+            try Event.wireFrame(Data(#"{"type":"submit","revision":1}"#.utf8))
+        }
+        #expect(throws: EventError.schemaVersion(0)) {
+            try Event.wireFrame(Data(#"{"schemaVersion":0,"type":"submit","revision":1}"#.utf8))
+        }
+        #expect(throws: EventError.payloadType(expected: "submit", actual: "decision.created")) {
+            let event = try JSONDecoder().decode(
+                Event.self,
+                from: Data(#"{"origin":"human","type":"submit","seq":1,"payload":{"schemaVersion":1,"type":"decision.created","revision":1}}"#.utf8)
+            )
+            _ = try event.payload
+        }
+    }
+
     @Test("pack.interaction reduces last-write-wins and the closed round snapshots packs")
     func packInteractionReducesLWWAndSnapshots() throws {
         let events = try [
             decodeEvent(#"""
-            {"origin":"agent","type":"doc.replaced","seq":1,"payload":{"doc":{"version":1,"title":"T",
+            {"origin":"agent","type":"doc.replaced","seq":1,"payload":{"schemaVersion":1,"type":"doc.replaced","doc":{"version":1,"title":"T",
              "blocks":[{"id":"ex-rating","type":"example.rating","label":"Rate"}]},"revision":1}}
             """#),
             decodeEvent(#"""
-            {"origin":"human","type":"pack.interaction","seq":2,"payload":{"blockId":"ex-rating","payload":{"value":2}}}
+            {"origin":"human","type":"pack.interaction","seq":2,"payload":{"schemaVersion":1,"type":"pack.interaction","blockId":"ex-rating","payload":{"value":2}}}
             """#),
             decodeEvent(#"""
-            {"origin":"human","type":"pack.interaction","seq":3,"payload":{"blockId":"ex-rating","payload":{"value":5}}}
+            {"origin":"human","type":"pack.interaction","seq":3,"payload":{"schemaVersion":1,"type":"pack.interaction","blockId":"ex-rating","payload":{"value":5}}}
             """#),
             decodeEvent(#"""
-            {"origin":"human","type":"submit","seq":4,"payload":{"revision":1}}
+            {"origin":"human","type":"submit","seq":4,"payload":{"schemaVersion":1,"type":"submit","revision":1}}
             """#),
         ]
         let state = try reduce(events: events)

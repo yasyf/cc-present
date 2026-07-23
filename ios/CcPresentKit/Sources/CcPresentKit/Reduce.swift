@@ -308,12 +308,14 @@ public struct Revising: Decodable, Equatable, Sendable {
 /// interactions, the round partition, and the agent's revising working set. It is
 /// the Swift analogue of the Go `state.State`.
 public struct BoardState: Decodable, Equatable, Sendable {
+    public let schemaVersion: Int
     public var doc: Doc
     public var interactions: Interactions
     public var rounds: Rounds
     public var revising: Revising
 
     public init(doc: Doc, interactions: Interactions, rounds: Rounds, revising: Revising = Revising()) {
+        schemaVersion = 1
         self.doc = doc
         self.interactions = interactions
         self.rounds = rounds
@@ -321,11 +323,15 @@ public struct BoardState: Decodable, Equatable, Sendable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case doc, interactions, rounds, revising
+        case schemaVersion, doc, interactions, rounds, revising
     }
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
+        schemaVersion = try container.decode(Int.self, forKey: .schemaVersion)
+        guard schemaVersion == 1 else {
+            throw DecodingError.dataCorruptedError(forKey: .schemaVersion, in: container, debugDescription: "state schema version must be exactly 1")
+        }
         doc = try container.decodeIfPresent(Doc.self, forKey: .doc) ?? Doc(version: 1, title: "", blocks: [])
         interactions = try container.decodeIfPresent(Interactions.self, forKey: .interactions) ?? Interactions()
         rounds = try container.decodeIfPresent(Rounds.self, forKey: .rounds) ?? Rounds()

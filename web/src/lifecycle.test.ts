@@ -16,25 +16,25 @@ const upserted = (block: Approval, seq: number): PresentEvent => ({
   origin: 'agent',
   type: 'block.upserted',
   seq,
-  payload: { block },
+  payload: { schemaVersion: 1, type: 'block.upserted', block },
 });
 const submit = (revision: number, seq: number): PresentEvent => ({
   origin: 'human',
   type: 'submit',
   seq,
-  payload: { revision },
+  payload: { schemaVersion: 1, type: 'submit', revision },
 });
 const started = (seq: number, title: string): PresentEvent => ({
   origin: 'agent',
   type: 'round.started',
   seq,
-  payload: { title },
+  payload: { schemaVersion: 1, type: 'round.started', title },
 });
 const closed = (seq: number, summary?: string): PresentEvent => ({
   origin: 'system',
   type: 'present.closed',
   seq,
-  payload: summary ? { summary } : {},
+  payload: { schemaVersion: 1, type: 'present.closed', ...(summary ? { summary } : {}) },
 });
 
 interface Case {

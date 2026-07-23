@@ -107,7 +107,7 @@ public final class BoardStore {
         if let blockId = interaction.blockId {
             lastInteracted = blockId
         }
-        guard let event = try? Event.wireFrame(JSONEncoder().encode(interaction)) else {
+        guard let event = try? optimisticEvent(interaction) else {
             return Task {}
         }
         let localID = UUID()
@@ -122,6 +122,15 @@ public final class BoardStore {
                 rollback(localID: localID)
             }
         }
+    }
+
+    private func optimisticEvent(_ interaction: Interaction) throws -> Event {
+        var payload = try JSONDecoder().decode(
+            [String: JSONValue].self,
+            from: JSONEncoder().encode(interaction)
+        )
+        payload["schemaVersion"] = .int(1)
+        return try Event.wireFrame(JSONEncoder().encode(payload))
     }
 
     /// decide submits an approve/reject/clear verdict on a block.

@@ -41,10 +41,10 @@ const doc = (blocks: Markdown[]): Doc => ({ version: 1, title: '', blocks });
 // live interactions. Live block l1 is the current round.
 function historyState(): PresentState {
   const events: PresentEvent[] = [
-    { origin: 'agent', type: 'doc.replaced', seq: 1, payload: { doc: doc([markdownBlock('h1', 'historical block')]), revision: 1 } },
-    { origin: 'agent', type: 'reply.created', seq: 2, payload: { id: 'r1', blockId: 'h1', md: 'reply on the historical block' } },
-    { origin: 'agent', type: 'round.started', seq: 3, payload: {} },
-    { origin: 'agent', type: 'doc.replaced', seq: 4, payload: { doc: doc([markdownBlock('l1', 'live block')]), revision: 2 } },
+    { origin: 'agent', type: 'doc.replaced', seq: 1, payload: { schemaVersion: 1, type: 'doc.replaced', doc: doc([markdownBlock('h1', 'historical block')]), revision: 1 } },
+    { origin: 'agent', type: 'reply.created', seq: 2, payload: { schemaVersion: 1, type: 'reply.created', id: 'r1', blockId: 'h1', md: 'reply on the historical block' } },
+    { origin: 'agent', type: 'round.started', seq: 3, payload: { schemaVersion: 1, type: 'round.started' } },
+    { origin: 'agent', type: 'doc.replaced', seq: 4, payload: { schemaVersion: 1, type: 'doc.replaced', doc: doc([markdownBlock('l1', 'live block')]), revision: 2 } },
   ];
   return reduce(events);
 }
@@ -128,8 +128,8 @@ describe('SingleBlockView pack toasts', () => {
 function staleRoundState(): PresentState {
   const packDoc = { version: 1, title: '', blocks: [{ id: 'p1', type: 'ex.ctx' }] } as unknown as Doc;
   const events: PresentEvent[] = [
-    { origin: 'agent', type: 'doc.replaced', seq: 1, payload: { doc: packDoc, revision: 1 } },
-    { origin: 'agent', type: 'round.started', seq: 2, payload: {} },
+    { origin: 'agent', type: 'doc.replaced', seq: 1, payload: { schemaVersion: 1, type: 'doc.replaced', doc: packDoc, revision: 1 } },
+    { origin: 'agent', type: 'round.started', seq: 2, payload: { schemaVersion: 1, type: 'round.started' } },
   ];
   return reduce(events);
 }

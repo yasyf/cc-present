@@ -25,11 +25,14 @@ func TestReadConfigAbsentIsZero(t *testing.T) {
 	if cfg.Bind != "" {
 		t.Fatalf("absent config Bind = %q, want empty (loopback default)", cfg.Bind)
 	}
+	if cfg.SchemaVersion != ConfigSchemaVersion {
+		t.Fatalf("absent config schema = %d, want %d", cfg.SchemaVersion, ConfigSchemaVersion)
+	}
 }
 
 func TestConfigRoundTrip(t *testing.T) {
 	withHome(t)
-	if err := WriteConfig(Config{Bind: "0.0.0.0"}); err != nil {
+	if err := WriteConfig(Config{SchemaVersion: ConfigSchemaVersion, Bind: "0.0.0.0"}); err != nil {
 		t.Fatalf("WriteConfig: %v", err)
 	}
 	cfg, err := ReadConfig()
@@ -58,6 +61,34 @@ func TestReadConfigCorruptFailsLoud(t *testing.T) {
 	}
 	if _, err := ReadConfig(); err == nil {
 		t.Fatal("ReadConfig on corrupt file returned nil error, want failure")
+	}
+}
+
+func TestReadConfigRejectsNonV1AndUnknownFields(t *testing.T) {
+	withHome(t)
+	if err := Paths().EnsureStateDir(); err != nil {
+		t.Fatalf("ensure state dir: %v", err)
+	}
+	for _, data := range []string{
+		`{"bind":"127.0.0.1"}`,
+		`{"schemaVersion":0}`,
+		`{"schemaVersion":2}`,
+		`{"schemaVersion":1,"legacy":true}`,
+		`{"schemaVersion":1} {"schemaVersion":1}`,
+	} {
+		if err := os.WriteFile(ConfigPath(), []byte(data), 0o600); err != nil {
+			t.Fatalf("write config: %v", err)
+		}
+		if _, err := ReadConfig(); err == nil {
+			t.Fatalf("ReadConfig accepted %s", data)
+		}
+	}
+}
+
+func TestWriteConfigRequiresV1(t *testing.T) {
+	withHome(t)
+	if err := WriteConfig(Config{}); err == nil {
+		t.Fatal("WriteConfig accepted missing schema version")
 	}
 }
 
@@ -144,7 +175,7 @@ func TestConfigPathUnderStateDir(t *testing.T) {
 		t.Fatalf("config base = %q, want config.json", filepath.Base(ConfigPath()))
 	}
 	// A written config parses back as JSON, catching a non-JSON encoder swap.
-	if err := WriteConfig(Config{Bind: "127.0.0.1"}); err != nil {
+	if err := WriteConfig(Config{SchemaVersion: ConfigSchemaVersion, Bind: "127.0.0.1"}); err != nil {
 		t.Fatalf("WriteConfig: %v", err)
 	}
 	b, err := os.ReadFile(ConfigPath())

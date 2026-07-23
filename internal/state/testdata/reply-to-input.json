@@ -6,6 +6,8 @@
       "type": "doc.replaced",
       "seq": 1,
       "payload": {
+        "schemaVersion": 1,
+        "type": "doc.replaced",
         "revision": 1,
         "doc": {
           "version": 1,
@@ -14,9 +16,10 @@
         }
       }
     },
-    { "origin": "agent", "type": "reply.created", "seq": 2, "payload": { "id": "r1", "blockId": "in1", "md": "got it" } }
+    { "origin": "agent", "type": "reply.created", "seq": 2, "payload": { "schemaVersion": 1, "type": "reply.created", "id": "r1", "blockId": "in1", "md": "got it" } }
   ],
   "expected": {
+    "schemaVersion": 1,
     "doc": {
       "version": 1,
       "title": "T",

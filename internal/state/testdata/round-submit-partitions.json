@@ -6,6 +6,8 @@
       "type": "doc.replaced",
       "seq": 1,
       "payload": {
+        "schemaVersion": 1,
+        "type": "doc.replaced",
         "revision": 1,
         "doc": {
           "version": 1,
@@ -32,15 +34,17 @@
         }
       }
     },
-    { "origin": "human", "type": "decision.created", "seq": 2, "payload": { "blockId": "a1", "verdict": "approved" } },
-    { "origin": "human", "type": "choice.selected", "seq": 3, "payload": { "blockId": "chc", "optionIds": ["o1"] } },
-    { "origin": "human", "type": "input.submitted", "seq": 4, "payload": { "blockId": "in1", "text": "r1 note" } },
-    { "origin": "human", "type": "submit", "seq": 5, "payload": { "revision": 1 } },
+    { "origin": "human", "type": "decision.created", "seq": 2, "payload": { "schemaVersion": 1, "type": "decision.created", "blockId": "a1", "verdict": "approved" } },
+    { "origin": "human", "type": "choice.selected", "seq": 3, "payload": { "schemaVersion": 1, "type": "choice.selected", "blockId": "chc", "optionIds": ["o1"] } },
+    { "origin": "human", "type": "input.submitted", "seq": 4, "payload": { "schemaVersion": 1, "type": "input.submitted", "blockId": "in1", "text": "r1 note" } },
+    { "origin": "human", "type": "submit", "seq": 5, "payload": { "schemaVersion": 1, "type": "submit", "revision": 1 } },
     {
       "origin": "agent",
       "type": "block.upserted",
       "seq": 6,
       "payload": {
+        "schemaVersion": 1,
+        "type": "block.upserted",
         "block": {
           "id": "c1",
           "type": "card",
@@ -64,6 +68,8 @@
       "type": "block.upserted",
       "seq": 7,
       "payload": {
+        "schemaVersion": 1,
+        "type": "block.upserted",
         "after": "c1",
         "block": {
           "id": "c2",
@@ -73,9 +79,10 @@
         }
       }
     },
-    { "origin": "human", "type": "input.submitted", "seq": 8, "payload": { "blockId": "in2", "text": "r2 note" } }
+    { "origin": "human", "type": "input.submitted", "seq": 8, "payload": { "schemaVersion": 1, "type": "input.submitted", "blockId": "in2", "text": "r2 note" } }
   ],
   "expected": {
+    "schemaVersion": 1,
     "doc": {
       "version": 1,
       "title": "T",

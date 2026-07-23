@@ -6,6 +6,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.20.0] - 2026-07-23
+
+### Changed
+- Hard-cut persisted configuration, domain event payloads, and reduced state to
+  exact schema v1 identities. Missing, extra, mismatched, and non-v1 fields now
+  fail instead of falling through legacy round carry behavior.
+
 ## [0.19.2] - 2026-07-23
 
 ### Changed
@@ -606,7 +613,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   marketplace.
 - `examples/opener-board.json`, a complete sample document.
 
-[Unreleased]: https://github.com/yasyf/cc-present/compare/v0.19.2...main
+[Unreleased]: https://github.com/yasyf/cc-present/compare/v0.20.0...main
+[0.20.0]: https://github.com/yasyf/cc-present/compare/v0.19.2...v0.20.0
 [0.19.2]: https://github.com/yasyf/cc-present/compare/v0.19.0...v0.19.2
 [0.19.0]: https://github.com/yasyf/cc-present/compare/v0.18.0...v0.19.0
 [0.18.0]: https://github.com/yasyf/cc-present/compare/v0.17.0...v0.18.0

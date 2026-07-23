@@ -5,19 +5,20 @@
       "origin": "agent",
       "type": "block.upserted",
       "seq": 1,
-      "payload": { "block": { "id": "c1", "type": "card", "children": [] } }
+      "payload": { "schemaVersion": 1, "type": "block.upserted", "block": { "id": "c1", "type": "card", "children": [] } }
     },
     {
       "origin": "agent",
       "type": "block.upserted",
       "seq": 2,
-      "payload": { "block": { "id": "c2", "type": "card", "children": [] } }
+      "payload": { "schemaVersion": 1, "type": "block.upserted", "block": { "id": "c2", "type": "card", "children": [] } }
     },
-    { "origin": "agent", "type": "block.removed", "seq": 3, "payload": { "id": "c1" } },
-    { "origin": "agent", "type": "block.removed", "seq": 4, "payload": { "id": "c2" } },
-    { "origin": "agent", "type": "round.started", "seq": 5, "payload": { "title": "Fresh" } }
+    { "origin": "agent", "type": "block.removed", "seq": 3, "payload": { "schemaVersion": 1, "type": "block.removed", "id": "c1" } },
+    { "origin": "agent", "type": "block.removed", "seq": 4, "payload": { "schemaVersion": 1, "type": "block.removed", "id": "c2" } },
+    { "origin": "agent", "type": "round.started", "seq": 5, "payload": { "schemaVersion": 1, "type": "round.started", "title": "Fresh" } }
   ],
   "expected": {
+    "schemaVersion": 1,
     "doc": {
       "version": 1,
       "title": "",

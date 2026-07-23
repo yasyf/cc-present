@@ -80,6 +80,7 @@ describe('reduce fixture parity', () => {
     it(fx.name, () => {
       const got = reduce(fx.events);
       const want: PresentState = {
+        schemaVersion: 1,
         doc: fx.expected.doc,
         interactions: normalizeInteractions(fx.expected.interactions),
         rounds: normalizeRounds(fx.expected.rounds),
@@ -92,7 +93,7 @@ describe('reduce fixture parity', () => {
 
 describe('applyInteraction optimistic path', () => {
   const base = reduce([
-    { origin: 'agent', type: 'block.upserted', seq: 1, payload: { block: { id: 'a1', type: 'approval' } } },
+    { origin: 'agent', type: 'block.upserted', seq: 1, payload: { schemaVersion: 1, type: 'block.upserted', block: { id: 'a1', type: 'approval' } } },
   ]);
 
   it('applies a decision optimistically before the echo', () => {
@@ -112,7 +113,7 @@ describe('applyInteraction optimistic path', () => {
   });
 
   it('advances the round when the submit event itself replays', () => {
-    const echoed = applyEvent(base, { origin: 'human', type: 'submit', seq: 2, payload: { revision: 3 } });
+    const echoed = applyEvent(base, { origin: 'human', type: 'submit', seq: 2, payload: { schemaVersion: 1, type: 'submit', revision: 3 } });
     expect(echoed.rounds.current).toBe(2);
     expect(echoed.rounds.history.map((r) => r.submittedRevision)).toEqual([3]);
   });
@@ -121,15 +122,30 @@ describe('applyInteraction optimistic path', () => {
 describe('reduce errors', () => {
   it('rejects an unknown event type', () => {
     const events = [
-      { origin: 'agent', type: 'bogus.event', seq: 1, payload: {} },
+      { origin: 'agent', type: 'bogus.event', seq: 1, payload: { schemaVersion: 1, type: 'bogus.event' } },
     ] as unknown as PresentEvent[];
     expect(() => reduce(events)).toThrow(/unknown event type/);
   });
 
   it('rejects an invalid verdict', () => {
     const events = [
-      { origin: 'human', type: 'decision.created', seq: 1, payload: { blockId: 'a1', verdict: 'maybe' } },
+      { origin: 'human', type: 'decision.created', seq: 1, payload: { schemaVersion: 1, type: 'decision.created', blockId: 'a1', verdict: 'maybe' } },
     ] as unknown as PresentEvent[];
     expect(() => reduce(events)).toThrow(/invalid verdict/);
+  });
+
+  it('rejects a missing event schema identity', () => {
+    const events = [{ origin: 'human', type: 'submit', seq: 1, payload: { type: 'submit', revision: 1 } }] as unknown as PresentEvent[];
+    expect(() => reduce(events)).toThrow(/schema version undefined/);
+  });
+
+  it('rejects an old event schema identity', () => {
+    const events = [{ origin: 'human', type: 'submit', seq: 1, payload: { schemaVersion: 0, type: 'submit', revision: 1 } }] as unknown as PresentEvent[];
+    expect(() => reduce(events)).toThrow(/schema version 0/);
+  });
+
+  it('rejects a mismatched event payload type', () => {
+    const events = [{ origin: 'human', type: 'submit', seq: 1, payload: { schemaVersion: 1, type: 'decision.created', revision: 1 } }] as unknown as PresentEvent[];
+    expect(() => reduce(events)).toThrow(/does not match/);
   });
 });

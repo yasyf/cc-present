@@ -5,10 +5,11 @@
       "origin": "agent",
       "type": "block.upserted",
       "seq": 1,
-      "payload": { "block": { "id": "m1", "type": "markdown", "md": "a top-level note" } }
+      "payload": { "schemaVersion": 1, "type": "block.upserted", "block": { "id": "m1", "type": "markdown", "md": "a top-level note" } }
     }
   ],
   "expected": {
+    "schemaVersion": 1,
     "doc": {
       "version": 1,
       "title": "",

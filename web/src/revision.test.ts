@@ -11,10 +11,11 @@ function state(blockIds: string[], revising: Revising = { blockIds: [] }): Prese
   return { ...base, doc: { ...base.doc, blocks: blockIds.map(md) }, revising };
 }
 
-const upsert = (id: string): WireFrame => ({ type: 'block.upserted', block: md(id) });
-const removed = (id: string): WireFrame => ({ type: 'block.removed', id });
-const replaced = (): WireFrame => ({ type: 'doc.replaced', doc: emptyState().doc, revision: 1 });
+const upsert = (id: string): WireFrame => ({ schemaVersion: 1, type: 'block.upserted', block: md(id) });
+const removed = (id: string): WireFrame => ({ schemaVersion: 1, type: 'block.removed', id });
+const replaced = (): WireFrame => ({ schemaVersion: 1, type: 'doc.replaced', doc: emptyState().doc, revision: 1 });
 const revisingFrame = (blockIds: string[], note?: string): WireFrame => ({
+  schemaVersion: 1,
   type: 'revising.changed',
   blockIds,
   ...(note !== undefined ? { note } : {}),

@@ -5,6 +5,7 @@
 // are driven by the same internal/state/testdata/*.json fixtures (reduce.test.ts).
 
 import type { Block, Card, ChildBlock, Choice, Doc, Triage } from './schema';
+import { EVENT_SCHEMA_VERSION } from './events';
 import type {
   Annotation,
   Closed,
@@ -29,6 +30,7 @@ export function emptyDoc(): Doc {
 
 export function emptyState(): PresentState {
   return {
+    schemaVersion: EVENT_SCHEMA_VERSION,
     doc: emptyDoc(),
     interactions: {
       decisions: {},
@@ -65,6 +67,13 @@ export function reduce(events: readonly PresentEvent[]): PresentState {
 export function applyEvent(state: PresentState, ev: PresentEvent): PresentState {
   if (state.interactions.closed.value) return state;
   if (ev.type.startsWith('agent.')) return state;
+  if (ev.type !== 'channel.changed') {
+    const identity = ev.payload as { schemaVersion?: unknown; type?: unknown };
+    if (identity.schemaVersion !== EVENT_SCHEMA_VERSION) {
+      throw new Error(`event schema version ${String(identity.schemaVersion)}, want exactly ${EVENT_SCHEMA_VERSION}`);
+    }
+    if (identity.type !== ev.type) throw new Error(`event payload type "${String(identity.type)}" does not match "${ev.type}"`);
+  }
   switch (ev.type) {
     case 'doc.replaced': {
       const { doc, retained } = ev.payload;
@@ -235,21 +244,39 @@ function interactionEvent(interaction: Interaction): HumanEvent {
         origin: 'human',
         type: 'decision.created',
         seq,
-        payload: { blockId: interaction.blockId, verdict: interaction.verdict, note: interaction.note },
+        payload: {
+          schemaVersion: EVENT_SCHEMA_VERSION,
+          type: 'decision.created',
+          blockId: interaction.blockId,
+          verdict: interaction.verdict,
+          note: interaction.note,
+        },
       };
     case 'choice.selected':
       return {
         origin: 'human',
         type: 'choice.selected',
         seq,
-        payload: { blockId: interaction.blockId, optionIds: interaction.optionIds, other: interaction.other },
+        payload: {
+          schemaVersion: EVENT_SCHEMA_VERSION,
+          type: 'choice.selected',
+          blockId: interaction.blockId,
+          optionIds: interaction.optionIds,
+          other: interaction.other,
+        },
       };
     case 'feedback.created':
       return {
         origin: 'human',
         type: 'feedback.created',
         seq,
-        payload: { id: interaction.id, blockId: interaction.blockId, text: interaction.text },
+        payload: {
+          schemaVersion: EVENT_SCHEMA_VERSION,
+          type: 'feedback.created',
+          id: interaction.id,
+          blockId: interaction.blockId,
+          text: interaction.text,
+        },
       };
     case 'annotation.created':
       return {
@@ -257,6 +284,8 @@ function interactionEvent(interaction: Interaction): HumanEvent {
         type: 'annotation.created',
         seq,
         payload: {
+          schemaVersion: EVENT_SCHEMA_VERSION,
+          type: 'annotation.created',
           id: interaction.id,
           blockId: interaction.blockId,
           anchor: interaction.anchor,
@@ -269,31 +298,56 @@ function interactionEvent(interaction: Interaction): HumanEvent {
         origin: 'human',
         type: 'annotation.removed',
         seq,
-        payload: { id: interaction.id, blockId: interaction.blockId },
+        payload: {
+          schemaVersion: EVENT_SCHEMA_VERSION,
+          type: 'annotation.removed',
+          id: interaction.id,
+          blockId: interaction.blockId,
+        },
       };
     case 'triage.decided':
       return {
         origin: 'human',
         type: 'triage.decided',
         seq,
-        payload: { blockId: interaction.blockId, verdicts: interaction.verdicts },
+        payload: {
+          schemaVersion: EVENT_SCHEMA_VERSION,
+          type: 'triage.decided',
+          blockId: interaction.blockId,
+          verdicts: interaction.verdicts,
+        },
       };
     case 'input.submitted':
       return {
         origin: 'human',
         type: 'input.submitted',
         seq,
-        payload: { blockId: interaction.blockId, text: interaction.text },
+        payload: {
+          schemaVersion: EVENT_SCHEMA_VERSION,
+          type: 'input.submitted',
+          blockId: interaction.blockId,
+          text: interaction.text,
+        },
       };
     case 'pack.interaction':
       return {
         origin: 'human',
         type: 'pack.interaction',
         seq,
-        payload: { blockId: interaction.blockId, payload: interaction.payload },
+        payload: {
+          schemaVersion: EVENT_SCHEMA_VERSION,
+          type: 'pack.interaction',
+          blockId: interaction.blockId,
+          payload: interaction.payload,
+        },
       };
     case 'submit':
-      return { origin: 'human', type: 'submit', seq, payload: { revision: interaction.revision } };
+      return {
+        origin: 'human',
+        type: 'submit',
+        seq,
+        payload: { schemaVersion: EVENT_SCHEMA_VERSION, type: 'submit', revision: interaction.revision },
+      };
   }
 }
 

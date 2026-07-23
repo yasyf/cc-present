@@ -6,6 +6,8 @@
       "type": "doc.replaced",
       "seq": 1,
       "payload": {
+        "schemaVersion": 1,
+        "type": "doc.replaced",
         "revision": 1,
         "doc": {
           "version": 1,
@@ -29,10 +31,11 @@
         }
       }
     },
-    { "origin": "human", "type": "feedback.created", "seq": 2, "payload": { "id": "f1", "blockId": "ch1", "text": "none of these fit" } },
-    { "origin": "human", "type": "feedback.created", "seq": 3, "payload": { "id": "f2", "blockId": "ch1", "text": "second thought too" } }
+    { "origin": "human", "type": "feedback.created", "seq": 2, "payload": { "schemaVersion": 1, "type": "feedback.created", "id": "f1", "blockId": "ch1", "text": "none of these fit" } },
+    { "origin": "human", "type": "feedback.created", "seq": 3, "payload": { "schemaVersion": 1, "type": "feedback.created", "id": "f2", "blockId": "ch1", "text": "second thought too" } }
   ],
   "expected": {
+    "schemaVersion": 1,
     "doc": {
       "version": 1,
       "title": "T",

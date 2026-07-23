@@ -6,6 +6,8 @@
       "type": "doc.replaced",
       "seq": 1,
       "payload": {
+        "schemaVersion": 1,
+        "type": "doc.replaced",
         "revision": 1,
         "doc": {
           "version": 1,
@@ -17,13 +19,15 @@
         }
       }
     },
-    { "origin": "human", "type": "decision.created", "seq": 2, "payload": { "blockId": "a1", "verdict": "approved" } },
-    { "origin": "agent", "type": "round.started", "seq": 3, "payload": {} },
+    { "origin": "human", "type": "decision.created", "seq": 2, "payload": { "schemaVersion": 1, "type": "decision.created", "blockId": "a1", "verdict": "approved" } },
+    { "origin": "agent", "type": "round.started", "seq": 3, "payload": { "schemaVersion": 1, "type": "round.started" } },
     {
       "origin": "agent",
       "type": "doc.replaced",
       "seq": 4,
       "payload": {
+        "schemaVersion": 1,
+        "type": "doc.replaced",
         "revision": 2,
         "doc": {
           "version": 1,
@@ -37,6 +41,7 @@
     }
   ],
   "expected": {
+    "schemaVersion": 1,
     "doc": {
       "version": 1,
       "title": "T",

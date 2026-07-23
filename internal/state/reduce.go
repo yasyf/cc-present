@@ -6,8 +6,11 @@
 package state
 
 import (
+	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"slices"
 	"sort"
 	"strings"
@@ -16,6 +19,20 @@ import (
 )
 
 var validVerdict = map[string]bool{"approved": true, "rejected": true, "cleared": true}
+
+// SchemaVersion is the exact persisted event and reduced-state schema.
+const SchemaVersion = 1
+
+type payloadIdentity struct {
+	SchemaVersion int    `json:"schemaVersion"`
+	Type          string `json:"type"`
+}
+
+func (p *payloadIdentity) identity() *payloadIdentity { return p }
+
+type identifiedPayload interface {
+	identity() *payloadIdentity
+}
 
 // Event is one entry in a subject's log. Type is the reduction discriminant;
 // Payload is the type-specific JSON. Reduce orders events by Seq.
@@ -148,10 +165,25 @@ type Revising struct {
 // State is the full reduction: the current document, the human interactions, the
 // round partition, and the agent's declared revising working set.
 type State struct {
-	Doc          *doc.Doc     `json:"doc"`
-	Interactions Interactions `json:"interactions"`
-	Rounds       Rounds       `json:"rounds"`
-	Revising     Revising     `json:"revising"`
+	SchemaVersion int          `json:"schemaVersion"`
+	Doc           *doc.Doc     `json:"doc"`
+	Interactions  Interactions `json:"interactions"`
+	Rounds        Rounds       `json:"rounds"`
+	Revising      Revising     `json:"revising"`
+}
+
+// UnmarshalJSON accepts only the exact v1 reduced-state schema.
+func (s *State) UnmarshalJSON(data []byte) error {
+	type wireState State
+	var decoded wireState
+	if err := decodeExact(data, &decoded); err != nil {
+		return err
+	}
+	if decoded.SchemaVersion != SchemaVersion {
+		return fmt.Errorf("state schema version %d, want exactly %d", decoded.SchemaVersion, SchemaVersion)
+	}
+	*s = State(decoded)
+	return nil
 }
 
 // Reduce folds the log into a State in ascending Seq order; present.closed is
@@ -160,7 +192,8 @@ type State struct {
 // any other unknown event type is an error.
 func Reduce(events []Event) (State, error) {
 	s := State{
-		Doc: &doc.Doc{Version: 1, Blocks: []doc.Block{}},
+		SchemaVersion: SchemaVersion,
+		Doc:           &doc.Doc{Version: 1, Blocks: []doc.Block{}},
 		Interactions: Interactions{
 			Decisions:   map[string]Decision{},
 			Choices:     map[string]Selection{},
@@ -199,11 +232,12 @@ func (s *State) apply(ev Event) error {
 	switch ev.Type {
 	case "doc.replaced":
 		var p struct {
+			payloadIdentity
 			Doc      *doc.Doc `json:"doc"`
 			Revision int      `json:"revision"`
 			Retained []string `json:"retained"`
 		}
-		if err := json.Unmarshal(ev.Payload, &p); err != nil {
+		if err := decodeEventPayload(ev, &p); err != nil {
 			return err
 		}
 		prior := s.Rounds.BlockRounds
@@ -222,10 +256,11 @@ func (s *State) apply(ev Event) error {
 		return nil
 	case "block.upserted":
 		var p struct {
+			payloadIdentity
 			Block json.RawMessage `json:"block"`
 			After string          `json:"after"`
 		}
-		if err := json.Unmarshal(ev.Payload, &p); err != nil {
+		if err := decodeEventPayload(ev, &p); err != nil {
 			return err
 		}
 		b, err := doc.DecodeBlock(p.Block)
@@ -244,9 +279,10 @@ func (s *State) apply(ev Event) error {
 		return nil
 	case "block.removed":
 		var p struct {
+			payloadIdentity
 			ID string `json:"id"`
 		}
-		if err := json.Unmarshal(ev.Payload, &p); err != nil {
+		if err := decodeEventPayload(ev, &p); err != nil {
 			return err
 		}
 		loc, ok := doc.Locate(s.Doc, p.ID)
@@ -265,31 +301,34 @@ func (s *State) apply(ev Event) error {
 		return nil
 	case "reply.created":
 		var p struct {
+			payloadIdentity
 			ID      string `json:"id"`
 			BlockID string `json:"blockId"`
 			Md      string `json:"md"`
 		}
-		if err := json.Unmarshal(ev.Payload, &p); err != nil {
+		if err := decodeEventPayload(ev, &p); err != nil {
 			return err
 		}
 		s.Interactions.Replies[p.BlockID] = append(s.Interactions.Replies[p.BlockID], Reply{ID: p.ID, Md: p.Md})
 		return nil
 	case "present.closed":
 		var p struct {
+			payloadIdentity
 			Summary string `json:"summary"`
 		}
-		if err := json.Unmarshal(ev.Payload, &p); err != nil {
+		if err := decodeEventPayload(ev, &p); err != nil {
 			return err
 		}
 		s.Interactions.Closed = Closed{Value: true, Summary: p.Summary}
 		return nil
 	case "decision.created":
 		var p struct {
+			payloadIdentity
 			BlockID string `json:"blockId"`
 			Verdict string `json:"verdict"`
 			Note    string `json:"note"`
 		}
-		if err := json.Unmarshal(ev.Payload, &p); err != nil {
+		if err := decodeEventPayload(ev, &p); err != nil {
 			return err
 		}
 		if !validVerdict[p.Verdict] {
@@ -303,11 +342,12 @@ func (s *State) apply(ev Event) error {
 		return nil
 	case "choice.selected":
 		var p struct {
+			payloadIdentity
 			BlockID   string   `json:"blockId"`
 			OptionIDs []string `json:"optionIds"`
 			Other     string   `json:"other"`
 		}
-		if err := json.Unmarshal(ev.Payload, &p); err != nil {
+		if err := decodeEventPayload(ev, &p); err != nil {
 			return err
 		}
 		if p.OptionIDs == nil {
@@ -317,10 +357,11 @@ func (s *State) apply(ev Event) error {
 		return nil
 	case "revising.changed":
 		var p struct {
+			payloadIdentity
 			BlockIDs []string `json:"blockIds"`
 			Note     string   `json:"note"`
 		}
-		if err := json.Unmarshal(ev.Payload, &p); err != nil {
+		if err := decodeEventPayload(ev, &p); err != nil {
 			return err
 		}
 		if p.BlockIDs == nil {
@@ -330,44 +371,48 @@ func (s *State) apply(ev Event) error {
 		return nil
 	case "feedback.created":
 		var p struct {
+			payloadIdentity
 			ID      string `json:"id"`
 			BlockID string `json:"blockId"`
 			Text    string `json:"text"`
 		}
-		if err := json.Unmarshal(ev.Payload, &p); err != nil {
+		if err := decodeEventPayload(ev, &p); err != nil {
 			return err
 		}
 		s.Interactions.Feedback[p.BlockID] = append(s.Interactions.Feedback[p.BlockID], Feedback{ID: p.ID, Text: p.Text})
 		return nil
 	case "input.submitted":
 		var p struct {
+			payloadIdentity
 			BlockID string `json:"blockId"`
 			Text    string `json:"text"`
 		}
-		if err := json.Unmarshal(ev.Payload, &p); err != nil {
+		if err := decodeEventPayload(ev, &p); err != nil {
 			return err
 		}
 		s.Interactions.Inputs[p.BlockID] = InputValue{Text: p.Text, Round: s.inputRound(p.BlockID)}
 		return nil
 	case "pack.interaction":
 		var p struct {
+			payloadIdentity
 			BlockID string          `json:"blockId"`
 			Payload json.RawMessage `json:"payload"`
 		}
-		if err := json.Unmarshal(ev.Payload, &p); err != nil {
+		if err := decodeEventPayload(ev, &p); err != nil {
 			return err
 		}
 		s.Interactions.Packs[p.BlockID] = PackValue{Payload: p.Payload}
 		return nil
 	case "annotation.created":
 		var p struct {
+			payloadIdentity
 			ID      string `json:"id"`
 			BlockID string `json:"blockId"`
 			Anchor  string `json:"anchor"`
 			Text    string `json:"text"`
 			Quote   string `json:"quote"`
 		}
-		if err := json.Unmarshal(ev.Payload, &p); err != nil {
+		if err := decodeEventPayload(ev, &p); err != nil {
 			return err
 		}
 		ann := Annotation{ID: p.ID, Anchor: p.Anchor, Text: p.Text, Quote: p.Quote}
@@ -383,10 +428,11 @@ func (s *State) apply(ev Event) error {
 		return nil
 	case "annotation.removed":
 		var p struct {
+			payloadIdentity
 			ID      string `json:"id"`
 			BlockID string `json:"blockId"`
 		}
-		if err := json.Unmarshal(ev.Payload, &p); err != nil {
+		if err := decodeEventPayload(ev, &p); err != nil {
 			return err
 		}
 		list := s.Interactions.Annotations[p.BlockID]
@@ -399,13 +445,14 @@ func (s *State) apply(ev Event) error {
 		return nil
 	case "triage.decided":
 		var p struct {
+			payloadIdentity
 			BlockID  string `json:"blockId"`
 			Verdicts map[string]struct {
 				Verdict string `json:"verdict"`
 				Note    string `json:"note"`
 			} `json:"verdicts"`
 		}
-		if err := json.Unmarshal(ev.Payload, &p); err != nil {
+		if err := decodeEventPayload(ev, &p); err != nil {
 			return err
 		}
 		block := s.Interactions.Triage[p.BlockID]
@@ -430,9 +477,10 @@ func (s *State) apply(ev Event) error {
 		return nil
 	case "submit":
 		var p struct {
+			payloadIdentity
 			Revision int `json:"revision"`
 		}
-		if err := json.Unmarshal(ev.Payload, &p); err != nil {
+		if err := decodeEventPayload(ev, &p); err != nil {
 			return err
 		}
 		s.Interactions.Submitted = Submitted{Value: true, Revision: p.Revision}
@@ -448,12 +496,11 @@ func (s *State) apply(ev Event) error {
 		}
 		return nil
 	case "round.started":
-		// A legacy payload's carry key decodes-and-ignores; restamping now lives in
-		// doc.replaced's retained set, so round.started only closes the dirty round.
 		var p struct {
+			payloadIdentity
 			Title string `json:"title"`
 		}
-		if err := json.Unmarshal(ev.Payload, &p); err != nil {
+		if err := decodeEventPayload(ev, &p); err != nil {
 			return err
 		}
 		s.Revising = Revising{BlockIDs: []string{}}
@@ -472,6 +519,36 @@ func (s *State) apply(ev Event) error {
 	default:
 		return fmt.Errorf("unknown event type %q", ev.Type)
 	}
+}
+
+func decodeEventPayload(ev Event, dst identifiedPayload) error {
+	if err := decodeExact(ev.Payload, dst); err != nil {
+		return err
+	}
+	identity := dst.identity()
+	if identity.SchemaVersion != SchemaVersion {
+		return fmt.Errorf("event schema version %d, want exactly %d", identity.SchemaVersion, SchemaVersion)
+	}
+	if identity.Type != ev.Type {
+		return fmt.Errorf("event payload type %q does not match %q", identity.Type, ev.Type)
+	}
+	return nil
+}
+
+func decodeExact(data []byte, dst any) error {
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(dst); err != nil {
+		return err
+	}
+	var trailing any
+	if err := decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
+		if err == nil {
+			return errors.New("trailing JSON value")
+		}
+		return err
+	}
+	return nil
 }
 
 // revisingOnUpsert drops id from the working set as its revision lands. When the

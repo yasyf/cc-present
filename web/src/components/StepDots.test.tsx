@@ -24,8 +24,8 @@ function docState(ids: string[], revising: Revising = { blockIds: [] }): Present
   const base = emptyState();
   return { ...base, doc: { ...base.doc, blocks: ids.map((id) => ({ id, type: 'markdown', md: id }) as Block) }, revising };
 }
-const upsertFrame = (id: string): WireFrame => ({ type: 'block.upserted', block: { id, type: 'markdown', md: id } });
-const revisingFrame = (ids: string[]): WireFrame => ({ type: 'revising.changed', blockIds: ids });
+const upsertFrame = (id: string): WireFrame => ({ schemaVersion: 1, type: 'block.upserted', block: { id, type: 'markdown', md: id } });
+const revisingFrame = (ids: string[]): WireFrame => ({ schemaVersion: 1, type: 'revising.changed', blockIds: ids });
 
 let container: HTMLDivElement;
 let root: Root;

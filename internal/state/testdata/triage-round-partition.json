@@ -6,6 +6,8 @@
       "type": "doc.replaced",
       "seq": 1,
       "payload": {
+        "schemaVersion": 1,
+        "type": "doc.replaced",
         "revision": 1,
         "doc": {
           "version": 1,
@@ -16,21 +18,24 @@
         }
       }
     },
-    { "origin": "human", "type": "triage.decided", "seq": 2, "payload": { "blockId": "t1", "verdicts": { "i1": { "verdict": "approved" } } } },
-    { "origin": "human", "type": "submit", "seq": 3, "payload": { "revision": 1 } },
+    { "origin": "human", "type": "triage.decided", "seq": 2, "payload": { "schemaVersion": 1, "type": "triage.decided", "blockId": "t1", "verdicts": { "i1": { "verdict": "approved" } } } },
+    { "origin": "human", "type": "submit", "seq": 3, "payload": { "schemaVersion": 1, "type": "submit", "revision": 1 } },
     {
       "origin": "agent",
       "type": "block.upserted",
       "seq": 4,
       "payload": {
+        "schemaVersion": 1,
+        "type": "block.upserted",
         "after": "t1",
         "block": { "id": "t2", "type": "triage", "items": [ { "id": "j1", "label": "Alpha" }, { "id": "j2", "label": "Beta" } ] }
       }
     },
-    { "origin": "human", "type": "triage.decided", "seq": 5, "payload": { "blockId": "t2", "verdicts": { "j1": { "verdict": "rejected" } } } },
-    { "origin": "human", "type": "submit", "seq": 6, "payload": { "revision": 2 } }
+    { "origin": "human", "type": "triage.decided", "seq": 5, "payload": { "schemaVersion": 1, "type": "triage.decided", "blockId": "t2", "verdicts": { "j1": { "verdict": "rejected" } } } },
+    { "origin": "human", "type": "submit", "seq": 6, "payload": { "schemaVersion": 1, "type": "submit", "revision": 2 } }
   ],
   "expected": {
+    "schemaVersion": 1,
     "doc": {
       "version": 1,
       "title": "T",

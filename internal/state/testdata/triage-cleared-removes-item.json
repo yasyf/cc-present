@@ -6,6 +6,8 @@
       "type": "doc.replaced",
       "seq": 1,
       "payload": {
+        "schemaVersion": 1,
+        "type": "doc.replaced",
         "revision": 1,
         "doc": {
           "version": 1,
@@ -16,11 +18,12 @@
         }
       }
     },
-    { "origin": "human", "type": "triage.decided", "seq": 2, "payload": { "blockId": "t1", "verdicts": { "i1": { "verdict": "approved" }, "i2": { "verdict": "rejected" } } } },
-    { "origin": "human", "type": "triage.decided", "seq": 3, "payload": { "blockId": "t1", "verdicts": { "i1": { "verdict": "cleared" } } } },
-    { "origin": "human", "type": "triage.decided", "seq": 4, "payload": { "blockId": "t1", "verdicts": { "i2": { "verdict": "cleared" } } } }
+    { "origin": "human", "type": "triage.decided", "seq": 2, "payload": { "schemaVersion": 1, "type": "triage.decided", "blockId": "t1", "verdicts": { "i1": { "verdict": "approved" }, "i2": { "verdict": "rejected" } } } },
+    { "origin": "human", "type": "triage.decided", "seq": 3, "payload": { "schemaVersion": 1, "type": "triage.decided", "blockId": "t1", "verdicts": { "i1": { "verdict": "cleared" } } } },
+    { "origin": "human", "type": "triage.decided", "seq": 4, "payload": { "schemaVersion": 1, "type": "triage.decided", "blockId": "t1", "verdicts": { "i2": { "verdict": "cleared" } } } }
   ],
   "expected": {
+    "schemaVersion": 1,
     "doc": {
       "version": 1,
       "title": "T",

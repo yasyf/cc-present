@@ -1,20 +1,26 @@
 package app
 
 import (
+	"bytes"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
 )
 
+// ConfigSchemaVersion is the exact persisted host-configuration schema.
+const ConfigSchemaVersion = 1
+
 // Config is cc-present's optional host configuration at ~/.cc-present/config.json.
-// The zero value is the loopback-only default, so an absent file yields it.
+// An absent file yields the v1 loopback-only default.
 type Config struct {
+	SchemaVersion int `json:"schemaVersion"`
 	// Bind is the HTTP plane's bind address. Empty means 127.0.0.1 (loopback
 	// only); "0.0.0.0" exposes the plane to the LAN.
 	Bind string `json:"bind,omitempty"`
@@ -33,24 +39,39 @@ func ConfigPath() string { return filepath.Join(Paths().StateDir(), "config.json
 func TokenPath() string { return filepath.Join(Paths().StateDir(), "token") }
 
 // ReadConfig loads the host config. An absent file is the loopback-only zero
-// value; a present-but-corrupt file fails loudly.
+// value; a present file must be exact schema v1.
 func ReadConfig() (Config, error) {
 	b, err := os.ReadFile(ConfigPath())
 	if errors.Is(err, fs.ErrNotExist) {
-		return Config{}, nil
+		return Config{SchemaVersion: ConfigSchemaVersion}, nil
 	}
 	if err != nil {
 		return Config{}, fmt.Errorf("read config %q: %w", ConfigPath(), err)
 	}
 	var c Config
-	if err := json.Unmarshal(b, &c); err != nil {
+	decoder := json.NewDecoder(bytes.NewReader(b))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&c); err != nil {
 		return Config{}, fmt.Errorf("parse config %q: %w", ConfigPath(), err)
+	}
+	var trailing any
+	if err := decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
+		if err == nil {
+			return Config{}, fmt.Errorf("parse config %q: trailing JSON value", ConfigPath())
+		}
+		return Config{}, fmt.Errorf("parse config %q: %w", ConfigPath(), err)
+	}
+	if c.SchemaVersion != ConfigSchemaVersion {
+		return Config{}, fmt.Errorf("config schema version %d, want exactly %d", c.SchemaVersion, ConfigSchemaVersion)
 	}
 	return c, nil
 }
 
 // WriteConfig persists the host config (0600), creating the state dir if needed.
 func WriteConfig(c Config) error {
+	if c.SchemaVersion != ConfigSchemaVersion {
+		return fmt.Errorf("config schema version %d, want exactly %d", c.SchemaVersion, ConfigSchemaVersion)
+	}
 	if err := Paths().EnsureStateDir(); err != nil {
 		return err
 	}

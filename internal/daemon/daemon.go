@@ -680,24 +680,24 @@ func mustJSON(v any) json.RawMessage {
 	return raw
 }
 
-// appendEvent injects the event's Type into its payload as a self-describing
-// "type" field, then appends it through the daemon's Append chokepoint. Every
+// appendEvent injects the event schema identity and Type into its payload, then
+// appends it through the daemon's Append chokepoint. Every
 // wire frame is thus self-describing: the browser SPA, the agent-side watch, and
 // the channel all read the event discriminant out of the payload JSON, matching
 // the framework's Connectivity convention (channel.changed carries its own type
 // too). It is the single append path for every domain event.
 func appendEvent(ctx context.Context, appendFn ccd.AppendFunc, ev *ccevent.Event) (int64, error) {
-	ev.Payload = injectType(ev.Type, ev.Payload)
+	ev.Payload = injectIdentity(ev.Type, ev.Payload)
 	return appendFn(ctx, ev)
 }
 
-// injectType returns payload with a top-level "type" field set to eventType. The
-// payload must be a JSON object; every domain payload is.
-func injectType(eventType string, payload json.RawMessage) json.RawMessage {
+// injectIdentity returns the exact v1 persisted event payload.
+func injectIdentity(eventType string, payload json.RawMessage) json.RawMessage {
 	var obj map[string]json.RawMessage
 	if err := json.Unmarshal(payload, &obj); err != nil {
 		panic(fmt.Sprintf("event payload is not a JSON object: %v", err))
 	}
+	obj["schemaVersion"] = mustJSON(state.SchemaVersion)
 	obj["type"] = mustJSON(eventType)
 	return mustJSON(obj)
 }

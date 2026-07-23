@@ -6,6 +6,8 @@
       "type": "doc.replaced",
       "seq": 1,
       "payload": {
+        "schemaVersion": 1,
+        "type": "doc.replaced",
         "revision": 1,
         "doc": {
           "version": 1,
@@ -17,12 +19,13 @@
         }
       }
     },
-    { "origin": "human", "type": "decision.created", "seq": 2, "payload": { "blockId": "b1", "verdict": "approved" } },
-    { "origin": "human", "type": "submit", "seq": 3, "payload": { "revision": 1 } },
-    { "origin": "agent", "type": "revising.changed", "seq": 4, "payload": { "blockIds": ["b1"], "note": "one more pass" } },
-    { "origin": "human", "type": "submit", "seq": 5, "payload": { "revision": 1 } }
+    { "origin": "human", "type": "decision.created", "seq": 2, "payload": { "schemaVersion": 1, "type": "decision.created", "blockId": "b1", "verdict": "approved" } },
+    { "origin": "human", "type": "submit", "seq": 3, "payload": { "schemaVersion": 1, "type": "submit", "revision": 1 } },
+    { "origin": "agent", "type": "revising.changed", "seq": 4, "payload": { "schemaVersion": 1, "type": "revising.changed", "blockIds": ["b1"], "note": "one more pass" } },
+    { "origin": "human", "type": "submit", "seq": 5, "payload": { "schemaVersion": 1, "type": "submit", "revision": 1 } }
   ],
   "expected": {
+    "schemaVersion": 1,
     "doc": {
       "version": 1,
       "title": "T",

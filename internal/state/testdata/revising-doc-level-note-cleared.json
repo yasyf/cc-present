@@ -6,6 +6,8 @@
       "type": "doc.replaced",
       "seq": 1,
       "payload": {
+        "schemaVersion": 1,
+        "type": "doc.replaced",
         "revision": 1,
         "doc": {
           "version": 1,
@@ -14,10 +16,11 @@
         }
       }
     },
-    { "origin": "agent", "type": "revising.changed", "seq": 2, "payload": { "blockIds": [], "note": "Drafting a comparison step from your pick" } },
-    { "origin": "agent", "type": "block.upserted", "seq": 3, "payload": { "block": { "id": "b2", "type": "markdown", "md": "the new comparison step" } } }
+    { "origin": "agent", "type": "revising.changed", "seq": 2, "payload": { "schemaVersion": 1, "type": "revising.changed", "blockIds": [], "note": "Drafting a comparison step from your pick" } },
+    { "origin": "agent", "type": "block.upserted", "seq": 3, "payload": { "schemaVersion": 1, "type": "block.upserted", "block": { "id": "b2", "type": "markdown", "md": "the new comparison step" } } }
   ],
   "expected": {
+    "schemaVersion": 1,
     "doc": {
       "version": 1,
       "title": "T",

@@ -156,9 +156,9 @@ struct SSEParserTests {
     @Test("a multi-frame stream fed one byte per chunk yields the full event sequence")
     func byteByByteStream() {
         let stream =
-            "id: 1\ndata: {\"type\":\"block.removed\",\"id\":\"a\"}\n\n"
+            "id: 1\ndata: {\"schemaVersion\":1,\"type\":\"block.removed\",\"id\":\"a\"}\n\n"
                 + ": keepalive\n\n"
-                + "id: 2\ndata: {\"type\":\"block.removed\",\"id\":\"b\"}\n\n"
+                + "id: 2\ndata: {\"schemaVersion\":1,\"type\":\"block.removed\",\"id\":\"b\"}\n\n"
                 + ": connected\n\n"
                 + "event: caught-up\ndata: {\"seq\":2}\n\n"
 
@@ -189,7 +189,7 @@ struct SSEParserTests {
     @Test("a default frame maps to a stamped Event; the caught-up marker maps to its seq")
     func messageMapping() throws {
         var frameParser = SSEParser()
-        let frameEvents = frameParser.feed(bytes(#"id: 12\#ndata: {"type":"block.removed","id":"b1"}\#n\#n"#))
+        let frameEvents = frameParser.feed(bytes(#"id: 12\#ndata: {"schemaVersion":1,"type":"block.removed","id":"b1"}\#n\#n"#))
         let frameMessage = try #require(frameEvents.first.flatMap { SSEClient.message(from: $0) })
         guard case let .frame(event) = frameMessage else {
             Issue.record("expected a frame message"); return

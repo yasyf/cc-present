@@ -6,6 +6,8 @@
       "type": "doc.replaced",
       "seq": 1,
       "payload": {
+        "schemaVersion": 1,
+        "type": "doc.replaced",
         "revision": 1,
         "doc": {
           "version": 1,
@@ -19,12 +21,15 @@
       "type": "block.upserted",
       "seq": 2,
       "payload": {
+        "schemaVersion": 1,
+        "type": "block.upserted",
         "after": "does-not-exist",
         "block": { "id": "c2", "type": "card", "children": [] }
       }
     }
   ],
   "expected": {
+    "schemaVersion": 1,
     "doc": {
       "version": 1,
       "title": "T",

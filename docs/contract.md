@@ -346,15 +346,16 @@ The event `type` is the reduction discriminant. Each log entry is
 the reduction of these events. The append chokepoint also injects a top-level
 `"type"` into every payload, so a frame delivered bare — a `watch` line, a channel
 tag, an SSE `data:` field — is self-describing without the envelope. The payload
-columns below omit that injected field; both reducers tolerate it.
+columns below elide the mandatory injected `schemaVersion: 1` and matching `type`
+fields. Persisted domain payloads without that exact identity are invalid.
 
 | Origin | Type | Payload | Reduction |
 |---|---|---|---|
-| agent | `doc.replaced` | `{doc, revision, retained?}` | Replace the whole document. Interaction state survives. `revision` is transport metadata and is not part of the reduced state. `retained` lists the top-level ids the daemon found byte-identical (decoded, canonical JSON, children included) to the previous document: the reducer stamps every other top-level block into the current round, while retained ids keep their existing round assignment. An absent `retained` stamps every top-level block — legacy logs replay unchanged. One canonicalization edge: a pack block's nested field values compare whitespace-normalized but not key-order-normalized, so reordering keys inside a pack field's nested objects between pushes drops that block from `retained` and re-stamps it — the safe direction (a settled pack block re-enters the round; a changed one is never falsely retained). |
-| agent | `block.upserted` | `{block, after?}` | If a block with `block.id` exists — at top level or one level deep as a card child — replace it in place as a whole block, so nothing from the old block survives, and stamp the enclosing top-level block's round. Otherwise insert: after a top-level `after` at top level, after a card-child `after` inside that card, or append at top level when `after` is absent or unknown (the reducer keeps that append fallback for replay; the daemon edge rejects unknown and option-visual `after` ids). |
+| agent | `doc.replaced` | `{doc, revision, retained?}` | Replace the whole document. Interaction state survives. `revision` is transport metadata and is not part of the reduced state. `retained` lists the top-level ids the daemon found byte-identical (decoded, canonical JSON, children included) to the previous document: the reducer stamps every other top-level block into the current round, while retained ids keep their existing round assignment. An absent `retained` stamps every top-level block. One canonicalization edge: a pack block's nested field values compare whitespace-normalized but not key-order-normalized, so reordering keys inside a pack field's nested objects between pushes drops that block from `retained` and re-stamps it — the safe direction (a settled pack block re-enters the round; a changed one is never falsely retained). |
+| agent | `block.upserted` | `{block, after?}` | If a block with `block.id` exists — at top level or one level deep as a card child — replace it in place as a whole block, so nothing from the old block survives, and stamp the enclosing top-level block's round. Otherwise insert: after a top-level `after` at top level, after a card-child `after` inside that card, or append at top level when `after` is absent or unknown. The daemon edge rejects unknown and option-visual `after` ids. |
 | agent | `block.removed` | `{id}` | Remove the top-level block with that id, or splice a card child from its card and restamp the card's round. An unknown id is a reducer no-op (the daemon edge rejects it). |
 | agent | `reply.created` | `{id, blockId, md}` | Append to the block's reply thread. The thread renders under every block type, and the daemon rejects a reply whose `blockId` names no block in the current document — top level or a card child — with an error. |
-| agent | `round.started` | `{title?}` | When the round is dirty (a live top-level block is stamped with the current round), snapshot it into `rounds.history` without a `submittedRevision` and advance `rounds.current` — every block in the closing round freezes; staying actionable means an explicit re-upsert into the new round. When clean, only the title changes — so a `round.started` right after a submit names the round the submit already opened. Either way the revising working set clears wholesale (see Live revision). Never bumps the revision, which counts `doc.replaced` events only. A legacy payload's `carry` key decodes and is ignored — replay never errors on it. |
+| agent | `round.started` | `{title?}` | When the round is dirty (a live top-level block is stamped with the current round), snapshot it into `rounds.history` without a `submittedRevision` and advance `rounds.current` — every block in the closing round freezes; staying actionable means an explicit re-upsert into the new round. When clean, only the title changes — so a `round.started` right after a submit names the round the submit already opened. Either way the revising working set clears wholesale (see Live revision). Never bumps the revision, which counts `doc.replaced` events only. |
 | system | `present.closed` | `{summary?}` | Set closed. Terminal for the reduction: any event ordered after it is a no-op (see below). Recorded with a `system` origin, not `agent`, so it survives the agent-side `watch`/channel `exclude_origin=agent` filter — `watch` terminates on it. |
 | human | `decision.created` | `{blockId, verdict, note?}` | Last-write-wins per block. `verdict` is one of `approved`, `rejected`, `cleared`; `cleared` removes the decision, returning the block to undecided. |
 | human | `choice.selected` | `{blockId, optionIds, other?}` | Last-write-wins per block. `other` is a free-text write-in outside the authored option set; it may stand alone (single-select write-in, empty `optionIds`) or coexist with `optionIds` (multi-select). A re-pick replaces the whole selection, so it drops a prior `other`. |
@@ -533,13 +534,15 @@ to the log, never entering either reducer.
 
 `caught-up` marks the replay/live boundary. A client that reacts to activity
 gates live-only behavior on it: the SPA toasts only on frames past the marker,
-so a tab remount replays history silently. Clients ignore named events they do
-not recognize, which keeps future stream-plane markers backward-compatible.
+so a tab remount replays history silently. Only `caught-up` belongs to the
+cc-present stream-plane contract; clients discard other named events.
 
 ## Authentication
 
-The HTTP plane binds per `~/.cc-present/config.json`: an absent file or empty
-`bind` is loopback-only `127.0.0.1`, and `"bind": "0.0.0.0"` exposes the plane to
+The HTTP plane binds per `~/.cc-present/config.json`: an absent file uses the
+schema-v1 loopback default. A present file must declare `"schemaVersion": 1`
+and no unknown keys; an empty `bind` is loopback-only `127.0.0.1`, and
+`"bind": "0.0.0.0"` exposes the plane to
 the LAN — those are the two valid values. The bearer token lives at
 `~/.cc-present/token` — 32 crypto-random bytes as lowercase hex, written 0600.
 `cc-present pair` writes both; an absent or empty token disables the token path.

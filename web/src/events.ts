@@ -10,6 +10,10 @@ export type Origin = 'agent' | 'human';
 
 export type Verdict = 'approved' | 'rejected' | 'cleared';
 
+export const EVENT_SCHEMA_VERSION = 1 as const;
+
+type PersistedPayload<T extends string, P> = P & { schemaVersion: typeof EVENT_SCHEMA_VERSION; type: T };
+
 // --- Agent-origin payloads ---
 
 export interface DocReplacedPayload {
@@ -128,22 +132,22 @@ export interface ChannelChangedPayload {
 // --- Event envelope (discriminated union on `type`) ---
 
 export type PresentEvent =
-  | { origin: 'agent'; type: 'doc.replaced'; seq: number; payload: DocReplacedPayload }
-  | { origin: 'agent'; type: 'block.upserted'; seq: number; payload: BlockUpsertedPayload }
-  | { origin: 'agent'; type: 'block.removed'; seq: number; payload: BlockRemovedPayload }
-  | { origin: 'agent'; type: 'reply.created'; seq: number; payload: ReplyCreatedPayload }
-  | { origin: 'agent'; type: 'round.started'; seq: number; payload: RoundStartedPayload }
-  | { origin: 'agent'; type: 'revising.changed'; seq: number; payload: RevisingChangedPayload }
-  | { origin: 'system'; type: 'present.closed'; seq: number; payload: PresentClosedPayload }
-  | { origin: 'human'; type: 'decision.created'; seq: number; payload: DecisionCreatedPayload }
-  | { origin: 'human'; type: 'choice.selected'; seq: number; payload: ChoiceSelectedPayload }
-  | { origin: 'human'; type: 'feedback.created'; seq: number; payload: FeedbackCreatedPayload }
-  | { origin: 'human'; type: 'annotation.created'; seq: number; payload: AnnotationCreatedPayload }
-  | { origin: 'human'; type: 'annotation.removed'; seq: number; payload: AnnotationRemovedPayload }
-  | { origin: 'human'; type: 'triage.decided'; seq: number; payload: TriageDecidedPayload }
-  | { origin: 'human'; type: 'input.submitted'; seq: number; payload: InputSubmittedPayload }
-  | { origin: 'human'; type: 'pack.interaction'; seq: number; payload: PackInteractionPayload }
-  | { origin: 'human'; type: 'submit'; seq: number; payload: SubmitPayload }
+  | { origin: 'agent'; type: 'doc.replaced'; seq: number; payload: PersistedPayload<'doc.replaced', DocReplacedPayload> }
+  | { origin: 'agent'; type: 'block.upserted'; seq: number; payload: PersistedPayload<'block.upserted', BlockUpsertedPayload> }
+  | { origin: 'agent'; type: 'block.removed'; seq: number; payload: PersistedPayload<'block.removed', BlockRemovedPayload> }
+  | { origin: 'agent'; type: 'reply.created'; seq: number; payload: PersistedPayload<'reply.created', ReplyCreatedPayload> }
+  | { origin: 'agent'; type: 'round.started'; seq: number; payload: PersistedPayload<'round.started', RoundStartedPayload> }
+  | { origin: 'agent'; type: 'revising.changed'; seq: number; payload: PersistedPayload<'revising.changed', RevisingChangedPayload> }
+  | { origin: 'system'; type: 'present.closed'; seq: number; payload: PersistedPayload<'present.closed', PresentClosedPayload> }
+  | { origin: 'human'; type: 'decision.created'; seq: number; payload: PersistedPayload<'decision.created', DecisionCreatedPayload> }
+  | { origin: 'human'; type: 'choice.selected'; seq: number; payload: PersistedPayload<'choice.selected', ChoiceSelectedPayload> }
+  | { origin: 'human'; type: 'feedback.created'; seq: number; payload: PersistedPayload<'feedback.created', FeedbackCreatedPayload> }
+  | { origin: 'human'; type: 'annotation.created'; seq: number; payload: PersistedPayload<'annotation.created', AnnotationCreatedPayload> }
+  | { origin: 'human'; type: 'annotation.removed'; seq: number; payload: PersistedPayload<'annotation.removed', AnnotationRemovedPayload> }
+  | { origin: 'human'; type: 'triage.decided'; seq: number; payload: PersistedPayload<'triage.decided', TriageDecidedPayload> }
+  | { origin: 'human'; type: 'input.submitted'; seq: number; payload: PersistedPayload<'input.submitted', InputSubmittedPayload> }
+  | { origin: 'human'; type: 'pack.interaction'; seq: number; payload: PersistedPayload<'pack.interaction', PackInteractionPayload> }
+  | { origin: 'human'; type: 'submit'; seq: number; payload: PersistedPayload<'submit', SubmitPayload> }
   | { origin: 'system'; type: 'channel.changed'; seq: number; payload: ChannelChangedPayload };
 
 export type PresentEventType = PresentEvent['type'];
@@ -161,22 +165,22 @@ export type HumanEvent = Extract<PresentEvent, { origin: 'human' }>;
 // no `origin`/`seq`/nested `payload` envelope. stream.ts lifts it into a
 // PresentEvent for the reducer.
 export type WireFrame =
-  | ({ type: 'doc.replaced' } & DocReplacedPayload)
-  | ({ type: 'block.upserted' } & BlockUpsertedPayload)
-  | ({ type: 'block.removed' } & BlockRemovedPayload)
-  | ({ type: 'reply.created' } & ReplyCreatedPayload)
-  | ({ type: 'round.started' } & RoundStartedPayload)
-  | ({ type: 'revising.changed' } & RevisingChangedPayload)
-  | ({ type: 'present.closed' } & PresentClosedPayload)
-  | ({ type: 'decision.created' } & DecisionCreatedPayload)
-  | ({ type: 'choice.selected' } & ChoiceSelectedPayload)
-  | ({ type: 'feedback.created' } & FeedbackCreatedPayload)
-  | ({ type: 'annotation.created' } & AnnotationCreatedPayload)
-  | ({ type: 'annotation.removed' } & AnnotationRemovedPayload)
-  | ({ type: 'triage.decided' } & TriageDecidedPayload)
-  | ({ type: 'input.submitted' } & InputSubmittedPayload)
-  | ({ type: 'pack.interaction' } & PackInteractionPayload)
-  | ({ type: 'submit' } & SubmitPayload)
+  | PersistedPayload<'doc.replaced', DocReplacedPayload>
+  | PersistedPayload<'block.upserted', BlockUpsertedPayload>
+  | PersistedPayload<'block.removed', BlockRemovedPayload>
+  | PersistedPayload<'reply.created', ReplyCreatedPayload>
+  | PersistedPayload<'round.started', RoundStartedPayload>
+  | PersistedPayload<'revising.changed', RevisingChangedPayload>
+  | PersistedPayload<'present.closed', PresentClosedPayload>
+  | PersistedPayload<'decision.created', DecisionCreatedPayload>
+  | PersistedPayload<'choice.selected', ChoiceSelectedPayload>
+  | PersistedPayload<'feedback.created', FeedbackCreatedPayload>
+  | PersistedPayload<'annotation.created', AnnotationCreatedPayload>
+  | PersistedPayload<'annotation.removed', AnnotationRemovedPayload>
+  | PersistedPayload<'triage.decided', TriageDecidedPayload>
+  | PersistedPayload<'input.submitted', InputSubmittedPayload>
+  | PersistedPayload<'pack.interaction', PackInteractionPayload>
+  | PersistedPayload<'submit', SubmitPayload>
   | ChannelChangedPayload;
 
 // --- Browser interaction (the POST /api/interactions body's `interaction`) ---
@@ -305,6 +309,7 @@ export interface Revising {
 // The full reduction: the current document, the keyed human interactions, the
 // round partition, and the agent's declared revising working set.
 export interface PresentState {
+  schemaVersion: typeof EVENT_SCHEMA_VERSION;
   doc: Doc;
   interactions: Interactions;
   rounds: Rounds;
