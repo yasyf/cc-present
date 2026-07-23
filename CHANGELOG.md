@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - Close the v0.23 release metadata on an immutable fix-forward tag.
+- Require every Darwin release binary to be Developer ID signed and notarized,
+  and remove the cask quarantine-stripping workaround.
 
 ## [0.23.0] - 2026-07-23
 
