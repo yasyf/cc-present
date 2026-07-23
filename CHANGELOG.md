@@ -6,11 +6,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.23.1] - 2026-07-23
-
-### Fixed
-- Close the v0.23 release metadata on an immutable fix-forward tag.
-- Require every Darwin release binary to be Developer ID signed and notarized,
+### Changed
+- Require every future Darwin release binary to be Developer ID signed and notarized,
   and remove the cask quarantine-stripping workaround.
 
 ## [0.23.0] - 2026-07-23
@@ -636,8 +633,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   marketplace.
 - `examples/opener-board.json`, a complete sample document.
 
-[Unreleased]: https://github.com/yasyf/cc-present/compare/v0.23.1...main
-[0.23.1]: https://github.com/yasyf/cc-present/compare/v0.23.0...v0.23.1
+[Unreleased]: https://github.com/yasyf/cc-present/compare/v0.23.0...main
 [0.23.0]: https://github.com/yasyf/cc-present/compare/v0.22.0...v0.23.0
 [0.22.0]: https://github.com/yasyf/cc-present/compare/v0.21.1...v0.22.0
 [0.21.1]: https://github.com/yasyf/cc-present/compare/v0.20.0...v0.21.1
