@@ -6,6 +6,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.21.1] - 2026-07-23
+
+### Changed
+- Pin Synckit v0.28.0 for the final exact schema-v1 fleet.
+
 ## [0.20.0] - 2026-07-23
 
 ### Changed
@@ -613,7 +618,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   marketplace.
 - `examples/opener-board.json`, a complete sample document.
 
-[Unreleased]: https://github.com/yasyf/cc-present/compare/v0.20.0...main
+[Unreleased]: https://github.com/yasyf/cc-present/compare/v0.21.1...main
+[0.21.1]: https://github.com/yasyf/cc-present/compare/v0.20.0...v0.21.1
 [0.20.0]: https://github.com/yasyf/cc-present/compare/v0.19.2...v0.20.0
 [0.19.2]: https://github.com/yasyf/cc-present/compare/v0.19.0...v0.19.2
 [0.19.0]: https://github.com/yasyf/cc-present/compare/v0.18.0...v0.19.0
