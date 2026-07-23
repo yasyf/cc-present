@@ -64,7 +64,7 @@ var writeMu sync.Mutex
 // no edit gate, window-owned scope, and optional mesh trust tp (nil =
 // token/loopback auth only; with trust on and a loopback bind the daemon also
 // listens on its own tailnet addresses).
-func BuildServer(ctx context.Context, p paths.Paths, role daemonrole.Classifier, build, lifecycleBuild, bind, token string, loader *packs.Loader, tp *meshtrust.Provider) (*ccd.Server, error) {
+func BuildServer(ctx context.Context, p paths.Paths, role daemonrole.Classifier, runtimeBuild, bind, token string, loader *packs.Loader, tp *meshtrust.Provider) (*ccd.Server, error) {
 	c := channel.Connectivity{}
 	ast := assets.New(filepath.Join(p.StateDir(), "assets"))
 	bonjour := bonjourHook(bind)
@@ -85,8 +85,8 @@ func BuildServer(ctx context.Context, p paths.Paths, role daemonrole.Classifier,
 	cfg := ccd.Config{
 		AppName:        appName,
 		Paths:          p,
-		Version:        build,
-		LifecycleBuild: lifecycleBuild,
+		WireBuild:      ccd.WireBuild,
+		RuntimeBuild:   runtimeBuild,
 		DaemonRole:     role,
 		ActiveStatuses: []string{statusOpen},
 		// c.Type() (not c.EventType) so the SSE plane filters the same presence type
@@ -132,7 +132,7 @@ func BuildServer(ctx context.Context, p paths.Paths, role daemonrole.Classifier,
 	s.Register(OpRevising, handleRevising)
 	s.Register(OpClose, func(hc ccd.HandlerCtx) ccd.Reply { return handleClose(hc, ast) })
 	s.Register(OpOutcomes, handleOutcomes)
-	mountREST(s, ast, loader, build)
+	mountREST(s, ast, loader, runtimeBuild)
 	return s, nil
 }
 
@@ -171,8 +171,8 @@ func combineHooks(hooks ...func(context.Context, int)) func(context.Context, int
 // plane's bind address (empty = loopback) and token the optional LAN bearer
 // token; the caller reads both from the host config and supplies the pack
 // loader and the optional mesh trust.
-func Serve(ctx context.Context, p paths.Paths, role daemonrole.Classifier, build, lifecycleBuild, bind, token string, loader *packs.Loader, tp *meshtrust.Provider) error {
-	s, err := BuildServer(ctx, p, role, build, lifecycleBuild, bind, token, loader, tp)
+func Serve(ctx context.Context, p paths.Paths, role daemonrole.Classifier, runtimeBuild, bind, token string, loader *packs.Loader, tp *meshtrust.Provider) error {
+	s, err := BuildServer(ctx, p, role, runtimeBuild, bind, token, loader, tp)
 	if err != nil {
 		return err
 	}

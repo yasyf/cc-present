@@ -28,6 +28,7 @@ func NewRootCmd() *cobra.Command {
 	root.AddCommand(
 		// Substrate commands from cc-interact.
 		cmd.DaemonCmd(d),
+		cmd.DaemonStopControlCmd(d),
 		cmd.WatchCmd(d),
 		cmd.StatusCmd(d),
 		cmd.StopCmd(d),

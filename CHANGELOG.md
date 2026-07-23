@@ -6,6 +6,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.19.0] - 2026-07-23
+
+### Changed
+- Hard-cut daemon lifecycle onto cc-interact v0.18.1 and daemonkit v0.8.1:
+  transport compatibility now uses the shared wire build, runtime identity is
+  reported through runtime health, and replacement stops the exact daemon role
+  through the hidden controller before launching its successor.
+
 ## [0.18.0] - 2026-07-23
 
 ### Changed
@@ -593,7 +601,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   marketplace.
 - `examples/opener-board.json`, a complete sample document.
 
-[Unreleased]: https://github.com/yasyf/cc-present/compare/v0.18.0...main
+[Unreleased]: https://github.com/yasyf/cc-present/compare/v0.19.0...main
+[0.19.0]: https://github.com/yasyf/cc-present/compare/v0.18.0...v0.19.0
 [0.18.0]: https://github.com/yasyf/cc-present/compare/v0.17.0...v0.18.0
 [0.17.0]: https://github.com/yasyf/cc-present/compare/v0.16.1...v0.17.0
 [0.16.1]: https://github.com/yasyf/cc-present/compare/v0.16.0...v0.16.1

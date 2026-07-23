@@ -144,11 +144,7 @@ func ensureDaemon(ctx context.Context, d cmd.Deps, desiredBind string, tokenChan
 	}
 	info := readHTTPInfo(d.Paths)
 	if tokenChanged || effectiveBind(info.Bind) != desiredBind {
-		client, err := d.NewClient(ctx)
-		if err != nil {
-			return ccd.HTTPInfo{}, err
-		}
-		if err := restartDaemon(ctx, d, client); err != nil {
+		if err := restartDaemon(ctx, d); err != nil {
 			return ccd.HTTPInfo{}, err
 		}
 		info = readHTTPInfo(d.Paths)
@@ -159,14 +155,11 @@ func ensureDaemon(ctx context.Context, d cmd.Deps, desiredBind string, tokenChan
 	return info, nil
 }
 
-// restartDaemon retires the running daemon session, then lets EnsureCurrent
-// replace it with an exact-build daemon that re-reads the host config.
-func restartDaemon(ctx context.Context, d cmd.Deps, client *ccd.Client) error {
-	if err := client.Shutdown(ctx); err != nil {
-		return fmt.Errorf("shut down daemon: %w", err)
-	}
-	if err := client.Close(); err != nil {
-		return fmt.Errorf("close daemon session: %w", err)
+// restartDaemon stops the running daemon through its exact-role controller,
+// then lets EnsureCurrent replace it with a daemon that re-reads host config.
+func restartDaemon(ctx context.Context, d cmd.Deps) error {
+	if err := d.Stop(ctx); err != nil {
+		return fmt.Errorf("stop daemon: %w", err)
 	}
 	return d.EnsureCurrent(ctx)
 }

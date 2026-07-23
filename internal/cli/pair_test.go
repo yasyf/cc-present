@@ -1,8 +1,12 @@
 package cli
 
 import (
+	"context"
 	"net"
+	"reflect"
 	"testing"
+
+	"github.com/yasyf/cc-interact/cmd"
 )
 
 // ipNet wraps a parsed IP as a *net.IPNet, the concrete net.Addr the real
@@ -114,5 +118,25 @@ func TestEffectiveBind(t *testing.T) {
 		if got := effectiveBind(tt.in); got != tt.want {
 			t.Errorf("effectiveBind(%q) = %q, want %q", tt.in, got, tt.want)
 		}
+	}
+}
+
+func TestRestartDaemonStopsBeforeEnsureCurrent(t *testing.T) {
+	var calls []string
+	d := cmd.Deps{
+		Stop: func(context.Context) error {
+			calls = append(calls, "stop")
+			return nil
+		},
+		EnsureCurrent: func(context.Context) error {
+			calls = append(calls, "ensure")
+			return nil
+		},
+	}
+	if err := restartDaemon(context.Background(), d); err != nil {
+		t.Fatalf("restartDaemon: %v", err)
+	}
+	if want := []string{"stop", "ensure"}; !reflect.DeepEqual(calls, want) {
+		t.Fatalf("calls = %v, want %v", calls, want)
 	}
 }

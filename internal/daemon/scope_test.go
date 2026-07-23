@@ -9,8 +9,10 @@ import (
 	"time"
 
 	ccd "github.com/yasyf/cc-interact/daemon"
+	dkdaemon "github.com/yasyf/daemonkit/daemon"
 	"github.com/yasyf/daemonkit/daemonrole"
 	"github.com/yasyf/daemonkit/paths"
+	"github.com/yasyf/daemonkit/wire"
 
 	"github.com/yasyf/cc-present/internal/packs"
 )
@@ -35,7 +37,7 @@ func TestBuildServerDefersGenerationState(t *testing.T) {
 	t.Setenv("HOME", home)
 	t.Setenv("CLAUDE_CONFIG_DIR", t.TempDir())
 	p := paths.Paths{App: "d"}
-	if _, err := BuildServer(context.Background(), p, testDaemonRole(t, home), "business-v1", "v1.0.0", "", "", packs.NewLoader(nil, nil), nil); err != nil {
+	if _, err := BuildServer(context.Background(), p, testDaemonRole(t, home), "v1.0.0", "", "", packs.NewLoader(nil, nil), nil); err != nil {
 		t.Fatalf("BuildServer: %v", err)
 	}
 	for _, path := range []string{p.DBPath(), filepath.Join(p.StateDir(), "assets")} {
@@ -65,7 +67,7 @@ func startTestDaemon(ctx context.Context, t *testing.T) *Client {
 	ctx, cancel := context.WithCancel(ctx)
 	errCh := make(chan error, 1)
 	go func() {
-		errCh <- Serve(ctx, p, role, "business-v1", "v1.0.0", "", "", packs.NewLoader(nil, nil), nil)
+		errCh <- Serve(ctx, p, role, "v1.0.0", "", "", packs.NewLoader(nil, nil), nil)
 		close(errCh)
 	}()
 	// Closing errCh after the send lets cleanup's receive return even when the
@@ -82,18 +84,25 @@ func startTestDaemon(ctx context.Context, t *testing.T) *Client {
 			t.Fatalf("daemon exited before becoming healthy: %v", err)
 		default:
 		}
-		raw, err := ccd.NewClient(ctx, ccd.ClientConfig{Socket: p.SocketPath(), Build: "business-v1", LifecycleBuild: "v1.0.0"})
+		raw, err := ccd.NewClient(ctx, ccd.ClientConfig{Socket: p.SocketPath(), WireBuild: ccd.WireBuild})
 		if err == nil {
-			t.Cleanup(func() { _ = raw.Close() })
-			return NewClient(raw)
+			health, healthErr := raw.RuntimeHealth(ctx)
+			if healthErr == nil && health.RuntimeBuild == "v1.0.0" &&
+				health.RuntimeProtocol == int(wire.ProtocolVersion) && health.ProcessGeneration != "" &&
+				health.Ready && health.State == dkdaemon.StateHealthy && !health.Draining {
+				t.Cleanup(func() { _ = raw.Close() })
+				return NewClient(raw)
+			}
+			_ = raw.Close()
+			if time.Now().After(deadline) {
+				t.Fatalf("daemon did not become healthy within 5s: health=%+v err=%v", health, healthErr)
+			}
 		}
 		if time.Now().After(deadline) {
-			break
+			t.Fatalf("daemon did not become healthy within 5s: %v", err)
 		}
 		time.Sleep(20 * time.Millisecond)
 	}
-	t.Fatal("daemon did not become healthy within 5s")
-	return nil
 }
 
 // TestArtifactResolutionIsCwdIndependent replays the incident end to end through

@@ -80,8 +80,8 @@ func launcher() (ccd.Launcher, error) {
 		return ccd.Launcher{}, err
 	}
 	return ccd.Launcher{
-		Paths: Paths(), Version: version.String(), LifecycleBuild: version.String(),
-		Args: []string{"daemon"}, DaemonRole: role,
+		Paths: Paths(), WireBuild: ccd.WireBuild, RuntimeBuild: version.String(),
+		Args: []string{"daemon"}, StopArgs: []string{ccd.StopControlCommand}, DaemonRole: role,
 	}, nil
 }
 
@@ -104,6 +104,20 @@ func Deps() cmd.Deps {
 				return err
 			}
 			return l.EnsureCurrentIfRunning(ctx)
+		},
+		Stop: func(ctx context.Context) error {
+			l, err := launcher()
+			if err != nil {
+				return err
+			}
+			return l.Stop(ctx, ccd.UpgradeTimeout)
+		},
+		RunStopControl: func(ctx context.Context) error {
+			l, err := launcher()
+			if err != nil {
+				return err
+			}
+			return l.RunStopControl(ctx)
 		},
 		ClaudePID:     procs.ClaudePID,
 		WindowAlive:   procs.LiveClaude,
@@ -134,8 +148,7 @@ func serve(ctx context.Context) error {
 	if err := web.Validate(); err != nil {
 		return fmt.Errorf("validate embedded web build: %w", err)
 	}
-	build := version.String()
-	return ccdaemon.Serve(ctx, Paths(), role, build, build, cfg.Bind, token, loader, meshtrust.Detect())
+	return ccdaemon.Serve(ctx, Paths(), role, version.String(), cfg.Bind, token, loader, meshtrust.Detect())
 }
 
 // channelTools advertises no MCP tools on the cc-present channel: every subject

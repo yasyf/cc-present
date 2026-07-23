@@ -3,7 +3,10 @@ package app
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
+
+	ccd "github.com/yasyf/cc-interact/daemon"
 )
 
 func TestDaemonRoleUsesStableCommandAlias(t *testing.T) {
@@ -43,5 +46,16 @@ func TestDaemonRoleUsesStableCommandAlias(t *testing.T) {
 	}
 	if upgraded != role {
 		t.Fatalf("role changed across alias retarget: got %+v, want %+v", upgraded, role)
+	}
+
+	l, err := launcher()
+	if err != nil {
+		t.Fatalf("launcher: %v", err)
+	}
+	if l.WireBuild != ccd.WireBuild {
+		t.Fatalf("WireBuild = %q, want %q", l.WireBuild, ccd.WireBuild)
+	}
+	if !reflect.DeepEqual(l.StopArgs, []string{ccd.StopControlCommand}) {
+		t.Fatalf("StopArgs = %q, want %q", l.StopArgs, []string{ccd.StopControlCommand})
 	}
 }
