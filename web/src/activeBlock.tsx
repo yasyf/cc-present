@@ -17,10 +17,17 @@ export interface ActiveBlockApi {
   // Bumped when the compose affordance fires, so the always-mounted desktop panel
   // opens its composer on the change.
   composeEpoch: number;
+  // The desktop rail's pin latch: held open by a chip click or a compose request,
+  // released by Esc / a pointerdown outside the rail (see useRailOpen).
+  pinnedOpen: boolean;
+  // True while a rail composer holds a draft — the rail stays open regardless of
+  // hover or focus while this is set.
+  composing: boolean;
   pin: (id: string) => void;
   openPanel: () => void;
   closePanel: () => void;
   requestCompose: () => void;
+  setPinnedOpen: (open: boolean) => void;
   setComposing: (composing: boolean) => void;
 }
 
@@ -29,10 +36,13 @@ const NOOP: ActiveBlockApi = {
   panelOpen: false,
   panelCompose: false,
   composeEpoch: 0,
+  pinnedOpen: false,
+  composing: false,
   pin: () => {},
   openPanel: () => {},
   closePanel: () => {},
   requestCompose: () => {},
+  setPinnedOpen: () => {},
   setComposing: () => {},
 };
 
@@ -51,6 +61,7 @@ export function ActiveBlockProvider({ children }: { children: ReactNode }) {
   const [lastInteracted, setLastInteracted] = useState<string | null>(null);
   const [pinnedId, setPinnedId] = useState<string | null>(null);
   const [panel, setPanel] = useState<{ open: boolean; compose: boolean }>({ open: false, compose: false });
+  const [pinnedOpen, setPinnedOpen] = useState(false);
   const [composeEpoch, setComposeEpoch] = useState(0);
   const [composing, setComposing] = useState(false);
 
@@ -84,9 +95,13 @@ export function ActiveBlockProvider({ children }: { children: ReactNode }) {
   }, []);
   const openPanel = useCallback(() => setPanel({ open: true, compose: false }), []);
   const closePanel = useCallback(() => setPanel({ open: false, compose: false }), []);
+  // Compose is an explicit open: it raises the composer (below the rail, on the sheet
+  // remount; at the rail, off composeEpoch) and pins the desktop rail open so the
+  // `f` key and the chip both deliver a focused composer, not a silent no-op.
   const requestCompose = useCallback(() => {
     setComposeEpoch((e) => e + 1);
     setPanel({ open: true, compose: true });
+    setPinnedOpen(true);
   }, []);
 
   const value = useMemo<ActiveBlockApi>(
@@ -95,13 +110,16 @@ export function ActiveBlockProvider({ children }: { children: ReactNode }) {
       panelOpen: panel.open,
       panelCompose: panel.compose,
       composeEpoch,
+      pinnedOpen,
+      composing,
       pin,
       openPanel,
       closePanel,
       requestCompose,
+      setPinnedOpen,
       setComposing,
     }),
-    [activeId, panel.open, panel.compose, composeEpoch, pin, openPanel, closePanel, requestCompose],
+    [activeId, panel.open, panel.compose, composeEpoch, pinnedOpen, composing, pin, openPanel, closePanel, requestCompose],
   );
 
   return (

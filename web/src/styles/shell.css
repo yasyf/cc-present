@@ -71,29 +71,117 @@
   transition: opacity var(--dur-1) var(--ease-out);
 }
 
-/* --- Board stage + margin rail --- */
+/* --- Board stage + floating margin rail ---
+   The desktop rail floats OVER the board as a fixed overlay so it no longer eats
+   layout width: the board is one column, the stage full width with a right pad that
+   keeps its content clear of the collapsed strip. The rail is quiet at rest — a slim
+   strip on the right edge — and slides its panel in on hover / focus / pin. */
 
 .board-stage {
   min-width: 0;
 }
 
-/* At >=1100 the board splits into stage + fluid rail. The rail carries no card
-   ground — transparent, one hairline border-left; margin notes, not a panel. */
 @media (min-width: 1100px) {
-  .board {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) var(--rail-w);
-    column-gap: var(--rail-gap);
-    align-items: start;
+  .board-stage {
+    padding-right: var(--rail-strip-w);
   }
+
+  /* The rail hangs from the masthead's bottom (--rail-top, measured by MarginRail)
+     to the page foot. Its own box is the collapsed strip; the panel is an absolutely
+     placed child that overhangs left when open, so hover intent reads across the whole
+     expanded surface (pointerenter/leave track the subtree, not the box). */
   .margin-rail {
-    position: sticky;
-    top: 0;
-    max-height: 100dvh;
-    overflow-y: auto;
-    padding: var(--space-4) 0 var(--space-6);
-    padding-left: var(--space-5);
+    position: fixed;
+    top: var(--rail-top);
+    right: 0;
+    bottom: 0;
+    width: var(--rail-strip-w);
+    z-index: var(--z-rail);
+  }
+
+  /* The collapsed strip: transparent ground, one hairline rule, a count affordance
+     at top and a tick per thread below. The whole strip is the open button. */
+  .rail-strip {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-3);
+    width: 100%;
+    padding: var(--space-4) 0;
+    border: none;
     border-left: 1px solid var(--line);
+    border-radius: 0;
+    background: transparent;
+    color: var(--muted);
+    overflow: hidden;
+  }
+  .rail-strip:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--ink) 3%, transparent);
+    color: var(--ink);
+  }
+  .margin-rail[data-open] .rail-strip {
+    color: var(--accent-ink);
+    border-left-color: var(--accent-fill);
+  }
+  .rail-strip-count {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-1);
+    font-family: var(--font-mono);
+    font-size: var(--text-2xs);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+  .rail-strip-count[data-count] {
+    color: var(--accent-ink);
+  }
+  .rail-strip-ticks {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+    overflow: hidden;
+  }
+  .rail-tick {
+    width: 14px;
+    height: 2px;
+    border-radius: var(--radius-pill);
+    background: var(--graphite);
+    opacity: 0.5;
+  }
+  .rail-tick[data-active] {
+    background: var(--pencil);
+    opacity: 1;
+    width: 18px;
+  }
+
+  /* The panel: an onionskin sliding over the galley. Anchored to the aside's right
+     (the viewport edge), it overhangs left to --rail-w when open. Only transform
+     animates — never width, which reflows; base.css freezes it under reduced motion. */
+  .rail-overlay {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: var(--rail-w);
+    padding: var(--space-5) var(--space-5) var(--space-6);
+    background: color-mix(in srgb, var(--paper) 92%, transparent);
+    backdrop-filter: blur(10px);
+    border-left: 1px solid var(--line);
+    box-shadow: var(--shadow-3), var(--edge-lift);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    transform: translateX(100%);
+    transition: transform var(--dur-2) var(--ease-out);
+    pointer-events: none;
+  }
+  .margin-rail[data-open] .rail-overlay {
+    transform: translateX(0);
+    pointer-events: auto;
   }
 }
 

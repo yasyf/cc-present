@@ -80,10 +80,15 @@
   --page-pad: var(--space-4);
 
   /* Margin-rail geometry, the sticky ladder, and .btn control heights.
-     --bp-margin documents the rail fold; --shell-max re-widens below to seat it. */
+     --bp-margin documents the rail fold. The desktop rail floats over the board
+     (fixed overlay), so the shell no longer widens to seat it — the reading column
+     keeps --content-width and the rail overlays the right margin. --rail-strip-w is
+     the collapsed strip's width; --rail-top is the measured masthead height the
+     fixed rail hangs below (set at runtime by MarginRail). */
   --bp-margin: 1100px;
   --rail-w: clamp(300px, 26vw, 340px);
-  --rail-gap: var(--space-7);
+  --rail-strip-w: 56px;
+  --rail-top: 0px;
   --shell-max: var(--content-width);
 
   --z-sticky: 1;
@@ -125,13 +130,6 @@
   }
 }
 
-/* At >=--bp-margin the shell widens to seat the margin rail beside the stage. */
-@media (min-width: 1100px) {
-  :root {
-    --shell-max: calc(var(--content-width) + var(--rail-gap) + var(--rail-w));
-  }
-}
-
 /* Selected text takes a faint pencil wash. */
 ::selection {
   background: color-mix(in srgb, var(--pencil) 30%, transparent);
@@ -142,7 +140,7 @@
 .table-block,
 .focus-card-body,
 .focus-media,
-.margin-rail,
+.rail-overlay,
 .options[data-strip] .option-detail .cc-group-body {
   scrollbar-width: thin;
   scrollbar-color: var(--border-strong) transparent;

@@ -36,7 +36,14 @@ afterEach(() => {
 });
 
 function Active() {
-  return <div data-testid="active">{useActiveBlock().activeId ?? 'none'}</div>;
+  const { activeId, composeEpoch, pinnedOpen } = useActiveBlock();
+  return (
+    <div>
+      <div data-testid="active">{activeId ?? 'none'}</div>
+      <div data-testid="compose-epoch">{composeEpoch}</div>
+      <div data-testid="pinned-open">{String(pinnedOpen)}</div>
+    </div>
+  );
 }
 
 function render(count: number, addLabel: string): void {
@@ -72,10 +79,24 @@ describe('CommentChip', () => {
     expect(chip().textContent).toBe('3 comments');
   });
 
-  it('pins its block on click', () => {
+  it('carries the rail-anchor marker so an outside-dismiss skips it', () => {
     render(2, 'Add note');
-    expect(container.querySelector('[data-testid="active"]')!.textContent).toBe('none');
+    expect(chip().hasAttribute('data-rail-anchor')).toBe(true);
+  });
+
+  it('pins its block, requests a composer, and opens the rail on click', () => {
+    render(2, 'Add note');
+    const active = () => container.querySelector('[data-testid="active"]')!.textContent;
+    const composeEpoch = () => container.querySelector('[data-testid="compose-epoch"]')!.textContent;
+    const pinnedOpen = () => container.querySelector('[data-testid="pinned-open"]')!.textContent;
+    expect(active()).toBe('none');
+    expect(composeEpoch()).toBe('0');
+    expect(pinnedOpen()).toBe('false');
     act(() => chip().click());
-    expect(container.querySelector('[data-testid="active"]')!.textContent).toBe('a1');
+    // pin -> the block is active; requestCompose -> the composer is raised (epoch
+    // bumps) and the desktop rail is pinned open.
+    expect(active()).toBe('a1');
+    expect(composeEpoch()).toBe('1');
+    expect(pinnedOpen()).toBe('true');
   });
 });

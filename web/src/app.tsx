@@ -39,6 +39,8 @@ import { ConnectError } from './components/ConnectError';
 import { SingleBlockView } from './components/SingleBlockView';
 import { SidebarPanel } from './components/SidebarPanel';
 import { CommentsSheet } from './components/CommentsSheet';
+import { MarginRail } from './components/MarginRail';
+import { useRailOpen } from './railOpen';
 import { ThreadHostContext } from './components/threadHost';
 
 // A dead EventSource never retries and never flips connected/caughtUp, so a
@@ -250,9 +252,10 @@ function totalComments(projection: ThreadProjection): number {
 }
 
 // PresentShell renders inside the keyboard/active-block providers so it can read
-// the pinned block and the rail breakpoint: at desktop the margin rail sits in a
-// two-column grid beside the stage; below 1100px it collapses to the comments
-// sheet, opened from the DocHeader trigger. body[data-single] never reaches here.
+// the pinned block and the rail breakpoint: at desktop the margin rail floats over
+// the board as a fixed overlay (collapsed to a strip, expanded by hover / focus /
+// pin via useRailOpen); below 1100px it collapses to the comments sheet, opened from
+// the DocHeader trigger. body[data-single] never reaches here.
 function PresentShell({
   state,
   board,
@@ -271,8 +274,14 @@ function PresentShell({
   onDismiss: ComponentProps<typeof ToastStack>['onDismiss'];
 }) {
   const active = useActiveBlock();
+  const { setPinnedOpen } = active;
   const isDesktop = useMediaQuery('(min-width: 1100px)');
   const projection = threadFeed(state, active.activeId);
+  const rail = useRailOpen({
+    pinnedOpen: active.pinnedOpen,
+    composing: active.composing,
+    onDismiss: () => setPinnedOpen(false),
+  });
 
   const panel = (openComposerOnMount: boolean) => (
     <SidebarPanel
@@ -286,7 +295,18 @@ function PresentShell({
   const main = boardReady ? (
     <div className="board">
       <div className="board-stage">{board}</div>
-      {isDesktop && <aside className="margin-rail">{panel(false)}</aside>}
+      {isDesktop && (
+        <MarginRail
+          open={rail.open}
+          projection={projection}
+          activeId={active.activeId}
+          total={totalComments(projection)}
+          onToggle={() => setPinnedOpen(!active.pinnedOpen)}
+          railRef={rail.ref}
+        >
+          {panel(false)}
+        </MarginRail>
+      )}
     </div>
   ) : connectTimedOut ? (
     <ConnectError />
