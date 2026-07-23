@@ -6,6 +6,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.24.1] - 2026-07-23
+
+### Fixed
+- Pin checksum-authoritative asset staging and exact-ID draft recovery after
+  v0.24.0 failed before publication.
+
 ## [0.24.0] - 2026-07-23
 
 ### Changed
@@ -636,7 +642,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   marketplace.
 - `examples/opener-board.json`, a complete sample document.
 
-[Unreleased]: https://github.com/yasyf/cc-present/compare/v0.24.0...main
+[Unreleased]: https://github.com/yasyf/cc-present/compare/v0.24.1...main
+[0.24.1]: https://github.com/yasyf/cc-present/compare/v0.24.0...v0.24.1
 [0.24.0]: https://github.com/yasyf/cc-present/compare/v0.23.0...v0.24.0
 [0.23.0]: https://github.com/yasyf/cc-present/compare/v0.22.0...v0.23.0
 [0.22.0]: https://github.com/yasyf/cc-present/compare/v0.21.1...v0.22.0
