@@ -11,7 +11,7 @@ require (
 	github.com/yasyf/cc-context v0.28.5-0.20260720034201-f18e537f26a5
 	github.com/yasyf/cc-interact v0.18.1
 	github.com/yasyf/daemonkit v0.8.1
-	github.com/yasyf/synckit v0.24.0
+	github.com/yasyf/synckit v0.27.1
 	golang.org/x/sync v0.22.0
 )
 
