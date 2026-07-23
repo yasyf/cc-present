@@ -6,6 +6,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.18.0] - 2026-07-23
+
+### Changed
+- The web board's margin rail floats over the galley instead of holding a
+  340px column: a 56px strip on the right edge (comment tally plus one tick
+  per thread) expands into a translucent panel on hover, focus, or pin, stays
+  open while a draft holds text, and closes on Esc or an outside click. The
+  reading column keeps its full width at every desktop size, and the rail
+  tracks the masthead's live viewport bottom while scrolling.
+- The margin panel carries real content states: a MARGIN masthead with a
+  comment tally, the pinned block's thread on a framed slip under a serif
+  jump line, a document-ordered feed with per-thread counts and last-comment
+  excerpts, and a drawn-mark empty state. The mobile comments sheet fits its
+  content instead of covering the viewport.
+- A visual pass over the board chrome: option-strip peeks fade at the edge
+  instead of hard-clipping, comment chips join each block's control row, the
+  verdict pair clusters left with the chip opposite, card hover reads as a
+  lift, the submit bar re-grids around a pencil-inked tally meter that fuses
+  into one rule when every decision lands, wizard Back is legible at rest,
+  write-in fields wear the designed skin, and the faintest text tiers meet
+  4.5:1 contrast in both themes.
+
+### Fixed
+- Clicking a block's "Add note" / "Add feedback" chip opens the margin rail
+  (or the mobile sheet) with its composer focused; chips on locked threads
+  open the thread read-only. Previously the click pinned silently.
+- An open-but-empty composer no longer latches the rail shut against Esc and
+  outside clicks: the latch tracks the draft's text, and a sheet dismissed
+  over a live draft releases it.
+
 ## [0.17.0] - 2026-07-21
 
 ### Removed
@@ -563,7 +593,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   marketplace.
 - `examples/opener-board.json`, a complete sample document.
 
-[Unreleased]: https://github.com/yasyf/cc-present/compare/v0.17.0...main
+[Unreleased]: https://github.com/yasyf/cc-present/compare/v0.18.0...main
+[0.18.0]: https://github.com/yasyf/cc-present/compare/v0.17.0...v0.18.0
 [0.17.0]: https://github.com/yasyf/cc-present/compare/v0.16.1...v0.17.0
 [0.16.1]: https://github.com/yasyf/cc-present/compare/v0.16.0...v0.16.1
 [0.16.0]: https://github.com/yasyf/cc-present/compare/v0.15.0...v0.16.0
