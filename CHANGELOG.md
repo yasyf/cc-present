@@ -6,6 +6,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Pin daemonkit v0.9.0 for the exact fleet-wide runtime hard cut.
+
 ## [0.22.0] - 2026-07-23
 
 ### Changed
