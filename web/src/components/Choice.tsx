@@ -110,6 +110,9 @@ export function Choice({ block, interactions }: { block: ChoiceBlock; interactio
   const otherActive = other !== '';
   const feedback = interactions.feedback[block.id] ?? [];
   const replies = interactions.replies[block.id] ?? [];
+  const commentChip = rail ? (
+    <CommentChip blockId={block.id} count={feedback.length + replies.length} addLabel="Add note" />
+  ) : null;
 
   return (
     <div className="choice" ref={ref} data-kbd-cursor={cursor || undefined} data-composing={noteComposing || undefined}>
@@ -120,6 +123,7 @@ export function Choice({ block, interactions }: { block: ChoiceBlock; interactio
         ariaLabel={suppressPrompt ? block.prompt : undefined}
         cardCount={block.options.length + 1}
         containerRef={optionsRef}
+        navActions={strip ? commentChip : undefined}
       >
         {block.options.map((option, i) => (
           <OptionCard
@@ -195,7 +199,7 @@ export function Choice({ block, interactions }: { block: ChoiceBlock; interactio
         </div>
       </OptionStrip>
       {rail ? (
-        <CommentChip blockId={block.id} count={feedback.length + replies.length} addLabel="Add note" />
+        !strip && commentChip
       ) : (
         <FeedbackThread
           ref={feedbackRef}

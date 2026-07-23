@@ -105,6 +105,25 @@ describe('threadFeed order', () => {
     expect(threadFeed(s, null).feed.map((e) => e.blockId)).toEqual(['a1', 'a3']);
   });
 
+  it('excerpts the latest reply as the last comment once the agent has answered', () => {
+    const s = state({
+      blocks: [approval('a1', 'Ship')],
+      feedback: { a1: [fb('f1', 'first'), fb('f2', 'second')] },
+      replies: { a1: [reply('r1', 'ok'), reply('r2', 'done')] },
+    });
+    expect(threadFeed(s, null).feed[0]!.lastComment).toBe('done');
+  });
+
+  it('falls back to the latest note when no reply exists', () => {
+    const s = state({ blocks: [approval('a1', 'Ship')], feedback: { a1: [fb('f1', 'one'), fb('f2', 'two')] } });
+    expect(threadFeed(s, null).feed[0]!.lastComment).toBe('two');
+  });
+
+  it('leaves lastComment null for a pinned entry with no conversation', () => {
+    const s = state({ blocks: [approval('a1', 'Ship')] });
+    expect(threadFeed(s, 'a1').pinned!.lastComment).toBeNull();
+  });
+
   it('threads live replies onto a frozen history entry and dedups a carried id', () => {
     const s = state({
       blocks: [approval('a1', 'Live')],

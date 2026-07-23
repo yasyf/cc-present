@@ -123,6 +123,14 @@
 .wizard-bar > :last-child {
   justify-self: end;
 }
+.wizard-bar .btn-ghost {
+  border-color: var(--line);
+  color: color-mix(in srgb, var(--ink) 80%, transparent);
+}
+.wizard-bar .btn-ghost:hover:not(:disabled) {
+  border-color: var(--border-strong);
+  color: var(--ink);
+}
 
 /* One shared field skin — feedback textarea, input block, write-in. */
 .field {
@@ -133,6 +141,11 @@
   padding: var(--space-2) var(--space-3);
   font: inherit;
   resize: vertical;
+}
+input::placeholder,
+textarea::placeholder {
+  color: var(--graphite);
+  opacity: 1;
 }
 
 /* Touch-target floor for every .btn, replacing per-cluster minimums. */

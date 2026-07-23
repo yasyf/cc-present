@@ -80,13 +80,12 @@ export function Approval({ block, interactions }: { block: ApprovalBlock; intera
           </span>
           Reject
         </Button>
+        {rail && (allowFeedback || commentCount > 0) && (
+          <CommentChip blockId={block.id} count={commentCount} addLabel="Add feedback" locked={!allowFeedback} />
+        )}
       </div>
 
-      {rail ? (
-        (allowFeedback || commentCount > 0) && (
-          <CommentChip blockId={block.id} count={commentCount} addLabel="Add feedback" />
-        )
-      ) : (
+      {!rail && (
         <FeedbackThread
           ref={feedbackRef}
           blockId={block.id}

@@ -25,18 +25,20 @@ export function MarginRail({
   railRef: (el: HTMLElement | null) => void;
   children: ReactNode;
 }) {
-  // The rail is fixed and hangs below the masthead: mirror the masthead's measured
-  // height into --rail-top so a taller header (intro, stats) pushes the rail down.
+  // The rail is fixed and hangs below the masthead while it is visible in the
+  // viewport, then reaches the viewport top as the masthead scrolls away.
   useEffect(() => {
     const header = document.querySelector('.doc-header');
     if (!header) return;
     const root = document.documentElement;
-    const apply = () => root.style.setProperty('--rail-top', `${header.getBoundingClientRect().height}px`);
+    const apply = () => root.style.setProperty('--rail-top', `${Math.max(0, header.getBoundingClientRect().bottom)}px`);
     apply();
     const observer = new ResizeObserver(apply);
     observer.observe(header);
+    window.addEventListener('scroll', apply, { passive: true });
     return () => {
       observer.disconnect();
+      window.removeEventListener('scroll', apply);
       root.style.removeProperty('--rail-top');
     };
   }, []);

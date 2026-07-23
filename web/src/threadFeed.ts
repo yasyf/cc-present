@@ -16,6 +16,9 @@ export interface ThreadEntry {
   feedback: Feedback[];
   replies: Reply[];
   locked: boolean;
+  // The thread's newest turn as plain text, for the feed row's one-line excerpt;
+  // null only for a pinned entry that carries no conversation yet.
+  lastComment: string | null;
 }
 
 export interface ThreadProjection {
@@ -36,6 +39,16 @@ function hasConversation(entry: ThreadEntry): boolean {
   return entry.feedback.length > 0 || entry.replies.length > 0;
 }
 
+// lastComment excerpts a thread's newest turn — the latest reply once the agent has
+// answered, else the latest note. There are no timestamps to interleave the two
+// streams, so append order stands in: a reply answers the notes filed before it.
+function lastComment(feedback: Feedback[], replies: Reply[]): string | null {
+  const reply = replies[replies.length - 1];
+  if (reply) return reply.md;
+  const note = feedback[feedback.length - 1];
+  return note ? note.text : null;
+}
+
 // threadFeed splits the conversation-bearing blocks into the pinned thread (the
 // one the rail addresses, always rendered so its composer stays reachable) and the
 // feed of every other block that has at least one note or reply.
@@ -45,15 +58,18 @@ export function threadFeed(state: PresentState, activeId: string | null): Thread
   for (const block of flatten(state.doc.blocks)) {
     const kind = threadKind(block);
     if (!kind) continue;
+    const feedback = state.interactions.feedback[block.id] ?? [];
+    const blockReplies = replies[block.id] ?? [];
     live.push({
       blockId: block.id,
       kind,
       label: label(block, kind),
-      feedback: state.interactions.feedback[block.id] ?? [],
-      replies: replies[block.id] ?? [],
+      feedback,
+      replies: blockReplies,
       // An approval that forbids feedback keeps its thread visible but shows no
       // composer, mirroring the inline FeedbackThread's locked composer.
       locked: block.type === 'approval' && block.allowFeedback === false,
+      lastComment: lastComment(feedback, blockReplies),
     });
   }
 
@@ -64,13 +80,16 @@ export function threadFeed(state: PresentState, activeId: string | null): Thread
       const kind = threadKind(block);
       if (!kind || seen.has(block.id)) continue;
       seen.add(block.id);
+      const feedback = round.feedback[block.id] ?? [];
+      const blockReplies = replies[block.id] ?? [];
       history.push({
         blockId: block.id,
         kind,
         label: label(block, kind),
-        feedback: round.feedback[block.id] ?? [],
-        replies: replies[block.id] ?? [],
+        feedback,
+        replies: blockReplies,
         locked: true,
+        lastComment: lastComment(feedback, blockReplies),
       });
     }
   }

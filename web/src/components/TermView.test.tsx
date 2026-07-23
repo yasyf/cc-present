@@ -62,21 +62,27 @@ describe('TermView', () => {
     expect(container.querySelector('.shiki-wrap')).toBeNull();
   });
 
-  it('swaps in ANSI-colored HTML once real Shiki resolves', async () => {
-    await render(term(GREEN));
-    await waitFor(() => container.querySelector('.shiki-wrap') != null);
-    const wrap = container.querySelector('.shiki-wrap');
-    expect(wrap?.textContent).toContain('green');
-    const green = Array.from(wrap?.querySelectorAll('span') ?? []).find(
-      (s) => s.textContent === 'green',
-    );
-    expect(green).not.toBeUndefined();
-    // The 32m SGR resolves to shiki's github-light green with a dual-theme dark var.
-    const style = (green as HTMLElement).getAttribute('style') ?? '';
-    expect(style).toMatch(/color:\s*#28a745/i);
-    expect(style).toContain('--shiki-dark');
-    expect(container.querySelector('.term-plain')).toBeNull();
-  });
+  // Raised timeout: real Shiki initialization can cross the 5s default under
+  // full-suite parallel load.
+  it(
+    'swaps in ANSI-colored HTML once real Shiki resolves',
+    async () => {
+      await render(term(GREEN));
+      await waitFor(() => container.querySelector('.shiki-wrap') != null);
+      const wrap = container.querySelector('.shiki-wrap');
+      expect(wrap?.textContent).toContain('green');
+      const green = Array.from(wrap?.querySelectorAll('span') ?? []).find(
+        (s) => s.textContent === 'green',
+      );
+      expect(green).not.toBeUndefined();
+      // The 32m SGR resolves to shiki's github-light green with a dual-theme dark var.
+      const style = (green as HTMLElement).getAttribute('style') ?? '';
+      expect(style).toMatch(/color:\s*#28a745/i);
+      expect(style).toContain('--shiki-dark');
+      expect(container.querySelector('.term-plain')).toBeNull();
+    },
+    15000,
+  );
 
   it('copies the stripped output, not the raw ANSI stream', async () => {
     await render(term(GREEN, { command: 'make build' }));

@@ -36,21 +36,23 @@ export function useRailOpen({
   const [hoverIntent, setHoverIntent] = useState(false);
   const [focusWithin, setFocusWithin] = useState(false);
   const graceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const containerRef = useRef<HTMLElement | null>(null);
   const focusWithinRef = useRef(false);
   const returnFocusRef = useRef<HTMLElement | null>(null);
   const composingRef = useRef(composing);
   composingRef.current = composing;
   const onDismissRef = useRef(onDismiss);
   onDismissRef.current = onDismiss;
+  const open = pinnedOpen || hoverIntent || focusWithin || composing;
+  const clearGrace = useCallback(() => {
+    if (graceRef.current !== null) {
+      clearTimeout(graceRef.current);
+      graceRef.current = null;
+    }
+  }, []);
 
   useEffect(() => {
     if (!container) return;
-    const clearGrace = () => {
-      if (graceRef.current !== null) {
-        clearTimeout(graceRef.current);
-        graceRef.current = null;
-      }
-    };
     const onEnter = () => {
       clearGrace();
       setHoverIntent(true);
@@ -85,36 +87,54 @@ export function useRailOpen({
       container.removeEventListener('focusin', onFocusIn);
       container.removeEventListener('focusout', onFocusOut);
     };
-  }, [container]);
+  }, [clearGrace, container]);
 
-  // The dismiss gestures only matter while pinned: Esc inside (not composing) closes
-  // and returns focus; a pointerdown anywhere outside the rail closes too — but a
-  // click on a chip (the rail's own re-anchor control) is not an outside dismiss.
+  // Esc inside any open rail (unless composing) closes and returns focus.
   useEffect(() => {
-    if (!container || !pinnedOpen) return;
+    if (!container || !open) return;
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape' || composingRef.current) return;
+      if (e.key !== 'Escape' || composingRef.current || e.defaultPrevented) return;
       if (!container.contains(document.activeElement)) return;
       e.preventDefault();
       onDismissRef.current();
+      clearGrace();
+      setHoverIntent(false);
+      focusWithinRef.current = false;
+      setFocusWithin(false);
       const ret = returnFocusRef.current;
       returnFocusRef.current = null;
-      ret?.focus();
+      if (ret?.isConnected) ret.focus();
+      else (document.activeElement as HTMLElement | null)?.blur();
     };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [clearGrace, container, open]);
+
+  // A pointerdown anywhere outside a pinned rail closes it, but a click on a chip
+  // (the rail's own re-anchor control) is not an outside dismiss.
+  useEffect(() => {
+    if (!container || !pinnedOpen) return;
     const onPointerDown = (e: PointerEvent) => {
       if (e.target instanceof Node && container.contains(e.target)) return;
       if (e.target instanceof Element && e.target.closest('[data-rail-anchor]')) return;
       onDismissRef.current();
     };
-    document.addEventListener('keydown', onKeyDown);
     document.addEventListener('pointerdown', onPointerDown);
-    return () => {
-      document.removeEventListener('keydown', onKeyDown);
-      document.removeEventListener('pointerdown', onPointerDown);
-    };
+    return () => document.removeEventListener('pointerdown', onPointerDown);
   }, [container, pinnedOpen]);
 
-  const ref = useCallback((el: HTMLElement | null) => setContainer(el), []);
-  const open = pinnedOpen || hoverIntent || focusWithin || composing;
+  const ref = useCallback(
+    (el: HTMLElement | null) => {
+      if (containerRef.current === el) return;
+      containerRef.current = el;
+      clearGrace();
+      setHoverIntent(false);
+      focusWithinRef.current = false;
+      setFocusWithin(false);
+      returnFocusRef.current = null;
+      setContainer(el);
+    },
+    [clearGrace],
+  );
   return { open, ref };
 }

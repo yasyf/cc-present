@@ -32,14 +32,18 @@ const blocks: Approval[] = [
 function Probe() {
   const { post } = usePresent();
   const kbd = useKeyboardApi();
-  const { activeId, pin, setComposing } = useActiveBlock();
+  const { activeId, panelOpen, pinnedOpen, pin, closePanel, requestCompose, setComposing } = useActiveBlock();
   return (
     <div>
       <div data-testid="active">{activeId ?? 'none'}</div>
+      <div data-testid="panel-open">{String(panelOpen)}</div>
+      <div data-testid="pinned-open">{String(pinnedOpen)}</div>
       <button data-testid="post-a1" onClick={() => void post({ type: 'decision.created', blockId: 'a1', verdict: 'approved' })} />
       <button data-testid="cursor-a2" onClick={() => kbd.setCursor('a2')} />
       <button data-testid="cursor-a3" onClick={() => kbd.setCursor('a3')} />
       <button data-testid="pin-a1" onClick={() => pin('a1')} />
+      <button data-testid="request-compose" onClick={requestCompose} />
+      <button data-testid="close-panel" onClick={closePanel} />
       <button data-testid="compose-on" onClick={() => setComposing(true)} />
       <button data-testid="compose-off" onClick={() => setComposing(false)} />
     </div>
@@ -119,5 +123,18 @@ describe('ActiveBlockProvider composing latch', () => {
     // Releasing the composer lets the active id catch up to the cursor.
     click('compose-off');
     expect(active()).toBe('a3');
+  });
+});
+
+describe('ActiveBlockProvider panel state', () => {
+  it('clears the desktop pin latch when closing the panel', () => {
+    render();
+    click('request-compose');
+    expect(container.querySelector('[data-testid="panel-open"]')!.textContent).toBe('true');
+    expect(container.querySelector('[data-testid="pinned-open"]')!.textContent).toBe('true');
+
+    click('close-panel');
+    expect(container.querySelector('[data-testid="panel-open"]')!.textContent).toBe('false');
+    expect(container.querySelector('[data-testid="pinned-open"]')!.textContent).toBe('false');
   });
 });

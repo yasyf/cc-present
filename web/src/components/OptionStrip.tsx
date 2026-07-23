@@ -33,6 +33,7 @@ export function OptionStrip({
   ariaLabel,
   cardCount,
   containerRef,
+  navActions,
   children,
 }: {
   strip: boolean;
@@ -40,6 +41,7 @@ export function OptionStrip({
   ariaLabel?: string;
   cardCount: number;
   containerRef: RefObject<HTMLDivElement | null>;
+  navActions?: ReactNode;
   children: ReactNode;
 }) {
   const { ref: edgesRef, edges } = useScrollEdges<HTMLDivElement>('x');
@@ -86,7 +88,15 @@ export function OptionStrip({
 
   return (
     <>
-      <div ref={setContainer} className="options" data-strip={strip || undefined} role={role} aria-label={ariaLabel}>
+      <div
+        ref={setContainer}
+        className="options"
+        data-strip={strip || undefined}
+        data-edge-start={(strip && edges.atStart) || undefined}
+        data-edge-end={(strip && edges.atEnd) || undefined}
+        role={role}
+        aria-label={ariaLabel}
+      >
         {children}
       </div>
       {strip && (
@@ -103,6 +113,7 @@ export function OptionStrip({
               />
             ))}
           </div>
+          {navActions}
           <button
             type="button"
             className="btn btn-ghost btn-sm btn-icon"

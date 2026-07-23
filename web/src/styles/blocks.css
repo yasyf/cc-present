@@ -186,7 +186,10 @@
   width: 100%;
 }
 .decision-bar > .verdict {
-  flex: 1;
+  flex: 0 0 auto;
+}
+.decision-bar > .comment-chip-row {
+  margin: 0 0 0 auto;
 }
 .verdict {
   color: var(--muted);
@@ -350,7 +353,7 @@
 .option:has(.option-index) .option-body {
   padding-right: var(--chip-clear);
 }
-.option:hover:not([aria-disabled='true']) {
+.option:hover:not([aria-disabled='true']):not(.selected) {
   border-color: var(--border-strong);
   background: color-mix(in srgb, var(--mono-bg) 45%, var(--card));
 }
@@ -481,12 +484,12 @@
   font-size: var(--text-sm);
   color: var(--text);
 }
-.fact-label {
+.option-facts .fact-label {
   font-family: var(--font-stamp);
   text-transform: uppercase;
   letter-spacing: 0.06em;
   font-size: var(--text-2xs);
-  color: var(--dim);
+  color: var(--ink);
 }
 .fact-good .fact-value {
   color: var(--ok);
@@ -535,6 +538,21 @@
   padding-block: var(--space-1) var(--space-2);
   scrollbar-width: none;
 }
+.options[data-strip]:not([data-edge-start]):not([data-edge-end]) {
+  mask-image: linear-gradient(
+    to right,
+    transparent,
+    black 48px,
+    black calc(100% - 48px),
+    transparent
+  );
+}
+.options[data-strip]:not([data-edge-start])[data-edge-end] {
+  mask-image: linear-gradient(to right, transparent, black 48px);
+}
+.options[data-strip][data-edge-start]:not([data-edge-end]) {
+  mask-image: linear-gradient(to right, black calc(100% - 48px), transparent);
+}
 .options[data-strip]::-webkit-scrollbar {
   display: none;
 }
@@ -545,6 +563,15 @@
   gap: var(--space-2);
   padding: var(--space-4);
   box-shadow: var(--edge-lift);
+  transition:
+    transform var(--dur-1) var(--ease-out),
+    border-color var(--dur-1) var(--ease-out),
+    box-shadow var(--dur-1) var(--ease-out);
+}
+.options[data-strip] .option:hover:not([aria-disabled='true']):not(.selected) {
+  transform: translateY(-2px);
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-2);
 }
 /* Below the margin breakpoint the stage spans the main column; the strip bleeds
    into the page gutter so cards peek beneath it, iOS-style. */
@@ -564,6 +591,14 @@
   justify-content: flex-end;
   gap: var(--space-2);
   margin-top: var(--space-2);
+}
+.strip-nav > .comment-chip-row {
+  margin: 0;
+}
+.choice > .comment-chip-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 0;
 }
 .strip-dots {
   display: flex;
@@ -1319,15 +1354,10 @@
 }
 
 @media (max-width: 440px) {
-  /* The approval decision bar spreads to a full-width two-column grid so each
-     verdict is a broad thumb target; the labels center within their columns. */
+  /* Keep the clustered verdict pair and its rail chip on one row. */
   .decision-bar {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
+    display: flex;
     width: 100%;
-  }
-  .verdict {
-    justify-content: center;
   }
 
   /* Type ramp steps down: the masthead is already fluid and body prose holds, so
@@ -1349,6 +1379,13 @@
     padding: var(--space-3);
   }
   .strip-nav {
+    display: none;
+  }
+  .strip-nav:has(> .comment-chip-row) {
+    display: flex;
+    justify-content: flex-end;
+  }
+  .strip-nav:has(> .comment-chip-row) .strip-dots {
     display: none;
   }
 }

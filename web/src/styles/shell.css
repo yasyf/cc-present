@@ -73,19 +73,16 @@
 
 /* --- Board stage + floating margin rail ---
    The desktop rail floats OVER the board as a fixed overlay so it no longer eats
-   layout width: the board is one column, the stage full width with a right pad that
-   keeps its content clear of the collapsed strip. The rail is quiet at rest — a slim
-   strip on the right edge — and slides its panel in on hover / focus / pin. */
+   layout width: the board is one column, the stage full width — the collapsed strip
+   rides the viewport gutter outside the centered column (content-width + 2 strips
+   fits inside the 1100px fold). The rail is quiet at rest — a slim strip on the
+   right edge — and slides its panel in on hover / focus / pin. */
 
 .board-stage {
   min-width: 0;
 }
 
 @media (min-width: 1100px) {
-  .board-stage {
-    padding-right: var(--rail-strip-w);
-  }
-
   /* The rail hangs from the masthead's bottom (--rail-top, measured by MarginRail)
      to the page foot. Its own box is the collapsed strip; the panel is an absolutely
      placed child that overhangs left when open, so hover intent reads across the whole
@@ -165,7 +162,7 @@
   .rail-overlay {
     position: absolute;
     top: 0;
-    right: 0;
+    right: var(--rail-strip-w);
     bottom: 0;
     width: var(--rail-w);
     padding: var(--space-5) var(--space-5) var(--space-6);
@@ -175,7 +172,7 @@
     box-shadow: var(--shadow-3), var(--edge-lift);
     overflow-y: auto;
     overscroll-behavior: contain;
-    transform: translateX(100%);
+    transform: translateX(calc(100% + var(--rail-strip-w)));
     transition: transform var(--dur-2) var(--ease-out);
     pointer-events: none;
   }
@@ -189,18 +186,21 @@
 
 .comments-sheet {
   position: fixed;
-  inset-block: 0;
+  /* Hang from the top-right and fit content — height stays auto, capped at 80dvh,
+     so the sheet is min(80dvh, content) and never a fixed tall drawer over a void. */
+  inset-block: 0 auto;
   right: 0;
   left: auto;
   z-index: var(--z-rail);
   width: min(92vw, 340px);
   max-width: none;
-  max-height: none;
-  height: 100dvh;
+  max-height: 80dvh;
   margin: 0;
   padding: var(--space-5);
   border: none;
   border-left: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  border-bottom-left-radius: var(--radius-md);
   background: var(--card-lift);
   box-shadow: var(--shadow-3), var(--edge-lift);
   overflow-y: auto;
@@ -210,14 +210,26 @@
   background: rgb(0 0 0 / 40%);
 }
 
-/* --- Rail panel body (shared by the desktop rail and the sheet) --- */
+/* --- Rail panel body (shared by the desktop rail and the sheet): a MARGIN masthead,
+   a lifted slip for the pinned thread, and a document-ordered feed of the rest. --- */
 
 .rail-panel {
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
+  gap: var(--space-5);
 }
-.rail-head {
+
+/* Masthead: the MARGIN stamp + a mono tally, ruled off from the body below. On the
+   sheet a ghost close x rides the same row; the desktop overlay closes on Esc / blur
+   and keeps none. */
+.rail-masthead {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--line);
+}
+.rail-mast-label {
   font-family: var(--font-stamp);
   text-transform: uppercase;
   letter-spacing: var(--track-caps);
@@ -225,52 +237,168 @@
   font-weight: 700;
   color: var(--accent-ink);
 }
+.rail-mast-count {
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+.rail-mast-count[data-count] {
+  color: var(--ink);
+}
+.rail-close {
+  margin-left: auto;
+  align-self: center;
+  color: var(--muted);
+}
+
+/* Empty state: top-aligned, a drawn pencil over two quiet graphite lines — a
+   designed vacancy, never a stretched void. */
+.rail-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+.rail-empty-mark {
+  font-size: 1.75rem;
+  color: var(--pencil);
+  margin-bottom: var(--space-1);
+}
+.rail-empty-lead {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--graphite);
+}
+.rail-empty-how {
+  margin: 0;
+  font-size: var(--text-xs);
+  line-height: var(--leading-normal);
+  color: var(--graphite);
+}
+.rail-empty-how kbd {
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+  padding: 0 var(--space-1);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--chip-bg);
+  color: var(--ink);
+}
+
+/* Pinned thread: a small serif dateline (the jump affordance) over a hairline-framed
+   slip on a lifted card ground — quiet, not card-heavy. */
 .rail-pinned {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
 }
-.rail-pin-label,
-.rail-feed-jump {
+.rail-pin-label {
+  align-self: flex-start;
   border: none;
   background: none;
   padding: 0;
   text-align: left;
-  font-size: var(--text-sm);
+  font-family: var(--font-display);
+  font-size: var(--text-md);
   font-weight: 600;
+  line-height: var(--leading-snug);
   color: var(--ink);
 }
-.rail-pin-label:hover:not(:disabled),
-.rail-feed-jump:hover:not(:disabled) {
+.rail-pin-label:hover:not(:disabled) {
   color: var(--accent-ink);
   background: none;
 }
-.rail-empty {
-  margin: 0;
-  color: var(--muted);
-  font-size: var(--text-sm);
-  line-height: var(--leading-normal);
+.rail-slip {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  padding: var(--space-2) var(--space-3) var(--space-3);
 }
+
+/* The reused FeedbackThread trims its outer margins inside the slip so the frame
+   owns the spacing; the composer affordance tucks to the top edge. */
+.rail-slip .feedback-affordance {
+  margin-block: 0 var(--space-2);
+}
+.rail-slip .thread {
+  margin-block: 0;
+}
+.rail-slip .thread:not(:first-child) {
+  margin-top: var(--space-2);
+}
+
+/* Feed: one row per other conversation — title + tally over a one-line excerpt of the
+   last turn. The whole row is the jump control; hover raises it out of the panel. */
 .rail-feed {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
+  gap: var(--space-1);
   border-top: 1px solid var(--line);
   padding-top: var(--space-4);
 }
 .rail-feed-head {
+  font-family: var(--font-stamp);
   font-size: var(--text-2xs);
   text-transform: uppercase;
   letter-spacing: var(--track-caps);
   color: var(--muted);
+  margin-bottom: var(--space-1);
 }
 .rail-feed-row {
   display: flex;
   flex-direction: column;
-  gap: var(--space-1);
+  gap: 2px;
+  width: 100%;
+  padding: var(--space-2);
+  border: none;
+  border-radius: var(--radius-sm);
+  background: none;
+  text-align: left;
 }
-.rail-feed-row[data-locked] .rail-feed-jump {
+.rail-feed-row:hover:not(:disabled) {
+  background: var(--mono-bg);
+}
+.rail-feed-row-top {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+.rail-feed-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--ink);
+}
+.rail-feed-row:hover:not(:disabled) .rail-feed-title {
+  color: var(--accent-ink);
+}
+.rail-feed-row[data-locked] .rail-feed-title {
+  color: var(--graphite);
+}
+.rail-feed-count {
+  flex: none;
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
   color: var(--muted);
+  background: var(--chip-bg);
+  border-radius: var(--radius-pill);
+  padding: 0 var(--space-2);
+}
+.rail-feed-excerpt {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-xs);
+  color: var(--graphite);
 }
 
 /* --- Comment chip: the inline stand-in once the thread moves to the rail --- */
@@ -375,8 +503,8 @@
 
 /* Stats as a bordered data strip: stamp labels over mono tabular values. */
 .stats {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
   margin-top: var(--space-4);
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
@@ -386,6 +514,7 @@
 .stat {
   display: flex;
   flex-direction: column;
+  min-width: 0;
   gap: 3px;
   padding: var(--space-3) var(--space-4);
   border-right: 1px solid var(--line);
@@ -449,9 +578,9 @@
   position: sticky;
   bottom: 0;
   z-index: var(--z-bar);
-  display: flex;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  justify-content: space-between;
   gap: var(--space-4);
   padding: var(--space-3) var(--space-5);
   margin-top: var(--space-4);
@@ -460,11 +589,25 @@
   box-shadow: var(--shadow-up), var(--edge-lift);
 }
 .submit-status {
+  grid-column: 1;
   display: flex;
   align-items: center;
   gap: var(--space-3);
+  min-width: 0;
   font-size: var(--text-2xs);
   color: var(--muted);
+}
+.submit-note {
+  grid-column: 2;
+  min-width: 0;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  color: var(--ink);
+  font-size: var(--text-2xs);
+  line-height: var(--leading-normal);
+  text-align: left;
 }
 .submit-round {
   font-weight: 600;
@@ -482,10 +625,12 @@
   border: none;
   background: none;
   padding: 0;
+  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
   font-weight: 700;
   color: var(--pending);
   font-size: var(--text-2xs);
+  white-space: nowrap;
 }
 .submit-count:hover:not(:disabled) {
   background: none;
@@ -864,6 +1009,7 @@
 }
 
 .submit-actions {
+  grid-column: 3;
   display: flex;
   align-items: center;
   gap: var(--space-2);
@@ -890,77 +1036,66 @@
 }
 
 /* --- Sign-off tally strip ---
-   One segment per decidable, inked by state, each still a jump button. The
-   landing moment: when every segment is decided the strip gains .tally-complete,
-   staggered connectors draw between the segments (the board becomes one rule) and
-   the submit button ink-fills. Connectors rest drawn under .tally-complete so the
-   reduced-motion freeze lands them connected. */
+   One compact tally pill per decidable, each still a jump button. The strip
+   wraps to at most two rows and lets pills contract when a long board exceeds
+   its capped measure. */
 .tally-strip {
-  display: inline-flex;
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
+  gap: 4px;
+  inline-size: var(--tally-width);
 }
 .tally-seg {
-  position: relative;
-  width: 16px;
-  height: 9px;
+  flex: 1 1 var(--tally-segment-width);
+  inline-size: 18px;
+  max-inline-size: 18px;
+  min-inline-size: 0;
+  min-height: 0;
+  height: 4px;
   padding: 0;
-  margin-right: 6px;
-  border: 1.5px solid var(--border-strong);
-  border-radius: var(--radius-sm);
-  background: transparent;
-}
-.tally-seg:last-child {
-  margin-right: 0;
+  border: 0;
+  border-radius: var(--radius-pill);
+  box-shadow: none;
 }
 .tally-undecided {
-  border-color: var(--hold);
-  background: transparent;
+  background: color-mix(in srgb, var(--graphite) 25%, transparent);
 }
-.tally-approved {
-  border-color: var(--approve);
-  background: var(--approve);
-}
-.tally-rejected {
-  border-color: var(--reject);
-  background: var(--reject);
-}
+.tally-approved,
+.tally-rejected,
 .tally-decided {
-  border-color: var(--pencil);
   background: var(--pencil);
 }
-.tally-seg:hover:not(:disabled) {
-  border-color: var(--accent-fill);
+.tally-undecided:hover:not(:disabled),
+.tally-undecided:active:not(:disabled) {
+  background: color-mix(in srgb, var(--graphite) 45%, transparent);
 }
-.tally-seg::after {
-  content: '';
-  position: absolute;
-  left: 100%;
-  top: 50%;
-  width: 6px;
-  height: 2px;
-  background: var(--pencil);
-  transform: translateY(-50%) scaleX(0);
-  transform-origin: left center;
+.tally-approved:hover:not(:disabled),
+.tally-approved:active:not(:disabled),
+.tally-rejected:hover:not(:disabled),
+.tally-rejected:active:not(:disabled),
+.tally-decided:hover:not(:disabled),
+.tally-decided:active:not(:disabled) {
+  background: color-mix(in srgb, var(--pencil) 82%, #fff);
 }
-.tally-seg:last-child::after {
-  display: none;
+
+/* The landing moment: with every decidable decided the strip's gaps close and the
+   pills fuse into one continuous pencil rule, radius kept only at the ends. The gap
+   transition carries the settle; the reduced-motion freeze lands it fused. */
+.tally-strip {
+  transition: gap var(--dur-2) var(--ease-out);
 }
-.tally-complete .tally-seg::after {
-  transform: translateY(-50%) scaleX(1);
-  animation: tally-connect var(--dur-1) var(--ease-draw) backwards;
-  animation-delay: calc(var(--i, 0) * 20ms);
+.tally-complete {
+  gap: 0;
 }
-@keyframes tally-connect {
-  from {
-    transform: translateY(-50%) scaleX(0);
-  }
+.tally-complete .tally-seg {
+  border-radius: 0;
 }
-/* Reduced motion keeps the connectors' drawn resting frame but drops the stagger
-   so they settle together rather than sweeping in one at a time. */
-@media (prefers-reduced-motion: reduce) {
-  .tally-complete .tally-seg::after {
-    animation-delay: 0ms;
-  }
+.tally-complete .tally-seg:first-child {
+  border-radius: var(--radius-pill) 0 0 var(--radius-pill);
+}
+.tally-complete .tally-seg:last-child {
+  border-radius: 0 var(--radius-pill) var(--radius-pill) 0;
 }
 
 /* The signed submit button: pencil ink washes across on the landing moment and
@@ -1075,10 +1210,20 @@ body[data-single] .toast-stack {
 
 /* --- Responsive: the two breakpoints of record (--bp-rail 720, --bp-compact 440).
    The page gutter already went fluid in tokens.css; here the board chrome reflows —
-   the masthead cluster wraps, the stats strip drops to two columns, the margin rail
+   the masthead cluster wraps, the stat cells tighten, the margin rail
    folds toward the content, and the header touch targets grow to the 44px floor. --- */
 
+@media (max-width: 900px) {
+  .stat {
+    padding: var(--space-2) var(--space-3);
+  }
+}
+
 @media (max-width: 720px) {
+  .submit-note {
+    -webkit-line-clamp: 1;
+  }
+
   /* The connection/view/theme cluster wraps below the title instead of crowding it,
      and its own chips wrap rather than overflow a narrow width. */
   .doc-header-top {
@@ -1088,24 +1233,6 @@ body[data-single] .toast-stack {
   .doc-conn {
     flex-wrap: wrap;
     justify-content: flex-end;
-  }
-
-  /* Stats strip → two-column grid. Separators redraw as a right rule on the left
-     column and a top rule on every row past the first; the container's own border
-     and overflow:hidden frame the block, so an odd trailing cell reads as clean
-     card ground. */
-  .stats {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-  }
-  .stat {
-    border-top: 1px solid var(--line);
-  }
-  .stat:nth-child(2n) {
-    border-right: none;
-  }
-  .stat:nth-child(-n + 2) {
-    border-top: none;
   }
 
   /* Theme toggle and the collapsed-round caret rows reach the 44px touch floor. */
@@ -1133,6 +1260,45 @@ body[data-single] .toast-stack {
   }
 }
 
+@media (max-width: 480px) {
+  .stats {
+    grid-template-columns: 1fr;
+  }
+  .stat {
+    border-top: 1px solid var(--line);
+    border-right: none;
+  }
+  .stat:first-child {
+    border-top: none;
+  }
+  .submit-bar {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+  }
+  .submit-status {
+    grid-column: 1;
+    grid-row: 1;
+    flex-wrap: wrap;
+  }
+  .submit-note {
+    display: none;
+  }
+  .submit-actions {
+    grid-column: 1;
+    grid-row: 2;
+    flex-wrap: wrap;
+    width: 100%;
+  }
+  .submit-actions > .btn-ghost {
+    margin-left: auto;
+  }
+  .submit-btn {
+    flex: 1 0 100%;
+    width: 100%;
+  }
+}
+
 @media (max-width: 440px) {
   /* The connection cluster is flex:none, so it holds max-content and clips the
      theme toggle off a phone width; here it fills its own row and wraps within it. */
@@ -1140,14 +1306,4 @@ body[data-single] .toast-stack {
     flex-basis: 100%;
   }
 
-  /* The sign-off strip tightens its paddings and is allowed to wrap so the tally
-     and the submit action never overflow a phone width. */
-  .submit-bar {
-    flex-wrap: wrap;
-    gap: var(--space-2);
-    padding: var(--space-2) var(--space-3);
-  }
-  .tally-strip {
-    flex-wrap: wrap;
-  }
 }

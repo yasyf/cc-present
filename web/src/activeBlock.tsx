@@ -94,7 +94,10 @@ export function ActiveBlockProvider({ children }: { children: ReactNode }) {
     setPanel({ open: true, compose: false });
   }, []);
   const openPanel = useCallback(() => setPanel({ open: true, compose: false }), []);
-  const closePanel = useCallback(() => setPanel({ open: false, compose: false }), []);
+  const closePanel = useCallback(() => {
+    setPanel({ open: false, compose: false });
+    setPinnedOpen(false);
+  }, []);
   // Compose is an explicit open: it raises the composer (below the rail, on the sheet
   // remount; at the rail, off composeEpoch) and pins the desktop rail open so the
   // `f` key and the chip both deliver a focused composer, not a silent no-op.

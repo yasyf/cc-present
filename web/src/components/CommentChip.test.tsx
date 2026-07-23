@@ -46,14 +46,14 @@ function Active() {
   );
 }
 
-function render(count: number, addLabel: string): void {
+function render(count: number, addLabel: string, locked = false): void {
   const present: PresentApi = { post: async () => true, closed: false, currentRound: 1 };
   act(() =>
     root.render(
       <PresentContext.Provider value={present}>
         <KeyboardProvider blocks={[]} interactions={emptyState().interactions} closed={false} round={1}>
           <ActiveBlockProvider>
-            <CommentChip blockId="a1" count={count} addLabel={addLabel} />
+            <CommentChip blockId="a1" count={count} addLabel={addLabel} locked={locked} />
             <Active />
           </ActiveBlockProvider>
         </KeyboardProvider>
@@ -84,7 +84,7 @@ describe('CommentChip', () => {
     expect(chip().hasAttribute('data-rail-anchor')).toBe(true);
   });
 
-  it('pins its block, requests a composer, and opens the rail on click', () => {
+  it('pins its block, requests a composer, and opens the rail when unlocked', () => {
     render(2, 'Add note');
     const active = () => container.querySelector('[data-testid="active"]')!.textContent;
     const composeEpoch = () => container.querySelector('[data-testid="compose-epoch"]')!.textContent;
@@ -97,6 +97,20 @@ describe('CommentChip', () => {
     // bumps) and the desktop rail is pinned open.
     expect(active()).toBe('a1');
     expect(composeEpoch()).toBe('1');
+    expect(pinnedOpen()).toBe('true');
+  });
+
+  it('pins its block and opens the rail without requesting a composer when locked', () => {
+    render(2, 'Add note', true);
+    const active = () => container.querySelector('[data-testid="active"]')!.textContent;
+    const composeEpoch = () => container.querySelector('[data-testid="compose-epoch"]')!.textContent;
+    const pinnedOpen = () => container.querySelector('[data-testid="pinned-open"]')!.textContent;
+    expect(active()).toBe('none');
+    expect(composeEpoch()).toBe('0');
+    expect(pinnedOpen()).toBe('false');
+    act(() => chip().click());
+    expect(active()).toBe('a1');
+    expect(composeEpoch()).toBe('0');
     expect(pinnedOpen()).toBe('true');
   });
 });

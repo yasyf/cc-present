@@ -11,20 +11,40 @@ let container: HTMLDivElement;
 let root: Root;
 let dismissCount: number;
 
-function Harness({ pinnedOpen, composing }: { pinnedOpen: boolean; composing: boolean }) {
+function Harness({
+  pinnedOpen,
+  composing,
+  mounted = true,
+}: {
+  pinnedOpen: boolean;
+  composing: boolean;
+  mounted?: boolean;
+}) {
   const rail = useRailOpen({ pinnedOpen, composing, onDismiss: () => (dismissCount += 1) });
-  return <div ref={rail.ref} data-testid="rail" data-open={String(rail.open)} />;
+  if (!mounted) return null;
+  return (
+    <div ref={rail.ref} data-testid="rail" data-open={String(rail.open)}>
+      <button data-testid="rail-focus" type="button" />
+    </div>
+  );
 }
 
-function renderHarness(props: { pinnedOpen: boolean; composing: boolean }): void {
+function renderHarness(props: { pinnedOpen: boolean; composing: boolean; mounted?: boolean }): void {
   act(() => root.render(<Harness {...props} />));
 }
 
 const railEl = (): HTMLElement => container.querySelector('[data-testid="rail"]')!;
+const railFocusEl = (): HTMLButtonElement => container.querySelector('[data-testid="rail-focus"]')!;
 const open = (): string | null => railEl().getAttribute('data-open');
 const fire = (target: EventTarget, type: string): void =>
   act(() => {
     target.dispatchEvent(new Event(type, { bubbles: true }));
+  });
+const pressEscape = (defaultPrevented = false): void =>
+  act(() => {
+    const event = new KeyboardEvent('keydown', { bubbles: true, cancelable: true, key: 'Escape' });
+    if (defaultPrevented) event.preventDefault();
+    railFocusEl().dispatchEvent(event);
   });
 
 beforeEach(() => {
@@ -106,9 +126,67 @@ describe('useRailOpen dismiss', () => {
     anchor.remove();
   });
 
-  it('does not listen for a dismiss while unpinned', () => {
+  it('does not dismiss an unpinned rail on outside pointerdown', () => {
     renderHarness({ pinnedOpen: false, composing: false });
     fire(document.body, 'pointerdown');
     expect(dismissCount).toBe(0);
+  });
+
+  it('dismisses an open unpinned rail on Escape and clears its open intents', () => {
+    renderHarness({ pinnedOpen: false, composing: false });
+    fire(railEl(), 'pointerenter');
+    act(() => railFocusEl().focus());
+    expect(open()).toBe('true');
+
+    pressEscape();
+
+    expect(dismissCount).toBe(1);
+    expect(open()).toBe('false');
+  });
+
+  it('ignores Escape when another handler already prevented it', () => {
+    renderHarness({ pinnedOpen: false, composing: false });
+    act(() => railFocusEl().focus());
+    expect(open()).toBe('true');
+
+    pressEscape(true);
+
+    expect(dismissCount).toBe(0);
+    expect(open()).toBe('true');
+  });
+
+  it('blurs the rail and closes when the recorded return target is disconnected', () => {
+    renderHarness({ pinnedOpen: false, composing: false });
+    const returnTarget = document.createElement('button');
+    document.body.appendChild(returnTarget);
+    act(() => {
+      returnTarget.focus();
+      railFocusEl().focus();
+    });
+    expect(open()).toBe('true');
+    returnTarget.remove();
+
+    pressEscape();
+
+    expect(dismissCount).toBe(1);
+    expect(open()).toBe('false');
+    expect(document.activeElement).not.toBe(railFocusEl());
+  });
+});
+
+describe('useRailOpen container lifecycle', () => {
+  it('resets hover and focus intent and clears the grace timer across a remount', () => {
+    renderHarness({ pinnedOpen: false, composing: false });
+    fire(railEl(), 'pointerenter');
+    act(() => railFocusEl().focus());
+    fire(railEl(), 'pointerleave');
+    expect(open()).toBe('true');
+    const timerCountWithGrace = vi.getTimerCount();
+
+    renderHarness({ pinnedOpen: false, composing: false, mounted: false });
+    expect(vi.getTimerCount()).toBe(timerCountWithGrace - 1);
+    renderHarness({ pinnedOpen: false, composing: false });
+
+    expect(open()).toBe('false');
   });
 });

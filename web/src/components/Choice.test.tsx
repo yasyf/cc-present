@@ -8,6 +8,7 @@ import type { PresentApi } from '../present';
 import { KeyboardProvider } from '../keyboard';
 import { Choice } from './Choice';
 import { FocusStageContext } from './focusStep';
+import { ThreadHostContext } from './threadHost';
 import { emptyState } from '../reduce';
 import type { Interactions } from '../events';
 import type { Choice as ChoiceBlock, OptionVisual } from '../schema';
@@ -64,6 +65,21 @@ function render(block: ChoiceBlock, interactions: Interactions): void {
         <KeyboardProvider blocks={[block]} interactions={interactions} closed={false} round={1}>
           <Choice block={block} interactions={interactions} />
         </KeyboardProvider>
+      </PresentContext.Provider>,
+    ),
+  );
+}
+
+function renderRail(block: ChoiceBlock, interactions: Interactions): void {
+  const present: PresentApi = { post: async () => true, closed: false, currentRound: 1 };
+  act(() =>
+    root.render(
+      <PresentContext.Provider value={present}>
+        <ThreadHostContext.Provider value="rail">
+          <KeyboardProvider blocks={[block]} interactions={interactions} closed={false} round={1}>
+            <Choice block={block} interactions={interactions} />
+          </KeyboardProvider>
+        </ThreadHostContext.Provider>
       </PresentContext.Provider>,
     ),
   );
@@ -313,11 +329,56 @@ describe('Choice card strip', () => {
     expect(container.querySelectorAll('.strip-nav .btn-icon').length).toBe(2);
   });
 
+  it('mirrors the scroll edges onto the strip container', () => {
+    render(choice('c1', ['A', 'B', 'C']), empty());
+    const options = container.querySelector('.options') as HTMLElement;
+    Object.defineProperties(options, {
+      clientWidth: { configurable: true, value: 300 },
+      scrollWidth: { configurable: true, value: 900 },
+      scrollLeft: { configurable: true, writable: true, value: 0 },
+    });
+
+    act(() => options.dispatchEvent(new Event('scroll')));
+    expect(options.hasAttribute('data-edge-start')).toBe(true);
+    expect(options.hasAttribute('data-edge-end')).toBe(false);
+
+    options.scrollLeft = 300;
+    act(() => options.dispatchEvent(new Event('scroll')));
+    expect(options.hasAttribute('data-edge-start')).toBe(false);
+    expect(options.hasAttribute('data-edge-end')).toBe(false);
+
+    options.scrollLeft = 600;
+    act(() => options.dispatchEvent(new Event('scroll')));
+    expect(options.hasAttribute('data-edge-start')).toBe(false);
+    expect(options.hasAttribute('data-edge-end')).toBe(true);
+  });
+
+  it('places the rail comment chip between the strip dots and arrows', () => {
+    renderRail(choice('c1', ['A', 'B', 'C']), empty());
+    const nav = container.querySelector('.strip-nav') as HTMLElement;
+    expect(nav.querySelector(':scope > .comment-chip-row .comment-chip')?.textContent).toContain('Add note');
+    expect([...nav.children].map((child) => child.className)).toEqual([
+      'strip-dots',
+      'comment-chip-row',
+      'btn btn-ghost btn-sm btn-icon',
+      'btn btn-ghost btn-sm btn-icon',
+    ]);
+    expect(container.querySelector('.choice > .comment-chip-row')).toBeNull();
+  });
+
   it('keeps the vertical stack with no nav at two or fewer options', () => {
     render(choice('c1', ['A', 'B']), empty());
     const options = container.querySelector('.options') as HTMLElement;
     expect(options.hasAttribute('data-strip')).toBe(false);
     expect(container.querySelector('.strip-nav')).toBeNull();
+  });
+
+  it('keeps the rail comment chip in its own row for the vertical stack', () => {
+    renderRail(choice('c1', ['A', 'B']), empty());
+    expect(container.querySelector('.strip-nav')).toBeNull();
+    const row = container.querySelector('.choice > .comment-chip-row');
+    expect(row?.querySelector('.comment-chip')?.textContent).toContain('Add note');
+    expect(row?.previousElementSibling?.classList.contains('options')).toBe(true);
   });
 
   it('places the Other write-in as the trailing card inside the strip', () => {

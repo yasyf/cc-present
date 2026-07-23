@@ -364,6 +364,16 @@
   gap: var(--space-3);
   color: var(--dim);
 }
+.focus-context-md.is-clamped {
+  max-height: 6lh;
+}
+.focus-context-md.is-faded {
+  -webkit-mask-image: linear-gradient(to bottom, #000 0, #000 calc(100% - 1.5lh), transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 0, #000 calc(100% - 1.5lh), transparent 100%);
+}
+.focus-context .clamp-toggle {
+  margin-top: var(--space-2);
+}
 /* The option visual stage: the active option's demonstration, above the controls.
    Collapses until an option visual mounts. */
 .focus-media {

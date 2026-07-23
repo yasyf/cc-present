@@ -45,8 +45,8 @@ export function SubmitBar({ blocks, showTally, doc, interactions, subject, hasHi
   const total = items.length;
   const decided = items.filter((i) => i.decided).length;
   const complete = total > 0 && decided === total;
-  // A tally segment's ink: an approval carries its verdict color, any other
-  // decided item the pencil, and an undecided one the hollow-hold state.
+  // Keep the semantic state classes even though every decided segment shares
+  // the same approval ink in the tally's presentation.
   const segState = (item: SubmitItem): string => {
     if (!item.decided) return 'undecided';
     if (item.kind === 'approval') {
@@ -54,6 +54,13 @@ export function SubmitBar({ blocks, showTally, doc, interactions, subject, hasHi
     }
     return 'decided';
   };
+  const tallyColumns = Math.max(1, Math.ceil(total / 2));
+  const tallyGapWidth = Math.max(0, tallyColumns - 1) * 4;
+  const tallyWidth = Math.max(
+    Math.min(total * 18 + Math.max(0, total - 1) * 4, 160),
+    tallyGapWidth + tallyColumns,
+  );
+  const tallySegmentWidth = Math.min(18, (tallyWidth - tallyGapWidth) / tallyColumns);
   const undecidedApprovalIds = items.filter((i) => i.kind === 'approval' && !i.decided).map((i) => i.id);
   const undecidedApprovals = undecidedApprovalIds.length;
   const armedKey = undecidedKey(undecidedApprovalIds);
@@ -132,12 +139,17 @@ export function SubmitBar({ blocks, showTally, doc, interactions, subject, hasHi
             className={`tally-strip${complete ? ' tally-complete' : ''}`}
             role="group"
             aria-label="review progress"
+            style={
+              {
+                '--tally-width': `${tallyWidth}px`,
+                '--tally-segment-width': `${tallySegmentWidth}px`,
+              } as CSSProperties
+            }
           >
             {items.map((item, i) => (
               <button
                 key={item.id}
                 type="button"
-                style={{ '--i': i } as CSSProperties}
                 className={`tally-seg tally-${segState(item)}`}
                 aria-label={`Item ${i + 1} of ${total}, ${item.decided ? 'decided' : 'undecided'} — jump`}
                 onClick={() => kbd.jumpTo(item.id)}
@@ -150,7 +162,7 @@ export function SubmitBar({ blocks, showTally, doc, interactions, subject, hasHi
           className={`submit-count${complete ? ' submit-done' : ''}`}
           onClick={() => kbd.jumpNextUndecided()}
         >
-          {decided}/{total} decided
+          {decided} / {total} decided
         </button>
         {confirming && (
           <span className="submit-warn" role="status">
@@ -162,8 +174,8 @@ export function SubmitBar({ blocks, showTally, doc, interactions, subject, hasHi
             {revisingLine}
           </span>
         )}
-        {doc.submit?.note && <span className="submit-note">{doc.submit.note}</span>}
       </div>
+      {doc.submit?.note && <span className="submit-note">{doc.submit.note}</span>}
       <div className="submit-actions">
         {confirming && (
           <Button variant="ghost" size="sm" onClick={() => setArmed(null)}>

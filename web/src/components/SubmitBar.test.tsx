@@ -80,7 +80,7 @@ describe('SubmitBar tally segments', () => {
     const blocks = [approval('a1')];
     render({ blocks, interactions: empty(), showTally: false });
     expect(container.querySelector('.tally-strip')).toBeNull();
-    expect(container.querySelector('.submit-count')?.textContent).toBe('0/1 decided');
+    expect(container.querySelector('.submit-count')?.textContent).toBe('0 / 1 decided');
     render({ blocks, interactions: empty(), showTally: true });
     expect(container.querySelector('.tally-strip')).not.toBeNull();
   });
@@ -109,6 +109,15 @@ describe('SubmitBar tally segments', () => {
     const segs = container.querySelectorAll('.tally-seg');
     expect(segs[0]!.getAttribute('aria-label')).toBe('Item 1 of 2, undecided — jump');
     expect(segs[1]!.getAttribute('aria-label')).toBe('Item 2 of 2, undecided — jump');
+  });
+
+  it('keeps two tally rows viable when fixed gaps exhaust the normal width cap', () => {
+    const blocks = Array.from({ length: 81 }, (_, i) => approval(`a${i + 1}`));
+    render({ blocks, interactions: empty() });
+    const strip = container.querySelector('.tally-strip') as HTMLDivElement;
+    expect(strip.querySelectorAll('.tally-seg').length).toBe(81);
+    expect(strip.style.getPropertyValue('--tally-width')).toBe('201px');
+    expect(strip.style.getPropertyValue('--tally-segment-width')).toBe('1px');
   });
 
   it('adds the completion class exactly when every item is decided', () => {
