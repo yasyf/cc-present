@@ -38,8 +38,8 @@ func ConfigPath() string { return filepath.Join(Paths().StateDir(), "config.json
 // TokenPath is the LAN bearer-token file (~/.cc-present/token).
 func TokenPath() string { return filepath.Join(Paths().StateDir(), "token") }
 
-// ReadConfig loads the host config. An absent file is the loopback-only zero
-// value; a present file must be exact schema v1.
+// ReadConfig loads the host config. An absent file uses the schema-v1
+// loopback-only default; a present file must be exact schema v1.
 func ReadConfig() (Config, error) {
 	b, err := os.ReadFile(ConfigPath())
 	if errors.Is(err, fs.ErrNotExist) {
