@@ -15,7 +15,6 @@ jobs:
     # shared workflow must put bun on PATH before it runs goreleaser.
     with:
       setup-bun: true
-      plugin-manifest: plugin/.claude-plugin/plugin.json
 
   # The scaffolded release job forwards to a reusable workflow that can't take
   # extra steps, so the binrun descriptor refresh runs as a follow-on job. It
