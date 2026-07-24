@@ -1,7 +1,7 @@
 {
   "name": "cc-present",
   "description": "cc-present: ad-hoc live web artifacts for Claude sessions — the agent composes an approval board, choice list, or rich-content page from typed blocks, you interact in a localhost web UI, and every click streams back into the session in realtime. Edits are never gated.",
-  "version": "0.27.0",
+  "version": "0.28.0",
   "author": {
     "name": "Yasyf Mohamedali",
     "email": "yasyfm@gmail.com"
