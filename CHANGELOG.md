@@ -6,6 +6,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.24.3] - 2026-07-23
+
+### Fixed
+- Focus-board polish: the margin rail is titled "Notes" (count hidden at zero)
+  and carries a one-line "Discussing" dateline instead of repeating the block
+  prompt; the option-card peek dissolves under a wide eased fade instead of
+  clipping mid-word; the keyboard-cursor ring no longer boxes a lone decidable's
+  whole carousel; the redundant footer step numeral is gone; nested cards drop
+  their state rail and side padding inside the focus frame; the card-body edge
+  fade applies only to edges content has scrolled under; mermaid diagrams render
+  at 15px labels with real node spacing.
+
 ## [0.24.2] - 2026-07-23
 
 ### Fixed
