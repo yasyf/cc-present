@@ -10,8 +10,8 @@ import (
 
 	ccd "github.com/yasyf/cc-interact/daemon"
 	dkdaemon "github.com/yasyf/daemonkit/daemon"
-	"github.com/yasyf/daemonkit/daemonrole"
 	"github.com/yasyf/daemonkit/paths"
+	"github.com/yasyf/daemonkit/trust"
 	"github.com/yasyf/daemonkit/wire"
 
 	"github.com/yasyf/cc-present/internal/packs"
@@ -19,17 +19,25 @@ import (
 
 const markdownBlock = `{"id":"m1","type":"markdown","md":"hi"}`
 
-func testDaemonRole(t *testing.T, dir string) daemonrole.Classifier {
+func testDaemonTrust(t *testing.T) (trust.TrustPolicy, ccd.Roles) {
 	t.Helper()
-	executable, err := os.Executable()
+	roles := ccd.Roles{
+		Business: trust.UnprotectedRole, Lifecycle: "com.yasyf.cc-present.test.lifecycle.v1",
+		StopControl: "com.yasyf.cc-present.test.stop.v1",
+	}
+	requirement := trust.Requirement{TeamID: "TESTTEAM", SigningIdentifier: "com.yasyf.cc-present.test"}
+	policy, err := trust.NewTrustPolicy(trust.TrustPolicyConfig{
+		ExpectedUID: os.Geteuid(), AllowUnprotected: true,
+		Roles: map[trust.PeerRole]trust.Requirement{
+			roles.Lifecycle: requirement, roles.StopControl: requirement,
+		},
+		StopRoles: []trust.PeerRole{roles.StopControl}, ReceiptRoles: []trust.PeerRole{roles.Lifecycle},
+		ReadinessRoles: []trust.PeerRole{roles.Lifecycle},
+	})
 	if err != nil {
-		t.Fatalf("test executable: %v", err)
+		t.Fatalf("test trust policy: %v", err)
 	}
-	rolePath := filepath.Join(dir, "cc-present")
-	if err := os.Symlink(executable, rolePath); err != nil {
-		t.Fatalf("role alias: %v", err)
-	}
-	return daemonrole.Classifier{RoleID: "com.yasyf.cc-present.test", RolePath: rolePath}
+	return policy, roles
 }
 
 func TestBuildServerDefersGenerationState(t *testing.T) {
@@ -37,7 +45,8 @@ func TestBuildServerDefersGenerationState(t *testing.T) {
 	t.Setenv("HOME", home)
 	t.Setenv("CLAUDE_CONFIG_DIR", t.TempDir())
 	p := paths.Paths{App: "d"}
-	if _, err := BuildServer(context.Background(), p, testDaemonRole(t, home), "v1.0.0", "", "", packs.NewLoader(nil, nil), nil); err != nil {
+	policy, roles := testDaemonTrust(t)
+	if _, err := BuildServer(context.Background(), p, policy, roles, "v1.0.0", "", "", packs.NewLoader(nil, nil), nil); err != nil {
 		t.Fatalf("BuildServer: %v", err)
 	}
 	for _, path := range []string{p.DBPath(), filepath.Join(p.StateDir(), "assets")} {
@@ -63,11 +72,11 @@ func startTestDaemon(ctx context.Context, t *testing.T) *Client {
 	t.Setenv("CLAUDE_CONFIG_DIR", t.TempDir())
 
 	p := paths.Paths{App: "d"}
-	role := testDaemonRole(t, home)
+	policy, roles := testDaemonTrust(t)
 	ctx, cancel := context.WithCancel(ctx)
 	errCh := make(chan error, 1)
 	go func() {
-		errCh <- Serve(ctx, p, role, "v1.0.0", "", "", packs.NewLoader(nil, nil), nil)
+		errCh <- Serve(ctx, p, policy, roles, "v1.0.0", "", "", packs.NewLoader(nil, nil), nil)
 		close(errCh)
 	}()
 	// Closing errCh after the send lets cleanup's receive return even when the
@@ -84,7 +93,9 @@ func startTestDaemon(ctx context.Context, t *testing.T) *Client {
 			t.Fatalf("daemon exited before becoming healthy: %v", err)
 		default:
 		}
-		raw, err := ccd.NewClient(ctx, ccd.ClientConfig{Socket: p.SocketPath(), WireBuild: ccd.WireBuild})
+		raw, err := ccd.NewClient(ctx, ccd.ClientConfig{
+			Socket: p.SocketPath(), WireBuild: ccd.WireBuild, Role: trust.UnprotectedRole,
+		})
 		if err == nil {
 			health, healthErr := raw.RuntimeHealth(ctx)
 			if healthErr == nil && health.RuntimeBuild == "v1.0.0" &&

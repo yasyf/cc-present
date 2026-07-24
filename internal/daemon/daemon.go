@@ -18,8 +18,8 @@ import (
 	ccd "github.com/yasyf/cc-interact/daemon"
 	ccevent "github.com/yasyf/cc-interact/event"
 	"github.com/yasyf/cc-interact/subject"
-	"github.com/yasyf/daemonkit/daemonrole"
 	"github.com/yasyf/daemonkit/paths"
+	"github.com/yasyf/daemonkit/trust"
 	"github.com/yasyf/synckit/meshtrust"
 
 	"github.com/yasyf/cc-present/internal/assets"
@@ -64,7 +64,7 @@ var writeMu sync.Mutex
 // no edit gate, window-owned scope, and optional mesh trust tp (nil =
 // token/loopback auth only; with trust on and a loopback bind the daemon also
 // listens on its own tailnet addresses).
-func BuildServer(ctx context.Context, p paths.Paths, role daemonrole.Classifier, runtimeBuild, bind, token string, loader *packs.Loader, tp *meshtrust.Provider) (*ccd.Server, error) {
+func BuildServer(ctx context.Context, p paths.Paths, policy trust.TrustPolicy, roles ccd.Roles, runtimeBuild, bind, token string, loader *packs.Loader, tp *meshtrust.Provider) (*ccd.Server, error) {
 	c := channel.Connectivity{}
 	ast := assets.New(filepath.Join(p.StateDir(), "assets"))
 	bonjour := bonjourHook(bind)
@@ -87,7 +87,8 @@ func BuildServer(ctx context.Context, p paths.Paths, role daemonrole.Classifier,
 		Paths:          p,
 		WireBuild:      ccd.WireBuild,
 		RuntimeBuild:   runtimeBuild,
-		DaemonRole:     role,
+		TrustPolicy:    policy,
+		Roles:          roles,
 		ActiveStatuses: []string{statusOpen},
 		// c.Type() (not c.EventType) so the SSE plane filters the same presence type
 		// the hooks emit — correct even for the Connectivity zero value.
@@ -171,8 +172,8 @@ func combineHooks(hooks ...func(context.Context, int)) func(context.Context, int
 // plane's bind address (empty = loopback) and token the optional LAN bearer
 // token; the caller reads both from the host config and supplies the pack
 // loader and the optional mesh trust.
-func Serve(ctx context.Context, p paths.Paths, role daemonrole.Classifier, runtimeBuild, bind, token string, loader *packs.Loader, tp *meshtrust.Provider) error {
-	s, err := BuildServer(ctx, p, role, runtimeBuild, bind, token, loader, tp)
+func Serve(ctx context.Context, p paths.Paths, policy trust.TrustPolicy, roles ccd.Roles, runtimeBuild, bind, token string, loader *packs.Loader, tp *meshtrust.Provider) error {
+	s, err := BuildServer(ctx, p, policy, roles, runtimeBuild, bind, token, loader, tp)
 	if err != nil {
 		return err
 	}

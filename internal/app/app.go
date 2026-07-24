@@ -7,15 +7,16 @@ package app
 import (
 	"context"
 	"fmt"
-	"os/exec"
+	"os"
 	"path/filepath"
 
 	"github.com/yasyf/cc-interact/channel"
 	"github.com/yasyf/cc-interact/cmd"
 	ccd "github.com/yasyf/cc-interact/daemon"
 	"github.com/yasyf/cc-interact/procs"
-	"github.com/yasyf/daemonkit/daemonrole"
 	"github.com/yasyf/daemonkit/paths"
+	"github.com/yasyf/daemonkit/service"
+	"github.com/yasyf/daemonkit/trust"
 
 	"github.com/yasyf/synckit/meshtrust"
 
@@ -27,8 +28,12 @@ import (
 
 const (
 	// appDir is the state-dir basename under the user's home (~/.cc-present).
-	appDir       = ".cc-present"
-	daemonRoleID = "com.yasyf.cc-present.daemon"
+	appDir                  = ".cc-present"
+	daemonServiceLabel      = "com.yasyf.cc-present.daemon"
+	daemonLifecycleRole     = "com.yasyf.cc-present.lifecycle.v1"
+	daemonStopControlRole   = "com.yasyf.cc-present.stop.v1"
+	daemonTeamID            = "SXKCTF23Q2"
+	daemonSigningIdentifier = "cc-present"
 
 	// channelNotifyMethod is the JSON-RPC method each subject event is pushed
 	// under on the cc-present channel.
@@ -58,30 +63,42 @@ func NewClient(ctx context.Context) (*ccd.Client, error) {
 	return l.NewClient(ctx)
 }
 
-func daemonRole() (daemonrole.Classifier, error) {
-	rolePath, err := exec.LookPath("cc-present")
-	if err != nil {
-		return daemonrole.Classifier{}, fmt.Errorf("resolve cc-present role alias: %w", err)
+func daemonRoles() ccd.Roles {
+	return ccd.Roles{
+		Business: trust.UnprotectedRole, Lifecycle: daemonLifecycleRole,
+		StopControl: daemonStopControlRole,
 	}
-	rolePath, err = filepath.Abs(rolePath)
-	if err != nil {
-		return daemonrole.Classifier{}, fmt.Errorf("resolve absolute cc-present role alias: %w", err)
-	}
-	role := daemonrole.Classifier{RoleID: daemonRoleID, RolePath: filepath.Clean(rolePath)}
-	if err := role.Validate(); err != nil {
-		return daemonrole.Classifier{}, err
-	}
-	return role, nil
+}
+
+func daemonTrustPolicy() (trust.TrustPolicy, error) {
+	roles := daemonRoles()
+	requirement := trust.Requirement{TeamID: daemonTeamID, SigningIdentifier: daemonSigningIdentifier}
+	return trust.NewTrustPolicy(trust.TrustPolicyConfig{
+		ExpectedUID: os.Geteuid(), AllowUnprotected: true,
+		Roles: map[trust.PeerRole]trust.Requirement{
+			roles.Lifecycle: requirement, roles.StopControl: requirement,
+		},
+		StopRoles: []trust.PeerRole{roles.StopControl}, ReceiptRoles: []trust.PeerRole{roles.Lifecycle},
+		ReadinessRoles: []trust.PeerRole{roles.Lifecycle},
+	})
 }
 
 func launcher() (ccd.Launcher, error) {
-	role, err := daemonRole()
+	executable, err := os.Executable()
 	if err != nil {
-		return ccd.Launcher{}, err
+		return ccd.Launcher{}, fmt.Errorf("resolve cc-present executable: %w", err)
+	}
+	executable, err = filepath.EvalSymlinks(executable)
+	if err != nil {
+		return ccd.Launcher{}, fmt.Errorf("resolve cc-present executable symlinks: %w", err)
 	}
 	return ccd.Launcher{
 		Paths: Paths(), WireBuild: ccd.WireBuild, RuntimeBuild: version.String(),
-		Args: []string{"daemon"}, StopArgs: []string{ccd.StopControlCommand}, DaemonRole: role,
+		Agent: service.Agent{
+			Label: daemonServiceLabel, Program: executable, Args: []string{"daemon"},
+			LogPath: Paths().LogPath(), RestartPolicy: service.RestartOnFailure,
+		},
+		Roles: daemonRoles(),
 	}, nil
 }
 
@@ -112,13 +129,6 @@ func Deps() cmd.Deps {
 			}
 			return l.Stop(ctx, ccd.UpgradeTimeout)
 		},
-		RunStopControl: func(ctx context.Context) error {
-			l, err := launcher()
-			if err != nil {
-				return err
-			}
-			return l.RunStopControl(ctx)
-		},
 		ClaudePID:     procs.ClaudePID,
 		WindowAlive:   procs.LiveClaude,
 		TerminalEvent: func(t string) bool { return t == ccdaemon.EventPresentClosed },
@@ -132,7 +142,7 @@ func Deps() cmd.Deps {
 // the mesh state exists, its hosts are additionally trusted by their
 // tailnet addresses (meshtrust.Detect).
 func serve(ctx context.Context) error {
-	role, err := daemonRole()
+	policy, err := daemonTrustPolicy()
 	if err != nil {
 		return err
 	}
@@ -148,7 +158,7 @@ func serve(ctx context.Context) error {
 	if err := web.Validate(); err != nil {
 		return fmt.Errorf("validate embedded web build: %w", err)
 	}
-	return ccdaemon.Serve(ctx, Paths(), role, version.String(), cfg.Bind, token, loader, meshtrust.Detect())
+	return ccdaemon.Serve(ctx, Paths(), policy, daemonRoles(), version.String(), cfg.Bind, token, loader, meshtrust.Detect())
 }
 
 // channelTools advertises no MCP tools on the cc-present channel: every subject
