@@ -111,3 +111,18 @@ jobs:
         run: |
           go install golang.org/x/vuln/cmd/govulncheck@latest
           govulncheck ./...
+
+  # Lockstep gate: the plugin manifest version and the binrun descriptor's
+  # pinned version must agree, so a release always resolves the artifact that
+  # matches the shipped plugin. tail -n +2 drops the descriptor's shebang line,
+  # leaving valid JSON for jq.
+  descriptor-agreement:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Plugin manifest version matches descriptor pin
+        run: |
+          manifest="$(jq -r .version plugin/.claude-plugin/plugin.json)"
+          pinned="$(tail -n +2 plugin/bin/cc-present.binrun | jq -r .version.static)"
+          echo "manifest=${manifest} pinned=${pinned}"
+          test "${manifest}" = "${pinned}"

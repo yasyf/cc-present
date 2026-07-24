@@ -7,7 +7,7 @@ description: Author a block pack — custom block types for cc-present boards, s
 
 You are authoring a block pack: custom block types the cc-present SPA loads at runtime. A pack is one directory — a TOML manifest (`cc-present.toml`), a JSON Schema per block, and one prebuilt ES-module bundle of React components. Each block gets a dotted wire type, `<pack>.<name>`, that composes on a board like any built-in. Author a pack when the built-in blocks can't render what a board needs. *Using* installed packs on a board is the `present` skill's job (its `reference/blocks.md` § Pack blocks) — don't re-teach composition here.
 
-Invoke it as bare `cc-present` — Claude Code (≥ 2.1.91) puts the plugin's `bin/` on the Bash tool PATH. If the command isn't found or resolves to a stale version, use the absolute path `"${CLAUDE_PLUGIN_ROOT}/bin/cc-present"` (see the present skill's `reference/troubleshooting.md`). If the binary itself is missing, run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/install-binary.sh"` once. Building the bundle also needs `bun` on PATH.
+Invoke it as bare `cc-present` — Claude Code (≥ 2.1.91) puts the plugin's `bin/` on the Bash tool PATH. If the command isn't found or resolves to a stale version, use the absolute path `"${CLAUDE_PLUGIN_ROOT}/bin/cc-present"` (see the present skill's `reference/troubleshooting.md`), which resolves and caches the version-exact binary via binrun on its first call. Building the bundle also needs `bun` on PATH.
 
 ## 1. Scaffold
 

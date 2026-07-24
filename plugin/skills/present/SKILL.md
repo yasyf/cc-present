@@ -7,7 +7,7 @@ description: Present options, drafts, or work-in-progress to the human as a live
 
 You are presenting work for human sign-off through a live web artifact. You compose a JSON document of typed blocks — cards, approvals, choices, diffs — and the human's clicks stream back to you as events while you keep working. You **never write HTML**; the blocks are the entire authoring surface. Everything is CLI calls to `cc-present` — you are a thin wrapper around it.
 
-Invoke it as bare `cc-present` — Claude Code (≥ 2.1.91) puts the plugin's `bin/` on the Bash tool PATH. If the command isn't found or resolves to a stale version, fall back to the absolute path `"${CLAUDE_PLUGIN_ROOT}/bin/cc-present"` (see `reference/troubleshooting.md`). If the binary itself is missing, run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/install-binary.sh"` once.
+Invoke it as bare `cc-present` — Claude Code (≥ 2.1.91) puts the plugin's `bin/` on the Bash tool PATH. If the command isn't found or resolves to a stale version, fall back to the absolute path `"${CLAUDE_PLUGIN_ROOT}/bin/cc-present"` (see `reference/troubleshooting.md`), which resolves and caches the version-exact binary via binrun on its first call.
 
 There is **no edit gate**. An open artifact never blocks your tools: keep executing the task while the board is up, reacting to events as they arrive. Never park the session waiting for a click.
 

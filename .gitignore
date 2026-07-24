@@ -66,7 +66,3 @@ examples/packs/example/bun.lock
 # //go:embed all:dist compiles in a clean tree.
 internal/web/dist/*
 !internal/web/dist/.gitkeep
-
-# Plugin binary + installer log (installer-managed)
-plugin/bin/
-plugin/install-binary.log

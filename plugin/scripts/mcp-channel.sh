@@ -1,11 +1,8 @@
 #!/usr/bin/env bash
-# MCP entrypoint for the opt-in channel server: install or refresh the binary,
-# then exec it. stdout is the MCP stdio transport, so download output goes to
-# stderr. A failed refresh falls back to the installed binary; with none
-# installed the exec fails loudly.
+# MCP entrypoint for the opt-in channel server. bin/cc-present resolves the
+# version-exact binary via binrun on first use — its resolution diagnostics go
+# to stderr, keeping stdout clean for the MCP stdio transport — then execs it.
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-BIN="$ROOT/bin/cc-present"
 
-bash "$ROOT/scripts/install-binary.sh" 1>&2 || true
-exec "$BIN" channel
+exec "$ROOT/bin/cc-present" channel

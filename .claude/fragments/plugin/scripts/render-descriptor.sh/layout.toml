@@ -1,0 +1,6 @@
+fragments = [
+  { use = "cc-skills:render-descriptor", args = { binary = "cc-present" } },
+]
+
+[sources.cc-skills]
+source = "github:yasyf/cc-skills@main"
