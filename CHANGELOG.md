@@ -6,6 +6,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Repin daemonkit v0.16.0 for the exact installed-runtime activation contract.
+
 ## [0.25.0] - 2026-07-23
 
 ### Changed
