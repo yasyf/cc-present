@@ -88,6 +88,11 @@
   box-shadow: 0 0 0 2px var(--accent-fill);
   animation: kbd-arrive var(--dur-3) var(--ease-out);
 }
+/* In focus mode the deck already frames the one live decision, so the ring is redundant there. */
+.focus-card-body > [data-kbd-cursor] {
+  box-shadow: none;
+  animation: none;
+}
 @keyframes kbd-arrive {
   0% {
     box-shadow:

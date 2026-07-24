@@ -527,6 +527,7 @@
    cross-row alignment. */
 .options[data-strip] {
   --option-card-w: min(20rem, calc((100% - 2 * var(--space-3)) / 2.5));
+  --strip-fade: 7rem;
   display: grid;
   grid-auto-flow: column;
   grid-auto-columns: var(--option-card-w);
@@ -538,20 +539,39 @@
   padding-block: var(--space-1) var(--space-2);
   scrollbar-width: none;
 }
+/* Wide eased edge fades: a multi-stop ease-out over --strip-fade so a peeked card's
+   trailing text dissolves smoothly instead of reading as a hard clip. The mask covers
+   whichever edge still holds hidden content (per the data-edge attrs). */
 .options[data-strip]:not([data-edge-start]):not([data-edge-end]) {
   mask-image: linear-gradient(
     to right,
-    transparent,
-    black 48px,
-    black calc(100% - 48px),
-    transparent
+    transparent 2px,
+    rgba(0, 0, 0, 0.3) calc(var(--strip-fade) * 0.28),
+    rgba(0, 0, 0, 0.72) calc(var(--strip-fade) * 0.62),
+    black var(--strip-fade),
+    black calc(100% - var(--strip-fade)),
+    rgba(0, 0, 0, 0.72) calc(100% - var(--strip-fade) * 0.62),
+    rgba(0, 0, 0, 0.3) calc(100% - var(--strip-fade) * 0.28),
+    transparent calc(100% - 2px)
   );
 }
 .options[data-strip]:not([data-edge-start])[data-edge-end] {
-  mask-image: linear-gradient(to right, transparent, black 48px);
+  mask-image: linear-gradient(
+    to right,
+    transparent 2px,
+    rgba(0, 0, 0, 0.3) calc(var(--strip-fade) * 0.28),
+    rgba(0, 0, 0, 0.72) calc(var(--strip-fade) * 0.62),
+    black var(--strip-fade)
+  );
 }
 .options[data-strip][data-edge-start]:not([data-edge-end]) {
-  mask-image: linear-gradient(to right, black calc(100% - 48px), transparent);
+  mask-image: linear-gradient(
+    to right,
+    black calc(100% - var(--strip-fade)),
+    rgba(0, 0, 0, 0.72) calc(100% - var(--strip-fade) * 0.62),
+    rgba(0, 0, 0, 0.3) calc(100% - var(--strip-fade) * 0.28),
+    transparent calc(100% - 2px)
+  );
 }
 .options[data-strip]::-webkit-scrollbar {
   display: none;
@@ -590,7 +610,7 @@
   align-items: center;
   justify-content: flex-end;
   gap: var(--space-2);
-  margin-top: var(--space-2);
+  margin-top: var(--space-3);
 }
 .strip-nav > .comment-chip-row {
   margin: 0;
@@ -1397,7 +1417,7 @@
   border: 1px solid var(--line);
   background: var(--card);
   border-radius: var(--radius-md);
-  padding: var(--space-3);
+  padding: var(--space-4);
 }
 .diagram-title {
   font-family: var(--font-stamp);

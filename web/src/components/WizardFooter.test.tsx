@@ -54,8 +54,9 @@ describe('WizardFooter', () => {
     const buttons = container.querySelectorAll('.wizard-bar > .btn');
     expect((buttons[0] as HTMLButtonElement).disabled).toBe(true);
     expect(buttons[0]!.textContent).toBe('‹ Back');
-    expect(container.querySelectorAll('.focus-dot').length).toBe(2);
-    expect(container.querySelector('.wizard-count')?.textContent).toBe('1 / 2');
+    const dots = container.querySelectorAll('.focus-dot');
+    expect(dots.length).toBe(2);
+    expect(container.querySelector('.focus-dot.current')).toBe(dots[0]);
     expect(buttons[1]!.textContent).toBe('Next ›');
   });
 
@@ -73,10 +74,10 @@ describe('WizardFooter', () => {
     expect(onNext).toHaveBeenCalledOnce();
   });
 
-  it('disables Next on the summary and clamps the counter', () => {
+  it('disables Next on the summary, past the last current dot', () => {
     render(steps.length);
     const next = container.querySelector('.btn-primary') as HTMLButtonElement;
     expect(next.disabled).toBe(true);
-    expect(container.querySelector('.wizard-count')?.textContent).toBe('2 / 2');
+    expect(container.querySelector('.focus-dot.current')).toBeNull();
   });
 });

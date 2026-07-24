@@ -252,6 +252,24 @@
     transparent 100%
   );
 }
+/* Fade only the edge content has actually scrolled under — a parked edge stays
+   crisp, so a heading at the resting top is never half-dissolved (FocusCard sets
+   the data-edge attrs; both parked means nothing scrolls at all). */
+.focus-card-body[data-edge-start]:not([data-edge-end]) {
+  mask-image: linear-gradient(to bottom, #000 calc(100% - var(--focus-fade)), transparent 100%);
+}
+.focus-card-body[data-edge-end]:not([data-edge-start]) {
+  mask-image: linear-gradient(to bottom, transparent 0, #000 var(--focus-fade));
+}
+.focus-card-body[data-edge-start][data-edge-end] {
+  mask-image: none;
+}
+/* The focus frame already borders and insets the step, so a nested card's state
+   rail reads as a stray rule and its side padding as a double margin. */
+.focus-card-body > .card {
+  border-left: none;
+  padding-inline: 0;
+}
 /* Rotated swipe affordances — the stamp aesthetic, revealed as the card is dragged
    (opacity is driven inline by the drag position). */
 .swipe-label {
@@ -377,7 +395,7 @@
 /* The option visual stage: the active option's demonstration, above the controls.
    Collapses until an option visual mounts. */
 .focus-media {
-  margin: var(--space-2) 0 var(--space-3);
+  margin: 0;
   max-height: 42vh;
   overflow: auto;
 }
@@ -404,8 +422,8 @@
   overflow: auto;
 }
 
-/* Wizard progress: the shared footer grid owns Back and Next; its center keeps
-   the extracted dot rail and numeric counter together. */
+/* Wizard progress: the shared footer grid owns Back and Next; its center holds the
+   extracted dot rail. */
 .wizard-progress {
   display: grid;
   justify-items: center;
@@ -417,12 +435,6 @@
 }
 .wizard-progress .focus-strip {
   width: min(16rem, 36vw);
-}
-.wizard-count {
-  font-family: var(--font-stamp);
-  font-size: var(--text-2xs);
-  color: var(--muted);
-  font-variant-numeric: tabular-nums;
 }
 /* Auto-advance cue: a pencil underline fills the Next control over the 450ms
    window (mirrors AUTO_ADVANCE_MS in FocusDeck). Any input in the deck retracts

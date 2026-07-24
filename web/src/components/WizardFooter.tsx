@@ -27,7 +27,6 @@ export function WizardFooter({
   onNext,
 }: WizardFooterProps) {
   const onSummary = index >= total;
-  const shown = Math.min(index + 1, total);
   return (
     <div className="wizard-bar">
       <Button variant="ghost" size="lg" onClick={onPrev} disabled={index <= 0}>
@@ -41,9 +40,6 @@ export function WizardFooter({
           packInteractive={packInteractive}
           onJump={onJump}
         />
-        <span className="wizard-count">
-          {shown} / {total}
-        </span>
       </div>
       <Button
         variant="primary"

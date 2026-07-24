@@ -30,6 +30,8 @@ function themeVariables(): Record<string, string> {
   const accent = color('--accent', '#3b5bdb');
   const font =
     getComputedStyle(document.documentElement).getPropertyValue('--font-prose').trim() || 'system-ui, sans-serif';
+  probe.style.fontSize = 'var(--text-base, 15px)';
+  const fontSize = getComputedStyle(probe).fontSize || '15px';
   probe.remove();
   return {
     background: surface,
@@ -48,6 +50,7 @@ function themeVariables(): Record<string, string> {
     clusterBorder: border,
     accent,
     fontFamily: font,
+    fontSize,
   };
 }
 
@@ -60,6 +63,7 @@ function configure(mermaid: Mermaid): void {
     // Top-level, not flowchart.htmlLabels (which mermaid ignores): HTML labels emit
     // <foreignObject> that DiagramView's SVG-profile sanitize strips to empty boxes.
     htmlLabels: false,
+    flowchart: { useMaxWidth: true, padding: 12, nodeSpacing: 40, rankSpacing: 44 },
   });
   themeKey = currentThemeKey();
 }

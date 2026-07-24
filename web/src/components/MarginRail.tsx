@@ -50,7 +50,7 @@ export function MarginRail({
       <button
         type="button"
         className="rail-strip"
-        aria-label={`Open margin — ${total} ${total === 1 ? 'comment' : 'comments'}`}
+        aria-label={total > 0 ? `Open notes — ${total} ${total === 1 ? 'comment' : 'comments'}` : 'Open notes'}
         aria-expanded={open}
         onClick={onToggle}
       >

@@ -73,9 +73,9 @@ function render(proj: ThreadProjection = projection, onJumped?: () => void): voi
 }
 
 describe('SidebarPanel masthead', () => {
-  it('stamps the MARGIN label and a mono total across every thread', () => {
+  it('stamps the NOTES label and a mono total across every thread', () => {
     render();
-    expect(container.querySelector('.rail-mast-label')!.textContent).toBe('Margin');
+    expect(container.querySelector('.rail-mast-label')!.textContent).toBe('Notes');
     expect(container.querySelector('.rail-mast-count')!.textContent).toBe('3');
   });
 });
@@ -125,7 +125,7 @@ describe('SidebarPanel empty', () => {
     render(empty);
     expect(container.querySelector('.rail-mast-count')!.textContent).toBe('0');
     expect(container.querySelector('.rail-empty-mark svg')).not.toBeNull();
-    expect(container.querySelector('.rail-empty-lead')!.textContent).toBe('No margin notes yet.');
+    expect(container.querySelector('.rail-empty-lead')!.textContent).toBe('No notes yet.');
     expect(container.querySelector('.rail-empty-how')!.textContent).toContain('Add note');
     expect(container.querySelector('.rail-pinned')).toBeNull();
     expect(container.querySelector('.rail-feed')).toBeNull();

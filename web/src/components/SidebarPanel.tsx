@@ -82,7 +82,7 @@ export function SidebarPanel({
   return (
     <div className="rail-panel">
       <div className="rail-masthead">
-        <span className="rail-mast-label">Margin</span>
+        <span className="rail-mast-label">Notes</span>
         <span className="rail-mast-count" data-count={total > 0 || undefined}>
           {total}
         </span>
@@ -103,7 +103,7 @@ export function SidebarPanel({
               <path className="mark-stroke" pathLength={1} d="M13.2 7.2L16.8 10.8" />
             </svg>
           </span>
-          <p className="rail-empty-lead">No margin notes yet.</p>
+          <p className="rail-empty-lead">No notes yet.</p>
           <p className="rail-empty-how">
             {isSheet ? (
               'Tap the Add note chip on any block to start one here.'
@@ -118,6 +118,7 @@ export function SidebarPanel({
         <>
           {pinned && (
             <div className="rail-pinned">
+              <span className="rail-pin-eyebrow">Discussing</span>
               <button type="button" className="rail-pin-label" onClick={() => jump(pinned)}>
                 {pinned.label}
               </button>

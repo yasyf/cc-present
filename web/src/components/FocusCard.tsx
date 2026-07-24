@@ -10,6 +10,7 @@ import type { Interaction, Interactions } from '../events';
 import { usePresent } from '../present';
 import { revisionStore, useRevisingBanner, useUnseenChange } from '../revision';
 import { useMediaQuery } from '../useMediaQuery';
+import { useScrollEdges } from '../useScrollEdges';
 import { useExpandAll } from '../expand';
 import { renderMarkdown } from '../markdown';
 import { BlockBody, BlockRenderer } from './BlockRenderer';
@@ -187,6 +188,10 @@ export const FocusCard = forwardRef<HTMLDivElement, { step: FocusStep; interacti
   const [activeVisual, setActiveVisual] = useState<OptionVisual | null>(null);
   const stageValue = useMemo<FocusStageValue>(() => ({ setVisual: setActiveVisual }), []);
 
+  // Gate the body's top/bottom fade on actual overflow: both edges parked means
+  // nothing scrolls, so focus.css drops the mask (mirrors OptionStrip's x-axis cue).
+  const { ref: bodyRef, edges: bodyEdges } = useScrollEdges<HTMLDivElement>('y');
+
   const primaryId = step.primary?.id;
   const swipeable = step.swipeable && primaryId !== undefined && !closed;
   // The primary a live drag began against; a same-id card upsert can swap the
@@ -296,7 +301,12 @@ export const FocusCard = forwardRef<HTMLDivElement, { step: FocusStep; interacti
             {headline.text}
           </h2>
         )}
-        <div className="focus-card-body">
+        <div
+          className="focus-card-body"
+          ref={bodyRef}
+          data-edge-start={bodyEdges.atStart || undefined}
+          data-edge-end={bodyEdges.atEnd || undefined}
+        >
           {step.context.length > 0 && (
             <div className="focus-context">
               {step.context.map((block) => (
