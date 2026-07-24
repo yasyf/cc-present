@@ -6,6 +6,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.25.0] - 2026-07-23
+
+### Changed
+- Replace the product-owned daemon role and stop-controller lifecycle with the
+  exact daemonkit runtime, separated lifecycle and stop trust roles, and the
+  daemonkit v0.15.0 protocol release.
+
 ## [0.24.3] - 2026-07-23
 
 ### Fixed
