@@ -6,6 +6,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.27.0] - 2026-07-24
+
+### Changed
+- Pin daemonkit v0.17.2 and cc-interact v0.28.0 so every daemon business
+  request uses the exact admitted publication graph.
+
 ## [0.26.0] - 2026-07-24
 
 ### Changed
@@ -672,7 +678,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   marketplace.
 - `examples/opener-board.json`, a complete sample document.
 
-[Unreleased]: https://github.com/yasyf/cc-present/compare/v0.24.2...main
+[Unreleased]: https://github.com/yasyf/cc-present/compare/v0.27.0...main
+[0.27.0]: https://github.com/yasyf/cc-present/compare/v0.26.0...v0.27.0
 [0.24.2]: https://github.com/yasyf/cc-present/compare/v0.24.1...v0.24.2
 [0.24.1]: https://github.com/yasyf/cc-present/compare/v0.24.0...v0.24.1
 [0.24.0]: https://github.com/yasyf/cc-present/compare/v0.23.0...v0.24.0
