@@ -4,6 +4,12 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
+    inputs:
+      commit:
+        description: Exact commit to validate
+        required: true
+        type: string
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -21,6 +27,8 @@ jobs:
         os: [ubuntu-latest, macos-latest]
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.commit || github.sha }}
 
       # Web build first: //go:embed all:internal/web/dist reads at compile time,
       # so the embed dir must be fresh before the Go build/test/vet run. The Go
@@ -81,6 +89,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.commit || github.sha }}
       - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
@@ -102,6 +112,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.commit || github.sha }}
       - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
@@ -120,6 +132,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.commit || github.sha }}
       - name: Plugin manifest version matches descriptor pin
         run: |
           manifest="$(jq -r .version plugin/.claude-plugin/plugin.json)"
