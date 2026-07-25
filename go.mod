@@ -10,8 +10,8 @@ require (
 	github.com/spf13/cobra v1.10.2
 	github.com/yasyf/cc-context v0.28.5-0.20260720034201-f18e537f26a5
 	github.com/yasyf/cc-interact v0.30.0
-	github.com/yasyf/daemonkit v0.18.0
-	github.com/yasyf/synckit v0.35.1
+	github.com/yasyf/daemonkit v0.19.1
+	github.com/yasyf/synckit v0.35.2
 	golang.org/x/sync v0.22.0
 )
 

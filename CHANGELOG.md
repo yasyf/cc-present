@@ -6,6 +6,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.30.1] - 2026-07-24
+
+### Changed
+- Pin daemonkit v0.19.1 and Synckit v0.35.2 so terminal worker claims tear
+  down the daemon runtime throughout the service and trust-verifier graph.
+
 ## [0.30.0] - 2026-07-24
 
 ### Changed
@@ -697,7 +703,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   marketplace.
 - `examples/opener-board.json`, a complete sample document.
 
-[Unreleased]: https://github.com/yasyf/cc-present/compare/v0.30.0...main
+[Unreleased]: https://github.com/yasyf/cc-present/compare/v0.30.1...main
+[0.30.1]: https://github.com/yasyf/cc-present/compare/v0.30.0...v0.30.1
 [0.30.0]: https://github.com/yasyf/cc-present/compare/v0.29.0...v0.30.0
 [0.29.0]: https://github.com/yasyf/cc-present/compare/v0.28.0...v0.29.0
 [0.28.0]: https://github.com/yasyf/cc-present/compare/v0.27.0...v0.28.0
