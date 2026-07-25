@@ -6,6 +6,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.29.0] - 2026-07-24
+
+### Changed
+- Dispatch daemonkit's trust-verifier child before normal CLI startup, and pin
+  daemonkit v0.18.0 plus Synckit v0.35.1 for the fixed verifier-worker budgets
+  and mandatory startup self-probe.
+
 ## [0.28.0] - 2026-07-24
 
 ### Changed
@@ -684,7 +691,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   marketplace.
 - `examples/opener-board.json`, a complete sample document.
 
-[Unreleased]: https://github.com/yasyf/cc-present/compare/v0.27.0...main
+[Unreleased]: https://github.com/yasyf/cc-present/compare/v0.29.0...main
+[0.29.0]: https://github.com/yasyf/cc-present/compare/v0.28.0...v0.29.0
+[0.28.0]: https://github.com/yasyf/cc-present/compare/v0.27.0...v0.28.0
 [0.27.0]: https://github.com/yasyf/cc-present/compare/v0.26.0...v0.27.0
 [0.24.2]: https://github.com/yasyf/cc-present/compare/v0.24.1...v0.24.2
 [0.24.1]: https://github.com/yasyf/cc-present/compare/v0.24.0...v0.24.1
