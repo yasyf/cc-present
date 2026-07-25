@@ -8,7 +8,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"path/filepath"
 
 	"github.com/yasyf/cc-interact/channel"
 	"github.com/yasyf/cc-interact/cmd"
@@ -84,18 +83,14 @@ func daemonTrustPolicy() (trust.TrustPolicy, error) {
 }
 
 func launcher() (ccd.Launcher, error) {
-	executable, err := os.Executable()
+	program, err := service.StableProgram("cc-present", version.String())
 	if err != nil {
-		return ccd.Launcher{}, fmt.Errorf("resolve cc-present executable: %w", err)
-	}
-	executable, err = filepath.EvalSymlinks(executable)
-	if err != nil {
-		return ccd.Launcher{}, fmt.Errorf("resolve cc-present executable symlinks: %w", err)
+		return ccd.Launcher{}, fmt.Errorf("resolve stable cc-present program: %w", err)
 	}
 	return ccd.Launcher{
 		Paths: Paths(), WireBuild: ccd.WireBuild, RuntimeBuild: version.String(),
 		Agent: service.Agent{
-			Label: daemonServiceLabel, Program: executable, Args: []string{"daemon"},
+			Label: daemonServiceLabel, Program: program, Args: []string{"daemon"},
 			LogPath: Paths().LogPath(), RestartPolicy: service.RestartOnFailure,
 		},
 		Roles: daemonRoles(),

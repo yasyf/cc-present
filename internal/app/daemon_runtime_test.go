@@ -1,7 +1,6 @@
 package app
 
 import (
-	"os"
 	"path/filepath"
 	"reflect"
 	"testing"
@@ -12,20 +11,14 @@ import (
 )
 
 func TestDaemonRuntimeUsesExactServiceAndRoles(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
 	l, err := launcher()
 	if err != nil {
 		t.Fatalf("launcher: %v", err)
 	}
-	executable, err := os.Executable()
-	if err != nil {
-		t.Fatal(err)
-	}
-	executable, err = filepath.EvalSymlinks(executable)
-	if err != nil {
-		t.Fatal(err)
-	}
 	wantAgent := service.Agent{
-		Label: daemonServiceLabel, Program: executable, Args: []string{"daemon"},
+		Label: daemonServiceLabel, Program: filepath.Join(home, ".daemonkit", "bin", "cc-present"), Args: []string{"daemon"},
 		LogPath: Paths().LogPath(), RestartPolicy: service.RestartOnFailure,
 	}
 	if l.WireBuild != ccd.WireBuild {
