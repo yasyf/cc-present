@@ -6,6 +6,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.31.0] - 2026-07-24
+
+### Changed
+
+- The daemon's launchd agent registers at daemonkit's version-stable program
+  path (`~/.daemonkit/bin/cc-present`); daemonkit v0.20.0 heals stored
+  registrations stranded by Homebrew upgrades instead of wedging at
+  controller load.
+
 ## [0.30.2] - 2026-07-24
 
 ### Changed
@@ -709,7 +718,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   marketplace.
 - `examples/opener-board.json`, a complete sample document.
 
-[Unreleased]: https://github.com/yasyf/cc-present/compare/v0.30.2...main
+[Unreleased]: https://github.com/yasyf/cc-present/compare/v0.31.0...main
+[0.31.0]: https://github.com/yasyf/cc-present/compare/v0.30.2...v0.31.0
 [0.30.2]: https://github.com/yasyf/cc-present/compare/v0.30.1...v0.30.2
 [0.30.1]: https://github.com/yasyf/cc-present/compare/v0.30.0...v0.30.1
 [0.30.0]: https://github.com/yasyf/cc-present/compare/v0.29.0...v0.30.0
