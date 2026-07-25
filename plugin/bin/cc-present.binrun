@@ -3,46 +3,46 @@
   "schema": 1,
   "name": "cc-present",
   "kind": "release-binary",
-  "version": {"static": "0.30.2"},
+  "version": {"static": "0.31.1"},
   "platforms": {
     "macos-aarch64": {
-      "size": 9351591,
+      "size": 9356988,
       "hash": "sha256",
-      "digest": "65036369a72a9b6de7d709c330910c8da844869c025f310ecd52b3f282ef3031",
+      "digest": "1b208ca42576f4a0975f048aba3fe2f22ea904648f05330a8e48a7c9f75a22d8",
       "format": "tar.gz",
       "path": "cc-present",
       "providers": [
-        {"type": "github-release", "repo": "yasyf/cc-present", "tag": "v0.30.2", "name": "cc-present_0.30.2_darwin_arm64.tar.gz"}
+        {"type": "github-release", "repo": "yasyf/cc-present", "tag": "v0.31.1", "name": "cc-present_0.31.1_darwin_arm64.tar.gz"}
       ]
     },
     "macos-x86_64": {
-      "size": 9913160,
+      "size": 9922560,
       "hash": "sha256",
-      "digest": "8e590965e5cf1062b50352ee5832b9bfd57abbfc49df4280dedf3e9c710eee16",
+      "digest": "edf41f2a0e69c355526c32c0f46e96cf863dc40f9f1917a5d8ebd5a83fa618b4",
       "format": "tar.gz",
       "path": "cc-present",
       "providers": [
-        {"type": "github-release", "repo": "yasyf/cc-present", "tag": "v0.30.2", "name": "cc-present_0.30.2_darwin_amd64.tar.gz"}
+        {"type": "github-release", "repo": "yasyf/cc-present", "tag": "v0.31.1", "name": "cc-present_0.31.1_darwin_amd64.tar.gz"}
       ]
     },
     "linux-x86_64": {
-      "size": 9561503,
+      "size": 9569246,
       "hash": "sha256",
-      "digest": "ddfa9dabef9eac6c13e14e2ded9017ed904079495fedd766591415a799637f23",
+      "digest": "55edc6bd1a8a40b85fea6337e7ff4200f35a25dcd72c62a57ff26671f8b0771c",
       "format": "tar.gz",
       "path": "cc-present",
       "providers": [
-        {"type": "github-release", "repo": "yasyf/cc-present", "tag": "v0.30.2", "name": "cc-present_0.30.2_linux_amd64.tar.gz"}
+        {"type": "github-release", "repo": "yasyf/cc-present", "tag": "v0.31.1", "name": "cc-present_0.31.1_linux_amd64.tar.gz"}
       ]
     },
     "linux-aarch64": {
-      "size": 8995619,
+      "size": 9010301,
       "hash": "sha256",
-      "digest": "7f09407a3b27550f3a17ed694e5434c9ccdeee50c4bfa1e3e1d7aa87ab9aa456",
+      "digest": "7d1d36855b381bcc9a0f4fd6e1c01525a09d4b4413b35c0bd27827b421d6b5e6",
       "format": "tar.gz",
       "path": "cc-present",
       "providers": [
-        {"type": "github-release", "repo": "yasyf/cc-present", "tag": "v0.30.2", "name": "cc-present_0.30.2_linux_arm64.tar.gz"}
+        {"type": "github-release", "repo": "yasyf/cc-present", "tag": "v0.31.1", "name": "cc-present_0.31.1_linux_arm64.tar.gz"}
       ]
     }
   }
