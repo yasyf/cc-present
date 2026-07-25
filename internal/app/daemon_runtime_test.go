@@ -17,8 +17,12 @@ func TestDaemonRuntimeUsesExactServiceAndRoles(t *testing.T) {
 	if err != nil {
 		t.Fatalf("launcher: %v", err)
 	}
+	resolvedHome, err := filepath.EvalSymlinks(home)
+	if err != nil {
+		t.Fatalf("resolve home: %v", err)
+	}
 	wantAgent := service.Agent{
-		Label: daemonServiceLabel, Program: filepath.Join(home, ".daemonkit", "bin", "cc-present"), Args: []string{"daemon"},
+		Label: daemonServiceLabel, Program: filepath.Join(resolvedHome, ".daemonkit", "bin", "cc-present"), Args: []string{"daemon"},
 		LogPath: Paths().LogPath(), RestartPolicy: service.RestartOnFailure,
 	}
 	if l.WireBuild != ccd.WireBuild {
