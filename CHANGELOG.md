@@ -6,6 +6,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.31.2] - 2026-07-25
+
+### Changed
+
+- Pin daemonkit v0.20.6: daemon-context subprocesses inherit the daemon's
+  `PATH` so user-installed CLIs resolve, a booted-out launchd agent reads as
+  drift instead of failing controller recovery, and durable untrack no longer
+  spends a worker claim's settlement budget on a slow store.
+
 ## [0.31.1] - 2026-07-24
 
 ### Changed
@@ -718,7 +727,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   marketplace.
 - `examples/opener-board.json`, a complete sample document.
 
-[Unreleased]: https://github.com/yasyf/cc-present/compare/v0.31.1...main
+[Unreleased]: https://github.com/yasyf/cc-present/compare/v0.31.2...main
+[0.31.2]: https://github.com/yasyf/cc-present/compare/v0.31.1...v0.31.2
 [0.31.1]: https://github.com/yasyf/cc-present/compare/v0.30.2...v0.31.1
 [0.30.2]: https://github.com/yasyf/cc-present/compare/v0.30.1...v0.30.2
 [0.30.1]: https://github.com/yasyf/cc-present/compare/v0.30.0...v0.30.1
