@@ -13,6 +13,7 @@ import (
 func TestDaemonRuntimeUsesExactServiceAndRoles(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("DAEMONKIT_HOME", home)
 	l, err := launcher()
 	if err != nil {
 		t.Fatalf("launcher: %v", err)

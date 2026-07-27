@@ -43,6 +43,7 @@ func testDaemonTrust(t *testing.T) (trust.TrustPolicy, ccd.Roles) {
 func TestBuildServerDefersGenerationState(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("DAEMONKIT_HOME", home)
 	t.Setenv("CLAUDE_CONFIG_DIR", t.TempDir())
 	p := paths.Paths{App: "d"}
 	policy, roles := testDaemonTrust(t)
@@ -69,6 +70,7 @@ func startTestDaemon(ctx context.Context, t *testing.T) *Client {
 	}
 	t.Cleanup(func() { _ = os.RemoveAll(home) })
 	t.Setenv("HOME", home)
+	t.Setenv("DAEMONKIT_HOME", home)
 	t.Setenv("CLAUDE_CONFIG_DIR", t.TempDir())
 
 	p := paths.Paths{App: "d"}

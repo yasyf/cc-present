@@ -16,7 +16,9 @@ import (
 
 func testPaths(t *testing.T) paths.Paths {
 	t.Helper()
-	t.Setenv("HOME", t.TempDir())
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("DAEMONKIT_HOME", home)
 	p := paths.Paths{App: ".cc-present-test"}
 	if err := p.EnsureStateDir(); err != nil {
 		t.Fatalf("EnsureStateDir: %v", err)

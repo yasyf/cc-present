@@ -7,12 +7,15 @@ import (
 	"testing"
 )
 
-// withHome points HOME at a fresh temp dir so Paths() resolves ~/.cc-present
-// under it, isolating each test from the real state directory.
+// withHome points HOME and DAEMONKIT_HOME at a fresh temp dir so Paths()
+// resolves ~/.cc-present under it, isolating each test from the real state
+// directory. daemonkit resolves the home from the passwd database and honors
+// only DAEMONKIT_HOME; everything else still reads HOME.
 func withHome(t *testing.T) string {
 	t.Helper()
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("DAEMONKIT_HOME", home)
 	return home
 }
 

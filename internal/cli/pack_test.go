@@ -125,6 +125,7 @@ func TestPackLint(t *testing.T) {
 func TestPackList(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("DAEMONKIT_HOME", home)
 	t.Setenv("CLAUDE_CONFIG_DIR", filepath.Join(home, ".claude"))
 
 	good := writeGoodPack(t)
@@ -327,6 +328,7 @@ func TestPackInit(t *testing.T) {
 func TestPushDryRunPackBlock(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("DAEMONKIT_HOME", home)
 	t.Setenv("CLAUDE_CONFIG_DIR", filepath.Join(home, ".claude"))
 
 	good := writeGoodPack(t)
