@@ -6,6 +6,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.31.3] - 2026-07-27
+
+### Changed
+
+- Pin daemonkit v0.20.9: the durable home-derived paths — the launchd plist
+  directory, the stable program root, the `paths` defaults — resolve the
+  invoking user's home from the passwd database instead of `$HOME`, so
+  Homebrew postinstall's sandboxed temp `HOME` can no longer redirect the
+  daemon's install into a throwaway directory. A `launchctl` exit 5 now reads
+  as a permanent denial rather than a transient state to wait out, startup
+  recovery leaves a failed install as drift for a later converge instead of
+  wedging the install that would fix it, and a rolled-back deployment apply
+  no longer blocks the next candidate.
+
 ## [0.31.2] - 2026-07-25
 
 ### Changed
@@ -727,7 +741,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   marketplace.
 - `examples/opener-board.json`, a complete sample document.
 
-[Unreleased]: https://github.com/yasyf/cc-present/compare/v0.31.2...main
+[Unreleased]: https://github.com/yasyf/cc-present/compare/v0.31.3...main
+[0.31.3]: https://github.com/yasyf/cc-present/compare/v0.31.2...v0.31.3
 [0.31.2]: https://github.com/yasyf/cc-present/compare/v0.31.1...v0.31.2
 [0.31.1]: https://github.com/yasyf/cc-present/compare/v0.30.2...v0.31.1
 [0.30.2]: https://github.com/yasyf/cc-present/compare/v0.30.1...v0.30.2
