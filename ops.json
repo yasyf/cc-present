@@ -1,1 +1,1 @@
-{"v":1,"lamport":3,"session":"4a23a643-72bd-4add-8b03-cbe4379168c6","ops":[{"kind":"set_criterion_status","id":"790ebcd299385637801aa043a0410bc1","status":"met","note":"golangci-lint run on the cc-present tree at d4a82df146e4170c9d55213a4904fc3ac8c9da26 reports '0 issues'; internal/cli/commands.go:540 declares clearFlag. CI run 30261973395 (a696d4e) green."}]}
+{"v":1,"lamport":4,"session":"4a23a643-72bd-4add-8b03-cbe4379168c6","ops":[{"kind":"set_status","status":"done"},{"kind":"link_commit","sha":"a696d4efc16430a49d857b15896c459d6ff4b356"}]}
