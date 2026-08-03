@@ -11,20 +11,27 @@ on:
         required: true
         type: string
 
+# PRs only: cancel-in-progress on main kills a slow run mid-flight and leaves
+# the commit with no CI verdict.
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
 
+# Timeouts kill a wedged test in minutes instead of GitHub's 6-hour cap.
 jobs:
   test:
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        # macOS only: daemonkit v0.21 is a macOS library and no longer compiles
+        # off darwin — the sysctl, csops, and LOCAL_PEERCRED seams have no
+        # stubs, so an ubuntu leg cannot build the module at all.
+        os: [macos-latest]
     steps:
       - uses: actions/checkout@v7
         with:
@@ -85,8 +92,10 @@ jobs:
           ( cd "$pack_dir" && bun install && bun run build && bun run smoke )
           go run ./cmd/cc-present pack lint "$pack_dir"
 
+  # macOS: golangci-lint type-checks the module, which does not build off darwin.
   lint:
-    runs-on: ubuntu-latest
+    runs-on: macos-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
         with:
@@ -100,6 +109,15 @@ jobs:
         uses: golangci/golangci-lint-action@v9
         with:
           version: latest
+
+  # The hook pack is pure Python and touches no Go, so it keeps the cheap runner.
+  hooks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.commit || github.sha }}
       - uses: astral-sh/setup-uv@v8.2.0
         with:
           enable-cache: false
@@ -108,8 +126,10 @@ jobs:
       - name: Test capt-hook pack
         run: uvx --isolated --python 3.13 'capt-hook>=11.0.0' pack test plugin
 
+  # macOS: govulncheck loads and type-checks the package graph.
   vuln:
-    runs-on: ubuntu-latest
+    runs-on: macos-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
         with:
@@ -130,6 +150,7 @@ jobs:
   # leaving valid JSON for jq.
   descriptor-agreement:
     runs-on: ubuntu-latest
+    timeout-minutes: 2
     steps:
       - uses: actions/checkout@v7
         with:

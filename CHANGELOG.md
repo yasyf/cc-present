@@ -6,6 +6,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.32.0] - 2026-08-03
+
+### Changed
+
+- cc-present runs on daemonkit v0.21.2, cc-interact v0.32.0, and synckit
+  v0.37.0. The daemon's identity is one shared `Daemon` value — the old role
+  and trust-policy threading is gone, and the serving socket derives from the
+  launchd label rather than the state directory.
+
+### Fixed
+
+- Upgrading over a still-running pre-0.21 daemon is reported instead of
+  silently skipped. The old daemon cannot be upgraded in place: `status` names
+  it and the fix — run `cc-present stop`, then any command that starts the
+  daemon. Without a stop, the old daemon keeps its socket and refuses to
+  serve the new CLI.
+
 ## [0.31.3] - 2026-07-27
 
 ### Changed

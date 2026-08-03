@@ -9,35 +9,23 @@ import (
 	"time"
 
 	ccd "github.com/yasyf/cc-interact/daemon"
-	dkdaemon "github.com/yasyf/daemonkit/daemon"
+	"github.com/yasyf/daemonkit"
 	"github.com/yasyf/daemonkit/paths"
-	"github.com/yasyf/daemonkit/trust"
-	"github.com/yasyf/daemonkit/wire"
 
 	"github.com/yasyf/cc-present/internal/packs"
 )
 
 const markdownBlock = `{"id":"m1","type":"markdown","md":"hi"}`
 
-func testDaemonTrust(t *testing.T) (trust.TrustPolicy, ccd.Roles) {
-	t.Helper()
-	roles := ccd.Roles{
-		Business: trust.UnprotectedRole, Lifecycle: "com.yasyf.cc-present.test.lifecycle.v1",
-		StopControl: "com.yasyf.cc-present.test.stop.v1",
-	}
-	requirement := trust.Requirement{TeamID: "TESTTEAM", SigningIdentifier: "com.yasyf.cc-present.test"}
-	policy, err := trust.NewTrustPolicy(trust.TrustPolicyConfig{
-		ExpectedUID: os.Geteuid(), AllowUnprotected: true,
-		Roles: map[trust.PeerRole]trust.Requirement{
-			roles.Lifecycle: requirement, roles.StopControl: requirement,
-		},
-		StopRoles: []trust.PeerRole{roles.StopControl}, ReceiptRoles: []trust.PeerRole{roles.Lifecycle},
-		ReadinessRoles: []trust.PeerRole{roles.Lifecycle},
+// testDaemonSpec is the identity both halves of a test daemon read. The label
+// is short because the socket derives from it and a long one would overflow
+// sun_path; the control lane keeps the same-EUID floor, since an unsigned test
+// binary can prove nothing more.
+func testDaemonSpec() daemonkit.Daemon {
+	return ccd.Spec(daemonkit.Daemon{
+		Label: "ccp-scope-test",
+		Trust: daemonkit.Trust{Serving: daemonkit.ServingSameUser()},
 	})
-	if err != nil {
-		t.Fatalf("test trust policy: %v", err)
-	}
-	return policy, roles
 }
 
 func TestBuildServerDefersGenerationState(t *testing.T) {
@@ -46,8 +34,7 @@ func TestBuildServerDefersGenerationState(t *testing.T) {
 	t.Setenv("DAEMONKIT_HOME", home)
 	t.Setenv("CLAUDE_CONFIG_DIR", t.TempDir())
 	p := paths.Paths{App: "d"}
-	policy, roles := testDaemonTrust(t)
-	if _, err := BuildServer(context.Background(), p, policy, roles, "v1.0.0", "", "", packs.NewLoader(nil, nil), nil); err != nil {
+	if _, err := BuildServer(context.Background(), p, testDaemonSpec(), "v1.0.0", "", "", packs.NewLoader(nil, nil), nil); err != nil {
 		t.Fatalf("BuildServer: %v", err)
 	}
 	for _, path := range []string{p.DBPath(), filepath.Join(p.StateDir(), "assets")} {
@@ -57,11 +44,13 @@ func TestBuildServerDefersGenerationState(t *testing.T) {
 	}
 }
 
-// startTestDaemon boots a real cc-present daemon over its control socket and
-// returns a typed client once it answers Health — the full RPC path, so
-// dispatch applies ScopeResolve exactly as in production. HOME is a short /tmp
-// dir because paths.SocketPath() derives from it and the default t.TempDir()
-// (/var/folders/…) would overflow the ~104-byte sun_path limit.
+// startTestDaemon boots a real cc-present daemon and returns a typed client
+// once a substrate op round-trips — the full RPC path, so dispatch applies
+// ScopeResolve exactly as in production. A dispatched reply is the readiness
+// proof: the daemon binds its socket only after Serve settles, so nothing
+// answers before it is ready. HOME is a short /tmp dir because the socket
+// derives from it and the default t.TempDir() (/var/folders/…) would overflow
+// the ~104-byte sun_path limit.
 func startTestDaemon(ctx context.Context, t *testing.T) *Client {
 	t.Helper()
 	home, err := os.MkdirTemp("/tmp", "ccp")
@@ -74,45 +63,42 @@ func startTestDaemon(ctx context.Context, t *testing.T) *Client {
 	t.Setenv("CLAUDE_CONFIG_DIR", t.TempDir())
 
 	p := paths.Paths{App: "d"}
-	policy, roles := testDaemonTrust(t)
+	spec := testDaemonSpec()
 	ctx, cancel := context.WithCancel(ctx)
 	errCh := make(chan error, 1)
 	go func() {
-		errCh <- Serve(ctx, p, policy, roles, "v1.0.0", "", "", packs.NewLoader(nil, nil), nil)
+		errCh <- Serve(ctx, p, spec, "v1.0.0", "", "", packs.NewLoader(nil, nil), nil)
 		close(errCh)
 	}()
 	// Closing errCh after the send lets cleanup's receive return even when the
-	// health poll already drained the value on an early daemon exit.
+	// readiness poll already drained the value on an early daemon exit.
 	t.Cleanup(func() {
 		cancel()
 		<-errCh
 	})
 
+	raw, err := ccd.NewClient(spec)
+	if err != nil {
+		t.Fatalf("open business lane: %v", err)
+	}
+	t.Cleanup(func() { _ = raw.Close() })
+	cl := NewClient(raw)
+
 	deadline := time.Now().Add(5 * time.Second)
 	for {
 		select {
 		case err := <-errCh:
-			t.Fatalf("daemon exited before becoming healthy: %v", err)
+			t.Fatalf("daemon exited before becoming ready: %v", err)
 		default:
 		}
-		raw, err := ccd.NewClient(ctx, ccd.ClientConfig{
-			Socket: p.SocketPath(), WireBuild: ccd.WireBuild, Role: trust.UnprotectedRole,
-		})
+		probeCtx, probeCancel := context.WithTimeout(ctx, 250*time.Millisecond)
+		_, _, err := cl.Resolve(probeCtx, "", "/probe", 0)
+		probeCancel()
 		if err == nil {
-			health, healthErr := raw.RuntimeHealth(ctx)
-			if healthErr == nil && health.RuntimeBuild == "v1.0.0" &&
-				health.RuntimeProtocol == int(wire.ProtocolVersion) && health.ProcessGeneration != "" &&
-				health.Ready && health.State == dkdaemon.StateHealthy && !health.Draining {
-				t.Cleanup(func() { _ = raw.Close() })
-				return NewClient(raw)
-			}
-			_ = raw.Close()
-			if time.Now().After(deadline) {
-				t.Fatalf("daemon did not become healthy within 5s: health=%+v err=%v", health, healthErr)
-			}
+			return cl
 		}
 		if time.Now().After(deadline) {
-			t.Fatalf("daemon did not become healthy within 5s: %v", err)
+			t.Fatalf("daemon did not become ready within 5s: %v", err)
 		}
 		time.Sleep(20 * time.Millisecond)
 	}
