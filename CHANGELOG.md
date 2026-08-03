@@ -6,6 +6,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.32.1] - 2026-08-03
+
+### Fixed
+
+- Release builds drop the Linux targets. daemonkit v0.21 compiles only on
+  macOS, so the v0.32.0 release run failed on its `linux_amd64` build before
+  publishing anything; v0.32.0 remains a valid module version with no release
+  artifacts behind it.
+
 ## [0.32.0] - 2026-08-03
 
 ### Changed
