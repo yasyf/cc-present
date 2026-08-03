@@ -6,6 +6,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.32.2] - 2026-08-03
+
+### Fixed
+
+- The plugin descriptor drops its Linux platforms to match the Darwin-only
+  release builds. The v0.32.1 release published, but its descriptor render
+  refused the two Linux entries the template still carried; the committed
+  descriptor regenerates without them at this release.
+
 ## [0.32.1] - 2026-08-03
 
 ### Fixed
