@@ -6,6 +6,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.32.3] - 2026-08-16
+
+### Fixed
+
+- `stop` left its LaunchAgent installed. cc-interact's `Launcher.Stop` reused
+  the Program-bearing identity `EnsureCurrent` converges on, so daemonkit's
+  absence proof resolved `~/.daemonkit/bin/cc-present` — a copy only `Ensure`
+  ever places. On a machine that never ensured this era the resolve failed
+  with `no such file or directory`, `stop` returned before removing anything,
+  and the surviving plist relaunched the daemon, so the product could not
+  retire its own agent. cc-interact v0.32.1 stops through a `daemonkit.Daemon`
+  that states no `Program`, which renders no LaunchAgent and places nothing.
+
+### Changed
+
+- Pin cc-interact v0.32.1 and daemonkit v0.21.4. daemonkit v0.21.2 splits
+  `Stop`'s observation off launchd state and holds its inventory gate
+  vacuously for an unstated `Program`, which is what makes the stop fix
+  expressible at all.
+- Build with `toolchain go1.26.6`. Five standard-library advisories land in
+  code this module actually calls — `http.Server.Serve` in the daemon's serve
+  loop, `crypto/tls` and `asn1.Unmarshal` under the tailnet sniffer's buffered
+  read, `http.Client.Do` in the CLI's uploads, and `net/url` resolution in the
+  pack schema compiler — and go1.26.6 fixes all five. The `go` directive stays
+  at 1.26.5, so consumers are not forced up.
+
 ## [0.32.2] - 2026-08-03
 
 ### Fixed
@@ -776,7 +802,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   marketplace.
 - `examples/opener-board.json`, a complete sample document.
 
-[Unreleased]: https://github.com/yasyf/cc-present/compare/v0.31.3...main
+[Unreleased]: https://github.com/yasyf/cc-present/compare/v0.32.3...main
+[0.32.3]: https://github.com/yasyf/cc-present/compare/v0.32.2...v0.32.3
+[0.32.2]: https://github.com/yasyf/cc-present/compare/v0.32.1...v0.32.2
+[0.32.1]: https://github.com/yasyf/cc-present/compare/v0.32.0...v0.32.1
+[0.32.0]: https://github.com/yasyf/cc-present/compare/v0.31.3...v0.32.0
 [0.31.3]: https://github.com/yasyf/cc-present/compare/v0.31.2...v0.31.3
 [0.31.2]: https://github.com/yasyf/cc-present/compare/v0.31.1...v0.31.2
 [0.31.1]: https://github.com/yasyf/cc-present/compare/v0.30.2...v0.31.1
