@@ -2,6 +2,8 @@ module github.com/yasyf/cc-present
 
 go 1.26.5
 
+toolchain go1.26.6
+
 require (
 	github.com/grandcat/zeroconf v1.0.0
 	github.com/mdp/qrterminal/v3 v3.2.1
