@@ -6,6 +6,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.33.0] - 2026-08-29
+
+### Changed
+
+- Pin daemonkit v0.23.0, which relocates the daemon's own state from
+  `~/com.yasyf.cc-present.daemon/` to
+  `~/.daemonkit/a/com.yasyf.cc-present.daemon/`. daemonkit derives that root
+  from the launchd label, so the move arrives with the dependency and needs no
+  code here. There is no migration and no fallback read, by decision: the old
+  directory is abandoned where it lies, the daemon comes up fresh on its next
+  start, and `~/com.yasyf.cc-present.daemon` can be deleted by hand once you
+  are on this release. The app's own `~/.cc-present` directory is untouched —
+  cc-present owns that one, not daemonkit, and it does not move. The new root
+  is a single letter because darwin leaves a unix socket path 103 bytes: the
+  intermediate `~/.daemonkit/agents` spent 18 of them and pushed another
+  consumer's sockets to 104, one byte over, so the byte came out of the
+  directory name rather than the label budget every consumer shares.
+
+- The plugin's `install-binary.sh` runs under bash instead of `/bin/sh`. It
+  execs once per hook invocation, and an endpoint-security agent that
+  deep-inspects `/bin/sh` as a living-off-the-land interpreter can put seconds
+  on every one of them. The script body stays POSIX either way.
+
 ## [0.32.3] - 2026-08-16
 
 ### Fixed
@@ -802,7 +825,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   marketplace.
 - `examples/opener-board.json`, a complete sample document.
 
-[Unreleased]: https://github.com/yasyf/cc-present/compare/v0.32.3...main
+[Unreleased]: https://github.com/yasyf/cc-present/compare/v0.33.0...main
+[0.33.0]: https://github.com/yasyf/cc-present/compare/v0.32.3...v0.33.0
 [0.32.3]: https://github.com/yasyf/cc-present/compare/v0.32.2...v0.32.3
 [0.32.2]: https://github.com/yasyf/cc-present/compare/v0.32.1...v0.32.2
 [0.32.1]: https://github.com/yasyf/cc-present/compare/v0.32.0...v0.32.1
