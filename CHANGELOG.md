@@ -6,6 +6,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.33.1] - 2026-08-31
+
+### Fixed
+
+- **Tailnet visitors can interact with a board again on a Homebrew tailscale
+  install.** Mesh trust resolves a visitor's identity by shelling out to the
+  tailscale CLI, and synckit looked for it on PATH — which a daemon's spawn
+  environment does not inherit from the shell — falling back to
+  `/Applications/Tailscale.app/Contents/MacOS/Tailscale`, the path the macOS GUI
+  app ships. A host that installed tailscale through Homebrew has no such path,
+  so the lookup failed with `no such file or directory`, the trust provider
+  failed closed, and the daemon logged `meshtrust: failing closed, cannot read
+  tailscale status`. The board still rendered for tailnet peers, because reads
+  do not need mesh trust, but every interaction POST came back "Could not record
+  your verdict". Pin synckit v0.39.2, whose resolver takes PATH first and then
+  `/Applications/Tailscale.app/Contents/MacOS/Tailscale`,
+  `/opt/homebrew/bin/tailscale`, and `/usr/local/bin/tailscale`.
+
+  The pin also carries synckit v0.38.0 and v0.39.0, which drop the pre-v0.21
+  legacy LaunchAgent sweep and repin daemonkit — no change cc-present calls
+  into.
+
 ## [0.33.0] - 2026-08-29
 
 ### Changed
@@ -825,7 +847,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   marketplace.
 - `examples/opener-board.json`, a complete sample document.
 
-[Unreleased]: https://github.com/yasyf/cc-present/compare/v0.33.0...main
+[Unreleased]: https://github.com/yasyf/cc-present/compare/v0.33.1...main
+[0.33.1]: https://github.com/yasyf/cc-present/compare/v0.33.0...v0.33.1
 [0.33.0]: https://github.com/yasyf/cc-present/compare/v0.32.3...v0.33.0
 [0.32.3]: https://github.com/yasyf/cc-present/compare/v0.32.2...v0.32.3
 [0.32.2]: https://github.com/yasyf/cc-present/compare/v0.32.1...v0.32.2
