@@ -6,6 +6,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/yasyf/cc-interact/channel"
@@ -84,6 +85,17 @@ func launcher() (ccd.Launcher, error) {
 	return ccd.Launcher{Daemon: spec, Paths: Paths(), RuntimeBuild: version.String()}, nil
 }
 
+// usableDaemon accepts a newer incumbent instead of refusing the command. The
+// refusal exists to stop a rollback, but daemonkit's handshake — not the
+// release order — is what proves compatibility, so a command that only needs a
+// daemon runs against the newer one; a real wire change fails at the connect.
+func usableDaemon(err error) error {
+	if errors.Is(err, ccd.ErrIncumbentNewer) {
+		return nil
+	}
+	return err
+}
+
 // Deps wires cc-interact's substrate commands to cc-present's host.
 func Deps() cmd.Deps {
 	return cmd.Deps{
@@ -95,7 +107,7 @@ func Deps() cmd.Deps {
 			if err != nil {
 				return err
 			}
-			return l.EnsureCurrent(ctx, ccd.UpgradeTimeout)
+			return usableDaemon(l.EnsureCurrent(ctx, ccd.UpgradeTimeout))
 		},
 		EnsureCurrentIfRunning: func(ctx context.Context) error {
 			l, err := launcher()

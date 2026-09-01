@@ -6,6 +6,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.33.5] - 2026-08-31
+
+### Fixed
+
+- **A CLI from an older plugin version talks to a newer daemon instead of
+  refusing every command.** Each plugin version directory pins its own release
+  artifact for good, so a session that started before an update keeps invoking
+  the binary it captured. Every command routes through `EnsureCurrent`, whose
+  contract is to make the daemon this build exactly, so an older binary meeting
+  a newer daemon read as a rollback request and died at exit 1 with
+  `daemon: incumbent runs a newer release: 0.33.1 supersedes this build 0.33.0`
+  — `close` and `start` included, leaving the session unable to touch its own
+  board.
+
+  The refusal guards against rolling a daemon back, and it was firing on a
+  client that only wanted to make a call. Compatibility is not the release
+  order: it is `WireBuild`, a sha256 of the protocol structs that changes only
+  when the wire schema does, and every 0.33.x release so far carries the same
+  one. A newer incumbent is now accepted and used. A genuine wire change still
+  fails, at the connect, where the schema mismatch is the honest error.
+
+  This cannot rescue an already-cached 0.33.0 through 0.33.4 binary — those
+  builds carry the old refusal. It stops the recurrence from here on. Until an
+  affected session restarts, invoke the current version's path directly.
+
 ## [0.33.4] - 2026-08-31
 
 ### Fixed
@@ -912,7 +937,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   marketplace.
 - `examples/opener-board.json`, a complete sample document.
 
-[Unreleased]: https://github.com/yasyf/cc-present/compare/v0.33.4...main
+[Unreleased]: https://github.com/yasyf/cc-present/compare/v0.33.5...main
+[0.33.5]: https://github.com/yasyf/cc-present/compare/v0.33.4...v0.33.5
 [0.33.4]: https://github.com/yasyf/cc-present/compare/v0.33.3...v0.33.4
 [0.33.3]: https://github.com/yasyf/cc-present/compare/v0.33.2...v0.33.3
 [0.33.2]: https://github.com/yasyf/cc-present/compare/v0.33.1...v0.33.2
