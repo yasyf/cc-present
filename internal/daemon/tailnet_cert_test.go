@@ -225,3 +225,69 @@ func TestCertManagerSingleFlight(t *testing.T) {
 		t.Fatal("blocked mint never landed a cert")
 	}
 }
+
+func TestCertManagerAwaitReady(t *testing.T) {
+	const domain = "host.ts.net"
+	certFile, keyFile := writeTestCert(t, t.TempDir(), domain, time.Now().Add(90*24*time.Hour))
+
+	t.Run("returns once the first mint lands", func(t *testing.T) {
+		m := newCertManager(filepath.Join(t.TempDir(), "tls"))
+		release := make(chan struct{})
+		m.mint = func(context.Context, string, string) (string, string, error) {
+			<-release
+			return certFile, keyFile, nil
+		}
+		go func() {
+			time.Sleep(10 * time.Millisecond)
+			close(release)
+			m.ensure(context.Background(), domain)
+		}()
+
+		start := time.Now()
+		m.awaitReady(context.Background(), 5*time.Second)
+		if waited := time.Since(start); waited >= 5*time.Second {
+			t.Fatalf("awaitReady waited %v, want a return on the mint", waited)
+		}
+		if m.mintedDomain() != domain {
+			t.Fatalf("mintedDomain = %q, want %q", m.mintedDomain(), domain)
+		}
+	})
+
+	t.Run("gives up after wait when no cert arrives", func(t *testing.T) {
+		m := newCertManager(filepath.Join(t.TempDir(), "tls"))
+		start := time.Now()
+		m.awaitReady(context.Background(), 20*time.Millisecond)
+		if waited := time.Since(start); waited < 20*time.Millisecond {
+			t.Fatalf("awaitReady returned after %v, want the full wait", waited)
+		}
+		if m.mintedDomain() != "" {
+			t.Fatalf("mintedDomain = %q, want empty", m.mintedDomain())
+		}
+	})
+
+	t.Run("returns immediately on a cancelled context", func(t *testing.T) {
+		m := newCertManager(filepath.Join(t.TempDir(), "tls"))
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+		start := time.Now()
+		m.awaitReady(ctx, 5*time.Second)
+		if waited := time.Since(start); waited >= 5*time.Second {
+			t.Fatalf("awaitReady waited %v, want a return on the dead context", waited)
+		}
+	})
+
+	t.Run("stays latched across a re-mint", func(t *testing.T) {
+		m := newCertManager(filepath.Join(t.TempDir(), "tls"))
+		m.mint = func(context.Context, string, string) (string, string, error) {
+			return certFile, keyFile, nil
+		}
+		m.ensure(context.Background(), domain)
+		m.ensure(context.Background(), "other.ts.net")
+
+		start := time.Now()
+		m.awaitReady(context.Background(), 5*time.Second)
+		if waited := time.Since(start); waited >= 5*time.Second {
+			t.Fatalf("awaitReady waited %v, want the latched ready", waited)
+		}
+	})
+}

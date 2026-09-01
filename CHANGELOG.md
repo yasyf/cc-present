@@ -6,6 +6,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.33.3] - 2026-08-31
+
+### Fixed
+
+- **`start` prints the https tailnet URL instead of losing a race to the boot
+  mint.** The display path has always preferred `https://<certDomain>:<port>`
+  and fallen back to the bare-label http form only when no cert covers the
+  domain, but the tailnet legs bind and begin serving before the boot mint
+  finishes. A `start` or `push` composed inside that window saw no armed cert
+  and printed the http bare-label URL — an insecure origin, and the one that
+  exposed the `crypto.randomUUID` failure fixed in 0.33.2. The window is real
+  but short: the daemon log shows legs bound at `tls_armed=false` and the cert
+  ready roughly 300ms later, with tailnet TLS handshakes failing in between.
+  Composing a display now waits up to two seconds for the first mint whenever
+  the tailnet publishes a cert domain, so the printed URL matches what the leg
+  is about to serve.
+
+  Only a display landing inside the boot window ever waits: the first mint
+  latches ready for the daemon's lifetime. A tailnet with HTTPS certificates
+  turned off publishes no cert domain, never waits, and still prints the bare
+  label — the form that exists to dodge the ts.net HSTS preload.
+
 ## [0.33.2] - 2026-08-31
 
 ### Fixed
@@ -868,7 +890,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   marketplace.
 - `examples/opener-board.json`, a complete sample document.
 
-[Unreleased]: https://github.com/yasyf/cc-present/compare/v0.33.2...main
+[Unreleased]: https://github.com/yasyf/cc-present/compare/v0.33.3...main
+[0.33.3]: https://github.com/yasyf/cc-present/compare/v0.33.2...v0.33.3
 [0.33.2]: https://github.com/yasyf/cc-present/compare/v0.33.1...v0.33.2
 [0.33.1]: https://github.com/yasyf/cc-present/compare/v0.33.0...v0.33.1
 [0.33.0]: https://github.com/yasyf/cc-present/compare/v0.32.3...v0.33.0

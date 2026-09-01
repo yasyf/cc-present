@@ -39,6 +39,10 @@ const (
 	// channelPollWindow is how recent a channel resolve poll must be to count as
 	// presence; it only distinguishes pending from inactive.
 	channelPollWindow = 3 * time.Second
+	// displayCertWait bounds how long composing a display waits for the boot
+	// mint when the tailnet publishes a cert domain. Only a display landing
+	// inside the boot window ever waits: the first mint latches ready forever.
+	displayCertWait = 2 * time.Second
 )
 
 // scopeSentinel is the constant ownership scope every envelope's raw scope
@@ -79,8 +83,12 @@ func BuildServer(ctx context.Context, p paths.Paths, spec daemonkit.Daemon, runt
 		}
 		// https URLs only when the served cert covers the live cert domain —
 		// during a tailnet-rename window the IP URLs print instead.
+		certDomain := tp.SelfCertDomain(ctx)
+		if certDomain != "" {
+			mgr.awaitReady(ctx, displayCertWait)
+		}
 		domain := mgr.mintedDomain()
-		minted := domain != "" && domain == tp.SelfCertDomain(ctx)
+		minted := domain != "" && domain == certDomain
 		return displayURLs(domain, minted, tp.SelfHostLabel(ctx), srv.HTTPExtraAddrs(), tp.SelfAddrs(ctx), bind, port, slug)
 	})
 	cfg := ccd.Config{

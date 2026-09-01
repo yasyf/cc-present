@@ -43,13 +43,15 @@ type certManager struct {
 	mint func(ctx context.Context, dnsName, dir string) (string, string, error)
 	now  func() time.Time
 
-	mintMu sync.Mutex
-	cert   atomic.Pointer[mintedCert]
+	mintMu    sync.Mutex
+	cert      atomic.Pointer[mintedCert]
+	readyOnce sync.Once
+	ready     chan struct{}
 }
 
 // newCertManager returns a manager that mints certs into dir.
 func newCertManager(dir string) *certManager {
-	return &certManager{dir: dir, mint: meshtrust.MintCert, now: time.Now}
+	return &certManager{dir: dir, mint: meshtrust.MintCert, now: time.Now, ready: make(chan struct{})}
 }
 
 // ensure mints the cert for domain — again on a domain change or within
@@ -93,7 +95,22 @@ func (m *certManager) ensure(ctx context.Context, domain string) {
 	}
 	cert.Leaf = leaf
 	m.cert.Store(&mintedCert{domain: domain, cert: cert})
+	m.readyOnce.Do(func() { close(m.ready) })
 	slog.Info("tailnet: cert ready", "domain", domain, "notAfter", cert.Leaf.NotAfter)
+}
+
+// awaitReady blocks until the first mint lands, ctx ends, or wait elapses. The
+// legs bind and start serving before the boot mint completes, so a display
+// composed in that window would advertise http on a host that is about to serve
+// https; waiting closes the window without ever advertising an unarmed https.
+func (m *certManager) awaitReady(ctx context.Context, wait time.Duration) {
+	timer := time.NewTimer(wait)
+	defer timer.Stop()
+	select {
+	case <-m.ready:
+	case <-ctx.Done():
+	case <-timer.C:
+	}
 }
 
 func (m *certManager) valid() *mintedCert {
