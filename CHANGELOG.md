@@ -6,6 +6,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.33.2] - 2026-08-31
+
+### Fixed
+
+- **Interactions post from a tailnet visitor's browser again.** Every
+  interaction carries a nonce the client minted with `crypto.randomUUID`, which
+  the platform defines only in a secure context — https or loopback. A tailnet
+  leg serves plain http on a named host, so on `http://<host>:<port>` the
+  property was undefined and reading it threw inside the mutation before any
+  request was built: zero network traffic, and the visitor got the generic
+  "Could not record your verdict. Check your connection and try again." Loopback
+  was unaffected, because 127.0.0.1 is a secure context by definition, which is
+  why local testing never saw it. The new `uuid` helper takes
+  `crypto.randomUUID` where it exists and otherwise builds the same v4 from
+  `crypto.getRandomValues`, which carries no secure-context restriction; the
+  interaction nonce, feedback ids, and annotation ids all mint through it.
+
+  This was the second half of the tailnet write failure fixed in 0.33.1. That
+  release repaired the daemon's side, which had been failing mesh trust closed;
+  this one repairs the browser's, which never got as far as sending the request.
+
 ## [0.33.1] - 2026-08-31
 
 ### Fixed
@@ -847,7 +868,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   marketplace.
 - `examples/opener-board.json`, a complete sample document.
 
-[Unreleased]: https://github.com/yasyf/cc-present/compare/v0.33.1...main
+[Unreleased]: https://github.com/yasyf/cc-present/compare/v0.33.2...main
+[0.33.2]: https://github.com/yasyf/cc-present/compare/v0.33.1...v0.33.2
 [0.33.1]: https://github.com/yasyf/cc-present/compare/v0.33.0...v0.33.1
 [0.33.0]: https://github.com/yasyf/cc-present/compare/v0.32.3...v0.33.0
 [0.32.3]: https://github.com/yasyf/cc-present/compare/v0.32.2...v0.32.3

@@ -7,6 +7,7 @@ import type { Annotation, Interactions } from '../events';
 import { usePresent } from '../present';
 import { useDecidable } from '../keyboard';
 import { anchorOf, formatRangeAnchor, parseAnchor, resolveAnchor } from '../anchor';
+import { uuid } from '../uuid';
 import { Clamped } from './Clamped';
 import { Mark } from './Mark';
 
@@ -123,7 +124,7 @@ export function DraftView({ block, interactions }: { block: Draft; interactions:
     if (!text) return;
     const anchor = formatRangeAnchor(span.start, span.end, anchorOf(lines[span.start - 1]!));
     const quote = lines.slice(span.start - 1, span.end).join('\n');
-    const id = editingId ?? crypto.randomUUID();
+    const id = editingId ?? uuid();
     const ok = await post({ type: 'annotation.created', id, blockId: block.id, anchor, text, quote });
     if (ok) cancel();
   }

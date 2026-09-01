@@ -1,5 +1,6 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { usePresent } from '../present';
+import { uuid } from '../uuid';
 import { Button } from './Button';
 import { ReplyItem } from './ReplyThread';
 import { useThreadHost } from './threadHost';
@@ -72,7 +73,7 @@ export const FeedbackThread = forwardRef<FeedbackHandle, FeedbackThreadProps>(fu
   async function send() {
     const text = draft.trim();
     if (!text) return;
-    const id = crypto.randomUUID();
+    const id = uuid();
     setPending((prev) => [...prev, { id, text }]);
     setDraft('');
     setComposing(false);

@@ -13,6 +13,7 @@ import {
 import type { UseMutationResult } from '@tanstack/react-query';
 import { applyInteraction } from './reduce';
 import { withToken } from './token';
+import { uuid } from './uuid';
 import type { Interaction, PresentState } from './events';
 
 export const queryClient = createQueryClient();
@@ -37,7 +38,7 @@ export function usePostInteraction(
     mutationFn: (interaction) =>
       request<unknown>(withToken('/api/interactions'), {
         method: 'POST',
-        body: JSON.stringify({ subject, nonce: crypto.randomUUID(), interaction }),
+        body: JSON.stringify({ subject, nonce: uuid(), interaction }),
       }),
     queryKey: () => presentKey(subject),
     applyOptimistic: (cache, interaction) => applyInteraction(cache, interaction),
