@@ -226,6 +226,63 @@ func TestCertManagerSingleFlight(t *testing.T) {
 	}
 }
 
+func TestArmBeforeLegs(t *testing.T) {
+	const domain = "host.ts.net"
+	certFile, keyFile := writeTestCert(t, t.TempDir(), domain, time.Now().Add(90*24*time.Hour))
+
+	t.Run("returns with the cert armed", func(t *testing.T) {
+		m := newCertManager(filepath.Join(t.TempDir(), "tls"))
+		m.mint = func(context.Context, string, string) (string, string, error) {
+			time.Sleep(10 * time.Millisecond)
+			return certFile, keyFile, nil
+		}
+		armBeforeLegs(context.Background(), m, domain)
+		if m.get() == nil {
+			t.Fatal("legs would bind unarmed; want the boot mint awaited")
+		}
+	})
+
+	t.Run("skips the wait when the tailnet publishes no cert domain", func(t *testing.T) {
+		m := newCertManager(filepath.Join(t.TempDir(), "tls"))
+		var mints atomic.Int32
+		m.mint = func(context.Context, string, string) (string, string, error) {
+			mints.Add(1)
+			return certFile, keyFile, nil
+		}
+		start := time.Now()
+		armBeforeLegs(context.Background(), m, "")
+		if waited := time.Since(start); waited > time.Second {
+			t.Fatalf("armBeforeLegs waited %v on an empty domain, want no wait", waited)
+		}
+		if got := mints.Load(); got != 0 {
+			t.Fatalf("mints = %d, want 0 on an empty domain", got)
+		}
+	})
+
+	t.Run("gives the legs up rather than holding the daemon on a stuck mint", func(t *testing.T) {
+		m := newCertManager(filepath.Join(t.TempDir(), "tls"))
+		release := make(chan struct{})
+		t.Cleanup(func() { close(release) })
+		m.mint = func(context.Context, string, string) (string, string, error) {
+			<-release
+			return certFile, keyFile, nil
+		}
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			m.awaitReady(context.Background(), 20*time.Millisecond)
+		}()
+		select {
+		case <-done:
+		case <-time.After(5 * time.Second):
+			t.Fatal("a stuck mint held leg binding past the bound")
+		}
+		if m.get() != nil {
+			t.Fatal("cert armed from a mint that never returned")
+		}
+	})
+}
+
 func TestCertManagerAwaitReady(t *testing.T) {
 	const domain = "host.ts.net"
 	certFile, keyFile := writeTestCert(t, t.TempDir(), domain, time.Now().Add(90*24*time.Hour))

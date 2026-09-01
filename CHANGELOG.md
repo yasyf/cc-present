@@ -6,6 +6,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.33.4] - 2026-08-31
+
+### Fixed
+
+- **Tailnet legs bind with TLS already armed, so a reconnecting peer stops
+  eating a failed handshake on every boot.** 0.33.3 fixed the printed URL by
+  waiting for the boot mint when composing a display, but it left the window
+  itself open: `meshtrust.Listeners` binds its sockets eagerly, so a leg starts
+  accepting the moment the daemon builds its config, and a peer that reconnects
+  in the few hundred milliseconds before the first mint lands got
+  `tailnet: no valid TLS certificate`. The daemon log showed seven such
+  handshakes in the 300ms after one boot. The boot mint now runs before the legs
+  bind, so the socket and the cert appear together.
+
+  The wait is bounded at five seconds and the mint runs in the background: a
+  cert already on disk re-loads well inside that, while a cold ACME issuance
+  runs past it and the legs bind unarmed rather than holding the whole daemon —
+  including its loopback plane — on the mint. A tailnet with HTTPS certificates
+  turned off publishes no cert domain and never waits at all. 0.33.3's
+  display-path wait stays as the backstop for the cold-issuance case, where it
+  still keeps the printed URL honest.
+
 ## [0.33.3] - 2026-08-31
 
 ### Fixed
@@ -890,7 +912,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   marketplace.
 - `examples/opener-board.json`, a complete sample document.
 
-[Unreleased]: https://github.com/yasyf/cc-present/compare/v0.33.3...main
+[Unreleased]: https://github.com/yasyf/cc-present/compare/v0.33.4...main
+[0.33.4]: https://github.com/yasyf/cc-present/compare/v0.33.3...v0.33.4
 [0.33.3]: https://github.com/yasyf/cc-present/compare/v0.33.2...v0.33.3
 [0.33.2]: https://github.com/yasyf/cc-present/compare/v0.33.1...v0.33.2
 [0.33.1]: https://github.com/yasyf/cc-present/compare/v0.33.0...v0.33.1

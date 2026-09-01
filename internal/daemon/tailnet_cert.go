@@ -99,10 +99,24 @@ func (m *certManager) ensure(ctx context.Context, domain string) {
 	slog.Info("tailnet: cert ready", "domain", domain, "notAfter", cert.Leaf.NotAfter)
 }
 
-// awaitReady blocks until the first mint lands, ctx ends, or wait elapses. The
-// legs bind and start serving before the boot mint completes, so a display
-// composed in that window would advertise http on a host that is about to serve
-// https; waiting closes the window without ever advertising an unarmed https.
+// bootCertWait bounds how long leg binding defers to the boot mint. A cert
+// already on disk re-loads well inside it; a cold ACME issuance runs past it,
+// and the legs bind unarmed rather than holding the daemon on the mint.
+const bootCertWait = 5 * time.Second
+
+// armBeforeLegs mints in the background and waits briefly, so the tailnet legs
+// bind with TLS already armed. meshtrust.Listeners binds its sockets eagerly,
+// so a peer reconnecting the instant a leg appears would otherwise fail its
+// handshake against a manager holding no cert.
+func armBeforeLegs(ctx context.Context, mgr *certManager, domain string) {
+	if domain == "" {
+		return
+	}
+	go mgr.ensure(ctx, domain)
+	mgr.awaitReady(ctx, bootCertWait)
+}
+
+// awaitReady blocks until the first mint lands, ctx ends, or wait elapses.
 func (m *certManager) awaitReady(ctx context.Context, wait time.Duration) {
 	timer := time.NewTimer(wait)
 	defer timer.Stop()

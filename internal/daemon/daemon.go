@@ -119,6 +119,7 @@ func BuildServer(ctx context.Context, p paths.Paths, spec daemonkit.Daemon, runt
 	}
 	if tp != nil {
 		mgr = newCertManager(filepath.Join(p.StateDir(), "tls"))
+		armBeforeLegs(ctx, mgr, tp.SelfCertDomain(ctx))
 		cfg.TrustedPeer = tp.TrustedPeer
 		cfg.TrustedOrigin = tp.TrustedOrigin
 		cfg.ExtraHTTPListeners = tailnetListeners(p, bind, tp.SelfAddrs(ctx), mgr)
