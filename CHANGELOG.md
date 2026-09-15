@@ -6,6 +6,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.33.6] - 2026-09-15
+
+### Fixed
+
+- **Fix hook failures caused by conflicting binrun versions.** The shim now
+  pins binrun v0.6.1 and installs it at `~/.daemonkit/binrun/<tag>/binrun`,
+  so plugins pinning different tags no longer replace each other's runner. It
+  checks `BINRUN_BIN`, the per-tag runner, then `binrun` on PATH before a
+  one-time download verified with SHA-256. The shim no longer reads or writes
+  `~/.daemonkit/bin/binrun`. Plugin binary behavior is unchanged.
+
 ## [0.33.5] - 2026-08-31
 
 ### Fixed
@@ -937,7 +948,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   marketplace.
 - `examples/opener-board.json`, a complete sample document.
 
-[Unreleased]: https://github.com/yasyf/cc-present/compare/v0.33.5...main
+[Unreleased]: https://github.com/yasyf/cc-present/compare/v0.33.6...main
+[0.33.6]: https://github.com/yasyf/cc-present/compare/v0.33.5...v0.33.6
 [0.33.5]: https://github.com/yasyf/cc-present/compare/v0.33.4...v0.33.5
 [0.33.4]: https://github.com/yasyf/cc-present/compare/v0.33.3...v0.33.4
 [0.33.3]: https://github.com/yasyf/cc-present/compare/v0.33.2...v0.33.3
