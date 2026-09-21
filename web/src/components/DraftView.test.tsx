@@ -13,10 +13,13 @@ import type { Annotation, Interactions } from '../events';
 import type { Draft } from '../schema';
 
 // Shiki is heavy and irrelevant to the annotation logic; a null lang skips it so
-// rows render as raw text.
+// rows render as raw text. Only 'markdown' opts into the token path.
 vi.mock('../highlight', () => ({
-  resolveLang: () => null,
-  tokenizeLines: async () => [],
+  resolveLang: (lang: string) => (lang === 'markdown' ? 'markdown' : null),
+  tokenizeLines: async (code: string) =>
+    code
+      .split('\n')
+      .map((line) => [{ content: line, offset: 0, htmlStyle: { color: '#111', '--shiki-dark': '#eee' } }]),
 }));
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -183,6 +186,19 @@ describe('DraftView edit and remove', () => {
     ) as HTMLElement;
     act(() => removeBtn.click());
     expect(posted[0]).toEqual({ type: 'annotation.removed', id: 'a1', blockId: 'd1' });
+  });
+});
+
+describe('DraftView syntax highlighting', () => {
+  it('carries the dark-theme color var on every token span', async () => {
+    renderCapturing(draft({ lang: 'markdown' }), empty());
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    const toks = Array.from(container.querySelectorAll('.draft-tok'));
+    expect(toks.map((t) => t.textContent)).toEqual(['line one', 'line two', 'line three']);
+    expect((toks[0] as HTMLElement).style.getPropertyValue('--shiki-dark')).toBe('#eee');
   });
 });
 

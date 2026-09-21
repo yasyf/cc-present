@@ -6,6 +6,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **A draft block's text is readable in dark mode.** The Draft and Diff blocks
+  tokenize their own source rather than taking Shiki's HTML, so each token span
+  carries an inline `color` from github-light plus a `--shiki-dark` variable the
+  stylesheet is meant to swap. That swap named only `.diff-tok`: a draft rendered
+  its github-light colors whatever the theme, putting `#24292E` body prose on the
+  dark board's `#1F1B15` card at a contrast ratio of 1.17:1 — black on black. The
+  rule now covers `.draft-tok` too, taking that prose to 13.43:1, and a test walks
+  the components for every class that renders a token's `htmlStyle` so the next
+  block to tokenize inline cannot be left out of it.
+
 ## [0.33.6] - 2026-09-15
 
 ### Fixed

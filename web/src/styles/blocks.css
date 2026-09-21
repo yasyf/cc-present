@@ -933,6 +933,19 @@
   background-color: var(--shiki-dark-bg) !important;
 }
 
+/* Every class rendering a ThemedToken's htmlStyle belongs here — that inline
+   color is github-light. Only color swaps, so Diff's row tints survive. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .diff-tok,
+  :root:not([data-theme='light']) .draft-tok {
+    color: var(--shiki-dark) !important;
+  }
+}
+:root[data-theme='dark'] .diff-tok,
+:root[data-theme='dark'] .draft-tok {
+  color: var(--shiki-dark) !important;
+}
+
 /* --- Diff --- */
 
 .diff-block {
@@ -1012,16 +1025,6 @@
 }
 .diff-del .diff-mark {
   color: var(--reject);
-}
-/* Syntax tokens carry an inline light color + --shiki-dark var; swap only the
-   color in dark mode so the add/del row tints survive on top. */
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme='light']) .diff-tok {
-    color: var(--shiki-dark) !important;
-  }
-}
-:root[data-theme='dark'] .diff-tok {
-  color: var(--shiki-dark) !important;
 }
 
 /* --- Table --- */

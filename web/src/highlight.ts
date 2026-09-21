@@ -127,7 +127,8 @@ export function highlightAnsi(output: string): Promise<string> {
 }
 
 // tokenizeLines returns dual-theme tokens per line (aligned to input lines) for
-// the Diff block; each token's htmlStyle carries the light color + --shiki-dark var.
+// the Diff and Draft blocks; each token's htmlStyle carries the light color +
+// --shiki-dark var, which blocks.css swaps in dark mode.
 export function tokenizeLines(code: string, lang: CodeLang): Promise<ThemedToken[][]> {
   return getHighlighter().then(
     (hl) =>

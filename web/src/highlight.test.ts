@@ -1,7 +1,23 @@
+import { readFileSync, readdirSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { highlightAnsi, langFromPath } from './highlight';
 
 const ESC = String.fromCharCode(27);
+
+const componentsDir = new URL('./components/', import.meta.url).pathname;
+const blocksCss = readFileSync(new URL('./styles/blocks.css', import.meta.url), 'utf8');
+const INLINE_TOKEN = /className="([\w-]+)"\s+style=\{t\.htmlStyle/g;
+
+function inlineTokenClasses(): string[] {
+  const classes = new Set<string>();
+  for (const file of readdirSync(componentsDir)) {
+    if (!file.endsWith('.tsx') || file.endsWith('.test.tsx')) continue;
+    for (const m of readFileSync(componentsDir + file, 'utf8').matchAll(INLINE_TOKEN)) {
+      classes.add(m[1]!);
+    }
+  }
+  return [...classes].sort();
+}
 
 describe('langFromPath', () => {
   const cases: [string, string | null][] = [
@@ -66,5 +82,23 @@ describe('highlightAnsi', () => {
     expect(textOf(html)).toBe('redplain');
     // The reset drops red: "plain" reverts to the default fg, a different color than "red".
     expect(color('red')).not.toBe(color('plain'));
+  });
+});
+
+// Blocks that tokenize themselves paint github-light inline, so one missing
+// dark rule renders near-black text on the dark board.
+describe('inline token classes', () => {
+  const classes = inlineTokenClasses();
+
+  it('names every component rendering a token htmlStyle', () => {
+    expect(classes).toEqual(['diff-tok', 'draft-tok']);
+  });
+
+  it.each(classes)('swaps .%s to --shiki-dark under both dark branches', (cls) => {
+    const css = blocksCss.replace(/\s+/g, ' ');
+    const selects = (root: string) =>
+      css.includes(`${root} .${cls},`) || css.includes(`${root} .${cls} {`);
+    expect(selects(":root:not([data-theme='light'])")).toBe(true);
+    expect(selects(":root[data-theme='dark']")).toBe(true);
   });
 });
