@@ -6,6 +6,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.33.7] - 2026-09-20
+
 ### Fixed
 
 - **A draft block's text is readable in dark mode.** The Draft and Diff blocks
@@ -960,7 +962,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   marketplace.
 - `examples/opener-board.json`, a complete sample document.
 
-[Unreleased]: https://github.com/yasyf/cc-present/compare/v0.33.6...main
+[Unreleased]: https://github.com/yasyf/cc-present/compare/v0.33.7...main
+[0.33.7]: https://github.com/yasyf/cc-present/compare/v0.33.6...v0.33.7
 [0.33.6]: https://github.com/yasyf/cc-present/compare/v0.33.5...v0.33.6
 [0.33.5]: https://github.com/yasyf/cc-present/compare/v0.33.4...v0.33.5
 [0.33.4]: https://github.com/yasyf/cc-present/compare/v0.33.3...v0.33.4
