@@ -2,6 +2,7 @@ package packs
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"os"
 	"sort"
@@ -10,15 +11,15 @@ import (
 )
 
 // Lint runs discovery's fail-loud checks over a pack root (strict manifest,
-// host_api, files present, schemas compile) plus the one discovery skips: every
-// declared example must validate against its block schema. It returns the built
-// pack, or the first violation.
-func Lint(dir string) (*Pack, error) {
+// host_api, a source pack's bundle built, files present, schemas compile) plus
+// the one discovery skips: every declared example must validate against its
+// block schema. It returns the built pack, or the first violation.
+func Lint(ctx context.Context, dir string) (*Pack, error) {
 	m, err := ParseManifest(dir)
 	if err != nil {
 		return nil, err
 	}
-	p, err := buildPack(dir)
+	p, err := buildPack(dir, syncBuilds{ctx: ctx})
 	if err != nil {
 		return nil, err
 	}

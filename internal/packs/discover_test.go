@@ -8,7 +8,7 @@ import (
 func TestDiscoverDisableList(t *testing.T) {
 	devDir := writeTree(t, packFiles("foo"))
 	roots, dropped := discoverRoots([]string{devDir}, t.TempDir())
-	reg := buildRegistry(roots, dropped, []string{"foo"})
+	reg := buildRegistry(roots, dropped, []string{"foo"}, syncBuilds{ctx: t.Context()})
 	if names := packNames(reg); len(names) != 0 {
 		t.Fatalf("packs = %v, want none", names)
 	}
@@ -24,7 +24,7 @@ func TestDiscoverDevShadowsInstalled(t *testing.T) {
 	writeInstalledPlugins(t, configDir, map[string][]string{"foo@mkt": {install}})
 
 	roots, dropped := discoverRoots([]string{devDir}, configDir)
-	reg := buildRegistry(roots, dropped, nil)
+	reg := buildRegistry(roots, dropped, nil, syncBuilds{ctx: t.Context()})
 	if names := packNames(reg); len(names) != 1 || names[0] != "foo" {
 		t.Fatalf("packs = %v, want [foo]", names)
 	}
@@ -41,7 +41,7 @@ func TestDiscoverSameTierDupes(t *testing.T) {
 	dev1 := writeTree(t, packFiles("dup"))
 	dev2 := writeTree(t, packFiles("dup"))
 	roots, dropped := discoverRoots([]string{dev1, dev2}, t.TempDir())
-	reg := buildRegistry(roots, dropped, nil)
+	reg := buildRegistry(roots, dropped, nil, syncBuilds{ctx: t.Context()})
 	if names := packNames(reg); len(names) != 0 {
 		t.Fatalf("packs = %v, want none", names)
 	}
@@ -57,7 +57,7 @@ func TestDiscoverRottedAmongTwo(t *testing.T) {
 	bad := writeTree(t, badFiles)
 
 	roots, dropped := discoverRoots([]string{good, bad}, t.TempDir())
-	reg := buildRegistry(roots, dropped, nil)
+	reg := buildRegistry(roots, dropped, nil, syncBuilds{ctx: t.Context()})
 	if names := packNames(reg); len(names) != 1 || names[0] != "good" {
 		t.Fatalf("packs = %v, want [good]", names)
 	}
@@ -72,7 +72,7 @@ func TestDiscoverPluginPack(t *testing.T) {
 	writeInstalledPlugins(t, configDir, map[string][]string{"plug@mkt": {install}})
 
 	roots, dropped := discoverRoots(nil, configDir)
-	reg := buildRegistry(roots, dropped, nil)
+	reg := buildRegistry(roots, dropped, nil, syncBuilds{ctx: t.Context()})
 	if names := packNames(reg); len(names) != 1 || names[0] != "plug" {
 		t.Fatalf("packs = %v, want [plug]", names)
 	}
@@ -104,7 +104,7 @@ func TestDiscoverMalformedPluginsFile(t *testing.T) {
 	path := filepath.Join(configDir, "plugins", "installed_plugins.json")
 
 	roots, dropped := discoverRoots(nil, configDir)
-	reg := buildRegistry(roots, dropped, nil)
+	reg := buildRegistry(roots, dropped, nil, syncBuilds{ctx: t.Context()})
 	if names := packNames(reg); len(names) != 0 {
 		t.Fatalf("packs = %v, want none", names)
 	}
@@ -121,7 +121,7 @@ func TestDiscoverUnsupportedPluginsVersion(t *testing.T) {
 	path := filepath.Join(configDir, "plugins", "installed_plugins.json")
 
 	roots, dropped := discoverRoots(nil, configDir)
-	reg := buildRegistry(roots, dropped, nil)
+	reg := buildRegistry(roots, dropped, nil, syncBuilds{ctx: t.Context()})
 	if names := packNames(reg); len(names) != 0 {
 		t.Fatalf("packs = %v, want none", names)
 	}

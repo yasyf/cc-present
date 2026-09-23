@@ -1,13 +1,13 @@
 ---
 name: author-pack
-description: Author a block pack — custom block types for cc-present boards, shipped as React components declared by JSON Schemas and one prebuilt bundle. Use when the user wants a new block type for cc-present, a custom component or custom block on a board, asks to author, build, or write a block pack, or wants to extend cc-present's blocks beyond the built-ins.
+description: Author a block pack, custom block types for cc-present boards, shipped as React components declared by JSON Schemas and one bundle built from source. Use when the user wants a new block type for cc-present, a custom component or custom block on a board, asks to author, build, or write a block pack, or wants to extend cc-present's blocks beyond the built-ins.
 ---
 
 # /author-pack
 
-You are authoring a block pack: custom block types the cc-present SPA loads at runtime. A pack is one directory — a TOML manifest (`cc-present.toml`), a JSON Schema per block, and one prebuilt ES-module bundle of React components. Each block gets a dotted wire type, `<pack>.<name>`, that composes on a board like any built-in. Author a pack when the built-in blocks can't render what a board needs. *Using* installed packs on a board is the `present` skill's job (its `reference/blocks.md` § Pack blocks) — don't re-teach composition here.
+You are authoring a block pack: custom block types the cc-present SPA loads at runtime. A pack is one directory: a TOML manifest (`cc-present.toml`), a JSON Schema per block, and one ES-module bundle of React components built from source. Each block gets a dotted wire type, `<pack>.<name>`, that composes on a board like any built-in. Author a pack when the built-in blocks can't render what a board needs. *Using* installed packs on a board is the `present` skill's job (its `reference/blocks.md` § Pack blocks); don't re-teach composition here.
 
-Invoke it as bare `cc-present` — Claude Code (≥ 2.1.91) puts the plugin's `bin/` on the Bash tool PATH. If the command isn't found or resolves to a stale version, use the absolute path `"${CLAUDE_PLUGIN_ROOT}/bin/cc-present"` (see the present skill's `reference/troubleshooting.md`), which resolves and caches the version-exact binary via binrun on its first call. Building the bundle also needs `bun` on PATH.
+Invoke it as bare `cc-present`; Claude Code (≥ 2.1.91) puts the plugin's `bin/` on the Bash tool PATH. If the command isn't found or resolves to a stale version, use the absolute path `"${CLAUDE_PLUGIN_ROOT}/bin/cc-present"` (see the present skill's `reference/troubleshooting.md`), which resolves and caches the version-exact binary via binrun on its first call. Building from source needs `bun` wherever the pack is discovered, on PATH or in the mise shims (`reference/manifest.md` § Building from source).
 
 ## 1. Scaffold
 
@@ -15,7 +15,7 @@ Invoke it as bare `cc-present` — Claude Code (≥ 2.1.91) puts the plugin's `b
 cc-present pack init --name <pack> <dir>
 ```
 
-Offline, no daemon. `--name` defaults to the target directory's basename, and the command refuses a non-empty directory. It writes 23 files: a working pack with one content block (`<pack>.callout`) and two interactive blocks (`<pack>.rating`, plus the two-step `<pack>.survey` wizard that exercises the hostApi 1 helpers), renamed to your pack throughout, plus a `.gitignore` that ignores only `node_modules/` — never `dist/`, which a shipped pack commits.
+Offline, no daemon. `--name` defaults to the target directory's basename, and the command refuses a non-empty directory. It writes 23 files: a working pack with one content block (`<pack>.callout`) and two interactive blocks (`<pack>.rating`, plus the two-step `<pack>.survey` wizard that exercises the hostApi 1 helpers), renamed to your pack throughout, plus a `.gitignore` that ignores `node_modules/` and `dist/`.
 
 The name must match `^[a-z][a-z0-9-]*$` and run at most 32 characters. It becomes the `<pack>.` half of every block type; built-in types never contain a dot, so the dotted namespace belongs to packs permanently.
 
@@ -80,20 +80,18 @@ Host API 1 includes three interactivity helpers, all wrapped by `src/host/presen
 ## 4. Build and check
 
 ```bash
-bun install
-bun run typecheck
-bun run build     # emits dist/pack.js — the manifest's entry
-bun run smoke     # imports the built bundle under a stubbed host
 cc-present pack lint .
+bun run typecheck
+bun run smoke
 ```
 
-`pack lint` runs discovery's own fail-loud checks (strict manifest, `host_api`, declared files present, schemas compiling) plus one discovery skips: every declared example must validate against its block schema. A clean lint prints exactly one line, `ok: <pack> <version> (N blocks)`. A fresh scaffold fails lint until you build (`entry "dist/pack.js" not found`), and `smoke` asserts the scaffolded block names — update `scripts/smoke.ts` when you rename or add blocks. Anything else red: `reference/troubleshooting.md`.
+`pack lint` builds a missing or stale source bundle with `bun`, then runs discovery's own fail-loud checks (strict manifest, `host_api`, declared files present, schemas compiling) plus one discovery skips: every declared example must validate against its block schema. A clean lint prints exactly one line, `ok: <pack> <version> (N blocks)`. A fresh scaffold lints without a manual build. `bun run build` also produces the bundle; `smoke` needs that bundle, so run it after lint or a manual build. `smoke` asserts the scaffolded block names; update `scripts/smoke.ts` when you rename or add blocks. Anything else red: `reference/troubleshooting.md`.
 
 ## 5. Register and verify
 
-**Dev loop.** Add the pack root's absolute path to `packDirs` in `~/.cc-present/config.json` (`pack init` prints the exact path to add). The daemon re-scans within 2 seconds — no restart — and a dev pack shadows an installed plugin pack of the same name, so you can iterate on a pack you've already shipped. Two rebuild caveats: the SPA imports a bundle once per page, so reload the tab; and bundle URLs are cached immutably keyed on the manifest `version`, so bump `version` (or hard-reload) to see a rebuild.
+**Dev loop.** Add the pack root's absolute path to `packDirs` in `~/.cc-present/config.json` (`pack init` prints the exact path to add). The daemon re-scans on access after a 2-second TTL; a source pack appears after its background build completes and a re-scan picks it up. No restart is needed. A dev pack shadows an installed plugin pack of the same name, so you can iterate on a pack you've already shipped. Two rebuild caveats: the SPA imports a bundle once per page, so reload the tab; and bundle URLs are cached immutably keyed on the manifest `version`, so bump `version` (or hard-reload) to see a rebuild.
 
-**Ship.** Put the pack — `dist/` built and committed — at `.claude/components/` in your Claude plugin. That directory is the pack root (`.claude/components/cc-present.toml`), and a plugin ships exactly one pack. The daemon never builds a pack; it serves the committed `dist/` unchanged, so a plugin missing the built bundle is dropped at discovery with a visible reason.
+**Ship.** Put the pack source at `.claude/components/` in your Claude plugin. That directory is the pack root (`.claude/components/cc-present.toml`), and a plugin ships exactly one pack. Discovery builds missing or stale source bundles inside the plugin's install directory, so `dist/` can stay ignored. Commit the `bun.lock` the first build writes so later builds install the same versions. `bun` must be available where the plugin is installed.
 
 **Verify** either way:
 
@@ -101,7 +99,7 @@ cc-present pack lint .
 cc-present pack list
 ```
 
-Per pack it prints the name and version, the directory, the reference fragment's absolute path, and each block's dotted type with an `(interactive)` marker; `dropped:` lists every skipped candidate with its reason. Then `push --dry-run` a document that uses the dotted type — an uninstalled type fails with `pack block type "<pack>.<name>" is not installed`; a validating one prints `ok`.
+Per pack it prints the name and version, the directory, the reference fragment's absolute path, and each block's dotted type with an `(interactive)` marker. A `built:` line shows the first 12 hex characters of the recorded source digest when present. `dropped:` lists every skipped candidate with its reason, indenting multi-line reasons under its directory. Then `push --dry-run` a document that uses the dotted type; an uninstalled type fails with `pack block type "<pack>.<name>" is not installed`; a validating one prints `ok`.
 
 ## 6. Document for agents
 
@@ -120,10 +118,8 @@ scaffolded pack "triage" into triage (23 files)
 
 next steps:
   cd triage
-  bun install
-  bun run build          # builds dist/pack.js, which pack lint needs
+  cc-present pack lint .   # builds dist/pack.js from source with bun, then validates
   bun run smoke
-  cc-present pack lint .
 
 register it for local dev by adding this absolute path to packDirs in ~/.cc-present/config.json:
   /work/triage
@@ -134,15 +130,17 @@ Rework the scaffolded `rating` block into `severity`:
 - `mv schema/rating.json schema/severity.json`, same for `schema/rating.interaction.json` and `examples/rating.json`.
 - `cc-present.toml` — retitle `[blocks.rating]` to `[blocks.severity]`, point `schema`, `interaction`, and `examples` at the moved files, reword `description`.
 - `schema/severity.json` — `"const": "triage.severity"` (and the `title`); the same `type` in `examples/severity.json`.
-- `src/pack.tsx` — `blocks: { callout: Callout, severity: Rating }`; the bare key is what the host qualifies to `triage.severity`.
+- `src/pack.tsx`: `blocks: { callout: Callout, severity: Rating, survey: Survey }`; the bare key is what the host qualifies to `triage.severity`.
 - `scripts/smoke.ts` — the asserted block names become `['callout', 'severity', 'survey']`.
 - `reference/blocks.md` — retitle the `triage.rating` section to `triage.severity` and describe the payload.
 
 Build, check, register:
 
 ```bash
-cd triage && bun install && bun run typecheck && bun run build && bun run smoke
-cc-present pack lint .        # → ok: triage 0.2.0 (3 blocks)
+cd triage
+cc-present pack lint .
+bun run typecheck
+bun run smoke
 ```
 
 Add `"/work/triage"` to `packDirs` in `~/.cc-present/config.json`; within 2 seconds:
@@ -154,6 +152,7 @@ cc-present pack list
 ```
 triage 0.2.0
   dir: /work/triage
+  built: <source-digest>
   reference: /work/triage/reference/blocks.md
   blocks:
     triage.callout
@@ -177,7 +176,7 @@ Prove it composes — write a document using the new type and dry-run it:
 cc-present push --dry-run "$DOC"   # → ok
 ```
 
-When the human later clicks a point, the agent receives `{"blockId":"sev","payload":{"value":3},"type":"pack.interaction"}`. To ship, commit the pack — `dist/` included — at the plugin's `.claude/components/`.
+When the human later clicks a point, the agent receives `{"blockId":"sev","payload":{"value":3},"type":"pack.interaction"}`. To ship, commit the pack source and `bun.lock` at the plugin's `.claude/components/`; discovery builds `dist/`.
 
 ## Reference
 

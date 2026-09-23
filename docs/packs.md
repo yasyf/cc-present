@@ -16,7 +16,7 @@ it, so the scaffold below ships `my-pack.callout`, `my-pack.rating`, and
 
 ```sh
 cc-present pack init --name my-pack my-pack
-cd my-pack && bun install
+cd my-pack
 ```
 
 `--name` defaults to the target directory's basename, and the command refuses
@@ -26,12 +26,12 @@ along with any local `node_modules/`, `dist/`, and `bun.lock` the copy drags in,
 which is why `pack init` is the better start even in-repo.
 
 The layout — 23 files, including a generated `.gitignore` covering
-`node_modules/`:
+`node_modules/` and `dist/`:
 
 ```
 my-pack/
 ├── cc-present.toml      # the manifest
-├── .gitignore           # node_modules/ only — dist/ ships committed
+├── .gitignore           # node_modules/ and dist/
 ├── schema/              # one JSON Schema per block, plus interaction schemas
 ├── examples/            # one example block object per block
 ├── src/
@@ -126,17 +126,18 @@ The scaffolded survey block is the worked reference for all of this: drafts in
 ## Build and check
 
 ```sh
-bun run typecheck
-bun run build
-bun run smoke
 cc-present pack lint .
+bun run typecheck
+bun run smoke
 ```
 
-`build` emits `dist/pack.js`, the file the manifest's `entry` names. `smoke`
-imports the built bundle under a stubbed host and asserts the default export's
-shape. `pack lint` runs the daemon's own discovery checks plus one it skips:
-every declared example must validate against its block schema. A clean lint
-prints one line:
+`pack lint` installs dependencies and builds a missing or stale source bundle
+with `bun`, then runs the daemon's own discovery checks plus one it skips:
+every declared example must validate against its block schema. A fresh scaffold
+needs no manual build. `bun run build` also emits `dist/pack.js`, the file the
+manifest's `entry` names. `smoke` imports the built bundle under a stubbed host
+and asserts the default export's shape; run it after lint or a manual build.
+A clean lint prints one line:
 
 ```
 ok: my-pack 0.2.0 (3 blocks)
@@ -150,9 +151,10 @@ Add the pack root to `packDirs` in `~/.cc-present/config.json`:
 { "schemaVersion": 1, "packDirs": ["/path/to/my-pack"] }
 ```
 
-The daemon re-scans within a couple of seconds, so the next push sees your
-pack; a dev pack also shadows an installed plugin pack of the same name, so you
-can iterate on a pack you've already shipped. Two caveats when you rebuild:
+The daemon re-scans on access after a 2-second TTL. A source pack appears
+after its background build completes and a re-scan picks it up. A dev pack
+also shadows an installed plugin pack of the same name, so you can iterate
+on a pack you've already shipped. Two caveats when you rebuild:
 
 - The SPA imports bundles once per page — reload the tab.
 - Bundle URLs are cached immutably, keyed on the manifest `version`. A rebuild
@@ -161,11 +163,13 @@ can iterate on a pack you've already shipped. Two caveats when you rebuild:
 
 ## Ship it in your plugin
 
-Put the pack — with `dist/` built and committed — at `.claude/components/` in
-your Claude plugin. The components directory is the pack root
+Put the pack source at `.claude/components/` in your Claude plugin. The
+components directory is the pack root
 (`.claude/components/cc-present.toml`), and a plugin ships exactly one pack.
-The daemon never builds your pack; it serves `dist/` as-is, so a plugin without
-the built bundle is dropped at discovery with a visible reason.
+Discovery builds missing or stale source bundles inside the plugin's install
+directory, so `dist/` can stay ignored. Commit the `bun.lock` the first build
+writes so later builds install the same versions. `bun` must be available on
+PATH or in the mise shims where the plugin is installed.
 
 Fill in `reference/blocks.md` while you're at it: it's what an authoring agent
 reads to learn your block types, and `cc-present pack list` prints its path

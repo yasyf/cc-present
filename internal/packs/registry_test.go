@@ -25,7 +25,7 @@ func TestBuildPackSchemaSymlinkEscape(t *testing.T) {
 	}
 
 	// scan: the pack drops with a reason naming the escaping schema path.
-	reg := buildRegistry([]packRoot{{dir: dir, tier: tierDev}}, nil, nil)
+	reg := buildRegistry([]packRoot{{dir: dir, tier: tierDev}}, nil, nil, syncBuilds{ctx: t.Context()})
 	if names := packNames(reg); len(names) != 0 {
 		t.Fatalf("packs = %v, want none (symlinked schema dropped)", names)
 	}
@@ -34,14 +34,14 @@ func TestBuildPackSchemaSymlinkEscape(t *testing.T) {
 	}
 
 	// lint: the same escape fails loud.
-	if _, err := Lint(dir); err == nil || !strings.Contains(err.Error(), "callout.json") {
+	if _, err := Lint(t.Context(), dir); err == nil || !strings.Contains(err.Error(), "callout.json") {
 		t.Fatalf("Lint() = %v, want error naming callout.json", err)
 	}
 }
 
 func TestRegistryValidateBlock(t *testing.T) {
 	dir := writeTree(t, validFiles())
-	reg := buildRegistry([]packRoot{{dir: dir, tier: tierDev}}, nil, nil)
+	reg := buildRegistry([]packRoot{{dir: dir, tier: tierDev}}, nil, nil, syncBuilds{ctx: t.Context()})
 	if names := packNames(reg); len(names) != 1 || names[0] != "example" {
 		t.Fatalf("packs = %v, want [example]", names)
 	}
@@ -74,7 +74,7 @@ func TestRegistryValidateBlock(t *testing.T) {
 
 func TestRegistryValidateInteraction(t *testing.T) {
 	dir := writeTree(t, validFiles())
-	reg := buildRegistry([]packRoot{{dir: dir, tier: tierDev}}, nil, nil)
+	reg := buildRegistry([]packRoot{{dir: dir, tier: tierDev}}, nil, nil, syncBuilds{ctx: t.Context()})
 
 	tests := []struct {
 		name    string
@@ -105,7 +105,7 @@ func TestRegistryValidateInteraction(t *testing.T) {
 
 func TestRegistrySatisfiesPackTypes(t *testing.T) {
 	dir := writeTree(t, validFiles())
-	var pt doc.PackTypes = buildRegistry([]packRoot{{dir: dir, tier: tierDev}}, nil, nil)
+	var pt doc.PackTypes = buildRegistry([]packRoot{{dir: dir, tier: tierDev}}, nil, nil, syncBuilds{ctx: t.Context()})
 
 	var ok doc.Doc
 	if err := json.Unmarshal([]byte(`{"version":1,"title":"T","blocks":[{"id":"c","type":"example.callout"}]}`), &ok); err != nil {

@@ -6,6 +6,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Block packs build from source on discovery and lint.** Pack authors can
+  leave `dist/` ignored, commit the `bun.lock` from the first build, and ship
+  source with `bun` available where the pack is installed. `pack lint` builds a
+  fresh scaffold before validating it.
+
+  The rebuild rule combines modification times with a SHA-256 digest of source
+  paths and contents: a missing entry builds; an existing entry rebuilds only
+  when a source is newer and the source tree's digest differs from the last build. A checkout
+  that only touches modification times does not rebuild an unchanged tree with
+  a matching build record. The daemon builds in the background; CLI commands
+  wait for the result.
+
 ## [0.33.7] - 2026-09-20
 
 ### Fixed

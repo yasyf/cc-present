@@ -605,7 +605,7 @@ Installed block packs extend the block set beyond the built-ins above. A pack bl
 cc-present pack list
 ```
 
-Per pack it prints the name and version, the pack directory, the absolute path of the pack's reference fragment, and each block's dotted type with an `(interactive)` marker; `dropped:` lists every skipped candidate with its reason. Read the reference fragment before first use — it documents the pack's fields the way this page documents the built-ins.
+Per pack it prints the name and version, the pack directory, the absolute path of the pack's reference fragment, and each block's dotted type with an `(interactive)` marker. A `built:` line shows the first 12 hex characters of the recorded source digest when present. `dropped:` lists every skipped candidate with its reason. Read the reference fragment before first use; it documents the pack's fields the way this page documents the built-ins.
 
 A pack block composes like any other leaf, at the top level or inside a card:
 
@@ -613,4 +613,4 @@ A pack block composes like any other leaf, at the top level or inside a card:
 { "id": "ex-rating", "type": "example.rating", "label": "How useful is this reference pack?", "scale": 5 }
 ```
 
-`push --dry-run` validates each pack block against the pack's declared JSON Schema, offline like the rest of the check. An uninstalled dotted type fails with `pack block type "example.rating" is not installed`; a schema violation names the type and the failing property. Every cap and rule above applies to pack blocks unchanged. Authoring a new pack is the `cc-present:author-pack` skill's job.
+`push --dry-run` builds missing or stale source bundles, then validates each pack block against the pack's declared JSON Schema without a daemon. An uninstalled dotted type fails with `pack block type "example.rating" is not installed`; a schema violation names the type and the failing property. Every cap and rule above applies to pack blocks unchanged. Authoring a new pack is the `cc-present:author-pack` skill's job.
