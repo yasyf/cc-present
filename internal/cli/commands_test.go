@@ -1,9 +1,11 @@
 package cli
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/yasyf/cc-present/internal/doc"
@@ -37,7 +39,23 @@ const reducedFixture = `{
     "submitted": {"value":true,"revision":0},
     "closed": {"value":false}
   },
-  "rounds": {"current":1,"blockRounds":{},"history":[]},
+  "rounds": {"current":2,"blockRounds":{},"history":[
+    {"number":1,"title":"R1","blocks":[
+      {"id":"m1","type":"markdown","md":"old body"},
+      {"id":"card1","type":"card","children":[
+        {"id":"ch1","type":"choice","options":[{"id":"o1","label":"A"}]}
+      ]},
+      {"id":"in1","type":"input","label":"Notes"}
+    ],
+    "decisions":{},
+    "choices":{"ch1":{"optionIds":["o1"],"round":1}},
+    "inputs":{"in1":{"text":"first","round":1}},
+    "packs":{},
+    "feedback":{"ch1":[{"id":"f0","text":"z","round":1}]},
+    "annotations":{},
+    "triage":{},
+    "submittedRevision":0}
+  ]},
   "revising": {"blockIds":[]}
 }`
 
@@ -266,33 +284,104 @@ func TestJSONErrorAt(t *testing.T) {
 	}
 }
 
-func TestStripDocKey(t *testing.T) {
-	tests := []struct {
-		name string
-		raw  string
-		want string
-	}{
-		{
-			name: "drops doc key",
-			raw:  `{"doc":{"a":1},"interactions":{"b":2},"rounds":{"c":3}}`,
-			want: `{"interactions":{"b":2},"rounds":{"c":3}}`,
-		},
-		{
-			name: "absent doc key unchanged",
-			raw:  `{"interactions":{},"rounds":{"current":2}}`,
-			want: `{"interactions":{},"rounds":{"current":2}}`,
-		},
+func historyRounds(t *testing.T, raw json.RawMessage) []map[string]json.RawMessage {
+	t.Helper()
+	var m map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &m); err != nil {
+		t.Fatalf("unmarshal state: %v", err)
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, err := stripDocKey(json.RawMessage(tt.raw))
-			if err != nil {
-				t.Fatalf("stripDocKey() error = %v", err)
-			}
-			if string(got) != tt.want {
-				t.Fatalf("stripDocKey() = %s, want %s", got, tt.want)
-			}
-		})
+	var rounds struct {
+		History []map[string]json.RawMessage `json:"history"`
+	}
+	if err := json.Unmarshal(m["rounds"], &rounds); err != nil {
+		t.Fatalf("unmarshal rounds: %v", err)
+	}
+	return rounds.History
+}
+
+func historyBlockIDs(t *testing.T, r map[string]json.RawMessage) []string {
+	t.Helper()
+	var ids []string
+	if err := json.Unmarshal(r["blockIds"], &ids); err != nil {
+		t.Fatalf("unmarshal blockIds: %v", err)
+	}
+	return ids
+}
+
+func TestStripDocs(t *testing.T) {
+	got, err := stripDocs(json.RawMessage(reducedFixture))
+	if err != nil {
+		t.Fatalf("stripDocs() error = %v", err)
+	}
+	var m map[string]json.RawMessage
+	if err := json.Unmarshal(got, &m); err != nil {
+		t.Fatalf("unmarshal state: %v", err)
+	}
+	if _, ok := m["doc"]; ok {
+		t.Fatal("stripDocs() kept the doc key")
+	}
+	var fixture map[string]json.RawMessage
+	if err := json.Unmarshal(json.RawMessage(reducedFixture), &fixture); err != nil {
+		t.Fatalf("unmarshal fixture: %v", err)
+	}
+	var wantInter, gotInter bytes.Buffer
+	if err := json.Compact(&wantInter, fixture["interactions"]); err != nil {
+		t.Fatalf("compact fixture interactions: %v", err)
+	}
+	if err := json.Compact(&gotInter, m["interactions"]); err != nil {
+		t.Fatalf("compact interactions: %v", err)
+	}
+	if gotInter.String() != wantInter.String() {
+		t.Fatalf("interactions = %s, want %s", gotInter.String(), wantInter.String())
+	}
+	if strings.Contains(string(m["rounds"]), `"children"`) || strings.Contains(string(m["rounds"]), "old body") {
+		t.Fatalf("rounds carry block bodies: %s", m["rounds"])
+	}
+	history := historyRounds(t, got)
+	if len(history) != 1 {
+		t.Fatalf("history rounds = %d, want 1", len(history))
+	}
+	if _, ok := history[0]["blocks"]; ok {
+		t.Fatal("history round kept its blocks key")
+	}
+	if ids := historyBlockIDs(t, history[0]); !slices.Equal(ids, []string{"m1", "card1", "in1"}) {
+		t.Fatalf("history blockIds = %v, want [m1 card1 in1]", ids)
+	}
+	if string(history[0]["title"]) != `"R1"` {
+		t.Fatalf("history title = %s, want \"R1\"", history[0]["title"])
+	}
+}
+
+func TestFilterBlockThenStripDocsNarrowsHistory(t *testing.T) {
+	filtered, err := filterBlock(json.RawMessage(reducedFixture), "ch1")
+	if err != nil {
+		t.Fatalf("filterBlock() error = %v", err)
+	}
+	history := historyRounds(t, filtered)
+	var blocks []struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal(history[0]["blocks"], &blocks); err != nil {
+		t.Fatalf("unmarshal history blocks: %v", err)
+	}
+	if len(blocks) != 1 || blocks[0].ID != "card1" {
+		t.Fatalf("history blocks = %v, want only card1", blocks)
+	}
+	for key, want := range map[string]string{
+		"choices":  `{"ch1":{"optionIds":["o1"],"round":1}}`,
+		"inputs":   `{}`,
+		"feedback": `{"ch1":[{"id":"f0","text":"z","round":1}]}`,
+	} {
+		if got := string(history[0][key]); got != want {
+			t.Fatalf("history %s = %s, want %s", key, got, want)
+		}
+	}
+	got, err := stripDocs(filtered)
+	if err != nil {
+		t.Fatalf("stripDocs() error = %v", err)
+	}
+	if ids := historyBlockIDs(t, historyRounds(t, got)[0]); !slices.Equal(ids, []string{"card1"}) {
+		t.Fatalf("history blockIds = %v, want [card1]", ids)
 	}
 }
 
