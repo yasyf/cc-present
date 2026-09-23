@@ -148,7 +148,7 @@ func serve(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	loader := packs.NewLoader(cfg.PackDirs, cfg.DisabledPacks)
+	loader := packs.NewLoader(ctx, cfg.PackDirs, cfg.DisabledPacks)
 	if err := web.Validate(); err != nil {
 		return fmt.Errorf("validate embedded web build: %w", err)
 	}

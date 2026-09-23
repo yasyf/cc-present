@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/yasyf/cc-interact/cmd"
 
@@ -135,7 +136,20 @@ func TestPackList(t *testing.T) {
 	delete(droppedFiles, "dist/pack.js") // missing entry → dropped fail-soft
 	writePackFiles(t, dropped, droppedFiles)
 
-	if err := app.WriteConfig(app.Config{SchemaVersion: app.ConfigSchemaVersion, PackDirs: []string{good, dropped}}); err != nil {
+	built := t.TempDir()
+	builtFiles := goodPackFiles()
+	builtFiles["cc-present.toml"] = strings.Replace(goodManifest, `name = "example"`, `name = "built"`, 1)
+	builtFiles["package.json"] = `{"name":"built","private":true,"scripts":{"build":"true"}}`
+	builtFiles["dist/.cc-present-build.json"] = `{"digest":"0123456789abcdef0123"}`
+	writePackFiles(t, built, builtFiles)
+	past := time.Now().Add(-time.Hour)
+	for _, rel := range []string{"package.json", "schema/callout.json", "schema/rating.json", "schema/rating.interaction.json"} {
+		if err := os.Chtimes(filepath.Join(built, rel), past, past); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	if err := app.WriteConfig(app.Config{SchemaVersion: app.ConfigSchemaVersion, PackDirs: []string{good, dropped, built}}); err != nil {
 		t.Fatalf("write config: %v", err)
 	}
 
@@ -147,7 +161,7 @@ func TestPackList(t *testing.T) {
 		t.Fatalf("pack list: %v", err)
 	}
 	s := out.String()
-	for _, want := range []string{"example 0.1.0", "example.callout", "example.rating (interactive)", good, "dropped:", dropped, "entry"} {
+	for _, want := range []string{"example 0.1.0", "example.callout", "example.rating (interactive)", good, "dropped:", dropped, "entry", "built 0.1.0\n  dir: " + built + "\n  built: 0123456789ab\n"} {
 		if !strings.Contains(s, want) {
 			t.Fatalf("list output missing %q:\n%s", want, s)
 		}
@@ -233,8 +247,8 @@ func TestPackInit(t *testing.T) {
 		if !bytes.Contains(gitignore, []byte("node_modules/")) {
 			t.Fatalf(".gitignore missing node_modules/:\n%s", gitignore)
 		}
-		if bytes.Contains(gitignore, []byte("dist/")) {
-			t.Fatalf(".gitignore must not ignore dist/:\n%s", gitignore)
+		if !bytes.Contains(gitignore, []byte("dist/")) {
+			t.Fatalf(".gitignore missing dist/:\n%s", gitignore)
 		}
 
 		pkg := readScaffoldFile(t, filepath.Join(dir, "package.json"))
@@ -268,7 +282,7 @@ func TestPackInit(t *testing.T) {
 		if err := os.WriteFile(filepath.Join(dir, "dist", "pack.js"), []byte("export default {}"), 0o600); err != nil {
 			t.Fatal(err)
 		}
-		p, err := packs.Lint(dir)
+		p, err := packs.Lint(t.Context(), dir)
 		if err != nil {
 			t.Fatalf("lint scaffold: %v", err)
 		}

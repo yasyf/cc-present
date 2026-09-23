@@ -23,7 +23,9 @@ const maxFileBytes = 512 << 10
 
 var _ doc.PackTypes = (*Registry)(nil)
 
-// Pack is a validated block pack: its manifest metadata and compiled block types.
+// Pack is a validated block pack: its manifest metadata, compiled block types,
+// and Built, the source digest its bundle was built from (empty for a bundle
+// no build recorded).
 type Pack struct {
 	Name        string
 	Version     string
@@ -32,6 +34,7 @@ type Pack struct {
 	Entry       string
 	Styles      string
 	Reference   string
+	Built       string
 	Blocks      []*BlockType
 	tier        tier
 }
@@ -126,7 +129,7 @@ type builtPack struct {
 	root packRoot
 }
 
-func buildRegistry(roots []packRoot, dropped []DroppedPack, disabled []string) *Registry {
+func buildRegistry(roots []packRoot, dropped []DroppedPack, disabled []string, b bundler) *Registry {
 	r := &Registry{byType: map[string]*BlockType{}, Dropped: dropped}
 	disabledSet := map[string]bool{}
 	for _, d := range disabled {
@@ -134,7 +137,7 @@ func buildRegistry(roots []packRoot, dropped []DroppedPack, disabled []string) *
 	}
 	var built []builtPack
 	for _, root := range roots {
-		p, err := buildPack(root.dir)
+		p, err := buildPack(root.dir, b)
 		if err != nil {
 			r.drop(root.dir, err.Error())
 			slog.Warn("dropped pack", "dir", root.dir, "reason", err.Error())
@@ -203,15 +206,19 @@ func (r *Registry) drop(dir, reason string) {
 	r.Dropped = append(r.Dropped, DroppedPack{Dir: dir, Reason: reason})
 }
 
-// buildPack validates a pack root fail-loud: strict manifest, exact host_api,
-// declared files present, and every schema compiling as Draft 2020-12.
-func buildPack(root string) (*Pack, error) {
+func buildPack(root string, b bundler) (*Pack, error) {
 	m, err := ParseManifest(root)
 	if err != nil {
 		return nil, err
 	}
 	if m.HostAPI != HostAPIVersion {
 		return nil, fmt.Errorf("host_api %d, want %d", m.HostAPI, HostAPIVersion)
+	}
+	var built string
+	if buildable(root) {
+		if built, err = b.bundle(root, m.Entry); err != nil {
+			return nil, err
+		}
 	}
 	r, err := os.OpenRoot(root)
 	if err != nil {
@@ -235,6 +242,7 @@ func buildPack(root string) (*Pack, error) {
 		Entry:       m.Entry,
 		Styles:      m.Styles,
 		Reference:   m.Reference,
+		Built:       built,
 	}
 	names := make([]string, 0, len(m.Blocks))
 	for name := range m.Blocks {

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"path/filepath"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -51,10 +52,8 @@ func newPackInitCmd() *cobra.Command {
 			_, _ = fmt.Fprintf(w, "scaffolded pack %q into %s (%d files)\n\n", name, dir, len(written))
 			_, _ = fmt.Fprintln(w, "next steps:")
 			_, _ = fmt.Fprintf(w, "  cd %s\n", dir)
-			_, _ = fmt.Fprintln(w, "  bun install")
-			_, _ = fmt.Fprintln(w, "  bun run build          # builds dist/pack.js, which pack lint needs")
+			_, _ = fmt.Fprintln(w, "  cc-present pack lint .   # builds dist/pack.js from source with bun, then validates")
 			_, _ = fmt.Fprintln(w, "  bun run smoke")
-			_, _ = fmt.Fprintln(w, "  cc-present pack lint .")
 			_, _ = fmt.Fprintln(w, "\nregister it for local dev by adding this absolute path to packDirs in ~/.cc-present/config.json:")
 			_, _ = fmt.Fprintf(w, "  %s\n", abs)
 			return nil
@@ -77,7 +76,7 @@ func newPackListCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			printPacks(c.OutOrStdout(), packs.Load(cfg.PackDirs, cfg.DisabledPacks))
+			printPacks(c.OutOrStdout(), packs.Load(c.Context(), cfg.PackDirs, cfg.DisabledPacks))
 			return nil
 		},
 	}
@@ -91,7 +90,7 @@ func newPackLintCmd() *cobra.Command {
 		Short: "Validate a pack root fail-loud (manifest, schemas, examples)",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(c *cobra.Command, args []string) error {
-			p, err := packs.Lint(args[0])
+			p, err := packs.Lint(c.Context(), args[0])
 			if err != nil {
 				return fmt.Errorf("pack lint %s: %w", args[0], err)
 			}
@@ -109,6 +108,9 @@ func printPacks(w io.Writer, reg *packs.Registry) {
 	for _, p := range installed {
 		_, _ = fmt.Fprintf(w, "%s %s\n", p.Name, p.Version)
 		_, _ = fmt.Fprintf(w, "  dir: %s\n", p.Dir)
+		if p.Built != "" {
+			_, _ = fmt.Fprintf(w, "  built: %s\n", p.Built[:12])
+		}
 		if p.Reference != "" {
 			abs, _ := filepath.Abs(filepath.Join(p.Dir, p.Reference))
 			_, _ = fmt.Fprintf(w, "  reference: %s\n", abs)
@@ -125,7 +127,7 @@ func printPacks(w io.Writer, reg *packs.Registry) {
 	if len(reg.Dropped) > 0 {
 		_, _ = fmt.Fprintln(w, "dropped:")
 		for _, d := range reg.Dropped {
-			_, _ = fmt.Fprintf(w, "  %s: %s\n", d.Dir, d.Reason)
+			_, _ = fmt.Fprintf(w, "  %s: %s\n", d.Dir, strings.ReplaceAll(d.Reason, "\n", "\n    "))
 		}
 	}
 }

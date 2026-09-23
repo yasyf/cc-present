@@ -40,7 +40,7 @@ func validFiles() map[string]string {
 }
 
 func TestBuildPackValid(t *testing.T) {
-	p, err := buildPack(writeTree(t, validFiles()))
+	p, err := buildPack(writeTree(t, validFiles()), syncBuilds{ctx: t.Context()})
 	if err != nil {
 		t.Fatalf("buildPack: %v", err)
 	}
@@ -132,7 +132,7 @@ entry = "dist/pack.js"
 		t.Run(tt.name, func(t *testing.T) {
 			f := validFiles()
 			tt.mutate(f)
-			_, err := buildPack(writeTree(t, f))
+			_, err := buildPack(writeTree(t, f), syncBuilds{ctx: t.Context()})
 			if err == nil {
 				t.Fatalf("buildPack() = nil, want error containing %q", tt.wantErr)
 			}
@@ -158,7 +158,7 @@ func TestBuildPackHostAPI(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			f := validFiles()
 			f["cc-present.toml"] = strings.Replace(validManifest, "host_api = 1", tt.hostAPI, 1)
-			_, err := buildPack(writeTree(t, f))
+			_, err := buildPack(writeTree(t, f), syncBuilds{ctx: t.Context()})
 			if tt.wantErr == "" {
 				if err != nil {
 					t.Fatalf("buildPack() = %v, want nil", err)

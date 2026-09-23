@@ -34,7 +34,7 @@ func TestBuildServerDefersGenerationState(t *testing.T) {
 	t.Setenv("DAEMONKIT_HOME", home)
 	t.Setenv("CLAUDE_CONFIG_DIR", t.TempDir())
 	p := paths.Paths{App: "d"}
-	if _, err := BuildServer(context.Background(), p, testDaemonSpec(), "v1.0.0", "", "", packs.NewLoader(nil, nil), nil); err != nil {
+	if _, err := BuildServer(context.Background(), p, testDaemonSpec(), "v1.0.0", "", "", packs.NewLoader(t.Context(), nil, nil), nil); err != nil {
 		t.Fatalf("BuildServer: %v", err)
 	}
 	for _, path := range []string{p.DBPath(), filepath.Join(p.StateDir(), "assets")} {
@@ -67,7 +67,7 @@ func startTestDaemon(ctx context.Context, t *testing.T) *Client {
 	ctx, cancel := context.WithCancel(ctx)
 	errCh := make(chan error, 1)
 	go func() {
-		errCh <- Serve(ctx, p, spec, "v1.0.0", "", "", packs.NewLoader(nil, nil), nil)
+		errCh <- Serve(ctx, p, spec, "v1.0.0", "", "", packs.NewLoader(ctx, nil, nil), nil)
 		close(errCh)
 	}()
 	// Closing errCh after the send lets cleanup's receive return even when the

@@ -76,7 +76,7 @@ func writePackTree(t *testing.T) string {
 func packLoader(t *testing.T, dir string) *packs.Loader {
 	t.Helper()
 	t.Setenv("CLAUDE_CONFIG_DIR", t.TempDir())
-	return packs.NewLoader([]string{dir}, nil)
+	return packs.NewLoader(t.Context(), []string{dir}, nil)
 }
 
 func TestPacksAPI(t *testing.T) {
@@ -152,7 +152,7 @@ func TestPacksAPI(t *testing.T) {
 func TestPacksAPIDroppedDirBaseName(t *testing.T) {
 	dir := writePackTree(t)
 	t.Setenv("CLAUDE_CONFIG_DIR", t.TempDir())
-	rs := &restServer{packs: packs.NewLoader([]string{dir}, []string{"example"})}
+	rs := &restServer{packs: packs.NewLoader(t.Context(), []string{dir}, []string{"example"})}
 	req := httptest.NewRequest(http.MethodGet, "/api/packs", nil)
 	w := httptest.NewRecorder()
 	rs.handlePacks(w, req)

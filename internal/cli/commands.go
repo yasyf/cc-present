@@ -301,7 +301,7 @@ func newPushCmd(d cmd.Deps) *cobra.Command {
 				if hint := visualNudge(dd); hint != "" {
 					_, _ = fmt.Fprintln(c.ErrOrStderr(), hint)
 				}
-				msg, ok := dryRunReport(dd, packs.Load(cfg.PackDirs, cfg.DisabledPacks))
+				msg, ok := dryRunReport(dd, packs.Load(c.Context(), cfg.PackDirs, cfg.DisabledPacks))
 				_, _ = fmt.Fprintln(c.OutOrStdout(), msg)
 				if !ok {
 					os.Exit(1)
@@ -387,7 +387,7 @@ func newUpdateBlockCmd(d cmd.Deps) *cobra.Command {
 				if err != nil {
 					return err
 				}
-				msg, ok := dryRunReport(blockDoc(blk), packs.Load(cfg.PackDirs, cfg.DisabledPacks))
+				msg, ok := dryRunReport(blockDoc(blk), packs.Load(c.Context(), cfg.PackDirs, cfg.DisabledPacks))
 				_, _ = fmt.Fprintln(c.OutOrStdout(), msg)
 				if !ok {
 					os.Exit(1)

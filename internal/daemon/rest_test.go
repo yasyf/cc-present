@@ -55,7 +55,7 @@ func newRestHarness(t *testing.T) *restHarness {
 func emptyPackLoader(t *testing.T) *packs.Loader {
 	t.Helper()
 	t.Setenv("CLAUDE_CONFIG_DIR", t.TempDir())
-	return packs.NewLoader(nil, nil)
+	return packs.NewLoader(t.Context(), nil, nil)
 }
 
 func newRestHarnessWith(t *testing.T, docJSON string, loader *packs.Loader) *restHarness {

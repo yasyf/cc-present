@@ -17,7 +17,7 @@ func TestLintExamplePack(t *testing.T) {
 	// dist/ is not committed; stub the bundle lint only checks for existence.
 	writeTreeInto(t, dir, map[string]string{"dist/pack.js": "0"})
 
-	p, err := Lint(dir)
+	p, err := Lint(t.Context(), dir)
 	if err != nil {
 		t.Fatalf("Lint(example pack): %v", err)
 	}

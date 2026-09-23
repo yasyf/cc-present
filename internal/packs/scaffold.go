@@ -27,8 +27,9 @@ func ValidateName(name string) error {
 
 // Scaffold copies the reference pack rooted at srcRoot within src into destDir,
 // renaming the pack name to name in every file and writing a generated
-// .gitignore. name and destDir emptiness are validated before any write. It
-// returns the written paths relative to destDir.
+// .gitignore that ignores node_modules/ and the dist/ discovery builds. name and
+// destDir emptiness are validated before any write. It returns the written paths
+// relative to destDir.
 func Scaffold(destDir, name string, src fs.FS, srcRoot string) ([]string, error) {
 	if err := ValidateName(name); err != nil {
 		return nil, err
@@ -62,7 +63,7 @@ func Scaffold(destDir, name string, src fs.FS, srcRoot string) ([]string, error)
 	if err != nil {
 		return nil, err
 	}
-	if err := writeScaffoldFile(destDir, ".gitignore", []byte("node_modules/\n")); err != nil {
+	if err := writeScaffoldFile(destDir, ".gitignore", []byte("node_modules/\ndist/\n")); err != nil {
 		return nil, err
 	}
 	written = append(written, ".gitignore")

@@ -178,7 +178,7 @@ stored anchors always carry both bounds.
 ## Block packs
 
 A block pack is a set of plugin-supplied block types: a TOML manifest, a JSON
-Schema per block, and one prebuilt ES-module bundle the SPA imports at runtime.
+Schema per block, and one ES-module bundle the SPA imports at runtime.
 The authoring guide is [packs.md](packs.md); this section is the wire and
 discovery contract.
 
@@ -227,13 +227,42 @@ The daemon scans two tiers of pack roots and re-scans on access after a
   whose `.claude/components/` directory holds a `cc-present.toml`. The
   components directory is the pack root, so a plugin ships exactly one pack.
 
+A pack root with `package.json` builds its bundle from source when the
+manifest's `entry` is missing, or when a source is newer than the entry and the
+SHA-256 digest of the source tree differs from the last build. Sources are files under
+`src/` and `schema/`, plus `package.json`, `vite.config.ts`, and `tsconfig.json`;
+the digest covers their paths and contents and is recorded in
+`dist/.cc-present-build.json`. An unchanged source tree with a matching build
+record does not rebuild after a checkout touches modification times. An entry
+at least as new as every source is used as-is, with or without a build record.
+Without `package.json`, the entry must already exist. `entry` remains required
+and must live under `dist/`.
+
+Builds run `bun install --frozen-lockfile` when `bun.lock` or `bun.lockb` exists,
+plain `bun install` otherwise, then `bun run build`, in the pack root. Output
+stays in that pack's `dist/`, including for installed plugin packs. `bun`
+resolves from PATH, then the mise shim directories. Builds serialize per pack
+across processes, time out after 5 minutes, and restore the previous `dist/`
+if installation or the build fails or the build omits the entry.
+
+The daemon builds in the background, dropping the pack as `building` until a
+re-scan picks up the result. It retries a failed build only after the source
+digest changes. `pack list`, `pack lint`, and `push --dry-run` build
+synchronously and wait.
+
 Discovery is fail-soft per pack. Any violation drops that pack and records the
 directory and reason in a `dropped` list, visible in `/api/packs` and
 `cc-present pack list`, while every other pack still loads. A manifest error, a
 `host_api` other than `1`, a missing declared file, and a schema that fails to
-compile are each such a violation. The HTTP
-response carries only the dropped directory's base name, never its absolute
-path.
+compile are each such a violation.
+
+Build drop reasons include
+`build needs bun: not found on PATH or in mise shims (<the dirs searched>)`,
+`build failed: bun run build: exit status 1` (or the failing install command),
+and `build did not produce entry "dist/pack.js"`. Command failures include the
+last 20 lines of combined output. `pack lint` exits non-zero with the same
+failure text. The HTTP response carries only the dropped directory's base
+name, never its absolute path.
 
 Same-name conflicts resolve by tier: a dev pack shadows an installed plugin
 pack (the plugin copy is dropped with a `shadowed by dev dir` reason), and two
@@ -511,7 +540,7 @@ a pointing error; an empty set skips id validation. The agent sends it with
 | `GET` | `/assets/{sha}` | none | Fetch a stored asset by its sha256. |
 | `GET` | `/api/sessions` | none | List the open artifacts, most-recently-updated first (see Session listing). |
 | `GET` | `/api/packs` | none | List the installed block packs with inlined schemas, plus the dropped candidates (see Block packs). |
-| `GET` | `/packs/{pack}/{file}` | none | Fetch a pack's prebuilt bundle asset from its `dist/` subtree (see Block packs). |
+| `GET` | `/packs/{pack}/{file}` | none | Fetch a pack's bundle asset from its `dist/` subtree (see Block packs). |
 
 A block-scoped interaction (`decision.created`, `choice.selected`,
 `feedback.created`, `input.submitted`, `pack.interaction`, `annotation.created`,
