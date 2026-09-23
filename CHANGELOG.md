@@ -6,6 +6,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.34.0] - 2026-09-23
+
 ### Changed
 
 - **Block packs build from source on discovery and lint.** Pack authors can
@@ -19,6 +21,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   that only touches modification times does not rebuild an unchanged tree with
   a matching build record. The daemon builds in the background; CLI commands
   wait for the result.
+
+### Fixed
+
+- **Closed rounds no longer carry documents under `outcomes --no-doc`.** An
+  agent runs `cc-present outcomes --no-doc` after every board submit to read the
+  human's verdicts, omitting the document because the agent authored it. The
+  `rounds.history` array still carried every closed round's full block
+  documents, so a two-round standup board's drain printed 86 KB even with the
+  flag, choking a downstream permission hook that parses the drain output.
+  Each closed round in `rounds.history` now lists only its `blockIds` under
+  `--no-doc`; a drain without the flag is unchanged.
 
 ## [0.33.7] - 2026-09-20
 
@@ -976,7 +989,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   marketplace.
 - `examples/opener-board.json`, a complete sample document.
 
-[Unreleased]: https://github.com/yasyf/cc-present/compare/v0.33.7...main
+[Unreleased]: https://github.com/yasyf/cc-present/compare/v0.34.0...main
+[0.34.0]: https://github.com/yasyf/cc-present/compare/v0.33.7...v0.34.0
 [0.33.7]: https://github.com/yasyf/cc-present/compare/v0.33.6...v0.33.7
 [0.33.6]: https://github.com/yasyf/cc-present/compare/v0.33.5...v0.33.6
 [0.33.5]: https://github.com/yasyf/cc-present/compare/v0.33.4...v0.33.5
