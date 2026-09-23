@@ -196,15 +196,61 @@ func blockDoc(b doc.Block) *doc.Doc {
 	return &doc.Doc{Version: 1, Title: "dry-run", Blocks: []doc.Block{b}}
 }
 
-// stripDocKey drops the top-level "doc" key from reduced-state JSON so
-// outcomes --no-doc emits only the human interactions and round partition.
-func stripDocKey(raw json.RawMessage) (json.RawMessage, error) {
+// stripDocs drops the top-level "doc" key from reduced-state JSON and cuts each
+// closed round's frozen blocks down to their ids, so outcomes --no-doc emits
+// only the human interactions and round partition.
+func stripDocs(raw json.RawMessage) (json.RawMessage, error) {
 	var m map[string]json.RawMessage
 	if err := json.Unmarshal(raw, &m); err != nil {
 		return nil, err
 	}
 	delete(m, "doc")
+	rounds, err := mapHistory(m["rounds"], func(r map[string]json.RawMessage) error {
+		var blocks []struct {
+			ID string `json:"id"`
+		}
+		if err := json.Unmarshal(r["blocks"], &blocks); err != nil {
+			return err
+		}
+		ids := make([]string, len(blocks))
+		for i, b := range blocks {
+			ids[i] = b.ID
+		}
+		idsJSON, err := json.Marshal(ids)
+		if err != nil {
+			return err
+		}
+		delete(r, "blocks")
+		r["blockIds"] = idsJSON
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	m["rounds"] = rounds
 	return json.Marshal(m)
+}
+
+func mapHistory(raw json.RawMessage, fn func(map[string]json.RawMessage) error) (json.RawMessage, error) {
+	var rounds map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &rounds); err != nil {
+		return nil, err
+	}
+	var history []map[string]json.RawMessage
+	if err := json.Unmarshal(rounds["history"], &history); err != nil {
+		return nil, err
+	}
+	for _, r := range history {
+		if err := fn(r); err != nil {
+			return nil, err
+		}
+	}
+	historyJSON, err := json.Marshal(history)
+	if err != nil {
+		return nil, err
+	}
+	rounds["history"] = historyJSON
+	return json.Marshal(rounds)
 }
 
 // newStartCmd creates or resumes this window's artifact and prints its ref, URL,
@@ -595,7 +641,7 @@ func newOutcomesCmd(d cmd.Deps) *cobra.Command {
 				}
 			}
 			if noDoc {
-				raw, err = stripDocKey(raw)
+				raw, err = stripDocs(raw)
 				if err != nil {
 					return err
 				}
@@ -608,18 +654,18 @@ func newOutcomesCmd(d cmd.Deps) *cobra.Command {
 			return nil
 		},
 	}
-	c.Flags().BoolVar(&noDoc, "no-doc", false, "omit the reduced document, printing only the human interactions and rounds")
+	c.Flags().BoolVar(&noDoc, "no-doc", false, "omit the reduced document and cut closed rounds to their block ids, printing only the human interactions and rounds")
 	c.Flags().StringVar(&block, "block", "", "filter the state to a single block id (a child id filters to its own entries; the doc keeps the enclosing card)")
 	c.Flags().StringVar(&session, "session", "", "Claude session id (defaults to $CLAUDE_CODE_SESSION_ID)")
 	c.Flags().StringVar(&cwd, "cwd", "", "working directory (recorded on the request; artifacts are per-window, not resolved by directory)")
 	return c
 }
 
-// filterBlock narrows reduced-state JSON to a single block: the document keeps
-// only the enclosing top-level block's subtree, and each block-keyed interaction
-// map keeps only the block's own entries. An id no block carries is an error. A
-// child id resolves through doc.Locate — its own interactions, its enclosing
-// card's subtree.
+// filterBlock narrows reduced-state JSON to a single block: the document and
+// each closed round keep only the enclosing top-level block's subtree, and each
+// block-keyed interaction map keeps only the block's own entries. An id no block
+// in the current document carries is an error. A child id resolves through
+// doc.Locate — its own interactions, its enclosing card's subtree.
 func filterBlock(raw json.RawMessage, id string) (json.RawMessage, error) {
 	var m map[string]json.RawMessage
 	if err := json.Unmarshal(raw, &m); err != nil {
@@ -652,6 +698,34 @@ func filterBlock(raw json.RawMessage, id string) (json.RawMessage, error) {
 		}
 		m["interactions"] = filtered
 	}
+	rounds, err := mapHistory(m["rounds"], func(r map[string]json.RawMessage) error {
+		var blocks []json.RawMessage
+		if err := json.Unmarshal(r["blocks"], &blocks); err != nil {
+			return err
+		}
+		keptBlocks := make([]json.RawMessage, 0, 1)
+		for _, b := range blocks {
+			var head struct {
+				ID string `json:"id"`
+			}
+			if err := json.Unmarshal(b, &head); err != nil {
+				return err
+			}
+			if head.ID == loc.TopID {
+				keptBlocks = append(keptBlocks, b)
+			}
+		}
+		blocksJSON, err := json.Marshal(keptBlocks)
+		if err != nil {
+			return err
+		}
+		r["blocks"] = blocksJSON
+		return filterKeyed(r, id)
+	})
+	if err != nil {
+		return nil, err
+	}
+	m["rounds"] = rounds
 	return json.Marshal(m)
 }
 
@@ -662,6 +736,13 @@ func filterInteractions(raw json.RawMessage, id string) (json.RawMessage, error)
 	if err := json.Unmarshal(raw, &m); err != nil {
 		return nil, err
 	}
+	if err := filterKeyed(m, id); err != nil {
+		return nil, err
+	}
+	return json.Marshal(m)
+}
+
+func filterKeyed(m map[string]json.RawMessage, id string) error {
 	for _, key := range []string{"decisions", "choices", "inputs", "packs", "feedback", "replies", "annotations", "triage"} {
 		sub, ok := m[key]
 		if !ok {
@@ -669,11 +750,11 @@ func filterInteractions(raw json.RawMessage, id string) (json.RawMessage, error)
 		}
 		filtered, err := filterMapByKey(sub, id)
 		if err != nil {
-			return nil, err
+			return err
 		}
 		m[key] = filtered
 	}
-	return json.Marshal(m)
+	return nil
 }
 
 // filterMapByKey narrows a JSON object to the single entry under id, preserving
