@@ -24,6 +24,10 @@ type Config struct {
 	// Bind is the HTTP plane's bind address. Empty means 127.0.0.1 (loopback
 	// only); "0.0.0.0" exposes the plane to the LAN.
 	Bind string `json:"bind,omitempty"`
+	// Port pins the HTTP plane's port. Zero reuses the last-published port when
+	// free, else an ephemeral one; a remote workspace pins it so one static port
+	// forward reaches every artifact URL.
+	Port int `json:"port,omitempty"`
 	// PackDirs are dev pack roots, each a directory containing cc-present.toml,
 	// scanned for block packs alongside installed plugins.
 	PackDirs []string `json:"packDirs,omitempty"`

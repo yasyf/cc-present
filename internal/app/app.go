@@ -26,10 +26,8 @@ import (
 
 const (
 	// appDir is the state-dir basename under the user's home (~/.cc-present).
-	appDir                  = ".cc-present"
-	daemonServiceLabel      = "com.yasyf.cc-present.daemon"
-	daemonTeamID            = "SXKCTF23Q2"
-	daemonSigningIdentifier = "cc-present"
+	appDir             = ".cc-present"
+	daemonServiceLabel = "com.yasyf.cc-present.daemon"
 
 	// channelNotifyMethod is the JSON-RPC method each subject event is pushed
 	// under on the cc-present channel.
@@ -60,20 +58,17 @@ func NewClient(_ context.Context) (*ccd.Client, error) {
 }
 
 // daemonSpec is the one daemon identity the launcher and the daemon half both
-// read: socket, state dir, and LaunchAgent all derive from its Label. The
-// control lane is pinned to the signed cc-present build, so drain and
-// broker-handoff admit nothing else; the business lane keeps the same-EUID
-// floor a CLI's unsigned dev build has always run under.
+// read: socket, state dir, and service all derive from its Label, and
+// daemonTrust supplies the platform's trust lanes.
 func daemonSpec() (daemonkit.Daemon, error) {
 	program, err := daemonkit.Stable()
 	if err != nil {
 		return daemonkit.Daemon{}, fmt.Errorf("resolve stable cc-present program: %w", err)
 	}
-	requirement := daemonkit.Requirement{TeamID: daemonTeamID, SigningIdentifier: daemonSigningIdentifier}
 	return ccd.Spec(daemonkit.Daemon{
 		Label: daemonServiceLabel, Program: program, Args: []string{"daemon"},
 		Log: Paths().LogPath(), Restart: daemonkit.RestartOnFailure,
-		Trust: daemonkit.Trust{Control: &requirement, Serving: daemonkit.ServingSameUser()},
+		Trust: daemonTrust(),
 	}), nil
 }
 
@@ -152,7 +147,7 @@ func serve(ctx context.Context) error {
 	if err := web.Validate(); err != nil {
 		return fmt.Errorf("validate embedded web build: %w", err)
 	}
-	return ccdaemon.Serve(ctx, Paths(), spec, version.String(), cfg.Bind, token, loader, meshtrust.Detect())
+	return ccdaemon.Serve(ctx, Paths(), spec, version.String(), cfg.Bind, cfg.Port, token, loader, meshtrust.Detect())
 }
 
 // channelTools advertises no MCP tools on the cc-present channel: every subject

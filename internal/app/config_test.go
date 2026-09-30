@@ -35,7 +35,7 @@ func TestReadConfigAbsentIsZero(t *testing.T) {
 
 func TestConfigRoundTrip(t *testing.T) {
 	withHome(t)
-	if err := WriteConfig(Config{SchemaVersion: ConfigSchemaVersion, Bind: "0.0.0.0"}); err != nil {
+	if err := WriteConfig(Config{SchemaVersion: ConfigSchemaVersion, Bind: "0.0.0.0", Port: 7431}); err != nil {
 		t.Fatalf("WriteConfig: %v", err)
 	}
 	cfg, err := ReadConfig()
@@ -44,6 +44,9 @@ func TestConfigRoundTrip(t *testing.T) {
 	}
 	if cfg.Bind != "0.0.0.0" {
 		t.Fatalf("round-trip Bind = %q, want 0.0.0.0", cfg.Bind)
+	}
+	if cfg.Port != 7431 {
+		t.Fatalf("round-trip Port = %d, want 7431", cfg.Port)
 	}
 	info, err := os.Stat(ConfigPath())
 	if err != nil {
