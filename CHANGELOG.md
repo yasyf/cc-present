@@ -6,6 +6,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.35.0] - 2026-09-30
+
+### Added
+
+- Linux amd64 release binaries. Keep `cc-present supervise` running under the
+  workspace's process manager. Linux trusts processes with the same user ID;
+  run it only in private single-user VMs.
+- The host config's `port` field pins the HTTP port for workspace forwarding.
+
 ## [0.34.0] - 2026-09-23
 
 ### Changed
