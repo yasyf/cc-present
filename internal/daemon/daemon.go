@@ -69,7 +69,7 @@ var writeMu sync.Mutex
 // token/loopback auth only; with trust on and a loopback bind the daemon also
 // listens on its own tailnet addresses). spec is the shared daemon identity the
 // launcher half declares; Serve derives the socket and every lane's trust from it.
-func BuildServer(ctx context.Context, p paths.Paths, spec daemonkit.Daemon, runtimeBuild, bind, token string, loader *packs.Loader, tp *meshtrust.Provider) (*ccd.Server, error) {
+func BuildServer(ctx context.Context, p paths.Paths, spec daemonkit.Daemon, runtimeBuild, bind string, port int, token string, loader *packs.Loader, tp *meshtrust.Provider) (*ccd.Server, error) {
 	c := channel.Connectivity{}
 	ast := assets.New(filepath.Join(p.StateDir(), "assets"))
 	bonjour := bonjourHook(bind)
@@ -110,6 +110,7 @@ func BuildServer(ctx context.Context, p paths.Paths, spec daemonkit.Daemon, runt
 		// bind/token expose the plane to the LAN; bonjourHook advertises it over
 		// mDNS only when the bind is non-loopback (nil otherwise).
 		BindAddr:    bind,
+		FixedPort:   port,
 		HTTPToken:   token,
 		OnHTTPStart: bonjour,
 		// There is no edit gate or domain schema: document and interaction state
@@ -177,11 +178,11 @@ func combineHooks(hooks ...func(context.Context, int)) func(context.Context, int
 }
 
 // Serve builds the daemon and runs it until ctx is cancelled. bind is the HTTP
-// plane's bind address (empty = loopback) and token the optional LAN bearer
-// token; the caller reads both from the host config and supplies the pack
-// loader and the optional mesh trust.
-func Serve(ctx context.Context, p paths.Paths, spec daemonkit.Daemon, runtimeBuild, bind, token string, loader *packs.Loader, tp *meshtrust.Provider) error {
-	s, err := BuildServer(ctx, p, spec, runtimeBuild, bind, token, loader, tp)
+// plane's bind address (empty = loopback), port its pinned port (0 = unpinned),
+// and token the optional LAN bearer token; the caller reads all three from the
+// host config and supplies the pack loader and the optional mesh trust.
+func Serve(ctx context.Context, p paths.Paths, spec daemonkit.Daemon, runtimeBuild, bind string, port int, token string, loader *packs.Loader, tp *meshtrust.Provider) error {
+	s, err := BuildServer(ctx, p, spec, runtimeBuild, bind, port, token, loader, tp)
 	if err != nil {
 		return err
 	}

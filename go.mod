@@ -12,7 +12,7 @@ require (
 	github.com/spf13/cobra v1.10.2
 	github.com/yasyf/cc-context v0.28.5-0.20260720034201-f18e537f26a5
 	github.com/yasyf/cc-interact v0.32.1
-	github.com/yasyf/daemonkit v0.23.0
+	github.com/yasyf/daemonkit v0.31.2-0.20260930064435-a8ebd31ef160
 	github.com/yasyf/synckit v0.39.2
 	golang.org/x/sync v0.22.0
 )
@@ -38,7 +38,6 @@ require (
 	github.com/vishvananda/netlink v1.2.1-beta.2 // indirect
 	github.com/vishvananda/netns v0.0.0-20200728191858-db3c7e526aae // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
-	go.etcd.io/bbolt v1.5.0 // indirect
 	golang.org/x/mod v0.37.0 // indirect
 	golang.org/x/net v0.57.0 // indirect
 	golang.org/x/sys v0.47.0 // indirect

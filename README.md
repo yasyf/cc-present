@@ -63,6 +63,20 @@ Your open boards appear in the app, and every tap streams back like any other cl
 
 Machines in your [synckit](https://github.com/yasyf/synckit) mesh skip pairing entirely: the daemon trusts them automatically and serves your boards over the tailnet, no token required. The trust rules live in [Authentication](docs/contract.md#authentication).
 
+## Run on a Linux workspace
+
+Linux amd64 is supported. Use it only on a private single-user VM: the daemon's socket admits any process running as your user, with no code-signing check, and the loopback HTTP plane admits any local process.
+
+Linux has no launchd. Keep one foreground `cc-present supervise` process running in your workspace and restart it if it exits; it needs no systemd or root. Every other command starts and upgrades the daemon through it. Without it, commands fail with daemonkit's `supervise: no supervisor is running for this label` error.
+
+To open boards on your desktop, set `~/.cc-present/config.json` before starting the daemon:
+
+```json
+{"schemaVersion": 1, "port": 7431}
+```
+
+Forward port 7431 to your desktop. For an Orca SSH recipe, add a `portForwards` entry with `localPort` and `remotePort` both set to `7431`. One forward reaches every artifact, and the printed `url: http://127.0.0.1:7431/...` opens as-is on your desktop.
+
 ---
 
 ## Use cases

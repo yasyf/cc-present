@@ -578,6 +578,11 @@ the LAN — those are the two valid values. The bearer token lives at
 The daemon refuses to start the HTTP plane on a non-loopback bind with no token
 and no synckit trust; it never serves an off-host request unauthenticated.
 
+The optional `"port"` key pins the HTTP plane port; `0` or an absent key
+reuses the last-published port when free, otherwise an ephemeral port. A
+remote workspace can pin it so one static port forward reaches every artifact
+URL.
+
 The auth middleware wraps the whole plane: `GET /events`, the REST routes,
 `/assets/{sha}`, the pack routes (`/api/packs` and `/packs/{pack}/{file}`), and
 the SPA. A request is accepted on exactly one of three paths:

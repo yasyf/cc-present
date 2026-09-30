@@ -56,5 +56,6 @@ func NewRootCmd() *cobra.Command {
 		newTrustCmd(d),
 		newPackCmd(),
 	)
+	root.AddCommand(platformCmds()...)
 	return root
 }

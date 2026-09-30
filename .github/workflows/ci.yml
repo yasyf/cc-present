@@ -28,10 +28,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # macOS only: daemonkit v0.21 is a macOS library and no longer compiles
-        # off darwin — the sysctl, csops, and LOCAL_PEERCRED seams have no
-        # stubs, so an ubuntu leg cannot build the module at all.
-        os: [macos-latest]
+        os: [macos-latest, ubuntu-latest]
     steps:
       - uses: actions/checkout@v7
         with:
@@ -92,10 +89,15 @@ jobs:
           go run ./cmd/cc-present pack lint "$pack_dir"
           ( cd "$pack_dir" && bun run smoke )
 
-  # macOS: golangci-lint type-checks the module, which does not build off darwin.
+  # Both platforms: golangci-lint type-checks only the files the runner's GOOS
+  # selects, so each leg covers its own platform files.
   lint:
-    runs-on: macos-latest
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-latest]
     steps:
       - uses: actions/checkout@v7
         with:
@@ -126,7 +128,6 @@ jobs:
       - name: Test capt-hook pack
         run: uvx --isolated --python 3.13 'capt-hook>=11.0.0' pack test plugin
 
-  # macOS: govulncheck loads and type-checks the package graph.
   vuln:
     runs-on: macos-latest
     timeout-minutes: 15
