@@ -38,7 +38,7 @@ const (
 	channelConsumer = "channel"
 	// channelPollWindow is how recent a channel resolve poll must be to count as
 	// presence; it only distinguishes pending from inactive.
-	channelPollWindow = 3 * time.Second
+	channelPollWindow = 2 * ccd.ResolvePollCeiling
 	// displayCertWait bounds how long composing a display waits for the boot
 	// mint when the tailnet publishes a cert domain. Only a display landing
 	// inside the boot window ever waits: the first mint latches ready forever.
