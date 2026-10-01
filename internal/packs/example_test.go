@@ -4,6 +4,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 )
 
@@ -80,5 +81,32 @@ func copyPackTree(t *testing.T, src, dst string) {
 	})
 	if err != nil {
 		t.Fatalf("copy pack tree: %v", err)
+	}
+}
+
+// TestLintPluginPack lints the pr pack the plugin ships at plugin/.claude/components.
+func TestLintPluginPack(t *testing.T) {
+	src := filepath.Join("..", "..", "plugin", ".claude", "components")
+	dir := t.TempDir()
+	copyPackTree(t, src, dir)
+	writeTreeInto(t, dir, map[string]string{"dist/pack.js": "0"})
+
+	p, err := Lint(t.Context(), dir)
+	if err != nil {
+		t.Fatalf("Lint(pr pack): %v", err)
+	}
+	if p.Name != "pr" {
+		t.Errorf("pack name = %q, want %q", p.Name, "pr")
+	}
+	got := blockNames(p)
+	slices.Sort(got)
+	want := []string{"card", "commits", "diff"}
+	if !slices.Equal(got, want) {
+		t.Fatalf("blocks = %v, want %v", got, want)
+	}
+	for _, bt := range p.Blocks {
+		if bt.Interactive() {
+			t.Errorf("%s should be content-only, got interactive", bt.Name)
+		}
 	}
 }

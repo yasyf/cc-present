@@ -1,0 +1,29 @@
+{
+  "id": "pr-8",
+  "type": "pr.card",
+  "repo": "yasyf/cc-present",
+  "number": 8,
+  "note": "Bumps the interaction library this release depends on.",
+  "title": "deps: cc-interact v0.35.1 — build the daemon client identity once per process",
+  "url": "https://github.com/yasyf/cc-present/pull/8",
+  "author": "yasyf",
+  "state": "merged",
+  "base": "main",
+  "head": "deps-cc-interact-v0-35-1",
+  "merged_sha": "8bc5b8ac0311411a028dea616dc123645ac18e7e",
+  "additions": 3,
+  "deletions": 3,
+  "changed_files": 2,
+  "checks": {
+    "state": "success",
+    "total": 12,
+    "passed": 9,
+    "failed": 0,
+    "pending": 0,
+    "skipped": 3
+  },
+  "review_decision": "none",
+  "reviews": [],
+  "labels": [],
+  "fetched_at": "2026-10-01T08:02:01.008Z"
+}

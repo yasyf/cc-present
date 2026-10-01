@@ -613,4 +613,6 @@ A pack block composes like any other leaf, at the top level or inside a card:
 { "id": "ex-rating", "type": "example.rating", "label": "How useful is this reference pack?", "scale": 5 }
 ```
 
+The cc-present plugin ships one pack, `pr`: `pr.card`, `pr.diff`, and `pr.commits` put a GitHub pull request, an excerpt of its diff, and its commit subjects on a board, resolved from `gh` by the pack's `scripts/resolve.ts` before push. Its reference fragment has the workflow.
+
 `push --dry-run` builds missing or stale source bundles, then validates each pack block against the pack's declared JSON Schema without a daemon. An uninstalled dotted type fails with `pack block type "example.rating" is not installed`; a schema violation names the type and the failing property. Every cap and rule above applies to pack blocks unchanged. Authoring a new pack is the `cc-present:author-pack` skill's job.

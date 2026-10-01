@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "pr.card",
+  "type": "object",
+  "required": ["id", "type", "repo", "number", "title", "url", "author", "state", "fetched_at"],
+  "additionalProperties": false,
+  "properties": {
+    "id": { "type": "string", "minLength": 1 },
+    "type": { "const": "pr.card" },
+    "repo": { "type": "string", "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$" },
+    "number": { "type": "integer", "minimum": 1 },
+    "note": { "type": "string", "minLength": 1 },
+    "title": { "type": "string", "minLength": 1 },
+    "url": { "type": "string", "pattern": "^https://" },
+    "author": { "type": "string", "minLength": 1 },
+    "state": { "enum": ["open", "draft", "merged", "landed", "closed"] },
+    "base": { "type": "string", "minLength": 1 },
+    "head": { "type": "string", "minLength": 1 },
+    "merged_sha": { "type": "string", "pattern": "^[0-9a-f]{7,40}$" },
+    "additions": { "type": "integer", "minimum": 0 },
+    "deletions": { "type": "integer", "minimum": 0 },
+    "changed_files": { "type": "integer", "minimum": 0 },
+    "checks": {
+      "type": "object",
+      "required": ["state", "total", "passed", "failed", "pending", "skipped"],
+      "additionalProperties": false,
+      "properties": {
+        "state": { "enum": ["success", "failure", "pending", "error", "expected", "none"] },
+        "total": { "type": "integer", "minimum": 0 },
+        "passed": { "type": "integer", "minimum": 0 },
+        "failed": { "type": "integer", "minimum": 0 },
+        "pending": { "type": "integer", "minimum": 0 },
+        "skipped": { "type": "integer", "minimum": 0 },
+        "failing": { "type": "array", "maxItems": 10, "items": { "type": "string", "minLength": 1 } }
+      }
+    },
+    "review_decision": { "enum": ["approved", "changes_requested", "review_required", "none"] },
+    "reviews": {
+      "type": "array",
+      "maxItems": 20,
+      "items": {
+        "type": "object",
+        "required": ["author", "state"],
+        "additionalProperties": false,
+        "properties": {
+          "author": { "type": "string", "minLength": 1 },
+          "state": { "enum": ["approved", "changes_requested", "commented", "dismissed", "pending"] }
+        }
+      }
+    },
+    "labels": { "type": "array", "maxItems": 20, "items": { "type": "string", "minLength": 1 } },
+    "fetched_at": { "type": "string", "format": "date-time" }
+  }
+}

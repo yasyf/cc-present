@@ -1,0 +1,21 @@
+host_api = 1
+name = "pr"
+version = "0.1.0"
+description = "GitHub pull requests on a board: a compact PR card, a diff excerpt, and the PR's commit subjects, resolved from gh before push."
+entry = "dist/pack.js"
+reference = "reference/blocks.md"
+
+[blocks.card]
+description = "One pull request in compact form: state, title, author, base and head, CI summary, review verdicts, labels, line counts, and the merged or landed commit."
+schema = "schema/card.json"
+examples = ["examples/card.json"]
+
+[blocks.diff]
+description = "A syntax-highlighted excerpt of a pull request's diff, one panel per file, collapsed past max_lines behind a show-more control."
+schema = "schema/diff.json"
+examples = ["examples/diff.json"]
+
+[blocks.commits]
+description = "A pull request's commit subjects, oldest first, each linked to its commit."
+schema = "schema/commits.json"
+examples = ["examples/commits.json"]

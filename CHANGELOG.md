@@ -6,6 +6,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **The plugin ships a `pr` block pack.** `pr.card` shows a pull request's
+  state, branches, line counts, CI rollup, review verdicts, labels, and merged
+  or merge-queue-landed commit; `pr.diff` shows a highlighted, collapsible diff
+  excerpt selected by path globs and a hunk regex, or a pinned patch;
+  `pr.commits` lists commit subjects. The pack's `scripts/resolve.ts` fills
+  each block from `gh` before push, caches responses for ten minutes, and
+  stamps `fetched_at`.
+- Packs can render unified diffs with the built-in diff block's highlighting
+  through `ui.DiffView`.
+
 ## [0.35.0] - 2026-09-30
 
 ### Added
