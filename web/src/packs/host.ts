@@ -5,6 +5,7 @@ import * as React from 'react';
 import * as jsxRuntime from 'react/jsx-runtime';
 import { createPortal } from 'react-dom';
 import { Clamped } from '../components/Clamped';
+import { DiffView } from '../components/DiffView';
 import { renderInlineMarkdown, renderMarkdown } from '../markdown';
 import { tokens } from './tokens';
 import type { ThemeTokens } from './tokens';
@@ -19,6 +20,7 @@ export interface CcPresentHost {
   reactDom: { createPortal: typeof createPortal };
   ui: {
     Clamped: typeof Clamped;
+    DiffView: typeof PackDiffView;
     renderMarkdown: typeof renderMarkdown;
     renderInlineMarkdown: typeof renderInlineMarkdown;
     tokens: ThemeTokens;
@@ -33,6 +35,11 @@ declare global {
   }
 }
 
+// PackDiffView renders unified diff text the way the built-in diff block does.
+function PackDiffView({ diff, title }: { diff: string; title?: string }) {
+  return React.createElement(DiffView, { block: { id: '', type: 'diff', diff, title } });
+}
+
 // installHost publishes window.CcPresent. Idempotent: a second call (StrictMode
 // double-invoke, HMR) leaves the first instance in place.
 export function installHost(): void {
@@ -42,6 +49,14 @@ export function installHost(): void {
     React,
     jsxRuntime,
     reactDom: { createPortal },
-    ui: { Clamped, renderMarkdown, renderInlineMarkdown, tokens, toast: packToast, usePackState },
+    ui: {
+      Clamped,
+      DiffView: PackDiffView,
+      renderMarkdown,
+      renderInlineMarkdown,
+      tokens,
+      toast: packToast,
+      usePackState,
+    },
   };
 }

@@ -1,0 +1,15 @@
+{
+  "id": "pr-8-commits",
+  "type": "pr.commits",
+  "repo": "yasyf/cc-present",
+  "number": 8,
+  "commits": [
+    {
+      "sha": "d951809d330ae9d3e59526fe047cfd432d994d31",
+      "subject": "deps: cc-interact v0.35.1 — build the daemon client identity once per process",
+      "author": "yasyf"
+    }
+  ],
+  "total": 1,
+  "fetched_at": "2026-10-01T08:02:02.064Z"
+}

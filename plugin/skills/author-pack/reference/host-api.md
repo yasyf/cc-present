@@ -32,6 +32,7 @@ The host page installs this object before any pack bundle loads. The scaffold's 
 | `ui.renderMarkdown(md)` | Markdown to the host's sanitized HTML string. |
 | `ui.renderInlineMarkdown(md)` | The inline variant — no block elements. |
 | `ui.Clamped` | The host's show-more clamp: a component taking `{ lines?, children }`. |
+| `ui.DiffView` | The built-in `diff` block's renderer: a component taking `{ diff, title? }` that highlights unified diff text by file extension. |
 | `ui.tokens` | `ThemeTokens` — a frozen object of CSS-variable reference strings for theming (below). |
 | `ui.toast` | `(toast: PackToast) => void` — raise a toast in the host's stack. |
 | `ui.usePackState` | `<T>(key: string, initial: T) => [T, (next: T) => void]` — per-tab draft state (below). |

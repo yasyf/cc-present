@@ -1,0 +1,12 @@
+{
+  "id": "pr-8-diff",
+  "type": "pr.diff",
+  "repo": "yasyf/cc-present",
+  "number": 8,
+  "title": "Dependency pin",
+  "paths": [
+    "go.mod"
+  ],
+  "patch": "diff --git a/go.mod b/go.mod\nindex c6b0735..e138b0a 100644\n--- a/go.mod\n+++ b/go.mod\n@@ -11,7 +11,7 @@ require (\n \tgithub.com/santhosh-tekuri/jsonschema/v6 v6.0.2\n \tgithub.com/spf13/cobra v1.10.2\n \tgithub.com/yasyf/cc-context v0.28.5-0.20260720034201-f18e537f26a5\n-\tgithub.com/yasyf/cc-interact v0.35.0\n+\tgithub.com/yasyf/cc-interact v0.35.1\n \tgithub.com/yasyf/daemonkit v0.32.0\n \tgithub.com/yasyf/synckit v0.39.2\n \tgolang.org/x/sync v0.22.0",
+  "fetched_at": "2026-10-01T08:02:01.518Z"
+}
