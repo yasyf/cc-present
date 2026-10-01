@@ -17,7 +17,8 @@ interface Section {
   lines: string[];
 }
 
-const DIFF_GIT = /^diff --git a\/.* b\/(.*)$/;
+const DIFF_GIT = /^diff --git "?a\/.*"? "?b\/(.*?)"?$/;
+const SECTION_META = /^(diff --git |index |--- |\+\+\+ )/;
 const NEW_FILE = /^\+\+\+ b\/(.*)$/;
 
 export function splitSections(patch: string): Section[] {
@@ -35,34 +36,55 @@ export function splitSections(patch: string): Section[] {
   return out;
 }
 
-// clip spends the line budget on hunk lines only; file headers ride along free.
+function splitHunks(s: Section): { head: string[]; body: string[] } {
+  const firstHunk = s.lines.findIndex((l) => l.startsWith('@@'));
+  if (firstHunk === -1) return { head: s.lines, body: [] };
+  return { head: s.lines.slice(0, firstHunk), body: s.lines.slice(firstHunk) };
+}
+
+// clip spends the line budget on hunk lines; file headers ride along free, and a
+// file without hunks (a rename, mode change, or binary) costs one line.
 export function clip(sections: Section[], budget: number): { shown: Section[]; hidden: number } {
   const shown: Section[] = [];
   let left = budget;
   let hidden = 0;
   for (const s of sections) {
-    const firstHunk = s.lines.findIndex((l) => l.startsWith('@@'));
-    const head = firstHunk === -1 ? s.lines : s.lines.slice(0, firstHunk);
-    const body = firstHunk === -1 ? [] : s.lines.slice(firstHunk);
+    const { head, body } = splitHunks(s);
+    const cost = Math.max(body.length, 1);
     if (left <= 0) {
-      hidden += body.length;
+      hidden += cost;
       continue;
     }
     shown.push({ path: s.path, lines: [...head, ...body.slice(0, left)] });
-    hidden += Math.max(0, body.length - left);
-    left -= body.length;
+    hidden += Math.max(0, cost - left);
+    left -= cost;
   }
   return { shown, hidden };
 }
 
-function churn(patch: string): { add: number; del: number } {
+function churn(sections: Section[]): { add: number; del: number } {
   let add = 0;
   let del = 0;
-  for (const line of patch.split('\n')) {
-    if (line.startsWith('+') && !line.startsWith('+++')) add += 1;
-    else if (line.startsWith('-') && !line.startsWith('---')) del += 1;
+  for (const s of sections) {
+    for (const line of splitHunks(s).body) {
+      if (line.startsWith('+')) add += 1;
+      else if (line.startsWith('-')) del += 1;
+    }
   }
   return { add, del };
+}
+
+function FileMeta({ section }: { section: Section }) {
+  const t = tokens();
+  const meta = section.lines.filter((l) => l !== '' && !SECTION_META.test(l));
+  return (
+    <figure style={{ margin: 0 }}>
+      {section.path && <figcaption style={{ fontFamily: t.fontMono, fontSize: '0.78rem' }}>{section.path}</figcaption>}
+      <pre style={{ margin: 0, color: t.dim, fontFamily: t.fontMono, fontSize: '0.75rem', whiteSpace: 'pre-wrap' }}>
+        {meta.length > 0 ? meta.join('\n') : 'No textual change.'}
+      </pre>
+    </figure>
+  );
 }
 
 export function Diff({ block }: PackComponentProps) {
@@ -72,7 +94,7 @@ export function Diff({ block }: PackComponentProps) {
   const [expanded, setExpanded] = usePackState('expanded', false);
   const sections = splitSections(b.patch);
   const { shown, hidden } = expanded ? { shown: sections, hidden: 0 } : clip(sections, b.max_lines ?? 60);
-  const { add, del } = churn(b.patch);
+  const { add, del } = churn(sections);
   const files = sections.filter((s) => s.path).length;
   const button = {
     background: 'none',
@@ -114,9 +136,13 @@ export function Diff({ block }: PackComponentProps) {
       {open && (
         <>
           {b.note && <div style={{ fontSize: '0.9rem' }} dangerouslySetInnerHTML={{ __html: renderMarkdown(b.note) }} />}
-          {shown.map((s, i) => (
-            <DiffView key={`${s.path ?? ''}-${i}`} diff={s.lines.join('\n')} {...(s.path ? { title: s.path } : {})} />
-          ))}
+          {shown.map((s, i) =>
+            s.lines.some((l) => l.startsWith('@@')) ? (
+              <DiffView key={`${s.path ?? ''}-${i}`} diff={s.lines.join('\n')} {...(s.path ? { title: s.path } : {})} />
+            ) : (
+              <FileMeta key={`${s.path ?? ''}-${i}`} section={s} />
+            ),
+          )}
           {(hidden > 0 || expanded) && (
             <button type="button" onClick={() => setExpanded(!expanded)} style={{ ...button, justifySelf: 'start' }}>
               {expanded ? 'Show less' : `Show ${hidden} more ${hidden === 1 ? 'line' : 'lines'}`}

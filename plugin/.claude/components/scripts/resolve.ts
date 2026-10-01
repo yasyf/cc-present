@@ -82,17 +82,23 @@ function prRef(block: Json): { repo: string; number: number } {
   return { repo, number };
 }
 
+// authored keeps the fields an agent writes, so a refetch never carries a stale resolved field.
+function authored(block: Json, extra: string[]): Json {
+  const keep = ['id', 'type', 'repo', 'number', ...extra];
+  return Object.fromEntries(Object.entries(block).filter(([k]) => keep.includes(k)));
+}
+
 function resolveBlock(block: Json, refresh: boolean): Json {
   switch (block.type) {
     case 'pr.card': {
       const { repo, number } = prRef(block);
       const rec = fetchPr(repo, number, refresh);
-      return { ...block, ...cardFields(rec.pr, rec.landedSha, rec.fetchedAt) };
+      return { ...authored(block, ['note']), ...cardFields(rec.pr, rec.landedSha, rec.fetchedAt) };
     }
     case 'pr.commits': {
       const { repo, number } = prRef(block);
       const rec = fetchPr(repo, number, refresh);
-      return { ...block, ...commitsFields(rec.pr, rec.fetchedAt) };
+      return { ...authored(block, ['title']), ...commitsFields(rec.pr, rec.fetchedAt) };
     }
     case 'pr.diff': {
       if (typeof block.patch === 'string') return block;

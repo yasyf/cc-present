@@ -47,7 +47,7 @@ CI summary, review verdicts, labels, and the merged or landed commit.
 | `title` | string | resolved | PR title. |
 | `url` | string | resolved | PR URL. |
 | `author` | string | resolved | Author's GitHub handle. |
-| `state` | `open` \| `draft` \| `merged` \| `landed` \| `closed` | resolved | `landed` is a closed PR whose `(#N)` squash commit exists on the repo, the shape a merge queue leaves. |
+| `state` | `open` \| `draft` \| `merged` \| `landed` \| `closed` | resolved | `landed` is a closed PR whose `(#N)` squash commit is on the default branch, the shape a merge queue leaves; commit search reads only the default branch. |
 | `base`, `head` | string | resolved | Branch names. |
 | `merged_sha` | string | resolved | Merge commit, or the landed squash commit. |
 | `additions`, `deletions`, `changed_files` | integer | resolved | Line and file counts. |

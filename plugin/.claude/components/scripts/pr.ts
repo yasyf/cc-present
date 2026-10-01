@@ -15,15 +15,24 @@ export const PR_QUERY = `query($owner: String!, $name: String!, $number: Int!) {
         nodes { commit { oid message author { name user { login } } } }
       }
       head: commits(last: 1) {
-        nodes { commit { statusCheckRollup { state contexts(first: 100) { nodes {
-          __typename
-          ... on CheckRun { name status conclusion }
-          ... on StatusContext { context state }
-        } } } } }
+        nodes { commit { statusCheckRollup { state contexts(first: 100) {
+          checkRunCountsByState { state count }
+          statusContextCountsByState { state count }
+          nodes {
+            __typename
+            ... on CheckRun { name status conclusion }
+            ... on StatusContext { context state }
+          }
+        } } } }
       }
     }
   }
 }`;
+
+interface StateCount {
+  state: string;
+  count: number;
+}
 
 type CheckContext =
   | { __typename: 'CheckRun'; name: string; status: string; conclusion: string | null }
@@ -51,7 +60,18 @@ export interface GhPullRequest {
     nodes: { commit: { oid: string; message: string; author: { name: string; user: { login: string } | null } | null } }[];
   };
   head: {
-    nodes: { commit: { statusCheckRollup: { state: string; contexts: { nodes: CheckContext[] } } | null } }[];
+    nodes: {
+      commit: {
+        statusCheckRollup: {
+          state: string;
+          contexts: {
+            checkRunCountsByState: StateCount[];
+            statusContextCountsByState: StateCount[];
+            nodes: CheckContext[];
+          };
+        } | null;
+      };
+    }[];
   };
 }
 
@@ -65,36 +85,58 @@ export interface Checks {
   failing?: string[];
 }
 
-const FAILED_CONCLUSIONS = new Set(['FAILURE', 'TIMED_OUT', 'CANCELLED', 'ACTION_REQUIRED', 'STARTUP_FAILURE', 'STALE']);
-const SKIPPED_CONCLUSIONS = new Set(['NEUTRAL', 'SKIPPED']);
-
 type Outcome = 'passed' | 'failed' | 'pending' | 'skipped';
 
-function outcome(ctx: CheckContext): Outcome {
-  if (ctx.__typename === 'StatusContext') {
-    if (ctx.state === 'SUCCESS') return 'passed';
-    if (ctx.state === 'FAILURE' || ctx.state === 'ERROR') return 'failed';
-    return 'pending';
+const CHECK_RUN_OUTCOMES: Record<string, Outcome> = {
+  SUCCESS: 'passed',
+  FAILURE: 'failed',
+  TIMED_OUT: 'failed',
+  CANCELLED: 'failed',
+  ACTION_REQUIRED: 'failed',
+  STARTUP_FAILURE: 'failed',
+  STALE: 'failed',
+  NEUTRAL: 'skipped',
+  SKIPPED: 'skipped',
+  QUEUED: 'pending',
+  IN_PROGRESS: 'pending',
+  PENDING: 'pending',
+  WAITING: 'pending',
+  REQUESTED: 'pending',
+  COMPLETED: 'passed',
+};
+
+const STATUS_OUTCOMES: Record<string, Outcome> = {
+  SUCCESS: 'passed',
+  FAILURE: 'failed',
+  ERROR: 'failed',
+  PENDING: 'pending',
+  EXPECTED: 'pending',
+};
+
+function tally(checks: Checks, counts: StateCount[], outcomes: Record<string, Outcome>): void {
+  for (const { state, count } of counts) {
+    const o = outcomes[state];
+    if (!o) throw new Error(`unknown check state ${state}`);
+    checks[o] += count;
+    checks.total += count;
   }
-  if (ctx.status !== 'COMPLETED' || ctx.conclusion === null) return 'pending';
-  if (ctx.conclusion === 'SUCCESS') return 'passed';
-  if (FAILED_CONCLUSIONS.has(ctx.conclusion)) return 'failed';
-  if (SKIPPED_CONCLUSIONS.has(ctx.conclusion)) return 'skipped';
-  throw new Error(`unknown check conclusion ${ctx.conclusion}`);
 }
 
+function failed(ctx: CheckContext): boolean {
+  if (ctx.__typename === 'StatusContext') return STATUS_OUTCOMES[ctx.state] === 'failed';
+  return ctx.conclusion !== null && CHECK_RUN_OUTCOMES[ctx.conclusion] === 'failed';
+}
+
+// summarizeChecks counts every context from the rollup's aggregate counters;
+// failing names come from the first 100 contexts.
 export function summarizeChecks(pr: GhPullRequest): Checks {
   const rollup = pr.head.nodes[0]?.commit.statusCheckRollup ?? null;
   const checks: Checks = { state: 'none', total: 0, passed: 0, failed: 0, pending: 0, skipped: 0 };
   if (!rollup) return checks;
   checks.state = rollup.state.toLowerCase();
-  const failing: string[] = [];
-  for (const ctx of rollup.contexts.nodes) {
-    const o = outcome(ctx);
-    checks[o] += 1;
-    checks.total += 1;
-    if (o === 'failed') failing.push(ctx.__typename === 'CheckRun' ? ctx.name : ctx.context);
-  }
+  tally(checks, rollup.contexts.checkRunCountsByState, CHECK_RUN_OUTCOMES);
+  tally(checks, rollup.contexts.statusContextCountsByState, STATUS_OUTCOMES);
+  const failing = rollup.contexts.nodes.filter(failed).map((c) => (c.__typename === 'CheckRun' ? c.name : c.context));
   if (failing.length > 0) checks.failing = failing.slice(0, 10);
   return checks;
 }
@@ -171,7 +213,7 @@ export function commitsFields(pr: GhPullRequest, fetchedAt: string): CommitsFiel
   return {
     commits: pr.commits.nodes.map(({ commit }) => ({
       sha: commit.oid,
-      subject: commit.message.split('\n')[0] ?? '',
+      subject: commit.message.split('\n')[0] || '(no message)',
       author: commit.author?.user?.login ?? commit.author?.name ?? 'unknown',
     })),
     total: pr.commits.totalCount,
@@ -185,7 +227,7 @@ interface FileSection {
   hunks: string[][];
 }
 
-const DIFF_GIT = /^diff --git a\/(.*) b\/(.*)$/;
+const DIFF_GIT = /^diff --git "?a\/.*"? "?b\/(.*?)"?$/;
 
 export function splitFiles(diff: string): FileSection[] {
   const files: FileSection[] = [];
@@ -193,7 +235,7 @@ export function splitFiles(diff: string): FileSection[] {
   for (const line of diff.split('\n')) {
     const head = DIFF_GIT.exec(line);
     if (head) {
-      file = { path: head[2] ?? '', header: [line], hunks: [] };
+      file = { path: head[1] ?? '', header: [line], hunks: [] };
       files.push(file);
       continue;
     }

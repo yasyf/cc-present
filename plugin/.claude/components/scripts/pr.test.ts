@@ -31,7 +31,7 @@ function pr(patch: Partial<GhPullRequest> = {}): GhPullRequest {
       totalCount: 2,
       nodes: [
         { commit: { oid: 'aaaaaaaaaa11', message: 'first\n\nbody', author: { name: 'Y M', user: { login: 'yasyf' } } } },
-        { commit: { oid: 'bbbbbbbbbb22', message: 'second', author: { name: 'Bot', user: null } } },
+        { commit: { oid: 'bbbbbbbbbb22', message: '', author: { name: 'Bot', user: null } } },
       ],
     },
     head: {
@@ -41,6 +41,17 @@ function pr(patch: Partial<GhPullRequest> = {}): GhPullRequest {
             statusCheckRollup: {
               state: 'FAILURE',
               contexts: {
+                checkRunCountsByState: [
+                  { state: 'SUCCESS', count: 140 },
+                  { state: 'FAILURE', count: 1 },
+                  { state: 'SKIPPED', count: 1 },
+                  { state: 'IN_PROGRESS', count: 1 },
+                  { state: 'STALE', count: 0 },
+                ],
+                statusContextCountsByState: [
+                  { state: 'ERROR', count: 1 },
+                  { state: 'PENDING', count: 1 },
+                ],
                 nodes: [
                   { __typename: 'CheckRun', name: 'go', status: 'COMPLETED', conclusion: 'SUCCESS' },
                   { __typename: 'CheckRun', name: 'web', status: 'COMPLETED', conclusion: 'FAILURE' },
@@ -60,7 +71,7 @@ function pr(patch: Partial<GhPullRequest> = {}): GhPullRequest {
 }
 
 describe('cardFields', () => {
-  test('maps an open PR with mixed checks and reviews', () => {
+  test('maps an open PR with mixed checks, counted past the first 100 contexts', () => {
     expect(cardFields(pr(), null, FETCHED)).toEqual({
       title: 'release: ship only picked stacks',
       url: 'https://github.com/Forge-AI/monorepo/pull/28605',
@@ -73,8 +84,8 @@ describe('cardFields', () => {
       changed_files: 61,
       checks: {
         state: 'failure',
-        total: 6,
-        passed: 1,
+        total: 145,
+        passed: 140,
         failed: 2,
         pending: 2,
         skipped: 1,
@@ -106,7 +117,7 @@ describe('cardFields', () => {
     expect(fields.checks).toEqual({ state: 'none', total: 0, passed: 0, failed: 0, pending: 0, skipped: 0 });
   });
 
-  test('an unknown conclusion fails loudly', () => {
+  test('an unknown check state fails loudly', () => {
     const odd = pr({
       head: {
         nodes: [
@@ -114,14 +125,14 @@ describe('cardFields', () => {
             commit: {
               statusCheckRollup: {
                 state: 'SUCCESS',
-                contexts: { nodes: [{ __typename: 'CheckRun', name: 'x', status: 'COMPLETED', conclusion: 'MYSTERY' }] },
+                contexts: { checkRunCountsByState: [{ state: 'MYSTERY', count: 1 }], statusContextCountsByState: [], nodes: [] },
               },
             },
           },
         ],
       },
     });
-    expect(() => cardFields(odd, null, FETCHED)).toThrow('unknown check conclusion MYSTERY');
+    expect(() => cardFields(odd, null, FETCHED)).toThrow('unknown check state MYSTERY');
   });
 });
 
@@ -146,7 +157,7 @@ test('commitsFields keeps order and falls back to the author name', () => {
   expect(commitsFields(pr(), FETCHED)).toEqual({
     commits: [
       { sha: 'aaaaaaaaaa11', subject: 'first', author: 'yasyf' },
-      { sha: 'bbbbbbbbbb22', subject: 'second', author: 'Bot' },
+      { sha: 'bbbbbbbbbb22', subject: '(no message)', author: 'Bot' },
     ],
     total: 2,
     fetched_at: FETCHED,
@@ -187,6 +198,16 @@ describe('selectPatch', () => {
       ['go/ci/release.go', 2],
       ['go/ci/internal/release/selection/selection.go', 1],
       ['docs/release.md', 1],
+    ]);
+  });
+
+  test('a quoted path starts its own file', () => {
+    const quoted = `${DIFF}diff --git "a/caf\\303\\251.txt" "b/caf\\303\\251.txt"\nBinary files differ\n`;
+    expect(splitFiles(quoted).map((f) => [f.path, f.hunks.length])).toEqual([
+      ['go/ci/release.go', 2],
+      ['go/ci/internal/release/selection/selection.go', 1],
+      ['docs/release.md', 1],
+      ['caf\\303\\251.txt', 0],
     ]);
   });
 
