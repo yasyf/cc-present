@@ -133,10 +133,10 @@ jobs:
       - uses: astral-sh/setup-uv@v8.2.0
         with:
           enable-cache: false
-      # capt-hook 11 needs Python >=3.13; pin so uvx can't backtrack to a
+      # capt-hook needs Python >=3.13; pin so uvx can't backtrack to a
       # pack-less version on an older default Python.
       - name: Test capt-hook pack
-        run: uvx --isolated --python 3.13 'capt-hook>=11.0.0' pack test plugin
+        run: uvx --isolated --python 3.13 'capt-hook>=12.72.0' pack test plugin
 
   vuln:
     runs-on: macos-latest
