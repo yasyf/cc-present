@@ -6,6 +6,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.36.1] - 2026-10-01
+
+### Fixed
+
+- CLI calls no longer fail with `wire: session capacity exhausted` when many
+  Claude windows are open. With cc-interact v0.35.2 the daemon admits 64
+  concurrent sessions instead of 8, and a window's channel that is still
+  waiting for an artifact backs off to one resolve poll every 5 seconds instead
+  of one a second. A channel now counts as present for 10 seconds after its
+  last poll.
+
 ## [0.36.0] - 2026-10-01
 
 ### Added
