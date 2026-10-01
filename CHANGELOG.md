@@ -6,6 +6,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.36.0] - 2026-10-01
+
 ### Added
 
 - **The plugin ships a `pr` block pack.** `pr.card` shows a pull request's
@@ -1010,7 +1012,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   marketplace.
 - `examples/opener-board.json`, a complete sample document.
 
-[Unreleased]: https://github.com/yasyf/cc-present/compare/v0.34.0...main
+[Unreleased]: https://github.com/yasyf/cc-present/compare/v0.36.0...main
+[0.36.0]: https://github.com/yasyf/cc-present/compare/v0.35.1...v0.36.0
+[0.35.0]: https://github.com/yasyf/cc-present/compare/v0.34.0...v0.35.0
 [0.34.0]: https://github.com/yasyf/cc-present/compare/v0.33.7...v0.34.0
 [0.33.7]: https://github.com/yasyf/cc-present/compare/v0.33.6...v0.33.7
 [0.33.6]: https://github.com/yasyf/cc-present/compare/v0.33.5...v0.33.6
