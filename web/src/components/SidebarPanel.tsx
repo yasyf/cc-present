@@ -9,6 +9,7 @@ import type { ThreadEntry, ThreadKind, ThreadProjection } from '../threadFeed';
 const LABELS: Record<ThreadKind, { add: string; placeholder: string }> = {
   approval: { add: 'Add feedback', placeholder: 'Add feedback for the agent…' },
   choice: { add: 'Add note', placeholder: 'Add a note for the agent…' },
+  pack: { add: 'Add note', placeholder: 'Add a note for the agent…' },
 };
 
 function scrollBehavior(): ScrollBehavior {

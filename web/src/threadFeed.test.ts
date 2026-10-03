@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { threadFeed } from './threadFeed';
 import { emptyState } from './reduce';
-import type { Approval, Block, Choice } from './schema';
+import type { Approval, Block, Choice, PackBlock } from './schema';
 import type { Feedback, PresentState, Reply, RoundRecord } from './events';
 
 const approval = (id: string, prompt?: string, allowFeedback?: boolean): Approval => ({
@@ -16,7 +16,10 @@ const choice = (id: string, prompt?: string): Choice => ({
   ...(prompt !== undefined ? { prompt } : {}),
   options: [{ id: 'o0', label: 'A' }],
 });
+const pack = (id: string, type: string, extra: Record<string, unknown> = {}): PackBlock =>
+  ({ id, type, ...extra }) as PackBlock;
 const fb = (id: string, text: string): Feedback => ({ id, text });
+const NO_PACKS: ReadonlySet<string> = new Set();
 const reply = (id: string, md: string): Reply => ({ id, md });
 
 function state(over: {
@@ -53,7 +56,7 @@ describe('threadFeed pinned', () => {
       blocks: [approval('a1', 'Ship one'), approval('a2', 'Ship two')],
       feedback: { a1: [fb('f1', 'go')], a2: [fb('f2', 'wait')] },
     });
-    const { pinned, feed } = threadFeed(s, 'a1');
+    const { pinned, feed } = threadFeed(s, 'a1', NO_PACKS);
     expect(pinned?.blockId).toBe('a1');
     expect(pinned?.label).toBe('Ship one');
     expect(pinned?.feedback).toHaveLength(1);
@@ -62,7 +65,7 @@ describe('threadFeed pinned', () => {
 
   it('returns a pinned entry with no conversation so its composer stays reachable', () => {
     const s = state({ blocks: [approval('a1', 'Ship one')] });
-    const { pinned, feed } = threadFeed(s, 'a1');
+    const { pinned, feed } = threadFeed(s, 'a1', NO_PACKS);
     expect(pinned?.blockId).toBe('a1');
     expect(pinned?.feedback).toHaveLength(0);
     expect(feed).toHaveLength(0);
@@ -70,16 +73,16 @@ describe('threadFeed pinned', () => {
 
   it('yields a null pinned for a missing or null active id', () => {
     const s = state({ blocks: [approval('a1')], feedback: { a1: [fb('f1', 'x')] } });
-    expect(threadFeed(s, null).pinned).toBeNull();
-    expect(threadFeed(s, 'ghost').pinned).toBeNull();
+    expect(threadFeed(s, null, NO_PACKS).pinned).toBeNull();
+    expect(threadFeed(s, 'ghost', NO_PACKS).pinned).toBeNull();
     // The unpinned conversation still surfaces in the feed.
-    expect(threadFeed(s, null).feed.map((e) => e.blockId)).toEqual(['a1']);
+    expect(threadFeed(s, null, NO_PACKS).feed.map((e) => e.blockId)).toEqual(['a1']);
   });
 
   it('marks an approval that forbids feedback as locked', () => {
     const s = state({ blocks: [approval('a1', 'Ship', false)] });
-    expect(threadFeed(s, 'a1').pinned?.locked).toBe(true);
-    expect(threadFeed(state({ blocks: [approval('a2', 'Ship')] }), 'a2').pinned?.locked).toBe(false);
+    expect(threadFeed(s, 'a1', NO_PACKS).pinned?.locked).toBe(true);
+    expect(threadFeed(state({ blocks: [approval('a2', 'Ship')] }), 'a2', NO_PACKS).pinned?.locked).toBe(false);
   });
 });
 
@@ -90,7 +93,7 @@ describe('threadFeed order', () => {
       feedback: { a1: [fb('f1', 'x')], c1: [fb('f2', 'y')] },
       history: [round(1, [approval('h1')], { h1: [fb('f3', 'z')] })],
     });
-    const { feed } = threadFeed(s, null);
+    const { feed } = threadFeed(s, null, NO_PACKS);
     expect(feed.map((e) => e.blockId)).toEqual(['a1', 'c1', 'h1']);
     expect(feed[2]!.locked).toBe(true);
   });
@@ -102,7 +105,7 @@ describe('threadFeed order', () => {
       replies: { a3: [reply('r1', 'ok')] },
     });
     // a2 has nothing, so it never enters the feed; a3's lone reply still counts.
-    expect(threadFeed(s, null).feed.map((e) => e.blockId)).toEqual(['a1', 'a3']);
+    expect(threadFeed(s, null, NO_PACKS).feed.map((e) => e.blockId)).toEqual(['a1', 'a3']);
   });
 
   it('excerpts the latest reply as the last comment once the agent has answered', () => {
@@ -111,17 +114,17 @@ describe('threadFeed order', () => {
       feedback: { a1: [fb('f1', 'first'), fb('f2', 'second')] },
       replies: { a1: [reply('r1', 'ok'), reply('r2', 'done')] },
     });
-    expect(threadFeed(s, null).feed[0]!.lastComment).toBe('done');
+    expect(threadFeed(s, null, NO_PACKS).feed[0]!.lastComment).toBe('done');
   });
 
   it('falls back to the latest note when no reply exists', () => {
     const s = state({ blocks: [approval('a1', 'Ship')], feedback: { a1: [fb('f1', 'one'), fb('f2', 'two')] } });
-    expect(threadFeed(s, null).feed[0]!.lastComment).toBe('two');
+    expect(threadFeed(s, null, NO_PACKS).feed[0]!.lastComment).toBe('two');
   });
 
   it('leaves lastComment null for a pinned entry with no conversation', () => {
     const s = state({ blocks: [approval('a1', 'Ship')] });
-    expect(threadFeed(s, 'a1').pinned!.lastComment).toBeNull();
+    expect(threadFeed(s, 'a1', NO_PACKS).pinned!.lastComment).toBeNull();
   });
 
   it('threads live replies onto a frozen history entry and dedups a carried id', () => {
@@ -133,7 +136,7 @@ describe('threadFeed order', () => {
         round(1, [approval('a1', 'Frozen'), approval('h1')], { a1: [fb('old', 'stale')], h1: [fb('f2', 'past')] }),
       ],
     });
-    const { feed } = threadFeed(s, null);
+    const { feed } = threadFeed(s, null, NO_PACKS);
     // a1 lives in the doc, so its live entry wins and the frozen copy is skipped.
     const a1 = feed.find((e) => e.blockId === 'a1')!;
     expect(a1.locked).toBe(false);
@@ -144,5 +147,29 @@ describe('threadFeed order', () => {
     expect(h1.locked).toBe(true);
     expect(h1.feedback).toEqual([fb('f2', 'past')]);
     expect(h1.replies).toEqual([reply('r2', 'later reply')]);
+  });
+});
+
+describe('threadFeed pack blocks', () => {
+  const interactive: ReadonlySet<string> = new Set(['dd.fork']);
+
+  it('threads an interactive pack block under its question, and skips a display-only one', () => {
+    const s = state({
+      blocks: [pack('k1', 'dd.fork', { question: 'Where does it run?' }), pack('c1', 'dd.callout')],
+      feedback: { k1: [fb('f1', 'neither')], c1: [fb('f2', 'stray')] },
+    });
+    const { pinned, feed } = threadFeed(s, 'k1', interactive);
+    expect(pinned).toMatchObject({ blockId: 'k1', kind: 'pack', label: 'Where does it run?', locked: false });
+    expect(feed).toEqual([]);
+  });
+
+  it('labels a pack block with no heading field by its dotted type', () => {
+    const s = state({ blocks: [pack('k1', 'dd.fork')] });
+    expect(threadFeed(s, 'k1', interactive).pinned?.label).toBe('dd.fork');
+  });
+
+  it('leaves every pack block unthreaded until its pack reports interactive', () => {
+    const s = state({ blocks: [pack('k1', 'dd.fork')], feedback: { k1: [fb('f1', 'neither')] } });
+    expect(threadFeed(s, 'k1', NO_PACKS)).toEqual({ pinned: null, feed: [] });
   });
 });

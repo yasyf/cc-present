@@ -276,7 +276,8 @@ function PresentShell({
   const active = useActiveBlock();
   const { setPinnedOpen } = active;
   const isDesktop = useMediaQuery('(min-width: 1100px)');
-  const projection = threadFeed(state, active.activeId);
+  const packInteractive = useInteractivePackTypes();
+  const projection = threadFeed(state, active.activeId, packInteractive);
   const rail = useRailOpen({
     pinnedOpen: active.pinnedOpen,
     composing: active.composing,

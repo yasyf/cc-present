@@ -307,6 +307,9 @@ func TestPackInteractionValidation(t *testing.T) {
 		{"non-interactive type", `{"subject":"board--abcd0000","nonce":"p4","interaction":{"type":"pack.interaction","blockId":"cal1","payload":{"value":4}}}`, 400, "not interactive"},
 		{"uninstalled type", `{"subject":"board--abcd0000","nonce":"p5","interaction":{"type":"pack.interaction","blockId":"gone1","payload":{"value":4}}}`, 400, "not installed"},
 		{"schema-invalid payload", `{"subject":"board--abcd0000","nonce":"p6","interaction":{"type":"pack.interaction","blockId":"rate1","payload":{"value":9}}}`, 400, "pack interaction"},
+		{"feedback on interactive pack", `{"subject":"board--abcd0000","nonce":"p7","interaction":{"type":"feedback.created","blockId":"rate1","text":"none of these fit"}}`, 200, ""},
+		{"feedback on non-interactive pack", `{"subject":"board--abcd0000","nonce":"p8","interaction":{"type":"feedback.created","blockId":"cal1","text":"hi"}}`, 400, "takes no feedback"},
+		{"feedback on uninstalled pack", `{"subject":"board--abcd0000","nonce":"p9","interaction":{"type":"feedback.created","blockId":"gone1","text":"hi"}}`, 400, "takes no feedback"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

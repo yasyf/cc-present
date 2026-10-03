@@ -3,16 +3,21 @@
 // crashing component and retries when the agent redrafts the block, and a labeled
 // placeholder for every not-yet-renderable state.
 
-import { Component, useCallback, useMemo, useRef } from 'react';
+import { Component, useCallback, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useGroupReadOnly } from '@cc-interact/react';
 import type { PackBlock } from '../schema';
 import type { Interactions } from '../events';
 import { usePresent } from '../present';
 import { useDecidable } from '../keyboard';
+import { useActiveBlock } from '../activeBlock';
 import { usePackComponent, usePackDef, useInteractivePackTypes } from '../packs/registry';
 import type { PackBlockContext, PackDefState } from '../packs/registry';
 import { PackBlockScopeContext } from '../packs/state';
+import { FeedbackThread } from './FeedbackThread';
+import type { FeedbackHandle } from './FeedbackThread';
+import { CommentChip } from './CommentChip';
+import { useThreadHost } from './threadHost';
 
 const FOCUSABLE =
   'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
@@ -117,7 +122,12 @@ export function PackBlockView({ block, interactions }: { block: PackBlock; inter
   // roundOver is carried by the board's read-only group or, group-less, by the
   // single-block view's api; closed stays strictly the artifact's closed flag.
   const roundOver = readOnly || (apiRoundOver ?? false);
-  const disabled = closed || roundOver || !interactive;
+  const locked = closed || roundOver;
+  const disabled = locked || !interactive;
+  const rail = useThreadHost() === 'rail';
+  const { requestCompose } = useActiveBlock();
+  const feedbackRef = useRef<FeedbackHandle>(null);
+  const [noteComposing, setNoteComposing] = useState(false);
   const context = useMemo<PackBlockContext>(
     () => ({ closed, roundOver, round: currentRound }),
     [closed, roundOver, currentRound],
@@ -139,7 +149,11 @@ export function PackBlockView({ block, interactions }: { block: PackBlock; inter
   const { ref: decidableRef, cursor } = useDecidable(block.id, {
     kind: 'pack',
     disabled,
-    engage: () => focusFirstFocusable(frameRef.current),
+    engage: !interactive
+      ? () => focusFirstFocusable(frameRef.current)
+      : rail
+        ? requestCompose
+        : () => feedbackRef.current?.open(),
   });
   const setRef = useCallback(
     (el: HTMLDivElement | null) => {
@@ -160,9 +174,32 @@ export function PackBlockView({ block, interactions }: { block: PackBlock; inter
     <PackPlaceholder block={block} reason={reasonFor(defState)} variant={variantFor(defState)} />
   );
 
+  const feedback = interactions.feedback[block.id] ?? [];
+  const replies = interactions.replies[block.id] ?? [];
+
   return (
-    <div className="pack-block" ref={setRef} data-kbd-cursor={cursor || undefined}>
+    <div
+      className="pack-block"
+      ref={setRef}
+      data-kbd-cursor={cursor || undefined}
+      data-composing={noteComposing || undefined}
+    >
       <PackBlockScopeContext.Provider value={scope}>{inner}</PackBlockScopeContext.Provider>
+      {interactive &&
+        (rail ? (
+          <CommentChip blockId={block.id} count={feedback.length + replies.length} addLabel="Add note" />
+        ) : (
+          <FeedbackThread
+            ref={feedbackRef}
+            blockId={block.id}
+            feedback={feedback}
+            replies={replies}
+            locked={locked}
+            addLabel="Add note"
+            placeholder="Add a note for the agent…"
+            onComposingChange={setNoteComposing}
+          />
+        ))}
     </div>
   );
 }

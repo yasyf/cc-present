@@ -8,6 +8,7 @@ import { PresentContext } from '../present';
 import type { PresentApi } from '../present';
 import { KeyboardProvider } from '../keyboard';
 import { PackBlockView } from './PackBlockView';
+import { ThreadHostContext } from './threadHost';
 import { markPacksLoaded, registerPack, resetPacksForTest } from '../packs/registry';
 import type { PackComponent, PackComponentProps } from '../packs/registry';
 import { resetPackStateForTest, usePackState } from '../packs/state';
@@ -233,5 +234,73 @@ describe('PackBlockView error boundary', () => {
     render(<Board blocks={[fixedBlock]} interactions={emptyInteractions()} present={api()} />);
     expect(container.textContent).toContain('recovered');
     expect(container.textContent).not.toContain('crashed while rendering');
+  });
+});
+
+describe('PackBlockView note thread', () => {
+  const Fork: PackComponent = () => <span>fork-body</span>;
+
+  beforeEach(() => {
+    Element.prototype.scrollIntoView = () => {};
+    window.matchMedia = ((query: string) => ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addEventListener() {},
+      removeEventListener() {},
+      addListener() {},
+      removeListener() {},
+      dispatchEvent: () => false,
+    })) as typeof window.matchMedia;
+    registerPack(
+      def('ex', [
+        { type: 'ex.fork', interactive: true },
+        { type: 'ex.callout', interactive: false },
+      ]),
+      { fork: Fork, callout: Fork },
+    );
+    markPacksLoaded();
+  });
+
+  function press(key: string): void {
+    act(() => document.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true })));
+  }
+
+  it('gives an interactive pack block an Add-note affordance that f opens and that posts feedback', async () => {
+    const post = vi.fn(async () => true);
+    render(<Board blocks={[packBlock('k1', 'ex.fork')]} interactions={emptyInteractions()} present={api({ post })} />);
+    expect(container.querySelector('.feedback-affordance .link-btn')?.textContent).toBe('Add note');
+
+    press('j');
+    press('f');
+    const field = container.querySelector('.feedback-editor textarea') as HTMLTextAreaElement;
+    expect(field).not.toBeNull();
+    const setValue = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!;
+    act(() => {
+      setValue.call(field, 'none of these fit');
+      field.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await act(async () => {
+      (container.querySelector('.feedback-actions button') as HTMLButtonElement).click();
+    });
+    expect(post).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'feedback.created', blockId: 'k1', text: 'none of these fit' }),
+    );
+  });
+
+  it('shows the comment chip instead of the inline thread under the margin rail', () => {
+    render(
+      <ThreadHostContext.Provider value="rail">
+        <Board blocks={[packBlock('k1', 'ex.fork')]} interactions={emptyInteractions()} present={api()} />
+      </ThreadHostContext.Provider>,
+    );
+    expect(container.querySelector('.comment-chip')?.textContent).toBe('Add note');
+    expect(container.querySelector('.feedback-affordance')).toBeNull();
+  });
+
+  it('draws no note affordance on a display-only pack block', () => {
+    render(<Board blocks={[packBlock('c1', 'ex.callout')]} interactions={emptyInteractions()} present={api()} />);
+    expect(container.textContent).toContain('fork-body');
+    expect(container.querySelector('.feedback-affordance, .comment-chip')).toBeNull();
   });
 });

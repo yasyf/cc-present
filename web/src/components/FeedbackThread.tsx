@@ -22,9 +22,9 @@ export interface FeedbackThreadProps {
   onComposingChange?: (composing: boolean) => void;
 }
 
-// FeedbackThread is the shared note channel for approvals and choices: an inline
-// composer behind an "Add …" affordance, then the append-only thread of sent notes
-// and the agent's replies. It reports composing to the host only while the draft
+// FeedbackThread is the shared note channel for approvals, choices, and interactive
+// pack blocks: an inline composer behind an "Add …" affordance, then the append-only
+// thread of sent notes and the agent's replies. It reports composing to the host only while the draft
 // holds text — an open, empty composer must not latch the rail — while the
 // data-composing attribute tracks the open composer for the deck's advance guard.
 export const FeedbackThread = forwardRef<FeedbackHandle, FeedbackThreadProps>(function FeedbackThread(
