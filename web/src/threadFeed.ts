@@ -2,10 +2,11 @@
 // the other conversation-bearing blocks — live doc order, then recorded rounds.
 
 import { flatten } from './decide';
+import { isPackBlock } from './schema';
 import type { Block } from './schema';
 import type { Feedback, PresentState, Reply } from './events';
 
-export type ThreadKind = 'approval' | 'choice';
+export type ThreadKind = 'approval' | 'choice' | 'pack';
 
 // A ThreadEntry is one block's conversation: its feedback (the human's notes) and
 // the agent's replies. locked marks a frozen history block whose composer is gone.
@@ -26,13 +27,19 @@ export interface ThreadProjection {
   feed: ThreadEntry[];
 }
 
-function threadKind(block: Block): ThreadKind | null {
+function threadKind(block: Block, packInteractive: ReadonlySet<string>): ThreadKind | null {
+  if (isPackBlock(block)) return packInteractive.has(block.type) ? 'pack' : null;
   return block.type === 'approval' || block.type === 'choice' ? block.type : null;
 }
 
+const FALLBACK_LABEL: Record<Exclude<ThreadKind, 'pack'>, string> = { approval: 'Approval', choice: 'Choice' };
+
 function label(block: Block, kind: ThreadKind): string {
-  const prompt = (block as { prompt?: string }).prompt;
-  return prompt && prompt.trim() !== '' ? prompt : kind === 'approval' ? 'Approval' : 'Choice';
+  const fields = block as { prompt?: unknown; question?: unknown; title?: unknown };
+  const heading = [fields.prompt, fields.question, fields.title].find(
+    (v): v is string => typeof v === 'string' && v.trim() !== '',
+  );
+  return heading ?? (kind === 'pack' ? block.type : FALLBACK_LABEL[kind]);
 }
 
 function hasConversation(entry: ThreadEntry): boolean {
@@ -52,11 +59,15 @@ function lastComment(feedback: Feedback[], replies: Reply[]): string | null {
 // threadFeed splits the conversation-bearing blocks into the pinned thread (the
 // one the rail addresses, always rendered so its composer stays reachable) and the
 // feed of every other block that has at least one note or reply.
-export function threadFeed(state: PresentState, activeId: string | null): ThreadProjection {
+export function threadFeed(
+  state: PresentState,
+  activeId: string | null,
+  packInteractive: ReadonlySet<string>,
+): ThreadProjection {
   const replies = state.interactions.replies;
   const live: ThreadEntry[] = [];
   for (const block of flatten(state.doc.blocks)) {
-    const kind = threadKind(block);
+    const kind = threadKind(block, packInteractive);
     if (!kind) continue;
     const feedback = state.interactions.feedback[block.id] ?? [];
     const blockReplies = replies[block.id] ?? [];
@@ -77,7 +88,7 @@ export function threadFeed(state: PresentState, activeId: string | null): Thread
   const history: ThreadEntry[] = [];
   for (const round of state.rounds.history) {
     for (const block of flatten(round.blocks)) {
-      const kind = threadKind(block);
+      const kind = threadKind(block, packInteractive);
       if (!kind || seen.has(block.id)) continue;
       seen.add(block.id);
       const feedback = round.feedback[block.id] ?? [];

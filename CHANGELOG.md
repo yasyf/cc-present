@@ -6,6 +6,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Interactive pack blocks such as `design-doc.fork` now carry note threads,
+  with **Add note** inline or a comment chip when the margin rail is present.
+  Pressing `f` on a focused interactive pack block opens the note composer
+  instead of focusing the pack's first button.
+
 ## [0.36.1] - 2026-10-01
 
 ### Fixed

@@ -304,8 +304,12 @@ func validateInteraction(st *state.State, revision int, it *interaction, reg *pa
 		case *doc.Approval:
 			ap = target
 		case *doc.Choice:
+		case *doc.PackBlock:
+			if !reg.Interactive(target.Type) {
+				return nil, fmt.Errorf("pack block %q is a %s, which takes no feedback", it.BlockID, target.Type)
+			}
 		default:
-			return nil, fmt.Errorf("block %q is a %s, not an approval or choice", it.BlockID, b.BlockType())
+			return nil, fmt.Errorf("block %q is a %s, not an approval, choice, or interactive pack block", it.BlockID, b.BlockType())
 		}
 		if err := requireCurrentRound(st, it.BlockID, topID); err != nil {
 			return nil, err
