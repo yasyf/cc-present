@@ -60,7 +60,7 @@ export function stepCount(panels: Panel[]): number {
 export function artifactDocument(kind: 'html' | 'svg', source: string, frameId: string): string {
   const reporter =
     `<script>(()=>{const post=()=>parent.postMessage({ccPresentArtifact:${JSON.stringify(frameId)},` +
-    `height:Math.ceil(document.documentElement.scrollHeight)},'*');` +
+    `height:Math.ceil(document.documentElement.getBoundingClientRect().height)},'*');` +
     `new ResizeObserver(post).observe(document.documentElement);addEventListener('load',post);post();})()</script>`;
   if (kind === 'svg') {
     return (

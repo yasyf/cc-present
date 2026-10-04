@@ -73,7 +73,7 @@
   animation: ccpd-draw 520ms ease-out;
 }
 .ccpd-msg.ccpd-dashed {
-  stroke-dasharray: 0.03 0.02;
+  stroke-dasharray: 5 4;
   animation: ccpd-fade 420ms ease-out;
 }
 .ccpd-active .ccpd-msg {

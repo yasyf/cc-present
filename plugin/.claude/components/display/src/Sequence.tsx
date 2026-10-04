@@ -112,7 +112,7 @@ function StepMark({ step, y, x, active }: { step: Step; y: number; x: Map<string
         y1={ly}
         x2={tx - dir * 2}
         y2={ly}
-        pathLength={1}
+        pathLength={step.dashed ? undefined : 1}
         markerEnd={`url(#ccpd-arrow-${tone})`}
       />
       <text className="ccpd-step-label" x={(fx + tx) / 2} y={ly - 7} textAnchor="middle">
