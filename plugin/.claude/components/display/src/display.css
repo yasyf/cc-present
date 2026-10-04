@@ -28,6 +28,7 @@
 }
 .ccpd-panel {
   margin: 0;
+  font-family: var(--font-prose);
   display: grid;
   gap: 0.4rem;
   align-content: start;
@@ -41,8 +42,8 @@
   color: var(--dim);
 }
 .ccpd-seq {
-  width: 100%;
-  height: auto;
+  display: block;
+  max-width: 100%;
   overflow: visible;
 }
 .ccpd-lifeline {
@@ -55,7 +56,6 @@
 }
 .ccpd-actor-label {
   fill: var(--text);
-  font-family: var(--font-mono);
   font-size: 12px;
   font-weight: 600;
 }
@@ -86,8 +86,7 @@
 }
 .ccpd-step-label {
   fill: var(--text);
-  font-family: var(--font-prose);
-  font-size: 11.5px;
+  font-size: 12px;
   animation: ccpd-fade 520ms ease-out;
 }
 .ccpd-active .ccpd-step-label {
@@ -229,6 +228,7 @@ a.ccpd-event-title:hover {
 
 .ccpd-cmp-scroll {
   overflow-x: auto;
+  container-type: inline-size;
 }
 .ccpd-cmp {
   border-collapse: separate;
@@ -275,6 +275,42 @@ thead .ccpd-hl {
 .ccpd-cell-bad .ccpd-mark { color: var(--danger); }
 .ccpd-cell-warn .ccpd-mark { color: var(--warn); }
 .ccpd-cell-neutral .ccpd-mark { color: var(--dim); }
+
+@container (max-width: 600px) {
+  .ccpd-cmp,
+  .ccpd-cmp tbody,
+  .ccpd-cmp tr,
+  .ccpd-cmp th,
+  .ccpd-cmp td {
+    display: block;
+  }
+  .ccpd-cmp thead {
+    display: none;
+  }
+  .ccpd-cmp-row {
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    margin-bottom: 0.6rem;
+    overflow: hidden;
+  }
+  .ccpd-cmp th.ccpd-cmp-label {
+    position: static;
+    background: var(--surface-raised);
+  }
+  .ccpd-cmp td[data-label]::before {
+    content: attr(data-label);
+    display: block;
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: var(--track-caps);
+    color: var(--dim);
+    margin-bottom: 0.15rem;
+  }
+  .ccpd-cmp-row > :last-child {
+    border-bottom: 0;
+  }
+}
 
 .ccpd-artifact {
   margin: 0;

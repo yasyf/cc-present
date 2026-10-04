@@ -39,8 +39,8 @@ export function Compare({ block }: PackComponentProps) {
                   <div>{r.label}</div>
                   {r.hint && <div className="ccpd-cmp-sub">{r.hint}</div>}
                 </th>
-                {b.columns.map((_, ci) => (
-                  <CompareCell key={ci} cell={r.cells[ci]} extra={hl(ci)} />
+                {b.columns.map((c, ci) => (
+                  <CompareCell key={ci} cell={r.cells[ci]} extra={hl(ci)} label={c.sub ? `${c.label} · ${c.sub}` : c.label} />
                 ))}
               </tr>
             ))}
@@ -51,11 +51,11 @@ export function Compare({ block }: PackComponentProps) {
   );
 }
 
-function CompareCell({ cell, extra }: { cell: Cell | undefined; extra: string }) {
+function CompareCell({ cell, extra, label }: { cell: Cell | undefined; extra: string; label: string }) {
   if (cell === undefined) return <td className={`ccpd-cmp-cell${extra}`} />;
   const c = typeof cell === 'string' ? { md: cell } : cell;
   return (
-    <td className={`ccpd-cmp-cell${extra}${c.tone ? ` ccpd-cell-${c.tone}` : ''}`}>
+    <td className={`ccpd-cmp-cell${extra}${c.tone ? ` ccpd-cell-${c.tone}` : ''}`} data-label={label}>
       {c.tone && <span className="ccpd-mark">{marks[c.tone]}</span>}
       <span dangerouslySetInnerHTML={{ __html: renderInlineMarkdown(c.md) }} />
     </td>

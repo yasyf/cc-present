@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { artifactDocument, panelProblems, splitMermaid, stepCount } from '../src/logic';
+import { artifactDocument, panelProblems, splitMermaid, stepCount, wrapLabel } from '../src/logic';
 
 describe('splitMermaid', () => {
   test('splits prose around mermaid fences', () => {
@@ -60,5 +60,29 @@ describe('artifactDocument', () => {
     expect(doc.startsWith('<!doctype html>')).toBe(true);
     expect(doc).toContain('<body><svg viewBox="0 0 1 1"></svg><script>');
     expect(doc.endsWith('</body></html>')).toBe(true);
+  });
+});
+
+describe('wrapLabel', () => {
+  const measure = (s: string) => s.length * 10;
+
+  test('keeps a label that fits on one line', () => {
+    expect(wrapLabel('Database', 100, measure)).toEqual({ lines: ['Database'], clipped: false });
+  });
+
+  test('wraps words onto further lines', () => {
+    expect(wrapLabel('Run assignment', 100, measure)).toEqual({ lines: ['Run', 'assignment'], clipped: false });
+  });
+
+  test('hyphenates a word wider than the line', () => {
+    expect(wrapLabel('Database', 60, measure)).toEqual({ lines: ['Datab-', 'ase'], clipped: false });
+  });
+
+  test('clips overflow past the last line with an ellipsis', () => {
+    expect(wrapLabel('Read the executor binding now', 100, measure, 2)).toEqual({ lines: ['Read the', 'executor…'], clipped: true });
+  });
+
+  test('clips a word too narrow to hyphenate', () => {
+    expect(wrapLabel('Supercalifragilistic', 30, measure, 1)).toEqual({ lines: ['Su…'], clipped: true });
   });
 });
