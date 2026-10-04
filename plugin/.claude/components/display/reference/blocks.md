@@ -55,6 +55,10 @@ under each panel.
 A step naming an actor its panel does not declare renders an error in place
 of the block, listing each bad step.
 
+Panels lay out at the width they render, with 12 px labels. A label that
+does not fit wraps onto up to three lines, hyphenating a long word, and past
+that ends in an ellipsis whose tooltip shows the full text.
+
 ## display.timeline
 
 Dated events on a vertical rail. With `autoplay`, events appear one at a time
@@ -76,7 +80,8 @@ replays them.
 
 ## display.compare
 
-Options as columns, criteria as rows. A toned cell leads with a mark: `✓` for
+Options as columns, criteria as rows. Below 600 px wide the grid stacks:
+each row becomes a card, with the column label above each cell. A toned cell leads with a mark: `✓` for
 `good`, `✗` for `bad`, `!` for `warn`, and `–` for `neutral`.
 
 | Field | Type | Required | Notes |

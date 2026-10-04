@@ -6,6 +6,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- `display.sequence` lays panels out at their rendered width, so actor and
+  step labels stay at 12 px on a phone. Labels wrap onto up to three lines and
+  show the full text in a tooltip when clipped.
+- `display.compare` stacks each row into a card with the column label above
+  every cell when the block is narrower than 600 px, instead of scrolling
+  sideways.
+
 ### Added
 
 - **The plugin ships a read-only `display` pack for explanations.**
