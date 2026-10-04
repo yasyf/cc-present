@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "display.page",
+  "type": "object",
+  "required": ["id", "type", "md"],
+  "additionalProperties": false,
+  "properties": {
+    "id": { "type": "string", "minLength": 1 },
+    "type": { "const": "display.page" },
+    "title": { "type": "string", "minLength": 1, "pattern": "^[^\\n]*$" },
+    "md": { "type": "string", "minLength": 1, "maxLength": 262144 }
+  }
+}

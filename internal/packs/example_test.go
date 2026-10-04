@@ -1,10 +1,12 @@
 package packs
 
 import (
+	"encoding/json"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 )
 
@@ -62,7 +64,7 @@ func copyPackTree(t *testing.T, src, dst string) {
 			return err
 		}
 		if d.IsDir() {
-			if rel == "node_modules" || rel == "dist" {
+			if d.Name() == "node_modules" || d.Name() == "dist" {
 				return fs.SkipDir
 			}
 			return nil
@@ -108,5 +110,74 @@ func TestLintPluginPack(t *testing.T) {
 		if bt.Interactive() {
 			t.Errorf("%s should be content-only, got interactive", bt.Name)
 		}
+	}
+}
+
+func TestLintDisplayPack(t *testing.T) {
+	src := filepath.Join("..", "..", "plugin", ".claude", "components", "display")
+	dir := t.TempDir()
+	copyPackTree(t, src, dir)
+	writeTreeInto(t, dir, map[string]string{"dist/pack.js": "0", "dist/pack.css": ""})
+
+	p, err := Lint(t.Context(), dir)
+	if err != nil {
+		t.Fatalf("Lint(display pack): %v", err)
+	}
+	if p.Name != "display" {
+		t.Errorf("pack name = %q, want %q", p.Name, "display")
+	}
+	got := blockNames(p)
+	slices.Sort(got)
+	if want := []string{"artifact", "compare", "page", "sequence", "timeline"}; !slices.Equal(got, want) {
+		t.Fatalf("blocks = %v, want %v", got, want)
+	}
+	for _, bt := range p.Blocks {
+		if bt.Interactive() {
+			t.Errorf("%s should be read-only, got interactive", bt.Name)
+		}
+	}
+}
+
+func TestDisplayPackSchemas(t *testing.T) {
+	src := filepath.Join("..", "..", "plugin", ".claude", "components", "display")
+	dir := t.TempDir()
+	copyPackTree(t, src, dir)
+	writeTreeInto(t, dir, map[string]string{"dist/pack.js": "0", "dist/pack.css": ""})
+	reg := buildRegistry([]packRoot{{dir: dir, tier: tierDev}}, nil, nil, syncBuilds{ctx: t.Context()})
+	if len(reg.Dropped) != 0 {
+		t.Fatalf("dropped = %+v", reg.Dropped)
+	}
+
+	tests := []struct {
+		name, block string
+		ok          bool
+	}{
+		{"artifact html", `{"id":"a","type":"display.artifact","kind":"html","source":"<p>x</p>"}`, true},
+		{"artifact script kind", `{"id":"a","type":"display.artifact","kind":"js","source":"x"}`, false},
+		{"artifact empty source", `{"id":"a","type":"display.artifact","kind":"svg","source":""}`, false},
+		{"artifact height floor", `{"id":"a","type":"display.artifact","kind":"svg","source":"x","height":10}`, false},
+		{"page", `{"id":"p","type":"display.page","md":"# hi"}`, true},
+		{"page multiline title", `{"id":"p","type":"display.page","md":"x","title":"a\nb"}`, false},
+		{"sequence note step", `{"id":"s","type":"display.sequence","panels":[{"actors":[{"id":"a","label":"A"}],"steps":[{"from":"a","label":"think"}]}]}`, true},
+		{"sequence four panels", `{"id":"s","type":"display.sequence","panels":[` + strings.Repeat(`{"actors":[{"id":"a","label":"A"}],"steps":[{"from":"a","label":"x"}]},`, 3) + `{"actors":[{"id":"a","label":"A"}],"steps":[{"from":"a","label":"x"}]}]}`, false},
+		{"sequence fast interval", `{"id":"s","type":"display.sequence","intervalMs":100,"panels":[{"actors":[{"id":"a","label":"A"}],"steps":[{"from":"a","label":"x"}]}]}`, false},
+		{"timeline http url", `{"id":"t","type":"display.timeline","events":[{"when":"Oct 3","title":"x","url":"http://example.com"}]}`, false},
+		{"timeline", `{"id":"t","type":"display.timeline","events":[{"when":"Oct 3","title":"x","tone":"danger","url":"https://example.com/x"}]}`, true},
+		{"compare mixed cells", `{"id":"c","type":"display.compare","columns":[{"label":"A"},{"label":"B"}],"rows":[{"label":"r","cells":["yes",{"md":"no","tone":"bad"}]}]}`, true},
+		{"compare unknown tone", `{"id":"c","type":"display.compare","columns":[{"label":"A"}],"rows":[{"label":"r","cells":[{"md":"no","tone":"red"}]}]}`, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var typ struct {
+				Type string `json:"type"`
+			}
+			if err := json.Unmarshal([]byte(tt.block), &typ); err != nil {
+				t.Fatal(err)
+			}
+			err := reg.ValidateBlock(typ.Type, json.RawMessage(tt.block))
+			if (err == nil) != tt.ok {
+				t.Fatalf("ValidateBlock err = %v, want ok=%v", err, tt.ok)
+			}
+		})
 	}
 }

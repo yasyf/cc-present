@@ -1,0 +1,32 @@
+host_api = 1
+name = "display"
+version = "0.1.0"
+description = "Read-only explanation blocks: a Markdown page with Mermaid diagrams, an animated sequence of messages between actors, an animated timeline, a comparison grid, and a sandboxed one-off HTML or SVG artifact."
+entry = "dist/pack.js"
+styles = "dist/pack.css"
+reference = "reference/blocks.md"
+
+[blocks.page]
+description = "A long-form Markdown page whose ```mermaid fences render as themed diagrams."
+schema = "schema/page.json"
+examples = ["examples/page.json"]
+
+[blocks.sequence]
+description = "One to three side-by-side sequence panels of actors exchanging messages, stepped in lockstep with play, pause, and step controls."
+schema = "schema/sequence.json"
+examples = ["examples/sequence.json"]
+
+[blocks.timeline]
+description = "Dated events on a vertical rail with tags, tones, links, and Markdown detail, revealed one by one on play."
+schema = "schema/timeline.json"
+examples = ["examples/timeline.json"]
+
+[blocks.compare]
+description = "A comparison grid: options as columns, criteria as rows, and toned cells with an optional highlighted column."
+schema = "schema/compare.json"
+examples = ["examples/compare.json"]
+
+[blocks.artifact]
+description = "A caller-supplied HTML document or SVG rendered in a sandboxed frame that sizes itself to its content."
+schema = "schema/artifact.json"
+examples = ["examples/artifact.json"]

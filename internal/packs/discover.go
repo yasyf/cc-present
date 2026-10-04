@@ -33,6 +33,7 @@ type installedPlugins struct {
 type installedRecord struct {
 	Scope       string `json:"scope"`
 	InstallPath string `json:"installPath"`
+	LastUpdated string `json:"lastUpdated"`
 }
 
 // ClaudeConfigDir returns the Claude config directory: $CLAUDE_CONFIG_DIR when
@@ -49,7 +50,8 @@ func ClaudeConfigDir() string {
 }
 
 // discoverRoots lists pack roots: the configured dev dirs in order, then the
-// installed plugins whose components dir holds a manifest, sorted by plugin key.
+// packs of each installed plugin's most recently updated install, sorted by
+// plugin key.
 func discoverRoots(devDirs []string, configDir string) ([]packRoot, []DroppedPack) {
 	roots := make([]packRoot, 0, len(devDirs))
 	for _, d := range devDirs {
@@ -87,24 +89,42 @@ func pluginRoots(configDir string) ([]packRoot, []DroppedPack) {
 	seen := map[string]bool{}
 	var roots []packRoot
 	for _, k := range keys {
-		installPaths := make([]string, 0, len(ip.Plugins[k]))
-		for _, rec := range ip.Plugins[k] {
-			installPaths = append(installPaths, rec.InstallPath)
+		p := newestInstall(ip.Plugins[k])
+		if p == "" || seen[p] {
+			continue
 		}
-		sort.Strings(installPaths)
-		for _, p := range installPaths {
-			if p == "" || seen[p] {
-				continue
-			}
-			seen[p] = true
-			components := filepath.Join(p, ".claude", "components")
-			if !fileExists(filepath.Join(components, ManifestName)) {
-				continue
-			}
-			roots = append(roots, packRoot{dir: components, tier: tierPlugin})
-		}
+		seen[p] = true
+		roots = append(roots, componentRoots(filepath.Join(p, ".claude", "components"))...)
 	}
 	return roots, nil
+}
+
+func newestInstall(recs []installedRecord) string {
+	var best installedRecord
+	for _, rec := range recs {
+		if rec.LastUpdated > best.LastUpdated || (rec.LastUpdated == best.LastUpdated && rec.InstallPath > best.InstallPath) {
+			best = rec
+		}
+	}
+	return best.InstallPath
+}
+
+func componentRoots(components string) []packRoot {
+	var roots []packRoot
+	if fileExists(filepath.Join(components, ManifestName)) {
+		roots = append(roots, packRoot{dir: components, tier: tierPlugin})
+	}
+	entries, err := os.ReadDir(components)
+	if err != nil {
+		return roots
+	}
+	for _, e := range entries {
+		sub := filepath.Join(components, e.Name())
+		if e.IsDir() && fileExists(filepath.Join(sub, ManifestName)) {
+			roots = append(roots, packRoot{dir: sub, tier: tierPlugin})
+		}
+	}
+	return roots
 }
 
 func fileExists(p string) bool {

@@ -142,3 +142,51 @@ func TestDiscoverDedupeByInstallPath(t *testing.T) {
 		t.Fatalf("roots = %d, want 1 (deduped by installPath)", len(roots))
 	}
 }
+
+func TestDiscoverPluginSubdirPacks(t *testing.T) {
+	install := mkPluginInstall(t, "root")
+	writeTreeInto(t, filepath.Join(install, ".claude", "components", "extra"), packFiles("extra"))
+	writeTreeInto(t, filepath.Join(install, ".claude", "components", "not-a-pack"), map[string]string{"x.txt": "x"})
+	configDir := t.TempDir()
+	writeInstalledPlugins(t, configDir, map[string][]string{"plug@mkt": {install}})
+
+	roots, dropped := discoverRoots(nil, configDir)
+	reg := buildRegistry(roots, dropped, nil, syncBuilds{ctx: t.Context()})
+	if names := packNames(reg); len(names) != 2 || names[0] != "extra" || names[1] != "root" {
+		t.Fatalf("packs = %v, want [extra root]", names)
+	}
+}
+
+func TestDiscoverPluginSubdirWithoutRootPack(t *testing.T) {
+	install := t.TempDir()
+	writeTreeInto(t, filepath.Join(install, ".claude", "components", "only"), packFiles("only"))
+	configDir := t.TempDir()
+	writeInstalledPlugins(t, configDir, map[string][]string{"plug@mkt": {install}})
+
+	roots, _ := discoverRoots(nil, configDir)
+	want := filepath.Join(install, ".claude", "components", "only")
+	if len(roots) != 1 || roots[0].dir != want {
+		t.Fatalf("roots = %+v, want [%s]", roots, want)
+	}
+}
+
+func TestDiscoverNewestInstallWins(t *testing.T) {
+	older := mkPluginInstall(t, "same")
+	newer := mkPluginInstall(t, "same")
+	configDir := t.TempDir()
+	writeTreeInto(t, configDir, map[string]string{
+		filepath.Join("plugins", "installed_plugins.json"): `{"version": 2, "plugins": {"same@mkt": [
+			{"scope": "user", "installPath": "` + older + `", "lastUpdated": "2026-10-01T22:51:13.280Z"},
+			{"scope": "project", "installPath": "` + newer + `", "lastUpdated": "2026-10-03T06:45:20.118Z"}
+		]}}`,
+	})
+
+	roots, dropped := discoverRoots(nil, configDir)
+	reg := buildRegistry(roots, dropped, nil, syncBuilds{ctx: t.Context()})
+	if names := packNames(reg); len(names) != 1 || names[0] != "same" {
+		t.Fatalf("packs = %v, want [same]; dropped = %+v", names, reg.Dropped)
+	}
+	if want := filepath.Join(newer, ".claude", "components"); reg.Packs()[0].Dir != want {
+		t.Fatalf("winner dir = %q, want newest install %q", reg.Packs()[0].Dir, want)
+	}
+}

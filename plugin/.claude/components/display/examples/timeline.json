@@ -1,0 +1,11 @@
+{
+  "id": "history",
+  "type": "display.timeline",
+  "title": "How we got here",
+  "autoplay": true,
+  "events": [
+    { "when": "Sep 12", "title": "Push-based start lands", "tag": "api", "md": "The api starts runs by pushing to an executor instead of waiting for a poll.", "url": "https://github.com/yasyf/cc-present" },
+    { "when": "Sep 30", "title": "Poll loop removed from the executor", "tag": "executor", "tone": "warn" },
+    { "when": "Oct 3", "title": "Old executors stop starting runs", "tone": "danger", "md": "Executors built before Sep 12 never receive a start." }
+  ]
+}

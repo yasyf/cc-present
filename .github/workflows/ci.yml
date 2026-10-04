@@ -63,6 +63,14 @@ jobs:
           bun test scripts
           bun run build
           bun run smoke
+      - name: Build display pack
+        working-directory: plugin/.claude/components/display
+        run: |
+          bun install --frozen-lockfile
+          bun run typecheck
+          bun test scripts
+          bun run build
+          bun run smoke
       - name: Guard embedded dist size
         run: |
           bytes=$(tar -c internal/web/dist | gzip -9 | wc -c | tr -d ' ')
@@ -88,6 +96,8 @@ jobs:
         run: go run ./cmd/cc-present pack lint examples/packs/example
       - name: Lint pr pack
         run: go run ./cmd/cc-present pack lint plugin/.claude/components
+      - name: Lint display pack
+        run: go run ./cmd/cc-present pack lint plugin/.claude/components/display
       # Prove `pack init` scaffolds a build-correct pack verbatim: scaffold into
       # RUNNER_TEMP, lint it (which builds dist/ from source), then smoke the
       # bundle lint built. go run stays at the repo root; the bun step runs in a

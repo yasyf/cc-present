@@ -5,6 +5,7 @@ import * as React from 'react';
 import * as jsxRuntime from 'react/jsx-runtime';
 import { createPortal } from 'react-dom';
 import { Clamped } from '../components/Clamped';
+import { DiagramView } from '../components/DiagramView';
 import { DiffView } from '../components/DiffView';
 import { renderInlineMarkdown, renderMarkdown } from '../markdown';
 import { tokens } from './tokens';
@@ -20,6 +21,7 @@ export interface CcPresentHost {
   reactDom: { createPortal: typeof createPortal };
   ui: {
     Clamped: typeof Clamped;
+    DiagramView: typeof PackDiagramView;
     DiffView: typeof PackDiffView;
     renderMarkdown: typeof renderMarkdown;
     renderInlineMarkdown: typeof renderInlineMarkdown;
@@ -33,6 +35,11 @@ declare global {
   interface Window {
     CcPresent?: CcPresentHost;
   }
+}
+
+// PackDiagramView renders mermaid source the way the built-in diagram block does.
+function PackDiagramView({ source, title }: { source: string; title?: string }) {
+  return React.createElement(DiagramView, { block: { id: '', type: 'diagram', kind: 'mermaid', source, title } });
 }
 
 // PackDiffView renders unified diff text the way the built-in diff block does.
@@ -51,6 +58,7 @@ export function installHost(): void {
     reactDom: { createPortal },
     ui: {
       Clamped,
+      DiagramView: PackDiagramView,
       DiffView: PackDiffView,
       renderMarkdown,
       renderInlineMarkdown,

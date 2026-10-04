@@ -91,7 +91,7 @@ bun run smoke
 
 **Dev loop.** Add the pack root's absolute path to `packDirs` in `~/.cc-present/config.json` (`pack init` prints the exact path to add). The daemon re-scans on access after a 2-second TTL; a source pack appears after its background build completes and a re-scan picks it up. No restart is needed. A dev pack shadows an installed plugin pack of the same name, so you can iterate on a pack you've already shipped. Two rebuild caveats: the SPA imports a bundle once per page, so reload the tab; and bundle URLs are cached immutably keyed on the manifest `version`, so bump `version` (or hard-reload) to see a rebuild.
 
-**Ship.** Put the pack source at `.claude/components/` in your Claude plugin. That directory is the pack root (`.claude/components/cc-present.toml`), and a plugin ships exactly one pack. Discovery builds missing or stale source bundles inside the plugin's install directory, so `dist/` can stay ignored. Commit the `bun.lock` the first build writes so later builds install the same versions. `bun` must be available where the plugin is installed.
+**Ship.** Put the pack source at `.claude/components/` in your Claude plugin. That directory is the pack root (`.claude/components/cc-present.toml`); a plugin with several packs puts each in its own subdirectory, `.claude/components/<pack>/`. Discovery builds missing or stale source bundles inside the plugin's install directory, so `dist/` can stay ignored. Commit the `bun.lock` the first build writes so later builds install the same versions. `bun` must be available where the plugin is installed.
 
 **Verify** either way:
 

@@ -6,7 +6,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **The plugin ships a read-only `display` pack for explanations.**
+  `display.page` renders Markdown with Mermaid diagrams in place;
+  `display.sequence` steps one to three side-by-side panels of actors and
+  messages in lockstep with play, pause, and step controls;
+  `display.timeline` reveals dated events one by one; `display.compare` lays
+  options against criteria with toned cells; `display.artifact` runs a
+  caller's HTML or SVG in a sandboxed frame that sizes itself to its content.
+- `cc-present show <file>` opens one HTML, SVG, or Markdown file as this
+  window's artifact through the `display` pack, with no document or pack to
+  write.
+- Packs can render Mermaid diagrams with the built-in diagram block's renderer
+  through `ui.DiagramView`.
+- A plugin can ship several packs, one per `.claude/components/<pack>/`
+  subdirectory, beside the pack at `.claude/components/` itself.
+
 ### Fixed
+
+- A plugin installed at two versions, such as a user-scope and a
+  project-scope install, no longer drops its packs as same-name duplicates.
+  Discovery reads only the most recently updated install of each plugin.
 
 - Interactive pack blocks such as `design-doc.fork` now carry note threads,
   with **Add note** inline or a comment chip when the margin rail is present.

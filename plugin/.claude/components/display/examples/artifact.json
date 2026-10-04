@@ -1,0 +1,7 @@
+{
+  "id": "one-off",
+  "type": "display.artifact",
+  "title": "A one-off component",
+  "kind": "html",
+  "source": "<!doctype html><html><head><style>body{font:14px system-ui;margin:16px}button{padding:6px 12px}</style></head><body><p>Clicked <b id=n>0</b> times.</p><button onclick=\"n.textContent=+n.textContent+1\">Click</button></body></html>"
+}

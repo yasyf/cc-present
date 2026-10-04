@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "display.timeline",
+  "type": "object",
+  "required": ["id", "type", "events"],
+  "additionalProperties": false,
+  "properties": {
+    "id": { "type": "string", "minLength": 1 },
+    "type": { "const": "display.timeline" },
+    "title": { "$ref": "#/$defs/line" },
+    "autoplay": { "type": "boolean", "default": false },
+    "intervalMs": { "type": "integer", "minimum": 400, "maximum": 10000, "default": 1200 },
+    "events": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 100,
+      "items": {
+        "type": "object",
+        "required": ["when", "title"],
+        "additionalProperties": false,
+        "properties": {
+          "when": { "$ref": "#/$defs/line" },
+          "title": { "$ref": "#/$defs/line" },
+          "md": { "type": "string", "minLength": 1 },
+          "tag": { "$ref": "#/$defs/line" },
+          "tone": { "enum": ["default", "ok", "warn", "danger"] },
+          "url": { "type": "string", "pattern": "^https://[^\\s/]+" }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "line": { "type": "string", "minLength": 1, "pattern": "^[^\\n]*$" }
+  }
+}

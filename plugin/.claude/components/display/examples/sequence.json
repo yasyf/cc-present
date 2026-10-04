@@ -1,0 +1,36 @@
+{
+  "id": "start-paths",
+  "type": "display.sequence",
+  "title": "How a run starts",
+  "intervalMs": 1400,
+  "panels": [
+    {
+      "title": "Before: poll-based start",
+      "actors": [
+        { "id": "api", "label": "api" },
+        { "id": "db", "label": "Postgres" },
+        { "id": "ex", "label": "executor" }
+      ],
+      "steps": [
+        { "from": "api", "to": "db", "label": "insert run (queued)" },
+        { "from": "ex", "to": "db", "label": "poll queued runs", "note": "Every executor polls once a second." },
+        { "from": "db", "to": "ex", "label": "run row", "dashed": true },
+        { "from": "ex", "label": "start run", "tone": "ok" }
+      ]
+    },
+    {
+      "title": "After: push-based start",
+      "actors": [
+        { "id": "api", "label": "api" },
+        { "id": "db", "label": "Postgres" },
+        { "id": "ex", "label": "executor" }
+      ],
+      "steps": [
+        { "from": "api", "to": "db", "label": "insert run (assigned)" },
+        { "from": "api", "to": "ex", "label": "POST /start", "note": "The api picks one executor and pushes the start." },
+        { "from": "ex", "to": "api", "label": "202 accepted", "dashed": true },
+        { "from": "ex", "label": "start run", "tone": "ok" }
+      ]
+    }
+  ]
+}

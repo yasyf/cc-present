@@ -1,0 +1,16 @@
+{
+  "id": "mechanisms",
+  "type": "display.compare",
+  "title": "Promotion mechanisms",
+  "caption": "How each component moves to a new build.",
+  "columns": [
+    { "label": "Rolling update", "sub": "api" },
+    { "label": "Pool roll", "sub": "executor", "highlight": true },
+    { "label": "Blue-green", "sub": "proposed" }
+  ],
+  "rows": [
+    { "label": "Old build keeps serving", "cells": [{ "md": "Until each pod drains", "tone": "warn" }, { "md": "No", "tone": "bad" }, { "md": "Until the new set is healthy", "tone": "good" }] },
+    { "label": "Promotes api and executor together", "hint": "One switch for both", "cells": [{ "md": "No", "tone": "bad" }, { "md": "No", "tone": "bad" }, { "md": "Yes", "tone": "good" }] },
+    { "label": "Time to promote", "cells": ["~4 min", "~9 min", "`5 min` budget"] }
+  ]
+}

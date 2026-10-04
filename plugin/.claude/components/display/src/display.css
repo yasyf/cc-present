@@ -1,0 +1,308 @@
+.ccpd-frame {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--text);
+  padding: 0.75rem 0.9rem;
+  display: grid;
+  gap: 0.6rem;
+  min-width: 0;
+}
+.ccpd-title {
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+.ccpd-error {
+  color: var(--danger);
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+}
+.ccpd-page {
+  gap: 0.9rem;
+}
+
+.ccpd-panels {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 0.9rem;
+}
+.ccpd-panel {
+  margin: 0;
+  display: grid;
+  gap: 0.4rem;
+  align-content: start;
+  min-width: 0;
+}
+.ccpd-panel-title {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: var(--track-caps);
+  color: var(--dim);
+}
+.ccpd-seq {
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+.ccpd-lifeline {
+  stroke: var(--border-strong);
+  stroke-dasharray: 3 4;
+}
+.ccpd-actor {
+  fill: var(--surface-raised);
+  stroke: var(--border-strong);
+}
+.ccpd-actor-label {
+  fill: var(--text);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+}
+.ccpd-step {
+  opacity: 0.5;
+  transition: opacity 300ms ease;
+}
+.ccpd-step.ccpd-active {
+  opacity: 1;
+}
+.ccpd-msg {
+  stroke-width: 1.6;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 0;
+  animation: ccpd-draw 520ms ease-out;
+}
+.ccpd-msg.ccpd-dashed {
+  stroke-dasharray: 5 4;
+  animation: ccpd-fade 420ms ease-out;
+}
+.ccpd-active .ccpd-msg {
+  stroke-width: 2.2;
+}
+.ccpd-note {
+  fill: color-mix(in srgb, currentColor 12%, var(--surface));
+  stroke: currentColor;
+  animation: ccpd-fade 420ms ease-out;
+}
+.ccpd-step-label {
+  fill: var(--text);
+  font-family: var(--font-prose);
+  font-size: 11.5px;
+  animation: ccpd-fade 520ms ease-out;
+}
+.ccpd-active .ccpd-step-label {
+  font-weight: 600;
+}
+.ccpd-tone-default { color: var(--accent); stroke: var(--accent); }
+.ccpd-tone-ok { color: var(--ok); stroke: var(--ok); }
+.ccpd-tone-warn { color: var(--warn); stroke: var(--warn); }
+.ccpd-tone-danger { color: var(--danger); stroke: var(--danger); }
+.ccpd-step .ccpd-step-label { stroke: none; }
+.ccpd-fill-default { fill: var(--accent); }
+.ccpd-fill-ok { fill: var(--ok); }
+.ccpd-fill-warn { fill: var(--warn); }
+.ccpd-fill-danger { fill: var(--danger); }
+.ccpd-caption {
+  min-height: 2.6em;
+  font-size: 0.85rem;
+  color: var(--dim);
+  border-left: 2px solid var(--accent);
+  padding-left: 0.6rem;
+}
+
+.ccpd-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+.ccpd-btn {
+  font: inherit;
+  font-size: 0.75rem;
+  line-height: 1;
+  min-width: 2rem;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-raised);
+  color: var(--text);
+  cursor: pointer;
+}
+.ccpd-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.ccpd-btn:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
+}
+.ccpd-btn-primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-fg);
+}
+.ccpd-progress {
+  flex: 1;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--bg-soft);
+  overflow: hidden;
+}
+.ccpd-progress-fill {
+  height: 100%;
+  background: var(--accent);
+  transition: width 300ms ease;
+}
+.ccpd-count {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--dim);
+  white-space: nowrap;
+}
+
+.ccpd-timeline {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 0 1.4rem;
+  position: relative;
+  display: grid;
+  gap: 0.9rem;
+}
+.ccpd-timeline::before {
+  content: '';
+  position: absolute;
+  left: 0.42rem;
+  top: 0.3rem;
+  bottom: 0.3rem;
+  width: 2px;
+  background: var(--border);
+}
+.ccpd-event {
+  position: relative;
+  animation: ccpd-rise 420ms ease-out;
+}
+.ccpd-dot {
+  position: absolute;
+  left: -1.25rem;
+  top: 0.2rem;
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 2px solid currentColor;
+}
+.ccpd-event.ccpd-active .ccpd-dot {
+  background: currentColor;
+  box-shadow: 0 0 0 4px color-mix(in srgb, currentColor 20%, transparent);
+}
+.ccpd-when {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--dim);
+}
+.ccpd-event-head {
+  display: flex;
+  gap: 0.5rem;
+  align-items: baseline;
+  flex-wrap: wrap;
+}
+.ccpd-event-title {
+  font-weight: 600;
+  color: var(--text);
+  text-decoration: none;
+}
+a.ccpd-event-title:hover {
+  color: var(--accent);
+}
+.ccpd-tag {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: var(--track-caps);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  padding: 0 0.35rem;
+  color: var(--dim);
+}
+.ccpd-event-body {
+  font-size: 0.88rem;
+}
+
+.ccpd-cmp-scroll {
+  overflow-x: auto;
+}
+.ccpd-cmp {
+  border-collapse: separate;
+  border-spacing: 0;
+  width: 100%;
+  font-size: 0.86rem;
+}
+.ccpd-cmp th,
+.ccpd-cmp td {
+  padding: 0.45rem 0.6rem;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+}
+.ccpd-cmp-col {
+  font-weight: 600;
+}
+.ccpd-cmp-label {
+  font-weight: 500;
+  position: sticky;
+  left: 0;
+  background: var(--surface);
+}
+.ccpd-cmp-sub {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  font-weight: 400;
+  color: var(--dim);
+}
+.ccpd-hl {
+  background: color-mix(in srgb, var(--accent) 9%, var(--surface));
+}
+thead .ccpd-hl {
+  border-top: 2px solid var(--accent);
+}
+.ccpd-cmp-row {
+  animation: ccpd-rise 380ms ease-out both;
+}
+.ccpd-mark {
+  font-weight: 700;
+  margin-right: 0.35rem;
+}
+.ccpd-cell-good .ccpd-mark { color: var(--ok); }
+.ccpd-cell-bad .ccpd-mark { color: var(--danger); }
+.ccpd-cell-warn .ccpd-mark { color: var(--warn); }
+.ccpd-cell-neutral .ccpd-mark { color: var(--dim); }
+
+.ccpd-artifact {
+  margin: 0;
+}
+.ccpd-artifact iframe {
+  width: 100%;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: #fff;
+  transition: height 150ms ease;
+}
+
+@keyframes ccpd-draw {
+  from { stroke-dashoffset: 1; }
+  to { stroke-dashoffset: 0; }
+}
+@keyframes ccpd-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes ccpd-rise {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ccpd-frame *,
+  .ccpd-frame *::before {
+    animation: none !important;
+    transition: none !important;
+  }
+}

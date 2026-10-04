@@ -65,7 +65,7 @@ Discovery is fail-soft: a violation drops that pack — the directory and reason
 The daemon scans two tiers of pack roots and re-scans on access after a 2-second TTL, so installing a pack needs no restart:
 
 - **Dev** — each directory in `packDirs` (`~/.cc-present/config.json`), in order.
-- **Plugin** — each installed Claude plugin (read from `$CLAUDE_CONFIG_DIR/plugins/installed_plugins.json`, default `~/.claude`) whose `.claude/components/` directory holds a `cc-present.toml`. The components directory is the pack root, so a plugin ships exactly one pack.
+- **Plugin** — each installed Claude plugin (read from `$CLAUDE_CONFIG_DIR/plugins/installed_plugins.json`, default `~/.claude`) at its most recently updated install. Its `.claude/components/` directory is a pack root when it holds a `cc-present.toml`, and so is each immediate subdirectory holding one, so a plugin can ship several packs.
 
 Same-name conflicts resolve by tier, and a config switch beats them all:
 
