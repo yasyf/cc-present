@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `display.sequence` hyphenates a label word that fits only by leaving one
+  letter behind, instead of clipping it, and re-measures labels once web
+  fonts load.
+
+## [0.37.1] - 2026-10-03
+
+### Fixed
+
 - `display.sequence` lays panels out at their rendered width, so actor and
   step labels stay at 12 px on a phone. Labels wrap onto up to three lines and
   show the full text in a tooltip when clipped.

@@ -49,6 +49,10 @@ const lineH = 15;
 
 function useWidth(el: RefObject<HTMLElement | null>): number {
   const [width, setWidth] = useState(0);
+  const [, setFonts] = useState(0);
+  useEffect(() => {
+    void document.fonts.ready.then(() => setFonts((n) => n + 1));
+  }, []);
   useEffect(() => {
     if (!el.current) return;
     const ro = new ResizeObserver((entries) => setWidth(entries[0]?.contentRect.width ?? 0));
