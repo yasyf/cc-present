@@ -36,6 +36,16 @@ Write the document JSON to a file in your **session scratchpad** and pass the pa
 
 **Pack blocks.** When no built-in fits, installed block packs may supply extra types. Run `cc-present pack list` to see them: each block prints as a dotted type (`example.rating`), and each pack prints the absolute path of its reference fragment — read that fragment before first use; it documents the pack's fields the way `reference/blocks.md` documents the built-ins. Compose a dotted type like any other block. `push --dry-run` validates pack blocks against their schemas too; an uninstalled dotted type fails the dry run with `pack block type "example.rating" is not installed`.
 
+**Explanations and one-off artifacts.** The plugin ships a read-only `display` pack for explaining rather than deciding; its fields are in the reference path `cc-present pack list` prints for `display`.
+
+- `display.page`: long-form Markdown whose ```` ```mermaid ```` fences render as diagrams.
+- `display.sequence`: one to three side-by-side panels of actors and messages, stepped in lockstep with play and pause, for an old flow next to a new one.
+- `display.timeline`: dated events revealed one by one, for a history of PRs or deploys.
+- `display.compare`: options as columns, criteria as rows, toned cells.
+- `display.artifact`: your own HTML or SVG in a sandboxed frame.
+
+To show one HTML, SVG, or Markdown file without writing a document, run `cc-present show <file>`. It resumes this window's artifact, replaces its document, and prints the URL like `start`; `--new` opens a fresh artifact, `--title` names it, and `--height` pins an HTML or SVG frame.
+
 Validate offline before starting (no daemon needed):
 
 ```bash

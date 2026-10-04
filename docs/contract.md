@@ -223,9 +223,10 @@ The daemon scans two tiers of pack roots and re-scans on access after a
 - **Dev** — each directory in the host config's `packDirs`
   (`~/.cc-present/config.json`), in order.
 - **Plugin** — each installed Claude plugin (read from
-  `$CLAUDE_CONFIG_DIR/plugins/installed_plugins.json`, default `~/.claude`)
-  whose `.claude/components/` directory holds a `cc-present.toml`. The
-  components directory is the pack root, so a plugin ships exactly one pack.
+  `$CLAUDE_CONFIG_DIR/plugins/installed_plugins.json`, default `~/.claude`),
+  at its most recently updated install. The plugin's `.claude/components/`
+  directory is a pack root when it holds a `cc-present.toml`, and so is each
+  immediate subdirectory holding one, so a plugin can ship several packs.
 
 A pack root with `package.json` builds its bundle from source when the
 manifest's `entry` is missing, or when a source is newer than the entry and the

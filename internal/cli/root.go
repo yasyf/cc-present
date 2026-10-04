@@ -41,6 +41,7 @@ func NewRootCmd() *cobra.Command {
 		cmd.AgentReportCmd(d),
 		// cc-present artifact commands.
 		newStartCmd(d),
+		newShowCmd(d),
 		newPushCmd(d),
 		newUpdateBlockCmd(d),
 		newRemoveBlockCmd(d),

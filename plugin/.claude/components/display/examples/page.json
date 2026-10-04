@@ -1,0 +1,6 @@
+{
+  "id": "why",
+  "type": "display.page",
+  "title": "Why the old executor cannot start new runs",
+  "md": "The api used to write a run row and let executors **poll** for it. Since the push-based start, the api hands each run to one executor directly.\n\n```mermaid\nflowchart LR\n  api[api] -- push start --> new[new executor]\n  api -. no push handler .-> old[old executor]\n```\n\nAn executor built before the change never receives a start, so its runs wait forever."
+}

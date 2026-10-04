@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "display.sequence",
+  "type": "object",
+  "required": ["id", "type", "panels"],
+  "additionalProperties": false,
+  "properties": {
+    "id": { "type": "string", "minLength": 1 },
+    "type": { "const": "display.sequence" },
+    "title": { "$ref": "#/$defs/line" },
+    "autoplay": { "type": "boolean", "default": true },
+    "intervalMs": { "type": "integer", "minimum": 400, "maximum": 10000, "default": 1600 },
+    "panels": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 3,
+      "items": {
+        "type": "object",
+        "required": ["actors", "steps"],
+        "additionalProperties": false,
+        "properties": {
+          "title": { "$ref": "#/$defs/line" },
+          "actors": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 8,
+            "items": {
+              "type": "object",
+              "required": ["id", "label"],
+              "additionalProperties": false,
+              "properties": {
+                "id": { "type": "string", "minLength": 1 },
+                "label": { "$ref": "#/$defs/line" }
+              }
+            }
+          },
+          "steps": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 60,
+            "items": {
+              "type": "object",
+              "required": ["from", "label"],
+              "additionalProperties": false,
+              "properties": {
+                "from": { "type": "string", "minLength": 1 },
+                "to": { "type": "string", "minLength": 1 },
+                "label": { "$ref": "#/$defs/line" },
+                "note": { "type": "string", "minLength": 1 },
+                "tone": { "$ref": "#/$defs/tone" },
+                "dashed": { "type": "boolean" }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "line": { "type": "string", "minLength": 1, "pattern": "^[^\\n]*$" },
+    "tone": { "enum": ["default", "ok", "warn", "danger"] }
+  }
+}

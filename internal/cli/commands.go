@@ -298,13 +298,7 @@ func newStartCmd(d cmd.Deps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			out := c.OutOrStdout()
-			_, _ = fmt.Fprintf(out, "session: %s\n", res.SubjectID)
-			_, _ = fmt.Fprintf(out, "url: %s\n", res.URL)
-			for _, u := range res.TailnetURLs {
-				_, _ = fmt.Fprintf(out, "tailnet: %s\n", u)
-			}
-			_, _ = fmt.Fprintf(out, "channel: %s\n", res.ChannelState)
+			printStart(c, res.SubjectID, res.URL, res.TailnetURLs, res.ChannelState)
 			return nil
 		},
 	}
@@ -314,6 +308,16 @@ func newStartCmd(d cmd.Deps) *cobra.Command {
 	c.Flags().BoolVar(&fresh, "new", false, "force a fresh artifact, detaching any existing one for this window")
 	c.Flags().StringVar(&docPath, "doc", "", "seed the artifact with a document from a file (- for stdin)")
 	return c
+}
+
+func printStart(c *cobra.Command, subjectID, url string, tailnet []string, channel string) {
+	out := c.OutOrStdout()
+	_, _ = fmt.Fprintf(out, "session: %s\n", subjectID)
+	_, _ = fmt.Fprintf(out, "url: %s\n", url)
+	for _, u := range tailnet {
+		_, _ = fmt.Fprintf(out, "tailnet: %s\n", u)
+	}
+	_, _ = fmt.Fprintf(out, "channel: %s\n", channel)
 }
 
 // newPushCmd replaces the artifact's document. --dry-run validates the document

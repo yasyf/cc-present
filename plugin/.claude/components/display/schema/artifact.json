@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "display.artifact",
+  "type": "object",
+  "required": ["id", "type", "kind", "source"],
+  "additionalProperties": false,
+  "properties": {
+    "id": { "type": "string", "minLength": 1 },
+    "type": { "const": "display.artifact" },
+    "title": { "type": "string", "minLength": 1, "pattern": "^[^\\n]*$" },
+    "kind": { "enum": ["html", "svg"] },
+    "source": { "type": "string", "minLength": 1, "maxLength": 524288 },
+    "height": { "type": "integer", "minimum": 80, "maximum": 4000 }
+  }
+}

@@ -165,7 +165,8 @@ on a pack you've already shipped. Two caveats when you rebuild:
 
 Put the pack source at `.claude/components/` in your Claude plugin. The
 components directory is the pack root
-(`.claude/components/cc-present.toml`), and a plugin ships exactly one pack.
+(`.claude/components/cc-present.toml`). A plugin with several packs puts each
+in its own subdirectory, such as `.claude/components/<pack>/cc-present.toml`.
 Discovery builds missing or stale source bundles inside the plugin's install
 directory, so `dist/` can stay ignored. Commit the `bun.lock` the first build
 writes so later builds install the same versions. `bun` must be available on
