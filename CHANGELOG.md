@@ -15,6 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   every cell when the block is narrower than 600 px, instead of scrolling
   sideways.
 
+## [0.37.0] - 2026-10-03
+
 ### Added
 
 - **The plugin ships a read-only `display` pack for explanations.**
