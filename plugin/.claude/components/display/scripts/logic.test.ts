@@ -78,6 +78,11 @@ describe('wrapLabel', () => {
     expect(wrapLabel('Database', 60, measure)).toEqual({ lines: ['Datab-', 'ase'], clipped: false });
   });
 
+  test('leaves at least two letters after a hyphen', () => {
+    const narrowHyphen = (s: string) => s.replaceAll('-', '').length * 10 + (s.includes('-') ? 5 : 0);
+    expect(wrapLabel('Database', 78, narrowHyphen)).toEqual({ lines: ['Databa-', 'se'], clipped: false });
+  });
+
   test('clips overflow past the last line with an ellipsis', () => {
     expect(wrapLabel('Read the executor binding now', 100, measure, 2)).toEqual({ lines: ['Read the', 'executor…'], clipped: true });
   });

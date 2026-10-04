@@ -83,9 +83,9 @@ function breakWord(word: string, maxWidth: number, measure: (s: string) => numbe
   const parts: string[] = [];
   let rest = word;
   while (measure(rest) > maxWidth) {
-    let n = rest.length - 1;
+    let n = rest.length - 2;
     while (n >= 3 && measure(`${rest.slice(0, n)}-`) > maxWidth) n--;
-    if (n < 3 || rest.length - n < 2) break;
+    if (n < 3) break;
     parts.push(`${rest.slice(0, n)}-`);
     rest = rest.slice(n);
   }
