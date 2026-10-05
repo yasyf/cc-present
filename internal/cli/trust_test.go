@@ -19,6 +19,9 @@ func TestRenderTrust(t *testing.T) {
 			}},
 			{Target: "yasyf@nas-local"},
 		},
+		Devices: []meshtrust.HostTrust{
+			{Target: "yphone.tail71af5d.ts.net", Addrs: []netip.Addr{netip.MustParseAddr("100.85.236.83")}},
+		},
 	}
 	tests := []struct {
 		name string
@@ -37,6 +40,7 @@ func TestRenderTrust(t *testing.T) {
 				"self: yasyf@yasyf-home.tail71af5d.ts.net",
 				"  yasyf@yasyf.tail71af5d.ts.net → 100.114.101.73, fd7a:115c:a1e0::d101:654a",
 				"  yasyf@nas-local → no tailnet IPs — not network-trusted",
+				"trusted owner devices (same tailnet user):\n  yphone.tail71af5d.ts.net → 100.85.236.83",
 				"tailnet listeners: 100.88.252.58:52668",
 			},
 		},
@@ -61,6 +65,7 @@ func TestRenderTrust(t *testing.T) {
 			true,
 			[]string{
 				"  (none registered)",
+				"  (none online)",
 				"tailnet listeners: none published — tailscale down, or daemon started before trust",
 			},
 		},

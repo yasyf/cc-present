@@ -592,8 +592,8 @@ the SPA. A request is accepted on exactly one of three paths:
   the `Origin`-header gate below. A v4-in-v6 `::ffff:127.0.0.1` counts as
   loopback; a zoned `[::1%zone]` does not.
 - **Trusted peer.** A non-loopback TCP peer whose IP belongs to a machine in the
-  user's synckit mesh (below) passes without a token, under the same
-  `Origin`-header gate.
+  user's synckit mesh or an owner device (below) passes without a token, under
+  the same `Origin`-header gate.
 - **Bearer token.** Any other request must carry the token, in an
   `Authorization: Bearer <token>` header or the `?token=` query fallback that
   browser `EventSource` needs, since it cannot set headers. The header wins when
@@ -625,6 +625,11 @@ empty on any read, exec, or parse error. Bare-LAN registry entries resolve to no
 tailnet IPs and are not network-trusted. Offline peers stay trusted — the set is
 identity, not liveness. Trust is machine-level: any process on a trusted machine
 can reach the plane.
+
+The trust set also includes owner devices, peers with the same Tailscale user ID
+as self, no tags, and `ShareeNode` false. A tagged self recognises no owner devices.
+Both groups share the 30-second TTL and fail-closed behavior. Owner device names
+never become trusted Origins; the Origin-header gate is unchanged.
 
 With trust on and a loopback primary bind, the daemon additionally binds each of
 its own tailnet IPs, best-effort: an unbindable address is skipped with a
@@ -672,8 +677,9 @@ composed URLs fall back to the label form (or IPs when no name is usable).
 
 `cc-present trust` is a read-only inspector: it reports whether synckit state
 was detected, each registered host with its resolved tailnet IPs (or that it is
-not network-trusted), and the live listener addresses when the daemon is
-reachable.
+not network-trusted), owner devices with their tailnet IPs, and the live listener
+addresses when the daemon is reachable. The second section,
+`trusted owner devices (same tailnet user):`, lists owner devices or `(none online)`.
 
 Dial the plane directly, never through a reverse proxy. `tailscale serve` and
 Funnel deliver every proxied request from a loopback TCP peer, which rides the
