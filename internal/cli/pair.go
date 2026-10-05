@@ -8,6 +8,7 @@ import (
 	"io"
 	"net"
 	"os"
+	"strconv"
 
 	qrterminal "github.com/mdp/qrterminal/v3"
 	"github.com/spf13/cobra"
@@ -15,6 +16,7 @@ import (
 	"github.com/yasyf/cc-interact/cmd"
 	ccd "github.com/yasyf/cc-interact/daemon"
 	"github.com/yasyf/daemonkit/paths"
+	"github.com/yasyf/synckit/meshtrust"
 
 	"github.com/yasyf/cc-present/internal/app"
 )
@@ -50,8 +52,8 @@ func newPairCmd(d cmd.Deps) *cobra.Command {
 }
 
 // runPair rebinds the daemon to the LAN, ensures a bearer token, restarts the
-// daemon if needed, then prints the LAN candidates, a QR code, and the pairing
-// payload as copyable text.
+// daemon if needed, then prints the tailnet and LAN candidates, a QR code, and
+// the pairing payload as copyable text.
 func runPair(ctx context.Context, d cmd.Deps, out io.Writer, resetToken bool) error {
 	if err := setBind(bindLAN); err != nil {
 		return err
@@ -80,17 +82,25 @@ func runPair(ctx context.Context, d cmd.Deps, out io.Writer, resetToken bool) er
 	if err != nil {
 		return err
 	}
-	if len(ips) == 0 {
-		return errors.New("no LAN IPv4 address found on any up, non-loopback interface")
+	label := tailnetLabel(ctx)
+	host, err := pairHost(label, ips)
+	if err != nil {
+		return err
 	}
 
-	_, _ = fmt.Fprintln(out, "LAN addresses:")
-	for _, ip := range ips {
-		_, _ = fmt.Fprintf(out, "  %s:%d\n", ip, info.Port)
+	if label != "" {
+		_, _ = fmt.Fprintln(out, "Tailnet address:")
+		_, _ = fmt.Fprintf(out, "  %s:%d\n\n", label, info.Port)
 	}
-	_, _ = fmt.Fprintln(out)
+	if len(ips) > 0 {
+		_, _ = fmt.Fprintln(out, "LAN addresses:")
+		for _, ip := range ips {
+			_, _ = fmt.Fprintf(out, "  %s:%d\n", ip, info.Port)
+		}
+		_, _ = fmt.Fprintln(out)
+	}
 
-	_, payload, err := composePairPayload(ips[0], info.Port, token)
+	_, payload, err := composePairPayload(host, info.Port, token)
 	if err != nil {
 		return err
 	}
@@ -103,7 +113,7 @@ func runPair(ctx context.Context, d cmd.Deps, out io.Writer, resetToken bool) er
 	})
 	_, _ = fmt.Fprintln(out)
 	_, _ = fmt.Fprintf(out, "pair payload: %s\n", payload)
-	_, _ = fmt.Fprintf(out, "host: %s:%d\n", ips[0], info.Port)
+	_, _ = fmt.Fprintf(out, "host: %s:%d\n", host, info.Port)
 	_, _ = fmt.Fprintln(out, "\nOpen browser tabs reconnect on their own after the daemon restarts.")
 	return nil
 }
@@ -196,9 +206,31 @@ type pairPayload struct {
 	Token string `json:"token"`
 }
 
+// tailnetLabel is this machine's bare MagicDNS label when the synckit mesh and
+// tailscale are up, else empty.
+func tailnetLabel(ctx context.Context) string {
+	tp := meshtrust.Detect()
+	if tp == nil {
+		return ""
+	}
+	return tp.SelfHostLabel(ctx)
+}
+
+// pairHost picks the host the pairing URL names: the tailnet label, which the
+// phone reaches on and off the LAN, else the first LAN address.
+func pairHost(label string, ips []net.IP) (string, error) {
+	if label != "" {
+		return label, nil
+	}
+	if len(ips) == 0 {
+		return "", errors.New("no tailnet name or LAN IPv4 address found on any up, non-loopback interface")
+	}
+	return ips[0].String(), nil
+}
+
 // composePairPayload builds the pairing payload and its compact JSON encoding.
-func composePairPayload(ip net.IP, port int, token string) (pairPayload, string, error) {
-	p := pairPayload{V: 1, URL: fmt.Sprintf("http://%s:%d", ip, port), Token: token}
+func composePairPayload(host string, port int, token string) (pairPayload, string, error) {
+	p := pairPayload{V: 1, URL: "http://" + net.JoinHostPort(host, strconv.Itoa(port)), Token: token}
 	raw, err := json.Marshal(p)
 	if err != nil {
 		return pairPayload{}, "", err

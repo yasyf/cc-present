@@ -86,7 +86,7 @@ func TestPickLANIPs(t *testing.T) {
 }
 
 func TestComposePairPayload(t *testing.T) {
-	p, raw, err := composePairPayload(net.ParseIP("192.168.1.5"), 8765, "deadbeef")
+	p, raw, err := composePairPayload("192.168.1.5", 8765, "deadbeef")
 	if err != nil {
 		t.Fatalf("composePairPayload: %v", err)
 	}
@@ -103,6 +103,43 @@ func TestComposePairPayload(t *testing.T) {
 	want := `{"v":1,"url":"http://192.168.1.5:8765","token":"deadbeef"}`
 	if raw != want {
 		t.Fatalf("payload = %q, want %q", raw, want)
+	}
+}
+
+func TestComposePairPayloadTailnetLabel(t *testing.T) {
+	p, _, err := composePairPayload("yasyf-forge-studio", 61118, "deadbeef")
+	if err != nil {
+		t.Fatalf("composePairPayload: %v", err)
+	}
+	if p.URL != "http://yasyf-forge-studio:61118" {
+		t.Fatalf("URL = %q, want http://yasyf-forge-studio:61118", p.URL)
+	}
+}
+
+func TestPairHost(t *testing.T) {
+	lan := []net.IP{net.ParseIP("192.168.4.21").To4(), net.ParseIP("10.0.0.2").To4()}
+	tests := []struct {
+		name    string
+		label   string
+		ips     []net.IP
+		want    string
+		wantErr bool
+	}{
+		{name: "tailnet label wins over LAN", label: "studio", ips: lan, want: "studio"},
+		{name: "tailnet label without LAN", label: "studio", want: "studio"},
+		{name: "first LAN address without tailnet", ips: lan, want: "192.168.4.21"},
+		{name: "neither", wantErr: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := pairHost(tt.label, tt.ips)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("pairHost err = %v, wantErr %v", err, tt.wantErr)
+			}
+			if got != tt.want {
+				t.Fatalf("pairHost = %q, want %q", got, tt.want)
+			}
+		})
 	}
 }
 
