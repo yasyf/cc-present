@@ -720,8 +720,12 @@ reconnect on their own), and prints a terminal QR code plus the same payload as
 copyable text:
 
 ```ts
-PairPayload = { v: 1, url: "http://<lan-ip>:<port>", token: string }
+PairPayload = { v: 1, url: "http://<host>:<port>", token: string }
 ```
+
+`host` is the machine's bare MagicDNS label when the synckit mesh and tailscale
+are up, so a phone on the tailnet reaches the daemon off the LAN too; otherwise,
+it is the first LAN IPv4 address.
 
 `v` is the pairing-payload schema version. `--reset-token` regenerates the token
 before pairing; `--off` rebinds the daemon to loopback, taking the plane off the
