@@ -61,7 +61,7 @@ cc-present pair
 
 On a tailnet, the code names this machine's MagicDNS label, so the app reaches your boards wherever Tailscale runs on the phone; otherwise, it names the first LAN address. Your open boards appear in the app, and every tap streams back like any other click. `cc-present pair --off` rebinds to loopback and takes the boards off the LAN.
 
-Machines in your [synckit](https://github.com/yasyf/synckit) mesh skip pairing entirely: the daemon trusts them automatically and serves your boards over the tailnet, no token required. The trust rules live in [Authentication](docs/contract.md#authentication).
+Machines in your [synckit](https://github.com/yasyf/synckit) mesh open board URLs over the tailnet without a token. So do your own untagged devices logged in as the same Tailscale user as this Mac, including your phone or tablet's browser; share recipients' nodes are excluded. The iOS app still pairs with `cc-present pair`. The trust rules live in [Authentication](docs/contract.md#authentication).
 
 ## Run on a Linux workspace
 

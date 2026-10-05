@@ -55,7 +55,17 @@ func renderTrust(out io.Writer, statePath string, m meshtrust.Mesh, info ccd.HTT
 	if len(m.Hosts) == 0 {
 		_, _ = fmt.Fprintln(out, "  (none registered)")
 	}
-	for _, h := range m.Hosts {
+	renderTrustRows(out, m.Hosts)
+	_, _ = fmt.Fprintln(out, "trusted owner devices (same tailnet user):")
+	if len(m.Devices) == 0 {
+		_, _ = fmt.Fprintln(out, "  (none online)")
+	}
+	renderTrustRows(out, m.Devices)
+	_, _ = fmt.Fprint(out, listenerLine(info, live))
+}
+
+func renderTrustRows(out io.Writer, rows []meshtrust.HostTrust) {
+	for _, h := range rows {
 		if len(h.Addrs) == 0 {
 			_, _ = fmt.Fprintf(out, "  %s → no tailnet IPs — not network-trusted\n", h.Target)
 			continue
@@ -66,7 +76,6 @@ func renderTrust(out io.Writer, statePath string, m meshtrust.Mesh, info ccd.HTT
 		}
 		_, _ = fmt.Fprintf(out, "  %s → %s\n", h.Target, strings.Join(addrs, ", "))
 	}
-	_, _ = fmt.Fprint(out, listenerLine(info, live))
 }
 
 // listenerLine renders the daemon's tailnet-serving state: live listeners, a
