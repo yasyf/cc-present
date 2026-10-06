@@ -75,10 +75,22 @@ func (cl *Client) Resolve(ctx context.Context, session, scope string, pid int) (
 	return reply.SubjectID, reply.HTTPPort, nil
 }
 
+// StartMode is how a start treats the session's existing artifact.
+type StartMode int
+
+const (
+	// StartResume resumes the session's artifact, creating one when none is open.
+	StartResume StartMode = iota
+	// StartNew creates a fresh artifact and refuses while the session has an open one.
+	StartNew
+	// StartReplace closes the session's open artifact and creates a fresh one.
+	StartReplace
+)
+
 // Start creates or resumes the window's artifact, optionally seeding it with a
 // document.
-func (cl *Client) Start(ctx context.Context, session, scope string, pid int, fresh bool, title string, docJSON json.RawMessage) (StartResult, error) {
-	reply, res, err := cl.do(ctx, OpStart, session, scope, pid, body{New: fresh, Title: title, Doc: docJSON})
+func (cl *Client) Start(ctx context.Context, session, scope string, pid int, mode StartMode, title string, docJSON json.RawMessage) (StartResult, error) {
+	reply, res, err := cl.do(ctx, OpStart, session, scope, pid, body{New: mode == StartNew, Replace: mode == StartReplace, Title: title, Doc: docJSON})
 	if err != nil {
 		return StartResult{}, err
 	}

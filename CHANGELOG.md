@@ -6,6 +6,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- `start --new` and `show --new` refuse while the session already has an
+  open artifact. The error names its slug, URL, and subject id, and says to pass
+  `--replace`. A subagent shares its parent's session id, so its `--new` had
+  closed the parent's live board. `--replace` is now the only way to close an
+  open artifact from `start` or `show`.
+
 ### Fixed
 
 - `start --new` under another session id no longer closes the Claude window's

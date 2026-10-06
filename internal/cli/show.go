@@ -17,7 +17,7 @@ import (
 func newShowCmd(d cmd.Deps) *cobra.Command {
 	var session, cwd, title string
 	var height int
-	var fresh bool
+	var fresh, replace bool
 	c := &cobra.Command{
 		Use:   "show <file.html|file.svg|file.md>",
 		Short: "Show a one-off HTML, SVG, or Markdown file as this window's artifact",
@@ -41,7 +41,7 @@ func newShowCmd(d cmd.Deps) *cobra.Command {
 				return err
 			}
 			defer func() { _ = cl.CloseSession() }()
-			res, err := cl.Start(ctx, sessionOr(session), mustCwd(cwd), d.ClaudePID(), fresh, "", docJSON)
+			res, err := cl.Start(ctx, sessionOr(session), mustCwd(cwd), d.ClaudePID(), startMode(fresh, replace), "", docJSON)
 			if err != nil {
 				return err
 			}
@@ -53,7 +53,8 @@ func newShowCmd(d cmd.Deps) *cobra.Command {
 	c.Flags().StringVar(&cwd, "cwd", "", "working directory (recorded on the request; artifacts are per-window, not resolved by directory)")
 	c.Flags().StringVar(&title, "title", "", "artifact title (defaults to the file name)")
 	c.Flags().IntVar(&height, "height", 0, "fixed frame height in pixels for HTML and SVG (default: size to content)")
-	c.Flags().BoolVar(&fresh, "new", false, "force a fresh artifact, detaching any existing one for this window")
+	c.Flags().BoolVar(&fresh, "new", false, "start a fresh artifact; refuses while this session has an open one")
+	c.Flags().BoolVar(&replace, "replace", false, "close this session's open artifact and start a fresh one")
 	return c
 }
 

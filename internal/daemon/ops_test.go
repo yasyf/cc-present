@@ -166,6 +166,43 @@ func TestStart(t *testing.T) {
 		}
 	})
 
+	t.Run("new start refuses while the session's artifact is open", func(t *testing.T) {
+		h := newHarness(t)
+		open := handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks, nilDisplay)
+		reply := handleStart(h.hc(body{Title: "Again", New: true}), doc.NoPacks, nilDisplay)
+		if reply.OK {
+			t.Fatal("new start over an open artifact succeeded")
+		}
+		sub, _, err := h.resolver.Find(context.Background(), h.hc(body{}).Window, scopeSentinel)
+		if err != nil {
+			t.Fatalf("find: %v", err)
+		}
+		for _, want := range []string{sub.Slug, open.SubjectID, "--replace"} {
+			if !strings.Contains(reply.Error, want) {
+				t.Fatalf("refusal %q does not name %q", reply.Error, want)
+			}
+		}
+		if sub.ID != open.SubjectID || sub.Status != statusOpen {
+			t.Fatalf("session resolves to %q (%s), want the open %q", sub.ID, sub.Status, open.SubjectID)
+		}
+	})
+
+	t.Run("replace start closes the session's open artifact", func(t *testing.T) {
+		h := newHarness(t)
+		old := handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks, nilDisplay)
+		reply := handleStart(h.hc(body{Title: "Again", Replace: true}), doc.NoPacks, nilDisplay)
+		if !reply.OK {
+			t.Fatalf("replace start not ok: %s", reply.Error)
+		}
+		if reply.SubjectID == old.SubjectID {
+			t.Fatal("replace start resumed the open artifact")
+		}
+		prior, err := h.resolver.Store.Get(context.Background(), old.SubjectID)
+		if err != nil || prior.Status != statusClosed {
+			t.Fatalf("prior status = %q (err %v), want closed", prior.Status, err)
+		}
+	})
+
 	t.Run("start after close creates a fresh subject", func(t *testing.T) {
 		h := newHarness(t)
 		first := handleStart(h.hc(body{Title: "One"}), doc.NoPacks, nilDisplay)
