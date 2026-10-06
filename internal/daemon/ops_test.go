@@ -145,6 +145,27 @@ func TestStart(t *testing.T) {
 		}
 	})
 
+	t.Run("fresh start under another session keeps the window's open artifact", func(t *testing.T) {
+		h := newHarness(t)
+		parent := handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks, nilDisplay)
+		child := h.hc(body{Title: "Child", New: true})
+		child.Env.Session, child.Window.Session = "s2", "s2"
+		reply := handleStart(child, doc.NoPacks, nilDisplay)
+		if !reply.OK {
+			t.Fatalf("child start not ok: %s", reply.Error)
+		}
+		if reply.SubjectID == parent.SubjectID {
+			t.Fatal("child start resumed the parent's artifact")
+		}
+		sub, ok, err := h.resolver.Find(context.Background(), h.hc(body{}).Window, scopeSentinel)
+		if err != nil || !ok || sub.ID != parent.SubjectID {
+			t.Fatalf("parent session resolves to %q (ok=%v err=%v), want %q", sub.ID, ok, err, parent.SubjectID)
+		}
+		if sub.Status != statusOpen {
+			t.Fatalf("parent status = %q, want open", sub.Status)
+		}
+	})
+
 	t.Run("start after close creates a fresh subject", func(t *testing.T) {
 		h := newHarness(t)
 		first := handleStart(h.hc(body{Title: "One"}), doc.NoPacks, nilDisplay)
