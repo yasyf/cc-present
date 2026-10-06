@@ -192,7 +192,8 @@ func Serve(ctx context.Context, p paths.Paths, spec daemonkit.Daemon, runtimeBui
 // handleStart creates or resumes the window's artifact subject, optionally
 // appending an initial doc.replaced, and reports the URL and channel state. A
 // prior close is terminal, so a resume that would land on a closed subject is
-// forced fresh instead.
+// forced fresh instead. A new start refuses while the session's own artifact is
+// open; only a replace closes it.
 func handleStart(hc ccd.HandlerCtx, pt doc.PackTypes, display displayFunc) ccd.Reply {
 	b := decodeBody(hc.Env.Body)
 	var d *doc.Doc
@@ -209,7 +210,15 @@ func handleStart(hc ccd.HandlerCtx, pt doc.PackTypes, display displayFunc) ccd.R
 	if d != nil {
 		titleBase = d.Title
 	}
-	fresh := b.New
+	if b.New {
+		if cur, ok, err := hc.Subjects.Store.FindBySessionScope(hc.Ctx, hc.Window.Session, hc.Scope); err != nil {
+			return errReply(err.Error())
+		} else if ok && cur.Status != statusClosed {
+			return errReply(fmt.Sprintf("session %s already has open artifact %s (%s, subject %s); pass --replace to close it and start fresh",
+				hc.Window.Session, cur.Slug, artifactURL(hc.HTTPPort, cur.Slug), cur.ID))
+		}
+	}
+	fresh := b.New || b.Replace
 	if !fresh {
 		if cur, ok, err := hc.Subjects.Find(hc.Ctx, hc.Window, hc.Scope); err != nil {
 			return errReply(err.Error())

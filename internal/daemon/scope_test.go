@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -113,7 +114,7 @@ func TestArtifactResolutionIsCwdIndependent(t *testing.T) {
 
 	t.Run("mutations resolve across cwds to one subject", func(t *testing.T) {
 		cl := startTestDaemon(ctx, t)
-		start, err := cl.Start(ctx, "s1", "/repo-root", 0, false, "", json.RawMessage(approvalDoc))
+		start, err := cl.Start(ctx, "s1", "/repo-root", 0, StartResume, "", json.RawMessage(approvalDoc))
 		if err != nil {
 			t.Fatalf("start: %v", err)
 		}
@@ -145,7 +146,7 @@ func TestArtifactResolutionIsCwdIndependent(t *testing.T) {
 
 	t.Run("pid fallback across cwd", func(t *testing.T) {
 		cl := startTestDaemon(ctx, t)
-		start, err := cl.Start(ctx, "s1", "/a", 4242, false, "T", nil)
+		start, err := cl.Start(ctx, "s1", "/a", 4242, StartResume, "T", nil)
 		if err != nil {
 			t.Fatalf("start: %v", err)
 		}
@@ -162,7 +163,7 @@ func TestArtifactResolutionIsCwdIndependent(t *testing.T) {
 
 	t.Run("another window cannot adopt", func(t *testing.T) {
 		cl := startTestDaemon(ctx, t)
-		if _, err := cl.Start(ctx, "s1", "/repo-root", 0, false, "T", nil); err != nil {
+		if _, err := cl.Start(ctx, "s1", "/repo-root", 0, StartResume, "T", nil); err != nil {
 			t.Fatalf("start: %v", err)
 		}
 		// A second session with no matching pid owns nothing here, even at the
@@ -177,18 +178,18 @@ func TestArtifactResolutionIsCwdIndependent(t *testing.T) {
 	})
 }
 
-// TestStartResumesAcrossCwd asserts a resume (fresh=false) rebinds to the same
-// artifact from a new cwd, while --new detaches it and creates a distinct one
-// that subsequent resolution then finds.
+// TestStartResumesAcrossCwd asserts a resume rebinds to the same artifact from a
+// new cwd, --new refuses while it is open, and --replace closes it and creates a
+// distinct one that subsequent resolution then finds.
 func TestStartResumesAcrossCwd(t *testing.T) {
 	ctx := context.Background()
 	cl := startTestDaemon(ctx, t)
 
-	first, err := cl.Start(ctx, "s1", "/a", 0, false, "T", nil)
+	first, err := cl.Start(ctx, "s1", "/a", 0, StartResume, "T", nil)
 	if err != nil {
 		t.Fatalf("first start: %v", err)
 	}
-	resume, err := cl.Start(ctx, "s1", "/b", 0, false, "T", nil)
+	resume, err := cl.Start(ctx, "s1", "/b", 0, StartResume, "T", nil)
 	if err != nil {
 		t.Fatalf("resume start: %v", err)
 	}
@@ -196,9 +197,12 @@ func TestStartResumesAcrossCwd(t *testing.T) {
 		t.Fatalf("resume from a new cwd = %q, want %q (same artifact)", resume.SubjectID, first.SubjectID)
 	}
 
-	fresh, err := cl.Start(ctx, "s1", "/c", 0, true, "T", nil)
+	if _, err := cl.Start(ctx, "s1", "/c", 0, StartNew, "T", nil); err == nil || !strings.Contains(err.Error(), "--replace") {
+		t.Fatalf("new start over an open artifact: err = %v, want a refusal naming --replace", err)
+	}
+	fresh, err := cl.Start(ctx, "s1", "/c", 0, StartReplace, "T", nil)
 	if err != nil {
-		t.Fatalf("fresh start: %v", err)
+		t.Fatalf("replace start: %v", err)
 	}
 	if fresh.SubjectID == first.SubjectID {
 		t.Fatalf("fresh start reused subject %q instead of creating a new one", first.SubjectID)

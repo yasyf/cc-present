@@ -253,11 +253,22 @@ func mapHistory(raw json.RawMessage, fn func(map[string]json.RawMessage) error) 
 	return json.Marshal(rounds)
 }
 
+func startMode(fresh, replace bool) ccdaemon.StartMode {
+	switch {
+	case replace:
+		return ccdaemon.StartReplace
+	case fresh:
+		return ccdaemon.StartNew
+	default:
+		return ccdaemon.StartResume
+	}
+}
+
 // newStartCmd creates or resumes this window's artifact and prints its ref, URL,
 // and channel state, one per line.
 func newStartCmd(d cmd.Deps) *cobra.Command {
 	var session, cwd, title, docPath string
-	var fresh bool
+	var fresh, replace bool
 	c := &cobra.Command{
 		Use:   "start",
 		Short: "Create or resume this window's cc-present artifact and print its URL",
@@ -294,7 +305,7 @@ func newStartCmd(d cmd.Deps) *cobra.Command {
 					return err
 				}
 			}
-			res, err := cl.Start(ctx, sess, scope, pid, fresh, title, docJSON)
+			res, err := cl.Start(ctx, sess, scope, pid, startMode(fresh, replace), title, docJSON)
 			if err != nil {
 				return err
 			}
@@ -305,7 +316,8 @@ func newStartCmd(d cmd.Deps) *cobra.Command {
 	c.Flags().StringVar(&session, "session", "", "Claude session id (defaults to $CLAUDE_CODE_SESSION_ID)")
 	c.Flags().StringVar(&cwd, "cwd", "", "working directory (recorded on the request; artifacts are per-window, not resolved by directory)")
 	c.Flags().StringVar(&title, "title", "", "artifact title used for the URL slug when no --doc is given")
-	c.Flags().BoolVar(&fresh, "new", false, "force a fresh artifact, detaching any existing one for this window")
+	c.Flags().BoolVar(&fresh, "new", false, "start a fresh artifact; refuses while this session has an open one")
+	c.Flags().BoolVar(&replace, "replace", false, "close this session's open artifact and start a fresh one")
 	c.Flags().StringVar(&docPath, "doc", "", "seed the artifact with a document from a file (- for stdin)")
 	return c
 }

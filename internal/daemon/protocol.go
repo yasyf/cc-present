@@ -52,6 +52,7 @@ const (
 // envelope itself.
 type body struct {
 	New      bool            `json:"new,omitempty"`      // start
+	Replace  bool            `json:"replace,omitempty"`  // start
 	Title    string          `json:"title,omitempty"`    // start | round | push,upsert-block round-title
 	Doc      json.RawMessage `json:"doc,omitempty"`      // start | push
 	Block    json.RawMessage `json:"block,omitempty"`    // upsert-block
