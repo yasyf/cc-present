@@ -31,3 +31,5 @@ The tailnet URL serves machines in the mesh and the owner's untagged devices log
 **The Monitor stopped under an event flood, or replayed old events.** Monitors stop themselves under a high event rate — re-arm it; `watch` resumes from its cursor, so nothing is lost. Delivery is at-least-once, so a re-armed Monitor (or a channel/Monitor overlap) can replay frames you already handled: replays are harmless, since decisions, choices, and inputs are last-write-wins and feedback dedupes by its `id`.
 
 **An image block failed to inline.** `image "<path>" not found` means the src is a local path the CLI can't read from your cwd — use an absolute path. `exceeds 5242880` means the file is past the 5 MiB asset cap — compress it, or host it and use an `https://` src.
+
+**A write after `| grep … &&` never ran.** `revising`, `update-block`, and `remove-block` print nothing on success. Piped into `grep` or `grep -v`, they leave grep no matching line, so grep exits 1 and `&&` skips the next command without an error. Run each write as its own command and check its exit status, never through a grep filter.

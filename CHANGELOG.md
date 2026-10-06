@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `start --new` under another session id no longer closes the Claude window's
+  open artifact. A subagent's fresh start had fallen back to the window pid,
+  closed and detached the parent's board, and left the parent's session
+  resolving to the subagent's subject. The fix is in cc-interact's
+  `Resolver.Start`.
 - `display.sequence` hyphenates a label word that fits only by leaving one
   letter behind, instead of clipping it, and re-measures labels once web
   fonts load.
