@@ -12,12 +12,12 @@ import (
 	"regexp"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/yasyf/cc-interact/channel"
 	ccd "github.com/yasyf/cc-interact/daemon"
 	ccevent "github.com/yasyf/cc-interact/event"
 	"github.com/yasyf/cc-interact/subject"
+	"github.com/yasyf/cc-interact/tailnet"
 	"github.com/yasyf/daemonkit"
 	"github.com/yasyf/daemonkit/paths"
 	"github.com/yasyf/synckit/meshtrust"
@@ -39,10 +39,6 @@ const (
 	// channelPollWindow is how recent a channel resolve poll must be to count as
 	// presence; it only distinguishes pending from inactive.
 	channelPollWindow = 2 * ccd.ResolvePollCeiling
-	// displayCertWait bounds how long composing a display waits for the boot
-	// mint when the tailnet publishes a cert domain. Only a display landing
-	// inside the boot window ever waits: the first mint latches ready forever.
-	displayCertWait = 2 * time.Second
 )
 
 // scopeSentinel is the constant ownership scope every envelope's raw scope
@@ -72,25 +68,6 @@ var writeMu sync.Mutex
 func BuildServer(ctx context.Context, p paths.Paths, spec daemonkit.Daemon, runtimeBuild, bind string, port int, token string, loader *packs.Loader, tp *meshtrust.Provider) (*ccd.Server, error) {
 	c := channel.Connectivity{}
 	ast := assets.New(filepath.Join(p.StateDir(), "assets"))
-	bonjour := bonjourHook(bind)
-	// srv is late-bound: the reconcile hook needs the *ccd.Server, but OnHTTPStart
-	// only fires inside Serve, after ccd.New has returned it.
-	var srv *ccd.Server
-	var mgr *certManager
-	display := displayFunc(func(ctx context.Context, slug string, port int) []string {
-		if tp == nil {
-			return nil
-		}
-		// https URLs only when the served cert covers the live cert domain —
-		// during a tailnet-rename window the IP URLs print instead.
-		certDomain := tp.SelfCertDomain(ctx)
-		if certDomain != "" {
-			mgr.awaitReady(ctx, displayCertWait)
-		}
-		domain := mgr.mintedDomain()
-		minted := domain != "" && domain == certDomain
-		return displayURLs(domain, minted, tp.SelfHostLabel(ctx), srv.HTTPExtraAddrs(), tp.SelfAddrs(ctx), bind, port, slug)
-	})
 	cfg := ccd.Config{
 		AppName:        appName,
 		Paths:          p,
@@ -112,27 +89,19 @@ func BuildServer(ctx context.Context, p paths.Paths, spec daemonkit.Daemon, runt
 		BindAddr:    bind,
 		FixedPort:   port,
 		HTTPToken:   token,
-		OnHTTPStart: bonjour,
+		OnHTTPStart: bonjourHook(bind),
 		// There is no edit gate or domain schema: document and interaction state
 		// are a pure reduction of the event log. ScopeResolve canonicalizes every
 		// raw cwd to the window sentinel.
 		ScopeResolve: resolveScope,
 	}
-	if tp != nil {
-		mgr = newCertManager(filepath.Join(p.StateDir(), "tls"))
-		armBeforeLegs(ctx, mgr, tp.SelfCertDomain(ctx))
-		cfg.TrustedPeer = tp.TrustedPeer
-		cfg.TrustedOrigin = tp.TrustedOrigin
-		cfg.ExtraHTTPListeners = tailnetListeners(p, bind, tp.SelfAddrs(ctx), mgr)
-		cfg.OnHTTPStart = combineHooks(bonjour, func(ctx context.Context, _ int) {
-			reconcileTailnet(ctx, srv, tp, p, bind, mgr)
-		})
-	}
-	s, err := ccd.New(cfg)
+	s, tn, err := tailnet.NewServer(ctx, cfg, tp)
 	if err != nil {
 		return nil, err
 	}
-	srv = s
+	display := displayFunc(func(ctx context.Context, slug string, port int) []string {
+		return tn.URLs(ctx, port, "/p/"+slug)
+	})
 	s.Register(OpStart, func(hc ccd.HandlerCtx) ccd.Reply { return handleStart(hc, loader.Current(), display) })
 	s.Register(OpPush, func(hc ccd.HandlerCtx) ccd.Reply { return handlePush(hc, loader.Current(), display) })
 	s.Register(OpUpsertBlock, func(hc ccd.HandlerCtx) ccd.Reply { return handleUpsertBlock(hc, loader.Current()) })
@@ -150,32 +119,6 @@ func BuildServer(ctx context.Context, p paths.Paths, spec daemonkit.Daemon, runt
 // primary HTTP port, or nil when the daemon has no mesh trust. BuildServer
 // injects it into the start and push handlers.
 type displayFunc func(ctx context.Context, slug string, port int) []string
-
-// combineHooks folds several OnHTTPStart hooks into one that runs every non-nil
-// hook concurrently and returns once all have — so each hook's shutdown contract
-// (the substrate waits for OnHTTPStart before exiting) survives. nil when none.
-func combineHooks(hooks ...func(context.Context, int)) func(context.Context, int) {
-	var live []func(context.Context, int)
-	for _, h := range hooks {
-		if h != nil {
-			live = append(live, h)
-		}
-	}
-	if len(live) == 0 {
-		return nil
-	}
-	return func(ctx context.Context, port int) {
-		var wg sync.WaitGroup
-		wg.Add(len(live))
-		for _, h := range live {
-			go func() {
-				defer wg.Done()
-				h(ctx, port)
-			}()
-		}
-		wg.Wait()
-	}
-}
 
 // Serve builds the daemon and runs it until ctx is cancelled. bind is the HTTP
 // plane's bind address (empty = loopback), port its pinned port (0 = unpinned),
