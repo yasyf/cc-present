@@ -178,6 +178,7 @@ struct BoardScreen: View {
         ForEach(group.blocks, id: \.id) { block in
             BlockView(block: block, store: store, client: client, packContext: packContext)
                 .environment(\.receiptReceded, blockDecided(block, state.interactions, packTypes))
+                .viewedOnScreen(block, round: state.rounds.current, store: store.viewed)
                 .id(block.id)
         }
     }

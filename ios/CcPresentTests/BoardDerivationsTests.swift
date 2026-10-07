@@ -80,6 +80,12 @@ private func triage(_ id: String, _ itemIds: [String]) -> Block {
     #expect(items.map(\.decided) == [true, false])
 }
 
+@Test func blockViewIdsCoverCardChildren() {
+    let blocks: [Block] = [markdown("m1"), card("c1", children: [approval("a1"), markdown("m2")])]
+
+    #expect(blockViewIds(blocks) == ["m1", "c1", "a1", "m2"])
+}
+
 @Test func submitItemsSkipsOptionalPack() {
     let blocks: [Block] = [
         pack("p1", "plan.calls"),
