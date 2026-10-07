@@ -41,6 +41,7 @@ export function emptyState(): PresentState {
       replies: {},
       annotations: {},
       triage: {},
+      viewed: {},
       submitted: { value: false, revision: 0 },
       closed: { value: false },
     },
@@ -198,9 +199,11 @@ export function applyEvent(state: PresentState, ev: PresentEvent): PresentState 
       });
     }
     case 'submit': {
-      const { revision } = ev.payload;
+      const { revision, viewed } = ev.payload;
+      const merged = { ...state.interactions.viewed };
+      for (const id of viewed ?? []) merged[id] = true;
       const submitted = {
-        ...withInteractions(state, { submitted: { value: true, revision } }),
+        ...withInteractions(state, { viewed: merged, submitted: { value: true, revision } }),
         revising: { blockIds: [] },
       };
       if (!isDirty(submitted)) return submitted;
@@ -398,6 +401,7 @@ function closeRound(state: PresentState, revision: number | undefined): PresentS
     feedback: filterClone(state.interactions.feedback, ids, (v) => [...v]),
     annotations: filterClone(state.interactions.annotations, ids, (v) => [...v]),
     triage: filterClone(state.interactions.triage, ids, (v) => ({ ...v })),
+    viewed: filterMap(state.interactions.viewed, ids),
   };
   if (state.rounds.currentTitle) record.title = state.rounds.currentTitle;
   if (revision !== undefined) record.submittedRevision = revision;

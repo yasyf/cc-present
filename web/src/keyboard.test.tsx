@@ -55,14 +55,19 @@ afterEach(() => {
   container.remove();
 });
 
-function render(onViewToggle: () => void, lightboxOpen: boolean, onClose: () => void): void {
+function render(
+  onViewToggle: () => void,
+  lightboxOpen: boolean,
+  onClose: () => void,
+  interactions: Interactions = empty(),
+): void {
   const present: PresentApi = { post: async () => true, closed: false, currentRound: 1 };
   act(() =>
     root.render(
       <PresentContext.Provider value={present}>
         <KeyboardProvider
           blocks={blocks}
-          interactions={empty()}
+          interactions={interactions}
           closed={false}
           round={1}
           onViewToggle={onViewToggle}
@@ -106,6 +111,14 @@ describe('keyboard global-shortcut gate behind a modal dialog', () => {
     render(toggle, false, onClose);
     press('v');
     expect(toggle).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('keyboard next-unanswered jump', () => {
+  it('announces All answered when nothing is left to answer', () => {
+    render(() => {}, false, () => {}, { ...empty(), decisions: { a1: { verdict: 'approved' } } });
+    press('n');
+    expect(container.querySelector('[role="status"]')?.textContent).toBe('All answered');
   });
 });
 

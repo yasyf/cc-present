@@ -38,6 +38,7 @@ const emptyInteractions = (): Interactions => ({
   replies: {},
   annotations: {},
   triage: {},
+  viewed: {},
   submitted: { value: false, revision: 0 },
   closed: { value: false },
 });

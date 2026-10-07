@@ -17,9 +17,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the git toplevel of the working directory. It also refuses secret-looking
   filenames and files whose text holds a secret, naming the matched class. A slice over 40 lines prints a
   stderr hint.
+- `submit` carries `viewed`, the blocks the human opened that round. A block
+  counts as opened when its focus step stays up for 800 ms, its board row stays
+  half on screen for 1.5 s, or the human acts on it. The reduced state gains
+  `interactions.viewed` and a per-round `viewed` snapshot, so `outcomes` can
+  tell a default the human saw and kept from one they never opened.
 
 ### Changed
 
+- The submit bar counts the items left to answer and reads "All answered" once
+  none remain, replacing "N / M decided." The `n` shortcut's help and its
+  announcement use the same words.
 - `start --new` and `show --new` refuse while the session already has an
   open artifact. The error names its slug, URL, and subject id, and says to pass
   `--replace`. A subagent shares its parent's session id, so its `--new` had

@@ -1,0 +1,98 @@
+{
+  "name": "submit-viewed",
+  "events": [
+    {
+      "origin": "agent",
+      "type": "doc.replaced",
+      "seq": 1,
+      "payload": {
+        "schemaVersion": 1,
+        "type": "doc.replaced",
+        "revision": 1,
+        "doc": {
+          "version": 1,
+          "title": "T",
+          "blocks": [
+            {
+              "id": "c1",
+              "type": "card",
+              "children": [
+                {
+                  "id": "ch1",
+                  "type": "choice",
+                  "options": [
+                    { "id": "o1", "label": "One", "recommended": true },
+                    { "id": "o2", "label": "Two" }
+                  ]
+                }
+              ]
+            },
+            { "id": "a1", "type": "approval", "prompt": "Ship?" }
+          ]
+        }
+      }
+    },
+    { "origin": "human", "type": "submit", "seq": 2, "payload": { "schemaVersion": 1, "type": "submit", "revision": 1, "viewed": ["c1", "ch1"] } },
+    { "origin": "human", "type": "submit", "seq": 3, "payload": { "schemaVersion": 1, "type": "submit", "revision": 1, "viewed": ["a1", "c1"] } }
+  ],
+  "expected": {
+    "schemaVersion": 1,
+    "doc": {
+      "version": 1,
+      "title": "T",
+      "blocks": [
+        {
+          "id": "c1",
+          "type": "card",
+          "children": [
+            {
+              "id": "ch1",
+              "type": "choice",
+              "options": [
+                { "id": "o1", "label": "One", "recommended": true },
+                { "id": "o2", "label": "Two" }
+              ]
+            }
+          ]
+        },
+        { "id": "a1", "type": "approval", "prompt": "Ship?" }
+      ]
+    },
+    "interactions": {
+      "viewed": { "a1": true, "c1": true, "ch1": true },
+      "submitted": { "value": true, "revision": 1 }
+    },
+    "rounds": {
+      "current": 2,
+      "blockRounds": { "a1": 1, "c1": 1 },
+      "history": [
+        {
+          "number": 1,
+          "blocks": [
+            {
+              "id": "c1",
+              "type": "card",
+              "children": [
+                {
+                  "id": "ch1",
+                  "type": "choice",
+                  "options": [
+                    { "id": "o1", "label": "One", "recommended": true },
+                    { "id": "o2", "label": "Two" }
+                  ]
+                }
+              ]
+            },
+            { "id": "a1", "type": "approval", "prompt": "Ship?" }
+          ],
+          "decisions": {},
+          "choices": {},
+          "inputs": {},
+          "feedback": {},
+          "viewed": { "c1": true, "ch1": true },
+          "submittedRevision": 1
+        }
+      ]
+    }
+  }
+}

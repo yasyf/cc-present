@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import type { Root } from 'react-dom/client';
@@ -8,6 +8,7 @@ import type { PresentApi } from '../present';
 import { KeyboardProvider } from '../keyboard';
 import { BoardBlocks } from './BoardBlocks';
 import { emptyState } from '../reduce';
+import { BOARD_DWELL_MS, viewedStore } from '../viewed';
 import type { Interactions, Verdict } from '../events';
 import type { Approval, Block, Card, ChildBlock, Markdown } from '../schema';
 
@@ -20,6 +21,28 @@ class ResizeObserverStub {
   disconnect(): void {}
 }
 (globalThis as { ResizeObserver?: unknown }).ResizeObserver = ResizeObserverStub;
+
+class IntersectionObserverStub {
+  static live = new Map<Element, IntersectionObserverStub>();
+  constructor(private readonly callback: IntersectionObserverCallback) {}
+  observe(el: Element): void {
+    IntersectionObserverStub.live.set(el, this);
+  }
+  disconnect(): void {
+    for (const [el, obs] of IntersectionObserverStub.live) if (obs === this) IntersectionObserverStub.live.delete(el);
+  }
+  static show(el: Element, ratio: number, rectHeight = 100, viewportHeight = 1000): void {
+    const obs = IntersectionObserverStub.live.get(el)!;
+    const entry = {
+      isIntersecting: ratio > 0,
+      intersectionRatio: ratio,
+      intersectionRect: { height: rectHeight },
+      rootBounds: { height: viewportHeight },
+    } as IntersectionObserverEntry;
+    act(() => obs.callback([entry], obs as unknown as IntersectionObserver));
+  }
+}
+(globalThis as { IntersectionObserver?: unknown }).IntersectionObserver = IntersectionObserverStub;
 
 const approval = (id: string): Approval => ({ id, type: 'approval', prompt: `Approve ${id}` });
 const card = (id: string, children: ChildBlock[]): Card => ({ id, type: 'card', children });
@@ -36,6 +59,7 @@ let container: HTMLDivElement;
 let root: Root;
 
 beforeEach(() => {
+  viewedStore.reset();
   container = document.createElement('div');
   document.body.appendChild(container);
   root = createRoot(container);
@@ -57,6 +81,10 @@ function render(blocks: Block[], interactions: Interactions): void {
       </PresentContext.Provider>,
     ),
   );
+}
+
+function row(id: string): HTMLElement {
+  return container.querySelector<HTMLElement>(`.block-row[data-flip-key="${id}"]`)!;
 }
 
 function marked(id: string): boolean {
@@ -102,5 +130,35 @@ describe('BoardBlocks section hoisting', () => {
     expect(container.querySelector('.block-row[data-flip-key="s1"]')).toBeNull();
     // a non-section block still gets its flip-tracked row
     expect(container.querySelector('.block-row[data-flip-key="a1"]')).not.toBeNull();
+  });
+});
+
+describe('BoardBlocks viewed tracking', () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  it('marks a card and its children once the row stays half visible for the dwell', () => {
+    render([card('c1', [approval('a1')]), markdown('m1')], empty());
+    IntersectionObserverStub.show(row('c1'), 0.6);
+    act(() => vi.advanceTimersByTime(BOARD_DWELL_MS - 1));
+    expect(viewedStore.viewed()).toEqual([]);
+    act(() => vi.advanceTimersByTime(1));
+    expect(viewedStore.viewed()).toEqual(['c1', 'a1']);
+  });
+
+  it('cancels the dwell when the row scrolls away first', () => {
+    render([markdown('m1')], empty());
+    IntersectionObserverStub.show(row('m1'), 0.6);
+    act(() => vi.advanceTimersByTime(BOARD_DWELL_MS / 2));
+    IntersectionObserverStub.show(row('m1'), 0.2);
+    act(() => vi.advanceTimersByTime(BOARD_DWELL_MS));
+    expect(viewedStore.viewed()).toEqual([]);
+  });
+
+  it('counts a row taller than the viewport once it fills half of it', () => {
+    render([markdown('m1')], empty());
+    IntersectionObserverStub.show(row('m1'), 0.2, 600, 1000);
+    act(() => vi.advanceTimersByTime(BOARD_DWELL_MS));
+    expect(viewedStore.viewed()).toEqual(['m1']);
   });
 });

@@ -9,6 +9,7 @@ import type { Block, OptionVisual } from '../schema';
 import type { Interaction, Interactions } from '../events';
 import { usePresent } from '../present';
 import { revisionStore, useRevisingBanner, useUnseenChange } from '../revision';
+import { FOCUS_DWELL_MS, blockViewIds, viewedStore } from '../viewed';
 import { useMediaQuery } from '../useMediaQuery';
 import { useScrollEdges } from '../useScrollEdges';
 import { useExpandAll } from '../expand';
@@ -207,6 +208,13 @@ export const FocusCard = forwardRef<HTMLDivElement, { step: FocusStep; interacti
   // Mark the step seen on departure — this keyed card unmounts on a step change — so
   // its badge and callout clear once viewed but persist while the human is here.
   useEffect(() => () => revisionStore.markSeen(step.id), [step.id]);
+
+  const viewIdsRef = useRef<string[]>([]);
+  viewIdsRef.current = blockViewIds([...step.context, step.block]);
+  useEffect(() => {
+    const timer = setTimeout(() => viewedStore.mark(viewIdsRef.current), FOCUS_DWELL_MS);
+    return () => clearTimeout(timer);
+  }, [step.id]);
 
   const onPointerDown = useCallback(
     (e: ReactPointerEvent<HTMLDivElement>) => {

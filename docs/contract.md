@@ -421,7 +421,7 @@ fields. Persisted domain payloads without that exact identity are invalid.
 | human | `annotation.created` | `{id, blockId, anchor, text, quote}` | Upsert by `id` into the block's ordered annotation list: an existing id is replaced in place, a new id appends — an edit re-sends the id. Targets a `draft` block. The REST edge parses and resolves `anchor` against the block's current `text` (an unresolvable anchor is rejected), rewrites it to the normalized ranged form (see Line anchors), and stamps `quote` from the resolved lines (at most **2 KiB**) — the client-sent `quote` is advisory and always replaced. |
 | human | `annotation.removed` | `{id, blockId}` | Splice the annotation out of the block's list. A replayed unknown id is a reducer no-op; the REST edge rejects one with 400. Removing the last annotation leaves an empty list under the block key. |
 | human | `triage.decided` | `{blockId, verdicts}` | Partial-map merge, last-write-wins per item: `verdicts` is `{[itemId]: {verdict, note?}}`, folded entry by entry, so one event carries a single flip or an atomic accept-all. `cleared` removes the item's entry, and an emptied block map is removed with it. A `note` requires a non-cleared verdict and the block's `allowNotes`. The REST edge rejects an `itemId` outside the block's items. |
-| human | `submit` | `{revision}` | Set submitted with the revision. When the round is dirty, additionally snapshot the current round into `rounds.history` with `submittedRevision` set, advance `rounds.current`, and clear the title; a clean submit records only the revision. Does not close the document, so rounds continue. Either way the revising working set clears wholesale (see Live revision). The REST plane rejects a revision the log never produced (below 0 or past the current revision). |
+| human | `submit` | `{revision, viewed?}` | Merge each `viewed` id into `interactions.viewed`, then set submitted with the revision. When the round is dirty, additionally snapshot the current round into `rounds.history` with `submittedRevision` set, advance `rounds.current`, and clear the title; a clean submit records only the revision. Does not close the document, so rounds continue. Either way the revising working set clears wholesale (see Live revision). The REST plane rejects a revision the log never produced (below 0 or past the current revision). It keeps only the `viewed` ids that name a top-level block or card child of the current document, deduplicated in order and capped at 500, and omits the key when none remain. |
 | agent | `revising.changed` | `{blockIds, note?}` | Replace the revising working set wholesale (last-write-wins). Each id on the wire names a current top-level block — the daemon edge resolves an announced card-child id to its enclosing card before appending, deduplicating in input order. A `block.upserted` or `block.removed` drops its id (a child write drops the enclosing card's), and draining the last id clears the shared `note` too. `doc.replaced` clears everything, and a `submit` or `round.started` clears the whole set too, note included. An empty set with a `note` is the doc-level drafting state, while an empty set with no `note` abandons the announcement. Announcing never stamps rounds (see Live revision). |
 
 Post-close events are no-ops, not errors, by design. A human click can race an
@@ -463,6 +463,7 @@ interactions = {
   replies:   { [blockId]: {id, md}[] },           // append-only
   annotations: { [blockId]: {id, anchor, text, quote}[] }, // ordered; upsert-by-id
   triage:    { [blockId]: { [itemId]: {verdict, note?} } }, // last-write-wins per item
+  viewed:    { [blockId]: true },                 // opened by the human; merged on submit
   submitted: {value, revision},
   closed:    {value, summary?}
 }
@@ -472,12 +473,12 @@ rounds = {
   blockRounds: { [topLevelBlockId]: number },     // round of the block's last agent touch
   history: RoundRecord[]                          // closed rounds, ascending
 }
-RoundRecord = { number, title?, blocks, decisions, choices, inputs, packs, feedback, annotations, triage, submittedRevision? }
+RoundRecord = { number, title?, blocks, decisions, choices, inputs, packs, feedback, annotations, triage, viewed, submittedRevision? }
 revising = { blockIds: string[], note?: string }  // agent's declared working set
 ```
 
 `Reduce` starts from an empty document with `version 1`, no title, and no blocks, so
-a `block.upserted` before any `doc.replaced` appends to it. All eight interaction maps
+a `block.upserted` before any `doc.replaced` appends to it. All nine interaction maps
 are always present, empty when unused. A fixture's `expected` may omit an empty map,
 and the reducer treats the omission as empty.
 

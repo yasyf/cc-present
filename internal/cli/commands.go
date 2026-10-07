@@ -787,7 +787,7 @@ func filterInteractions(raw json.RawMessage, id string) (json.RawMessage, error)
 }
 
 func filterKeyed(m map[string]json.RawMessage, id string) error {
-	for _, key := range []string{"decisions", "choices", "inputs", "packs", "feedback", "replies", "annotations", "triage"} {
+	for _, key := range []string{"decisions", "choices", "inputs", "packs", "feedback", "replies", "annotations", "triage", "viewed"} {
 		sub, ok := m[key]
 		if !ok {
 			continue

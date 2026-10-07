@@ -10,6 +10,7 @@ import { submitItems } from '../decide';
 import type { SubmitItem } from '../decide';
 import { useKeyboardApi } from '../keyboard';
 import { useRevisionSummary } from '../revision';
+import { viewedStore } from '../viewed';
 import { useInteractivePackTypes } from '../packs/registry';
 import { Button } from './Button';
 
@@ -93,7 +94,7 @@ export function SubmitBar({ blocks, showTally, doc, interactions, subject, hasHi
       return;
     }
     setInFlight(true);
-    void post({ type: 'submit', revision }).then((ok) => {
+    void post({ type: 'submit', revision, viewed: viewedStore.viewed() }).then((ok) => {
       if (!ok) setInFlight(false);
     });
     setArmed(null);
@@ -162,7 +163,7 @@ export function SubmitBar({ blocks, showTally, doc, interactions, subject, hasHi
           className={`submit-count${complete ? ' submit-done' : ''}`}
           onClick={() => kbd.jumpNextUndecided()}
         >
-          {decided} / {total} decided
+          {total === decided ? 'All answered' : `${total - decided} to answer`}
         </button>
         {confirming && (
           <span className="submit-warn" role="status">
