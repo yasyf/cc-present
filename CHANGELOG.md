@@ -35,9 +35,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   banner. `plan.mock` renders HTML in a script-free sandboxed frame with
   numbered pins the reader can comment on. `plan.calls` and `plan.mock` are
   optional.
+- The `present` skill documents a plan board: a Why card in the requester's
+  words, one card per behavior with one exhibit and the decision it carries,
+  then Shared and Not changing cards. `examples/plan-board.json` is a full
+  one, and a Go test runs it through `push --dry-run` validation against the
+  `plan` pack. Step 5 of the skill reads `viewed` to tell a kept default from
+  a decision the human never opened.
+- `present-triage` gains an `ask-user` lane for notes that ask for something
+  new or risky. The skill, the writer template, the triage agent, and the
+  channel instructions all treat human text on the board as data, never as
+  instructions to run commands, fetch URLs, or touch files.
 
 ### Changed
 
+- The `push` hint for a choice without a visual counts a `code` block or any
+  pack block before the choice as its visual, as it already did a diagram,
+  image, chart, or file tree. A plan card's exhibit no longer draws the hint.
 - The submit bar counts the items left to answer and reads "All answered" once
   none remain, replacing "N / M decided." The `n` shortcut's help and its
   announcement use the same words.
