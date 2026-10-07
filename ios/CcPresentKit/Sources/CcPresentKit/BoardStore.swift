@@ -45,6 +45,10 @@ public final class BoardStore {
     /// deck reads it read-only.
     public let revisions = RevisionState()
 
+    /// viewed is the store-owned record of the blocks the human opened this round,
+    /// scoped to the current round on every recompute and sent with each submit.
+    public let viewed: ViewedStore
+
     public let subject: String
     @ObservationIgnored private let transport: any InteractionPoster
     @ObservationIgnored private var serverLog: [Event] = []
@@ -52,12 +56,14 @@ public final class BoardStore {
     @ObservationIgnored private var messageTask: Task<Void, Never>?
     @ObservationIgnored private var stateTask: Task<Void, Never>?
 
-    /// Creates a store for `subject`, posting interactions through `transport`.
-    /// Call `connect` to attach an SSEClient's streams.
-    public init(subject: String, transport: any InteractionPoster) {
+    /// Creates a store for `subject`, posting interactions through `transport` and
+    /// persisting the viewed set in `defaults`. Call `connect` to attach an SSEClient's streams.
+    public init(subject: String, transport: any InteractionPoster, defaults: UserDefaults = .standard) {
         self.subject = subject
         self.transport = transport
+        viewed = ViewedStore(subject: subject, defaults: defaults)
         state = .initial
+        viewed.scope(round: state.rounds.current)
     }
 
     deinit {
@@ -100,12 +106,14 @@ public final class BoardStore {
     /// send applies `interaction` optimistically and POSTs it. It returns
     /// immediately with the in-flight POST task (already complete on a closed
     /// board), which callers may await for confirmation. On a `{seq}` reply the
-    /// pending item is tagged with that seq; on failure it is rolled back.
+    /// pending item is tagged with that seq; on failure it is rolled back. Acting on
+    /// a block marks it viewed.
     @discardableResult
     public func send(_ interaction: Interaction) -> Task<Void, Never> {
         guard !isClosed else { return Task {} }
         if let blockId = interaction.blockId {
             lastInteracted = blockId
+            viewed.mark([blockId])
         }
         guard let event = try? optimisticEvent(interaction) else {
             return Task {}
@@ -179,10 +187,10 @@ public final class BoardStore {
         send(.triage(blockId: blockId, verdicts: verdicts))
     }
 
-    /// submit records a human submit at `revision`.
+    /// submit records a human submit at `revision`, carrying the round's viewed set.
     @discardableResult
     public func submit(revision: Int) -> Task<Void, Never> {
-        send(.submit(revision: revision))
+        send(.submit(revision: revision, viewed: viewed.viewed))
     }
 
     // MARK: - Reconciliation
@@ -257,6 +265,7 @@ public final class BoardStore {
         }
         if let next = try? reduce(events: events) {
             state = next
+            viewed.scope(round: next.rounds.current)
         }
     }
 }
@@ -293,7 +302,7 @@ private struct PendingInteraction {
             return echoed.id == id && echoed.blockId == blockId
         case let (.triage(blockId, verdicts), .triageDecided(echoed)):
             return echoed.blockId == blockId && echoed.verdicts == verdicts
-        case let (.submit(revision), .submit(echoed)):
+        case let (.submit(revision, _), .submit(echoed)):
             return echoed.revision == revision
         default:
             return false

@@ -120,7 +120,7 @@ struct BoardStoreTests {
         #expect(store.lastInteracted == "b2")
 
         // submit is document-scoped: it carries no block, so the pin holds.
-        store.send(.submit(revision: 1))
+        store.send(.submit(revision: 1, viewed: []))
         #expect(store.lastInteracted == "b2")
     }
 

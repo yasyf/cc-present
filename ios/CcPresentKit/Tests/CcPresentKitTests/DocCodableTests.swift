@@ -236,6 +236,33 @@ struct DocCodableTests {
             )))
     }
 
+    @Test("a grounded code block decodes its source, slice, highlight, pins, and stamp, and round-trips")
+    func groundedCodeRoundTrips() throws {
+        let decoded = try decoder.decode(Block.self, from: Data(#"""
+        {"id":"g","type":"code","lang":"go","code":"a\nb","title":"Reduce","src":"internal/state/reduce.go",
+         "lines":"40-41","start":40,"highlight":"41","sha":"abc1234+wt",
+         "pins":[{"line":40,"title":"Entry"},{"line":41,"title":"Merge","body":"viewed","tone":"warn"}]}
+        """#.utf8))
+
+        let want = Block.code(Block.Code(
+            id: "g",
+            lang: "go",
+            code: "a\nb",
+            title: "Reduce",
+            src: "internal/state/reduce.go",
+            lines: "40-41",
+            start: 40,
+            highlight: "41",
+            pins: [
+                Block.CodePin(line: 40, title: "Entry"),
+                Block.CodePin(line: 41, title: "Merge", body: "viewed", tone: "warn"),
+            ],
+            sha: "abc1234+wt"
+        ))
+        #expect(decoded == want)
+        #expect(try roundTrip(want) == want)
+    }
+
     @Test("an option's recommended flag and each visual kind decode and round-trip")
     func optionRecommendedAndVisualsRoundTrip() throws {
         let choice = Block.choice(Block.Choice(

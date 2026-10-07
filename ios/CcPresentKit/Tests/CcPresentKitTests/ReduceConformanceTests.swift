@@ -50,6 +50,16 @@ struct ReduceConformanceTests {
         )
     }
 
+    @Test("the corpus carries the round-scoped viewed fixtures")
+    func viewedFixturesPresent() {
+        let names = Set(fixtureURLs.map(\.lastPathComponent))
+        #expect(names.isSuperset(of: [
+            "submit-viewed.json",
+            "submit-viewed-round-partition.json",
+            "submit-viewed-stale-round.json",
+        ]))
+    }
+
     @Test("reduce matches every Go state fixture", arguments: fixtureURLs)
     func matchesFixture(_ url: URL) throws {
         let data = try Data(contentsOf: url)
