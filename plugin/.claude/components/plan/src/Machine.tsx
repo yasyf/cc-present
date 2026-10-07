@@ -90,7 +90,7 @@ export function Machine({ block }: PackComponentProps) {
           {'md' in selected.screen ? (
             <div className="prose" dangerouslySetInnerHTML={{ __html: renderMarkdown(selected.screen.md) }} />
           ) : (
-            <MockFrame key={selected.id} spec={selected.screen.mock} frameKey={`${block.id}:${selected.id}`} />
+            <MockFrame key={selected.id} spec={selected.screen.mock} />
           )}
         </div>
       )}

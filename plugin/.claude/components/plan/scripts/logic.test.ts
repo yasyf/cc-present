@@ -7,6 +7,7 @@ import {
   layoutMachine,
   mockCsp,
   mockDocument,
+  neutralize,
   pinSpots,
   setComment,
   struckBy,
@@ -162,25 +163,84 @@ describe('layoutMachine', () => {
 });
 
 describe('mockDocument', () => {
-  const doc = mockDocument({ html: '<p data-ref="x">hi</p><script>alert(1)</script>', css: 'p{color:red}' }, 'N0NCE', 'blk</script>');
+  const html = '<p data-ref="x">hi</p><meta http-equiv="refresh" content="0;url=https://example.com"><script>alert(1)</script>';
+  const doc = mockDocument({ html, css: 'p{color:red}</style><meta http-equiv="refresh">' }, 'N0NCE', 'T0KEN');
+  const host = doc.slice(doc.indexOf('<script nonce='), doc.lastIndexOf('</script>'));
 
-  test('pins a nonce CSP before any author content', () => {
+  test('pins a nonce CSP and ships author html and css only as escaped data', () => {
     expect(mockCsp('N0NCE')).toBe(
       "default-src 'none'; style-src 'unsafe-inline'; img-src data:; script-src 'nonce-N0NCE'; base-uri 'none'; form-action 'none'",
     );
-    expect(doc.indexOf('Content-Security-Policy')).toBeLessThan(doc.indexOf('<p data-ref'));
-    expect(doc).toContain('<style>p{color:red}</style>');
+    expect(doc).not.toContain('<meta http-equiv="refresh"');
+    expect(doc).not.toContain('<p data-ref');
+    expect(doc).not.toContain('</style><meta');
+    expect(host.slice(host.indexOf('>') + 1)).not.toContain('<');
+    expect(host).toContain('\\u003cp data-ref');
   });
 
-  test('only the measuring script carries the nonce', () => {
+  test('only the host script carries the nonce, and its measurements carry the token', () => {
     expect(doc.match(/nonce="N0NCE"/g)).toHaveLength(1);
-    expect(doc).toContain('<script>alert(1)</script>');
-    expect(doc).toContain('ccPresentMock:"blk\\u003c/script>"');
+    expect(host).toContain('"token":"T0KEN"');
+    expect(host).toContain('ccPresentMock:p.token');
+    expect(host).toContain('(d)');
   });
 
   test('adds terminal helpers only for the terminal frame', () => {
     expect(doc).not.toContain('.dim{');
     expect(mockDocument({ html: 'x', frame: 'terminal' }, 'n', 'k')).toContain('.dim{');
+  });
+});
+
+class FakeAttr {
+  constructor(readonly localName: string, readonly value: string) {}
+}
+
+class FakeEl {
+  parent: FakeEl | null = null;
+  attributes: FakeAttr[];
+  children: FakeEl[] = [];
+  constructor(readonly tag: string, attrs: Record<string, string> = {}, children: FakeEl[] = []) {
+    this.attributes = Object.entries(attrs).map(([k, v]) => new FakeAttr(k, v));
+    for (const c of children) {
+      c.parent = this;
+      this.children.push(c);
+    }
+  }
+  all(): FakeEl[] {
+    return this.children.flatMap((c) => [c, ...c.all()]);
+  }
+  querySelectorAll(selector: string): FakeEl[] {
+    const tags = selector.split(',');
+    return this.all().filter((e) => tags.includes('*') || tags.includes(e.tag));
+  }
+  getAttribute(name: string): string | null {
+    return this.attributes.find((a) => a.localName === name)?.value ?? null;
+  }
+  removeAttributeNode(attr: FakeAttr): void {
+    this.attributes = this.attributes.filter((a) => a !== attr);
+  }
+  remove(): void {
+    this.parent!.children = this.parent!.children.filter((c) => c !== this);
+  }
+  shape(): string {
+    const attrs = this.attributes.map((a) => ` ${a.localName}`).join('');
+    return `<${this.tag}${attrs}>${this.children.map((c) => c.shape()).join('')}`;
+  }
+}
+
+describe('neutralize', () => {
+  test('drops navigation-capable elements and attributes, keeping the rest', () => {
+    const root = new FakeEl('body', {}, [
+      new FakeEl('meta', { 'http-equiv': 'refresh' }),
+      new FakeEl('base', { href: 'https://example.com' }),
+      new FakeEl('iframe', { srcdoc: 'x' }),
+      new FakeEl('a', { href: 'https://example.com', target: '_self', class: 'btn', 'data-ref': 'later' }, [new FakeEl('span')]),
+      new FakeEl('svg', {}, [new FakeEl('a', { href: '#x' }, [new FakeEl('set', { attributeName: 'href', to: 'https://example.com' })])]),
+      new FakeEl('form', { action: 'https://example.com' }, [new FakeEl('button', { formaction: 'https://example.com' })]),
+      new FakeEl('set', { attributeName: 'fill' }),
+    ]);
+    neutralize(root as unknown as ParentNode);
+    expect(root.shape()).toBe('<body><a class data-ref><span><svg><a><form><button><set attributeName>');
   });
 });
 

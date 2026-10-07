@@ -39,7 +39,6 @@ export function Mock({ block, value, submit, disabled }: PackComponentProps) {
       {b.title && !chromeTitle && <header className="ccpl-title">{b.title}</header>}
       <MockFrame
         spec={b}
-        frameKey={block.id}
         pinRefs={pins.map((p) => p.ref)}
         noted={new Set(Object.keys(comments))}
         active={active}

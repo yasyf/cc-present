@@ -1,6 +1,6 @@
 host_api = 1
 name = "plan"
-version = "0.1.0"
+version = "0.1.1"
 description = "Exhibits for a plan: a call tree whose rows the reader can strike, a state machine with the screen for each state, and a sandboxed HTML mock with numbered pins the reader can comment on."
 entry = "dist/pack.js"
 styles = "dist/pack.css"

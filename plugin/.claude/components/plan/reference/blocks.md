@@ -120,7 +120,9 @@ and `box`. Keep it to a `w` of 480 or less, about 55 columns.
 
 The mock runs in a sandboxed frame under a content security policy. Your
 scripts, inline event handlers, and network requests do not run; images
-must be `data:` URLs.
+must be `data:` URLs. Links do not navigate: the frame drops `href`,
+`target`, and form `action` attributes, and removes `meta`, `base`, `link`,
+and nested frames.
 
 ```json
 {"id": "footer", "type": "plan.mock", "w": 440,

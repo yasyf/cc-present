@@ -3,7 +3,7 @@ import type { ReactNode, RefObject } from 'react';
 import { mockDocument, pinSpots } from './logic';
 import type { MockSpec, Rect } from './logic';
 
-function freshNonce(): string {
+function randomHex(): string {
   return Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, '0')).join('');
 }
 
@@ -25,7 +25,6 @@ interface Measured {
 
 export interface MockFrameProps {
   spec: MockSpec;
-  frameKey: string;
   pinRefs?: string[];
   noted?: ReadonlySet<string>;
   active?: string | null;
@@ -33,27 +32,27 @@ export interface MockFrameProps {
   popover?: ReactNode;
 }
 
-export function MockFrame({ spec, frameKey, pinRefs = [], noted, active, onPin, popover }: MockFrameProps) {
+export function MockFrame({ spec, pinRefs = [], noted, active, onPin, popover }: MockFrameProps) {
   const outer = useRef<HTMLDivElement>(null);
   const frame = useRef<HTMLIFrameElement>(null);
   const width = useWidth(outer);
   const [measured, setMeasured] = useState<Measured>({ height: 120, rects: {} });
   const kind = spec.frame ?? 'none';
-  const doc = useMemo(
-    () => mockDocument({ html: spec.html, css: spec.css, frame: kind }, freshNonce(), frameKey),
-    [spec.html, spec.css, kind, frameKey],
-  );
+  const { doc, token } = useMemo(() => {
+    const token = randomHex();
+    return { doc: mockDocument({ html: spec.html, css: spec.css, frame: kind }, randomHex(), token), token };
+  }, [spec.html, spec.css, kind]);
 
   useEffect(() => {
     const onMessage = (e: MessageEvent) => {
       const data = e.data as { ccPresentMock?: string; height?: number; rects?: Record<string, Rect> } | null;
-      if (e.source !== frame.current?.contentWindow || data?.ccPresentMock !== frameKey) return;
+      if (e.source !== frame.current?.contentWindow || data?.ccPresentMock !== token) return;
       if (typeof data.height !== 'number') return;
       setMeasured({ height: Math.min(8000, Math.max(20, data.height)), rects: data.rects ?? {} });
     };
     window.addEventListener('message', onMessage);
     return () => window.removeEventListener('message', onMessage);
-  }, [frameKey]);
+  }, [token]);
 
   const w = spec.w ?? 480;
   const inset = kind === 'phone' ? 24 : 2;

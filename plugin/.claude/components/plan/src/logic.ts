@@ -372,19 +372,32 @@ export function mockCsp(nonce: string): string {
   return `default-src 'none'; style-src 'unsafe-inline'; img-src data:; script-src 'nonce-${nonce}'; base-uri 'none'; form-action 'none'`;
 }
 
-export function mockDocument(spec: MockSpec, nonce: string, key: string): string {
-  const k = JSON.stringify(key).replace(/</g, '\\u003c');
-  const measure =
-    `(()=>{const post=()=>{const rects={};for(const el of document.querySelectorAll('[data-ref]')){` +
+export function neutralize(root: ParentNode): void {
+  const navigating = new Set(['href', 'target', 'action', 'formaction', 'ping', 'srcdoc']);
+  for (const el of root.querySelectorAll('meta,base,link,iframe,frame,frameset,object,embed,portal')) el.remove();
+  for (const el of root.querySelectorAll('animate,set')) {
+    if ((el.getAttribute('attributeName') ?? '').endsWith('href')) el.remove();
+  }
+  for (const el of root.querySelectorAll('*')) {
+    for (const attr of [...el.attributes]) if (navigating.has(attr.localName)) el.removeAttributeNode(attr);
+  }
+}
+
+export function mockDocument(spec: MockSpec, nonce: string, token: string): string {
+  const payload = JSON.stringify({ html: spec.html, css: spec.css ?? '', token }).replace(/</g, '\\u003c');
+  const host =
+    `(()=>{const p=${payload};const d=new DOMParser().parseFromString(p.html,'text/html');(${String(neutralize)})(d);` +
+    `const s=document.createElement('style');s.textContent=p.css;document.head.append(s,...d.head.querySelectorAll('style'));` +
+    `document.body.append(...d.body.childNodes);` +
+    `const post=()=>{const rects={};for(const el of document.querySelectorAll('[data-ref]')){` +
     `const r=el.getBoundingClientRect();rects[el.getAttribute('data-ref')]=[r.left,r.top,r.width,r.height];}` +
-    `parent.postMessage({ccPresentMock:${k},height:Math.ceil(document.documentElement.getBoundingClientRect().height),rects},'*');};` +
+    `parent.postMessage({ccPresentMock:p.token,height:Math.ceil(document.documentElement.getBoundingClientRect().height),rects},'*');};` +
     `new ResizeObserver(post).observe(document.documentElement);addEventListener('load',post);post();})()`;
   return (
     '<!doctype html><html><head><meta charset="utf-8">' +
     `<meta http-equiv="Content-Security-Policy" content="${mockCsp(nonce)}">` +
     `<style>${mockBase}${spec.frame === 'terminal' ? terminalBase : ''}</style>` +
-    (spec.css ? `<style>${spec.css}</style>` : '') +
-    `</head><body>${spec.html}<script nonce="${nonce}">${measure}</script></body></html>`
+    `</head><body><script nonce="${nonce}">${host}</script></body></html>`
   );
 }
 
