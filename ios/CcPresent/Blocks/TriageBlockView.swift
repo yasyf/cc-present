@@ -212,7 +212,7 @@ private struct TriageFacts: View {
                 VStack(alignment: .trailing, spacing: 1) {
                     Text(fact.value)
                         .font(.system(size: 14, weight: .semibold, design: .rounded))
-                        .foregroundStyle(factTone(fact.tone))
+                        .foregroundStyle(BlockPalette.factTone(fact.tone))
                     if let label = fact.label, !label.isEmpty {
                         Text(label)
                             .voice(.stamp, size: 9, weight: .medium)
@@ -222,15 +222,6 @@ private struct TriageFacts: View {
             }
         }
         .accessibilityElement(children: .combine)
-    }
-
-    private func factTone(_ tone: String?) -> Color {
-        switch tone {
-        case "good": BlockPalette.approve
-        case "bad": BlockPalette.reject
-        case "warn": BlockPalette.warn
-        default: BlockPalette.ink
-        }
     }
 }
 

@@ -27,6 +27,17 @@ enum BlockPalette {
     /// light on a raised surface's top edge, invisible in light mode. Apply via
     /// `View.edgeLift()` over a `cardLift` ground. Mirrors the web `--edge-lift`.
     static let edgeLift = Color(whiteLight: 1, alphaLight: 0, whiteDark: 1, alphaDark: 0.05)
+
+    /// factTone maps a fact tone (`good`, `warn`, `bad`) onto its signal color, and any
+    /// other tone onto `fallback`.
+    static func factTone(_ tone: String?, fallback: Color = ink) -> Color {
+        switch tone {
+        case "good": approve
+        case "warn": warn
+        case "bad": reject
+        default: fallback
+        }
+    }
 }
 
 extension View {
