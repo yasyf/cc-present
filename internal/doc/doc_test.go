@@ -178,6 +178,27 @@ func TestValidate(t *testing.T) {
 		{"markdown missing md", docWith(card("c1", `{"id":"m1","type":"markdown"}`)), "md must not be empty"},
 		{"code missing lang", docWith(card("c1", `{"id":"cd1","type":"code","code":"x"}`)), "lang must not be empty"},
 		{"code missing code", docWith(card("c1", `{"id":"cd1","type":"code","lang":"go"}`)), "code must not be empty"},
+		{"code src filled", docWith(card("c1", `{"id":"cd1","type":"code","lang":"go","src":"cmd/main.go","lines":"3-5","start":3,"code":"a\nb\nc","highlight":"3,4-5","pins":[{"line":4,"title":"here","tone":"warn"}],"sha":"abc1234+wt"}`)), ""},
+		{"code start without src", docWith(card("c1", `{"id":"cd1","type":"code","lang":"go","start":10,"code":"a\nb","highlight":"11","pins":[{"line":10,"title":"t"}]}`)), ""},
+		{"code src unfilled", docWith(card("c1", `{"id":"cd1","type":"code","src":"main.go"}`)), `src "main.go" is unfilled; it is filled by push/update-block/start --doc`},
+		{"code src absolute", docWith(card("c1", `{"id":"cd1","type":"code","lang":"go","code":"x","src":"/etc/passwd"}`)), "must be relative"},
+		{"code src dot segment", docWith(card("c1", `{"id":"cd1","type":"code","lang":"go","code":"x","src":"../x.go"}`)), "empty or dot segment"},
+		{"code lines without src", docWith(card("c1", `{"id":"cd1","type":"code","lang":"go","code":"x","lines":"1"}`)), "lines requires src"},
+		{"code sha without src", docWith(card("c1", `{"id":"cd1","type":"code","lang":"go","code":"x","sha":"abc1234"}`)), "sha requires src"},
+		{"code bad sha", docWith(card("c1", `{"id":"cd1","type":"code","lang":"go","code":"x","src":"a.go","sha":"main"}`)), `sha "main" must be a hex commit`},
+		{"code bad lines", docWith(card("c1", `{"id":"cd1","type":"code","lang":"go","code":"x","src":"a.go","lines":"5-2"}`)), "ends before it starts"},
+		{"code lines mismatch code", docWith(card("c1", `{"id":"cd1","type":"code","lang":"go","code":"x","src":"a.go","lines":"1-2"}`)), `lines "1-2" spans 2 lines but code has 1`},
+		{"code start mismatch lines", docWith(card("c1", `{"id":"cd1","type":"code","lang":"go","code":"x","src":"a.go","lines":"4","start":3}`)), `start 3 must match lines "4"`},
+		{"code negative start", docWith(card("c1", `{"id":"cd1","type":"code","lang":"go","code":"x","start":-1}`)), "start -1 must be between 1 and 1000000"},
+		{"code highlight out of range", docWith(card("c1", `{"id":"cd1","type":"code","lang":"go","code":"a\nb","start":5,"highlight":"5-7"}`)), `highlight "5-7" falls outside lines 5-6`},
+		{"code start past the line cap", docWith(card("c1", `{"id":"cd1","type":"code","lang":"text","code":"x","start":9007199254740992,"highlight":"9007199254740992"}`)), "start 9007199254740992 must be between 1 and 1000000"},
+		{"code highlight past the line cap", docWith(card("c1", `{"id":"cd1","type":"code","lang":"text","code":"x","highlight":"1000001"}`)), `line range "1000001" exceeds line 1000000`},
+		{"code lines past the line cap", docWith(card("c1", `{"id":"cd1","type":"code","lang":"text","code":"x","src":"a.txt","lines":"1000001"}`)), `line range "1000001" exceeds line 1000000`},
+		{"code highlight malformed", docWith(card("c1", `{"id":"cd1","type":"code","lang":"go","code":"x","highlight":"one"}`)), "must look like 40 or 40-72"},
+		{"code pin out of range", docWith(card("c1", `{"id":"cd1","type":"code","lang":"go","code":"x","pins":[{"line":2,"title":"t"}]}`)), "pin on line 2 falls outside lines 1-1"},
+		{"code pin missing title", docWith(card("c1", `{"id":"cd1","type":"code","lang":"go","code":"x","pins":[{"line":1}]}`)), "pin on line 1: title must not be empty"},
+		{"code pin bad tone", docWith(card("c1", `{"id":"cd1","type":"code","lang":"go","code":"x","pins":[{"line":1,"title":"t","tone":"flag"}]}`)), `tone must be default, good, warn, or bad, got "flag"`},
+		{"option visual code src unfilled", docWith(card("c1", `{"id":"ch1","type":"choice","options":[{"id":"o1","label":"A","visual":{"id":"v1","type":"code","src":"a.go"}}]}`)), `code "v1": src "a.go" is unfilled`},
 		{"diff missing diff", docWith(card("c1", `{"id":"df1","type":"diff"}`)), "diff must not be empty"},
 
 		{"image missing alt", docWith(card("c1", `{"id":"i1","type":"image","src":"https://x/y.png"}`)), "alt must not be empty"},
@@ -597,6 +618,22 @@ func TestFieldRoundTrip(t *testing.T) {
 				}
 				if cd.ID != "v1" || cd.Lang != "go" || cd.Code != "x" {
 					t.Fatalf("visual = %+v, want {v1 go x}", cd)
+				}
+			},
+		},
+		{
+			name: "code grounding fields survive marshal",
+			doc:  docWith(card("c1", `{"id":"cd1","type":"code","lang":"go","code":"a\nb","src":"main.go","lines":"3-4","start":3,"highlight":"4","pins":[{"line":3,"title":"t","body":"b","tone":"bad"}],"sha":"abc1234"}`)),
+			check: func(t *testing.T, c *doc.Card) {
+				cd, ok := c.Children[0].(*doc.Code)
+				if !ok {
+					t.Fatalf("child[0] type = %T, want *doc.Code", c.Children[0])
+				}
+				if cd.Src != "main.go" || cd.Lines != "3-4" || cd.Start != 3 || cd.Highlight != "4" || cd.Sha != "abc1234" {
+					t.Fatalf("code = %+v, want src main.go lines 3-4 start 3 highlight 4 sha abc1234", cd)
+				}
+				if len(cd.Pins) != 1 || cd.Pins[0] != (doc.CodePin{Line: 3, Title: "t", Body: "b", Tone: "bad"}) {
+					t.Fatalf("pins = %+v, want [{3 t b bad}]", cd.Pins)
 				}
 			},
 		},

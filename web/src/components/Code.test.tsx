@@ -7,6 +7,8 @@ import type { Root } from 'react-dom/client';
 vi.mock('../highlight', () => ({
   resolveLang: (lang: string) => (lang === 'go' ? 'go' : null),
   highlight: (code: string) => Promise.resolve(`<pre class="shiki"><code>${code}</code></pre>`),
+  tokenizeLines: (code: string) =>
+    Promise.resolve(code.split('\n').map((line) => [{ content: line, htmlStyle: { color: '#123456' } }])),
 }));
 
 import { Code } from './Code';
@@ -80,5 +82,71 @@ describe('Code header', () => {
     await renderCode({ id: 'c', type: 'code', lang: 'go', code: 'BBB' });
     expect(container.textContent).toContain('BBB');
     expect(container.textContent).not.toContain('AAA');
+  });
+});
+
+describe('Code grounded in a file', () => {
+  const grounded: CodeBlock = {
+    id: 'g',
+    type: 'code',
+    lang: 'go',
+    code: 'func main() {\n\tprintln("hi")\n}',
+    src: 'cmd/main.go',
+    lines: '3-5',
+    start: 3,
+    highlight: '4-5',
+    sha: 'abc1234+wt',
+    pins: [
+      { line: 4, title: 'prints', body: 'to stderr', tone: 'warn' },
+      { line: 4, title: 'again' },
+    ],
+  };
+
+  it('heads the block with path:lines @ sha', async () => {
+    await renderCode(grounded);
+    expect(container.querySelector('.code-src')?.textContent).toBe('cmd/main.go:3-5 @ abc1234+wt');
+  });
+
+  it('numbers the gutter from start and tints highlighted lines', async () => {
+    await renderCode(grounded);
+    const rows = [...container.querySelectorAll('.code-row')];
+    expect(rows.map((r) => r.querySelector('.code-gutter')?.textContent)).toEqual(['3', '4', '5']);
+    expect(rows.map((r) => r.classList.contains('code-lit'))).toEqual([false, true, true]);
+    expect(rows[1]?.querySelector('.code-tok')?.textContent).toBe('\tprintln("hi")');
+    expect(container.querySelector('.shiki-wrap')).toBeNull();
+  });
+
+  it('marks pinned lines and lists numbered pins', async () => {
+    await renderCode(grounded);
+    const rows = [...container.querySelectorAll('.code-row')];
+    const marks = rows[1]?.querySelectorAll('.code-marks .code-pin-mark') ?? [];
+    expect([...marks].map((m) => m.textContent)).toEqual(['1', '2']);
+    expect(rows[0]?.querySelector('.code-marks .code-pin-mark')).toBeNull();
+    const notes = [...container.querySelectorAll('.code-pins .code-pin')];
+    expect(notes).toHaveLength(2);
+    expect(notes[0]?.classList.contains('code-pin-warn')).toBe(true);
+    expect(notes[0]?.textContent).toBe('1L4printsto stderr');
+    expect(notes[1]?.classList.contains('code-pin-default')).toBe(true);
+  });
+
+  it('tints only displayed rows when start and highlight sit past the safe-integer edge', async () => {
+    await renderCode({
+      id: 'big',
+      type: 'code',
+      lang: 'text',
+      code: 'x\ny',
+      start: 9007199254740992,
+      highlight: '9007199254740992',
+    });
+    const rows = [...container.querySelectorAll('.code-row')];
+    expect(rows).toHaveLength(2);
+    expect(rows[0]?.classList.contains('code-lit')).toBe(true);
+  });
+
+  it('renders plain rows for an uncurated language', async () => {
+    await renderCode({ ...grounded, lang: 'text', pins: undefined, highlight: undefined });
+    expect(container.querySelector('.code-lang')?.textContent).toBe('text · plain text');
+    expect(container.querySelector('.code-tok')).toBeNull();
+    expect(container.querySelectorAll('.code-row')[2]?.textContent).toBe('5}');
   });
 });

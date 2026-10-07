@@ -91,7 +91,7 @@ describe('inline token classes', () => {
   const classes = inlineTokenClasses();
 
   it('names every component rendering a token htmlStyle', () => {
-    expect(classes).toEqual(['diff-tok', 'draft-tok']);
+    expect(classes).toEqual(['code-tok', 'diff-tok', 'draft-tok']);
   });
 
   it.each(classes)('swaps .%s to --shiki-dark under both dark branches', (cls) => {

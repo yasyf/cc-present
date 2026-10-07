@@ -937,13 +937,104 @@
    color is github-light. Only color swaps, so Diff's row tints survive. */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) .diff-tok,
-  :root:not([data-theme='light']) .draft-tok {
+  :root:not([data-theme='light']) .draft-tok,
+  :root:not([data-theme='light']) .code-tok {
     color: var(--shiki-dark) !important;
   }
 }
 :root[data-theme='dark'] .diff-tok,
-:root[data-theme='dark'] .draft-tok {
+:root[data-theme='dark'] .draft-tok,
+:root[data-theme='dark'] .code-tok {
   color: var(--shiki-dark) !important;
+}
+
+.code-src {
+  font-family: var(--font-mono);
+  margin-left: var(--space-2);
+}
+.code-table {
+  background: var(--mono-bg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  overflow: auto;
+  max-height: 60vh;
+  padding: var(--space-2) 0;
+}
+.code-row {
+  display: grid;
+  grid-template-columns: 4ch 1fr auto;
+  align-items: baseline;
+}
+.code-lit {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+.code-gutter {
+  text-align: right;
+  padding: 0 var(--space-2);
+  color: var(--was);
+  user-select: none;
+  font-size: var(--text-2xs);
+}
+.code-text {
+  white-space: pre-wrap;
+  word-break: break-word;
+  padding-right: var(--space-2);
+}
+.code-marks {
+  display: inline-flex;
+  gap: 2px;
+  padding-right: var(--space-2);
+}
+.code-pin-mark {
+  min-width: 1.4em;
+  height: 1.4em;
+  padding: 0 0.3em;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--accent-fg);
+  font-size: var(--text-2xs);
+  font-family: var(--font-prose);
+}
+.code-pins {
+  list-style: none;
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+.code-pin {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2);
+  font-size: var(--text-xs);
+}
+.code-pin-line {
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  color: var(--muted);
+}
+.code-pin-title {
+  font-weight: 600;
+  color: var(--ink);
+}
+.code-pin-body {
+  color: var(--muted);
+}
+.code-pin-good .code-pin-mark {
+  background: var(--ok);
+}
+.code-pin-warn .code-pin-mark {
+  background: var(--warn);
+}
+.code-pin-bad .code-pin-mark {
+  background: var(--danger);
 }
 
 /* --- Diff --- */
