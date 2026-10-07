@@ -39,6 +39,7 @@ func TestPlanBoardExample(t *testing.T) {
 		t.Fatalf("dropped = %+v", reg.Dropped)
 	}
 
+	//nolint:gosec // G304: reading the repo's own committed example board in a test.
 	raw, err := os.ReadFile(filepath.Join(repo, "examples", "plan-board.json"))
 	if err != nil {
 		t.Fatal(err)
