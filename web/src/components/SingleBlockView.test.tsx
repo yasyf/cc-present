@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import type { Root } from 'react-dom/client';
@@ -162,5 +162,42 @@ describe('SingleBlockView stale-round context', () => {
     expect(container.textContent).toContain('over=true');
     expect(container.textContent).toContain('disabled=true');
     expect(container.querySelector('.closed-banner')).toBeNull();
+  });
+});
+
+describe('SingleBlockView native interaction bridge', () => {
+  const Btn: PackComponent = ({ submit }: PackComponentProps) => (
+    <button type="button" onClick={() => submit({ v: 1 })}>
+      pick
+    </button>
+  );
+
+  beforeEach(() => {
+    resetPacksForTest();
+    registerPack(
+      { name: 'ex', version: '0', description: '', bundle: '/packs/ex/dist/pack.js', blocks: [{ type: 'ex.btn', interactive: true, optional: false, schema: {} }] },
+      { btn: Btn },
+    );
+    markPacksLoaded();
+    vi.stubGlobal('fetch', vi.fn(() => new Promise(() => {})));
+  });
+  afterEach(() => {
+    resetPacksForTest();
+    vi.unstubAllGlobals();
+    delete window.webkit;
+  });
+
+  it('names the interacted block to the iOS host', () => {
+    const postMessage = vi.fn();
+    window.webkit = { messageHandlers: { ccPresentInteraction: { postMessage } } };
+    const packDoc = { version: 1, title: '', blocks: [{ id: 'p1', type: 'ex.btn' }] } as unknown as Doc;
+    const state = reduce([
+      { origin: 'agent', type: 'doc.replaced', seq: 1, payload: { schemaVersion: 1, type: 'doc.replaced', doc: packDoc, revision: 1 } },
+    ]);
+
+    render('s', 'p1', state);
+    act(() => container.querySelector('button')!.click());
+
+    expect(postMessage).toHaveBeenCalledWith({ type: 'interaction', blockId: 'p1' });
   });
 });

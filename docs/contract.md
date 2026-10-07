@@ -337,7 +337,10 @@ loads in a webview per pack block. A block whose enclosing top-level block
 belongs to a closed round renders read-only, folded into the same `closed` flag
 every interactive block honors. When a `ccPresentHeight` WebKit message handler
 is present, the page posts `{type: "height", px}` on every content resize so
-the native host can size the webview.
+the native host can size the webview. When a `ccPresentInteraction` handler is
+present, the page also posts `{type: "interaction", blockId}` for every
+interaction it sends except `submit`, before the REST call, so the iOS app
+counts the block as viewed. The REST call itself is unchanged.
 
 Toasts raised in this mode (`ui.toast`, connection notices) render in-flow
 inside `.single-block`; the webview frame is block-height and unscrollable, so

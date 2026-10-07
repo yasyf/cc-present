@@ -159,7 +159,7 @@ The payload travels verbatim — the reducer stores it under `interactions.packs
 
 ## Single-block mode
 
-`/p/<ref>?block=<id>` renders one block full-bleed: the same event stream and interaction REST as the board, with no board chrome. It is what the iOS client loads in a webview per pack block. A block whose round has closed renders read-only through the same `disabled` flag. When a `ccPresentHeight` WebKit message handler is present, the page posts `{type: "height", px}` on every content resize so the native host can size the webview.
+`/p/<ref>?block=<id>` renders one block full-bleed: the same event stream and interaction REST as the board, with no board chrome. It is what the iOS client loads in a webview per pack block. A block whose round has closed renders read-only through the same `disabled` flag. When a `ccPresentHeight` WebKit message handler is present, the page posts `{type: "height", px}` on every content resize so the native host can size the webview. When a `ccPresentInteraction` handler is present, the page also posts `{type: "interaction", blockId}` for each interaction it sends, so the iOS app counts the block as viewed.
 
 Design for it: the component must lay out sanely at full width with nothing around it, and content should size itself — a fixed height fights the resize reporting.
 

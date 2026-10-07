@@ -1,7 +1,8 @@
 // The single-block view (contract #7): one block full-bleed at
 // /p/<ref>?block=<id>, same SSE + interaction REST, no board chrome. It is what
 // the iOS client loads in a WKWebView per pack block; a ResizeObserver reports
-// the content height to the native host so the webview sizes to its content.
+// the content height to the native host so the webview sizes to its content, and
+// each interaction names its block to the host's viewed set.
 
 import { useEffect, useMemo, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
@@ -20,13 +21,13 @@ import { interactionErrorText } from '../interactionError';
 import { BlockRenderer } from './BlockRenderer';
 import { ClosedBanner } from './ClosedBanner';
 
-interface HeightHandler {
+interface NativeHandler {
   postMessage: (message: unknown) => void;
 }
 
 declare global {
   interface Window {
-    webkit?: { messageHandlers?: { ccPresentHeight?: HeightHandler } };
+    webkit?: { messageHandlers?: { ccPresentHeight?: NativeHandler; ccPresentInteraction?: NativeHandler } };
   }
 }
 
@@ -83,7 +84,12 @@ export function SingleBlockView({ subject, blockId }: { subject: string; blockId
 
   const api = useMemo<PresentApi>(
     () => ({
-      post: (interaction) => mutation.mutateAsync(interaction).then(() => true, () => false),
+      post: (interaction) => {
+        if (interaction.type !== 'submit') {
+          window.webkit?.messageHandlers?.ccPresentInteraction?.postMessage({ type: 'interaction', blockId: interaction.blockId });
+        }
+        return mutation.mutateAsync(interaction).then(() => true, () => false);
+      },
       closed: realClosed,
       currentRound,
       roundOver,

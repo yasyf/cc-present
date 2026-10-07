@@ -48,7 +48,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The iOS app catches up with the board. A submit sends `viewed`, counted by
   the same 800 ms focus and 1.5 s on-screen rules as the web board, and the
   app's reducer records it per round. Optional pack blocks keep their focus
-  steps but leave the submit tally. Grounded `code` blocks show the
+  steps but leave the submit tally. A pack block's own clicks count as well:
+  the single-block page names the block to the app through a
+  `ccPresentInteraction` message. Grounded `code` blocks show the
   `path:lines @ sha` header, a numbered gutter, highlighted rows, and pins.
 
 ### Changed
