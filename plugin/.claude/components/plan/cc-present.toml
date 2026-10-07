@@ -1,0 +1,26 @@
+host_api = 1
+name = "plan"
+version = "0.1.0"
+description = "Exhibits for a plan: a call tree whose rows the reader can strike, a state machine with the screen for each state, and a sandboxed HTML mock with numbered pins the reader can comment on."
+entry = "dist/pack.js"
+styles = "dist/pack.css"
+reference = "reference/blocks.md"
+
+[blocks.calls]
+description = "Call trees of what a change adds, removes, changes, or proposes, with file:line cites; the reader can strike a marked row and its subtree."
+schema = "schema/calls.json"
+interaction = "schema/calls.interaction.json"
+optional = true
+examples = ["examples/calls.json"]
+
+[blocks.machine]
+description = "A state machine laid out on an optional grid; tapping a state shows its note and the screen for that state. Unreachable states and non-final dead ends render as an error banner."
+schema = "schema/machine.json"
+examples = ["examples/machine.json"]
+
+[blocks.mock]
+description = "Real HTML drawn at a design width in a sandboxed, script-free frame, scaled to the column, with numbered pins on data-ref elements the reader can comment on."
+schema = "schema/mock.json"
+interaction = "schema/mock.interaction.json"
+optional = true
+examples = ["examples/mock.json"]

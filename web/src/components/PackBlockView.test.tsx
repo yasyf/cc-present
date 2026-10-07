@@ -47,7 +47,7 @@ function def(name: string, blocks: { type: string; interactive: boolean }[]): Pa
     version: '0',
     description: '',
     bundle: `/packs/${name}/dist/pack.js`,
-    blocks: blocks.map((b) => ({ ...b, schema: {} })),
+    blocks: blocks.map((b) => ({ ...b, optional: false, schema: {} })),
   };
 }
 

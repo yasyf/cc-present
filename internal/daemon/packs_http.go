@@ -33,6 +33,7 @@ type packInfo struct {
 type blockInfo struct {
 	Type        string          `json:"type"`
 	Interactive bool            `json:"interactive"`
+	Optional    bool            `json:"optional"`
 	Schema      json.RawMessage `json:"schema"`
 	Interaction json.RawMessage `json:"interaction,omitempty"`
 }
@@ -66,6 +67,7 @@ func (rs *restServer) handlePacks(w http.ResponseWriter, _ *http.Request) {
 			info.Blocks = append(info.Blocks, blockInfo{
 				Type:        bt.FullType(),
 				Interactive: bt.Interactive(),
+				Optional:    bt.Optional,
 				Schema:      bt.SchemaBytes,
 				Interaction: bt.InteractionBytes,
 			})

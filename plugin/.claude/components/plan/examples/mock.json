@@ -1,0 +1,9 @@
+{
+  "id": "composer-mock",
+  "type": "plan.mock",
+  "title": "The composer footer",
+  "w": 440,
+  "html": "<div class=\"ui\"><div class=\"to\">To <b>dana@example.com</b></div><div class=\"body\">Here is what we agreed…</div><div class=\"ft\"><span class=\"btn pri\">Send</span><span class=\"btn\" data-ref=\"later\">Send later ▾</span></div></div>",
+  "css": ".ui{border:1px solid #e3e3e3;border-radius:10px;margin:8px;font-size:14px}.to,.body{padding:10px 14px;border-bottom:1px solid #eee}.body{height:70px;color:#666}.ft{display:flex;gap:8px;padding:10px 14px}.btn{border:1px solid #ccc;border-radius:7px;padding:6px 12px}.pri{background:#111;color:#fff;border-color:#111}",
+  "pins": [{ "ref": "later", "title": "New button", "body": "Send is unchanged." }]
+}

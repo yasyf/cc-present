@@ -35,11 +35,12 @@ type Manifest struct {
 }
 
 // BlockManifest is one [blocks.<name>] table. Interaction's presence marks the
-// block interactive.
+// block interactive; Optional keeps an interactive block out of the submit tally.
 type BlockManifest struct {
 	Description string   `toml:"description"`
 	Schema      string   `toml:"schema"`
 	Interaction string   `toml:"interaction"`
+	Optional    bool     `toml:"optional"`
 	Examples    []string `toml:"examples"`
 }
 
@@ -118,6 +119,9 @@ func (b BlockManifest) validate(name string) error {
 	}
 	if err := optionalContained(fmt.Sprintf("block %q interaction", name), b.Interaction); err != nil {
 		return err
+	}
+	if b.Optional && b.Interaction == "" {
+		return fmt.Errorf("block %q: optional requires an interaction schema", name)
 	}
 	if len(b.Examples) == 0 {
 		return fmt.Errorf("block %q: must declare at least one example", name)

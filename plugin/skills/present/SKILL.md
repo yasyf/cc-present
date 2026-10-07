@@ -44,6 +44,14 @@ Write the document JSON to a file in your **session scratchpad** and pass the pa
 - `display.compare`: options as columns, criteria as rows, toned cells.
 - `display.artifact`: your own HTML or SVG in a sandboxed frame.
 
+**Plan exhibits.** The plugin also ships a `plan` pack: one exhibit per card proves one claim of a plan. Its fields are in the reference path `cc-present pack list` prints for `plan`.
+
+- `plan.calls`: call trees of what a change adds, removes, changes, or proposes, with `path:line` cites. The reader can strike a marked row and its subtree.
+- `plan.machine`: a state machine on an optional grid, with a screen per state. Unreachable states and non-final dead ends render as an error banner on the board, not in `push --dry-run`.
+- `plan.mock`: real HTML at a design width in a script-free sandbox, with numbered pins the reader can comment on.
+
+Strikes and pin comments are optional: they never hold back "All answered", so read them from `outcomes` without waiting for them.
+
 To show one HTML, SVG, or Markdown file without writing a document, run `cc-present show <file>`. It resumes this window's artifact, replaces its document, and prints the URL like `start`; `--new` opens a fresh artifact and `--replace` closes the open one first, `--title` names it, and `--height` pins an HTML or SVG frame.
 
 Validate offline before starting (no daemon needed):

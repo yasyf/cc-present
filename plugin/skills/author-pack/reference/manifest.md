@@ -17,6 +17,7 @@ The manifest is `cc-present.toml` at the pack root, decoded strictly — an unkn
 | `blocks.<name>.description` | yes | Non-empty prose. |
 | `blocks.<name>.schema` | yes | JSON Schema (Draft 2020-12) for the whole block object. |
 | `blocks.<name>.interaction` | no | JSON Schema for the human interaction payload; its presence marks the block interactive. |
+| `blocks.<name>.optional` | no | `true` keeps an interactive block out of the web board's submit tally, so "All answered" never waits on it. Requires `interaction`. |
 | `blocks.<name>.examples` | one or more | Example block objects; `pack lint` validates each against the schema. |
 
 Schemas compile with a loader that rejects every external reference (`external schema reference not allowed: <url>`), so a schema can reach neither the network nor the filesystem.
@@ -39,6 +40,7 @@ Schemas compile with a loader that rejects every external reference (`external s
 | Malformed block name | `block name "My.Block" must match ^[a-z][a-z0-9-]*$` |
 | Empty block description | `block "rating": description must not be empty` |
 | No examples for a block | `block "rating": must declare at least one example` |
+| `optional` without `interaction` | `block "rating": optional requires an interaction schema` |
 | Manifest over the cap | `manifest exceeds 524288 bytes` |
 
 Then the file-level checks:

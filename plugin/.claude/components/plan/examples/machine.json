@@ -1,0 +1,36 @@
+{
+  "id": "msg-lifecycle",
+  "type": "plan.machine",
+  "title": "A scheduled message",
+  "caption": "Dashed green is proposed.",
+  "initial": "scheduled",
+  "states": [
+    { "id": "scheduled", "note": "Saved. Waiting for its time.", "screen": { "md": "**Scheduled** · Mon 8:00 · *Notes from today*" } },
+    { "id": "sending", "note": "The worker holds it." },
+    { "id": "sent", "final": true, "note": "Moved to Sent." },
+    {
+      "id": "failed",
+      "note": "Kept, with the error.",
+      "screen": {
+        "mock": {
+          "w": 360,
+          "html": "<div class=\"row\"><b>Notes from today</b><span class=\"err\">Failed</span></div><p>We tried 3 times. It is in Scheduled.</p>",
+          "css": "body{padding:12px}.row{display:flex;justify-content:space-between}.err{color:#c62828;font-weight:600}p{margin:6px 0 0;color:#555}"
+        }
+      }
+    },
+    { "id": "cancelled", "final": true, "note": "Back in Drafts." }
+  ],
+  "grid": [
+    ["scheduled", "sending", "sent"],
+    ["cancelled", "failed", null]
+  ],
+  "transitions": [
+    { "from": "scheduled", "event": "due", "to": "sending", "label": "at send_at" },
+    { "from": "sending", "event": "ok", "to": "sent", "label": "250" },
+    { "from": "sending", "event": "fail", "to": "failed", "label": "error" },
+    { "from": "scheduled", "event": "cancel", "to": "cancelled", "label": "Cancel" },
+    { "from": "failed", "event": "cancel", "to": "cancelled", "label": "Cancel" },
+    { "from": "failed", "event": "retry", "to": "sending", "label": "retry ×3", "mark": "+" }
+  ]
+}
