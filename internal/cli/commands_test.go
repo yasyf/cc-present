@@ -548,7 +548,7 @@ markdown "m1": md must not be empty`,
 			} else {
 				dd = mustDoc(t, tt.raw)
 			}
-			msg, ok := dryRunReport(dd, doc.NoPacks)
+			msg, ok := dryRunReport(t.Context(), dd, doc.NoPacks, "")
 			if ok != tt.wantOk {
 				t.Fatalf("dryRunReport() ok = %v, want %v", ok, tt.wantOk)
 			}

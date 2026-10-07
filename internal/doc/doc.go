@@ -48,6 +48,8 @@ var (
 	validTreeBadge     = map[string]bool{"added": true, "modified": true, "removed": true}
 	assetSHAPattern    = regexp.MustCompile(`^asset:[0-9a-f]{64}$`)
 	driveLetterPrefix  = regexp.MustCompile(`^[A-Za-z]:$`)
+	lineRangePattern   = regexp.MustCompile(`^([1-9][0-9]*)(?:-([1-9][0-9]*))?$`)
+	codeShaPattern     = regexp.MustCompile(`^[0-9a-f]{7,40}(\+wt)?$`)
 	errEmptyBlockID    = errors.New("block id must not be empty")
 	errEmptyTitle      = errors.New("doc title must not be empty")
 )
@@ -292,12 +294,29 @@ type Markdown struct {
 	Struck bool   `json:"struck,omitempty"`
 }
 
-// Code is a syntax-highlighted code block.
+// Code is a syntax-highlighted code block. A block with Src is grounded in a
+// repository file: the CLI fills Code, Start, Lang, and Sha from the Lines slice
+// of Src on every push, and the browser renders a numbered gutter with Highlight
+// ranges and Pins keyed to file line numbers.
 type Code struct {
 	base
-	Lang  string `json:"lang"`
-	Code  string `json:"code"`
-	Title string `json:"title,omitempty"`
+	Lang      string    `json:"lang"`
+	Code      string    `json:"code"`
+	Title     string    `json:"title,omitempty"`
+	Src       string    `json:"src,omitempty"`
+	Lines     string    `json:"lines,omitempty"`
+	Start     int       `json:"start,omitempty"`
+	Highlight string    `json:"highlight,omitempty"`
+	Pins      []CodePin `json:"pins,omitempty"`
+	Sha       string    `json:"sha,omitempty"`
+}
+
+// CodePin is a numbered callout on one file line of a Code block.
+type CodePin struct {
+	Line  int    `json:"line"`
+	Title string `json:"title"`
+	Body  string `json:"body,omitempty"`
+	Tone  string `json:"tone,omitempty"`
 }
 
 // Diff is a unified-diff block.
@@ -858,13 +877,111 @@ func validateTriage(t *Triage) error {
 }
 
 func validateCode(c *Code) error {
+	if c.Src != "" && c.Code == "" {
+		return fmt.Errorf("code %q: src %q is unfilled; it is filled by push/update-block/start --doc", c.ID, c.Src)
+	}
 	if c.Lang == "" {
 		return fmt.Errorf("code %q: lang must not be empty", c.ID)
 	}
 	if c.Code == "" {
 		return fmt.Errorf("code %q: code must not be empty", c.ID)
 	}
+	if err := validateCodeSource(c); err != nil {
+		return fmt.Errorf("code %q: %w", c.ID, err)
+	}
+	first, last, err := codeSpan(c)
+	if err != nil {
+		return fmt.Errorf("code %q: %w", c.ID, err)
+	}
+	if c.Highlight != "" {
+		for r := range strings.SplitSeq(c.Highlight, ",") {
+			a, b, err := ParseLineRange(r)
+			if err != nil {
+				return fmt.Errorf("code %q: highlight: %w", c.ID, err)
+			}
+			if a < first || b > last {
+				return fmt.Errorf("code %q: highlight %q falls outside lines %d-%d", c.ID, r, first, last)
+			}
+		}
+	}
+	for _, p := range c.Pins {
+		if p.Line < first || p.Line > last {
+			return fmt.Errorf("code %q: pin on line %d falls outside lines %d-%d", c.ID, p.Line, first, last)
+		}
+		if p.Title == "" {
+			return fmt.Errorf("code %q: pin on line %d: title must not be empty", c.ID, p.Line)
+		}
+		if isMultiline(p.Title) {
+			return fmt.Errorf("code %q: pin on line %d: title must be a single line", c.ID, p.Line)
+		}
+		if p.Tone != "" && !validFactTone[p.Tone] {
+			return fmt.Errorf("code %q: pin on line %d: tone must be default, good, warn, or bad, got %q", c.ID, p.Line, p.Tone)
+		}
+	}
 	return nil
+}
+
+func validateCodeSource(c *Code) error {
+	if c.Src == "" {
+		switch {
+		case c.Lines != "":
+			return errors.New("lines requires src")
+		case c.Sha != "":
+			return errors.New("sha requires src")
+		}
+		return nil
+	}
+	if err := validateTreePath(c.Src); err != nil {
+		return fmt.Errorf("src: %w", err)
+	}
+	if c.Sha != "" && !codeShaPattern.MatchString(c.Sha) {
+		return fmt.Errorf("sha %q must be a hex commit, optionally suffixed +wt", c.Sha)
+	}
+	return nil
+}
+
+func codeSpan(c *Code) (int, int, error) {
+	if c.Start < 0 {
+		return 0, 0, fmt.Errorf("start %d must be positive", c.Start)
+	}
+	n := strings.Count(c.Code, "\n") + 1
+	if c.Lines == "" {
+		first := max(c.Start, 1)
+		return first, first + n - 1, nil
+	}
+	a, b, err := ParseLineRange(c.Lines)
+	if err != nil {
+		return 0, 0, fmt.Errorf("lines: %w", err)
+	}
+	if c.Start != 0 && c.Start != a {
+		return 0, 0, fmt.Errorf("start %d must match lines %q", c.Start, c.Lines)
+	}
+	if b-a+1 != n {
+		return 0, 0, fmt.Errorf("lines %q spans %d lines but code has %d", c.Lines, b-a+1, n)
+	}
+	return a, b, nil
+}
+
+// ParseLineRange parses a 1-based inclusive line range, "40" or "40-72".
+func ParseLineRange(s string) (int, int, error) {
+	m := lineRangePattern.FindStringSubmatch(s)
+	if m == nil {
+		return 0, 0, fmt.Errorf("line range %q must look like 40 or 40-72", s)
+	}
+	a, err := strconv.Atoi(m[1])
+	if err != nil {
+		return 0, 0, fmt.Errorf("line range %q: %w", s, err)
+	}
+	b := a
+	if m[2] != "" {
+		if b, err = strconv.Atoi(m[2]); err != nil {
+			return 0, 0, fmt.Errorf("line range %q: %w", s, err)
+		}
+	}
+	if b < a {
+		return 0, 0, fmt.Errorf("line range %q ends before it starts", s)
+	}
+	return a, b, nil
 }
 
 func validateImage(i *Image) error {

@@ -164,17 +164,23 @@ func RewriteAssetSrcs(b Block, fn func(string) (string, error)) error {
 	return nil
 }
 
-func assetSrcPtrs(b Block) []*string {
-	sp := registry[b.BlockType()]
-	var ptrs []*string
-	if sp.assetSrcs != nil {
-		ptrs = append(ptrs, sp.assetSrcs(b)...)
-	}
+// Walk calls fn on b, then depth-first on each of its visuals and children.
+func Walk(b Block, fn func(Block)) {
+	fn(b)
 	for _, v := range Visuals(b) {
-		ptrs = append(ptrs, assetSrcPtrs(v)...)
+		Walk(v, fn)
 	}
 	for _, child := range Children(b) {
-		ptrs = append(ptrs, assetSrcPtrs(child)...)
+		Walk(child, fn)
 	}
+}
+
+func assetSrcPtrs(b Block) []*string {
+	var ptrs []*string
+	Walk(b, func(b Block) {
+		if sp := registry[b.BlockType()]; sp.assetSrcs != nil {
+			ptrs = append(ptrs, sp.assetSrcs(b)...)
+		}
+	})
 	return ptrs
 }

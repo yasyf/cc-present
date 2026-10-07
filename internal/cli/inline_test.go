@@ -97,8 +97,8 @@ func TestInlineImagesErrors(t *testing.T) {
 	})
 }
 
-// TestDryRunFlow exercises the push --dry-run pipeline: inline images locally,
-// then validate the resulting document.
+// TestDryRunFlow exercises the push --dry-run pipeline: fill code from src and
+// inline images locally, then validate the resulting document.
 func TestDryRunFlow(t *testing.T) {
 	png := []byte("\x89PNG\r\n\x1a\nQ")
 	path := writeImage(t, png)
@@ -120,5 +120,16 @@ func TestDryRunFlow(t *testing.T) {
 	}
 	if err := invalid.Validate(doc.NoPacks); err == nil {
 		t.Fatal("invalid doc validated, want error")
+	}
+
+	root, _ := gitRepo(t, map[string]string{"main.go": mainGo, ".env": "PORT=1\n"})
+	grounded := mustDoc(t, `{"version":1,"title":"T","blocks":[{"id":"c1","type":"code","src":"main.go","lines":"3-5","pins":[{"line":4,"title":"prints"}]}]}`)
+	if msg, ok := dryRunReport(t.Context(), grounded, doc.NoPacks, root); !ok {
+		t.Fatalf("dry-run grounded code = %q, want ok", msg)
+	}
+	secret := mustDoc(t, `{"version":1,"title":"T","blocks":[{"id":"c1","type":"code","src":".env"}]}`)
+	msg, ok := dryRunReport(t.Context(), secret, doc.NoPacks, root)
+	if want := `code "c1": src ".env" looks like a secret file (dotfile credential); not reading it`; ok || msg != want {
+		t.Fatalf("dry-run .env = (%q, %v), want (%q, false)", msg, ok, want)
 	}
 }

@@ -179,12 +179,28 @@ export interface Markdown {
   struck?: boolean;
 }
 
+// A numbered callout on one file line of a code block.
+export interface CodePin {
+  line: number;
+  title: string;
+  body?: string;
+  tone?: FactTone;
+}
+
+// A code block with `src` is grounded in a repository file: the CLI fills `code`,
+// `start`, `lang`, and `sha` from the `lines` slice of `src` on every push.
 export interface Code {
   id: string;
   type: 'code';
   lang: string;
   code: string;
   title?: string;
+  src?: string;
+  lines?: string;
+  start?: number;
+  highlight?: string;
+  pins?: CodePin[];
+  sha?: string;
 }
 
 export interface Diff {

@@ -105,10 +105,14 @@ func lineCol(data []byte, offset int64) (int, int) {
 	return line, col
 }
 
-// dryRunReport inlines any local image against the content-addressed store, then
-// runs the whole-document validator, returning the text to print and whether the
-// document passed; a false result maps to a non-zero exit at the call site.
-func dryRunReport(dd *doc.Doc, pt doc.PackTypes) (string, bool) {
+// dryRunReport fills code blocks from their src and inlines any local image
+// against the content-addressed store, then runs the whole-document validator,
+// returning the text to print and whether the document passed; a false result
+// maps to a non-zero exit at the call site.
+func dryRunReport(ctx context.Context, dd *doc.Doc, pt doc.PackTypes, root string) (string, bool) {
+	if err := fillCode(ctx, dd.Blocks, root); err != nil {
+		return err.Error(), false
+	}
 	if err := inlineImages(dd.Blocks, localUploader); err != nil {
 		return err.Error(), false
 	}
@@ -267,7 +271,7 @@ func startMode(fresh, replace bool) ccdaemon.StartMode {
 // newStartCmd creates or resumes this window's artifact and prints its ref, URL,
 // and channel state, one per line.
 func newStartCmd(d cmd.Deps) *cobra.Command {
-	var session, cwd, title, docPath string
+	var session, cwd, title, docPath, root string
 	var fresh, replace bool
 	c := &cobra.Command{
 		Use:   "start",
@@ -294,6 +298,9 @@ func newStartCmd(d cmd.Deps) *cobra.Command {
 				if err := json.Unmarshal(raw, dd); err != nil {
 					return fmt.Errorf("decode doc: %w", err)
 				}
+				if err := fillCode(ctx, dd.Blocks, root); err != nil {
+					return err
+				}
 				_, port, err := cl.Resolve(ctx, sess, scope, pid)
 				if err != nil {
 					return err
@@ -319,6 +326,7 @@ func newStartCmd(d cmd.Deps) *cobra.Command {
 	c.Flags().BoolVar(&fresh, "new", false, "start a fresh artifact; refuses while this session has an open one")
 	c.Flags().BoolVar(&replace, "replace", false, "close this session's open artifact and start a fresh one")
 	c.Flags().StringVar(&docPath, "doc", "", "seed the artifact with a document from a file (- for stdin)")
+	c.Flags().StringVar(&root, "root", "", "checkout that code block src paths resolve under (defaults to the git toplevel of the current directory)")
 	return c
 }
 
@@ -337,7 +345,7 @@ func printStart(c *cobra.Command, subjectID, url string, tailnet []string, chann
 // current|new declares intent when the push adds a top-level block to an engaged
 // round, and --round-title titles a round --round new opens.
 func newPushCmd(d cmd.Deps) *cobra.Command {
-	var session, cwd, round, roundTitle string
+	var session, cwd, round, roundTitle, root string
 	var dryRun bool
 	c := &cobra.Command{
 		Use:   "push <file|->",
@@ -363,7 +371,10 @@ func newPushCmd(d cmd.Deps) *cobra.Command {
 				if hint := visualNudge(dd); hint != "" {
 					_, _ = fmt.Fprintln(c.ErrOrStderr(), hint)
 				}
-				msg, ok := dryRunReport(dd, packs.Load(c.Context(), cfg.PackDirs, cfg.DisabledPacks))
+				msg, ok := dryRunReport(c.Context(), dd, packs.Load(c.Context(), cfg.PackDirs, cfg.DisabledPacks), root)
+				if hint := longCodeNudge(dd.Blocks); hint != "" {
+					_, _ = fmt.Fprintln(c.ErrOrStderr(), hint)
+				}
 				_, _ = fmt.Fprintln(c.OutOrStdout(), msg)
 				if !ok {
 					os.Exit(1)
@@ -371,6 +382,9 @@ func newPushCmd(d cmd.Deps) *cobra.Command {
 				return nil
 			}
 			ctx := c.Context()
+			if err := fillCode(ctx, dd.Blocks, root); err != nil {
+				return err
+			}
 			if err := d.EnsureCurrent(ctx); err != nil {
 				return err
 			}
@@ -410,12 +424,16 @@ func newPushCmd(d cmd.Deps) *cobra.Command {
 			if hint := visualNudge(dd); hint != "" {
 				_, _ = fmt.Fprintln(c.ErrOrStderr(), hint)
 			}
+			if hint := longCodeNudge(dd.Blocks); hint != "" {
+				_, _ = fmt.Fprintln(c.ErrOrStderr(), hint)
+			}
 			return nil
 		},
 	}
 	c.Flags().StringVar(&session, "session", "", "Claude session id (defaults to $CLAUDE_CODE_SESSION_ID)")
 	c.Flags().StringVar(&cwd, "cwd", "", "working directory (recorded on the request; artifacts are per-window, not resolved by directory)")
 	c.Flags().BoolVar(&dryRun, "dry-run", false, "validate the document only; print every violation and exit non-zero")
+	c.Flags().StringVar(&root, "root", "", "checkout that code block src paths resolve under (defaults to the git toplevel of the current directory)")
 	c.Flags().StringVar(&round, "round", "", `round intent when a new top-level block lands in an engaged round: "current" (add to it) or "new" (close it and open the next)`)
 	c.Flags().StringVar(&roundTitle, "round-title", "", "title for the round opened by --round new")
 	return c
@@ -426,7 +444,7 @@ func newPushCmd(d cmd.Deps) *cobra.Command {
 // an engaged round, and --round-title titles a round --round new opens; it prints
 // round: N only when the upsert opened round N.
 func newUpdateBlockCmd(d cmd.Deps) *cobra.Command {
-	var session, cwd, after, round, roundTitle string
+	var session, cwd, after, round, roundTitle, root string
 	var dryRun bool
 	c := &cobra.Command{
 		Use:   "update-block <file|->",
@@ -449,7 +467,10 @@ func newUpdateBlockCmd(d cmd.Deps) *cobra.Command {
 				if err != nil {
 					return err
 				}
-				msg, ok := dryRunReport(blockDoc(blk), packs.Load(c.Context(), cfg.PackDirs, cfg.DisabledPacks))
+				msg, ok := dryRunReport(c.Context(), blockDoc(blk), packs.Load(c.Context(), cfg.PackDirs, cfg.DisabledPacks), root)
+				if hint := longCodeNudge([]doc.Block{blk}); hint != "" {
+					_, _ = fmt.Fprintln(c.ErrOrStderr(), hint)
+				}
 				_, _ = fmt.Fprintln(c.OutOrStdout(), msg)
 				if !ok {
 					os.Exit(1)
@@ -457,6 +478,9 @@ func newUpdateBlockCmd(d cmd.Deps) *cobra.Command {
 				return nil
 			}
 			ctx := c.Context()
+			if err := fillCode(ctx, []doc.Block{blk}, root); err != nil {
+				return err
+			}
 			if err := d.EnsureCurrent(ctx); err != nil {
 				return err
 			}
@@ -487,6 +511,9 @@ func newUpdateBlockCmd(d cmd.Deps) *cobra.Command {
 			if n > 0 {
 				_, _ = fmt.Fprintf(c.OutOrStdout(), "round: %d\n", n)
 			}
+			if hint := longCodeNudge([]doc.Block{blk}); hint != "" {
+				_, _ = fmt.Fprintln(c.ErrOrStderr(), hint)
+			}
 			return nil
 		},
 	}
@@ -494,6 +521,7 @@ func newUpdateBlockCmd(d cmd.Deps) *cobra.Command {
 	c.Flags().StringVar(&cwd, "cwd", "", "working directory (recorded on the request; artifacts are per-window, not resolved by directory)")
 	c.Flags().StringVar(&after, "after", "", "insert a new block after a top-level block, or into a card after a child (unknown ids error)")
 	c.Flags().BoolVar(&dryRun, "dry-run", false, "validate the single block only; print every violation and exit non-zero")
+	c.Flags().StringVar(&root, "root", "", "checkout that code block src paths resolve under (defaults to the git toplevel of the current directory)")
 	c.Flags().StringVar(&round, "round", "", `round intent when the block is a new top-level block in an engaged round: "current" (add to it) or "new" (close it and open the next)`)
 	c.Flags().StringVar(&roundTitle, "round-title", "", "title for the round opened by --round new")
 	return c

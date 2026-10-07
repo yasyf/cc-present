@@ -40,7 +40,7 @@ toggle overrides it.
 | `draft` | top or child | `id`, `type`, `lang`, `text`, `title?` | Line-annotatable document rendered as numbered source lines; the human attaches anchored notes via `annotation.created` (see Line anchors). `text` is at most **64 KiB**. |
 | `triage` | top or child | `id`, `type`, `prompt?`, `allowNotes?`, `items` | Per-item approve/reject list. `items[]` is `{id, label, hint?, md?, facts?, detail?, visual?}` — a choice option minus `recommended`; item ids are unique within the block, at most **50** items. `allowNotes` defaults to true and gates per-item verdict notes. An item's `visual` follows the same restricted-leaf rule as a choice option's. |
 | `markdown` | top or child | `id`, `type`, `md`, `struck?` | `struck` applies the "was:" treatment. |
-| `code` | top or child | `id`, `type`, `lang`, `code`, `title?` | |
+| `code` | top or child | `id`, `type`, `lang`, `code`, `title?`, `src?`, `lines?`, `start?`, `highlight?`, `pins?`, `sha?` | `src` grounds the block in a repository file: `start --doc`, `push`, and `update-block` read the `lines` slice (`40` or `40-72`) and fill `code`, `start`, `sha`, and an unset `lang` from the file extension; see Code grounding. `start` numbers the gutter from that file line. `highlight` is comma-separated line ranges (`4-5,9`). `pins[]` is `{line, title, body?, tone?}`, a numbered callout on one file line. |
 | `diff` | top or child | `id`, `type`, `diff`, `title?` | Unified diff text. |
 | `diagram` | top or child | `id`, `type`, `kind`, `source`, `title?` | Text-to-diagram block rendered client-side. `kind` is `mermaid`; `source` is at most **8 KiB**. Also usable as an `option.visual`. |
 | `chart` | top or child | `id`, `type`, `kind`, `title?`, `unit?`, `categories`, `series` | Structured data rendered client-side as a themed SVG. `kind` is `bar` or `line`. `categories` names the x-axis; `series[]` is `{label, values}` with one finite value per category. Also usable as an `option.visual`. |
@@ -76,6 +76,12 @@ toggle overrides it.
   outside that window overflow or underflow the client scale). Negative values are
   legal — the renderer anchors the value axis at 0. `title` and `unit`, when set,
   are single-line.
+- On `code`, a block with `src` and no `code` is rejected as unfilled. `src` follows
+  the `filetree` path rules. `lines` and `sha` require `src`; `lines` spans exactly
+  as many lines as `code`, and `start`, when set, matches its first line. Every
+  `highlight` range and `pins[].line` falls inside the lines the block shows; a pin's
+  `title` is non-empty and single-line, and its `tone` is a fact tone. `sha` is a hex
+  commit, optionally suffixed `+wt`.
 - On `term`, `output` is non-empty and at most **32 KiB**; `command` and `title`, when
   set, are single-line.
 - On `filetree`, `entries` holds 1 to **200** entries; every `path` is relative
@@ -104,6 +110,25 @@ toggle overrides it.
   in single-block mode.
 - A single-select choice (`multi` unset or false) has at most one `recommended` option.
 - The serialized document is at most **1 MiB**.
+
+### Code grounding
+
+The CLI fills every `code` block that carries `src` before it validates, inlines
+images, or sends the document. `src` resolves under the root: `--root`, else the
+git toplevel of the CLI's working directory, else that directory, with symlinks
+resolved. The fill refuses, naming the block id and the matched class:
+
+- a file that resolves outside the root, symlinks included;
+- a file whose name looks like a secret, such as `.env`, `.ssh/`, `id_rsa`,
+  `*.pem`, or `credentials*`;
+- a file whose text anywhere holds a secret: an AWS access key id, a private key
+  block, a GitHub, Slack, Google, or `sk-` key, a JWT, or a password or token
+  assignment;
+- a file over **1 MiB**, not UTF-8, or shorter than `lines`.
+
+`sha` is the root's short `HEAD`, suffixed `+wt` when the file differs from its
+committed blob. Git runs only `rev-parse` and `cat-file`, with fsmonitor and
+hooks both off. The document keeps `src` and `lines`, so every push fills the block again.
 
 `Fact` and `Detail` are the option-context shapes — `facts` and `detail` on a choice
 option, `detail` on an approval:

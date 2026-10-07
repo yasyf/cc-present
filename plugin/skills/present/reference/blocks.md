@@ -229,6 +229,14 @@ The block counts **once** in the submit tally, and only when every item has a ve
 { "id": "get-started", "type": "code", "lang": "bash", "code": "brew install yasyf/tap/slop-cop", "title": "Get started" }
 ```
 
+To show real code, point `src` at a repository file instead of pasting it. The CLI reads the `lines` slice and fills `code`, `start`, `lang`, and `sha` on every `start --doc`, `push`, and `update-block`:
+
+```json
+{ "id": "walk", "type": "code", "src": "internal/doc/registry.go", "lines": "167-176", "highlight": "170-171", "pins": [{ "line": 170, "title": "Visuals before children", "tone": "warn" }] }
+```
+
+The block renders a `path:lines @ sha` header and a numbered gutter, tints the `highlight` ranges, and numbers each pin on its line with a callout below. `sha` gains `+wt` when the file differs from `HEAD`. `src` resolves under the git toplevel of the CLI's working directory; from a scratch directory, pass `--root <checkout>`. A file outside the root, a secret-looking name (`.env`, `*.pem`), or a secret anywhere in the file text fails the push, naming the match. Keep slices to 40 lines or fewer; a longer one prints a stderr hint.
+
 ### `diff` — unified diff text
 
 ```json

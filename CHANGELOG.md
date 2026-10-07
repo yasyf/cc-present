@@ -6,6 +6,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `code` blocks read from a repository file. Set `src` and `lines`, and
+  `start --doc`, `push`, and `update-block` fill `code`, `start`, `lang`, and a
+  `sha` stamp on every push; the stamp gains `+wt` when the file differs from
+  `HEAD`. The board
+  shows a `path:lines @ sha` header, a numbered gutter, `highlight` ranges, and
+  numbered `pins`. The fill refuses files outside `--root`, which defaults to
+  the git toplevel of the working directory. It also refuses secret-looking
+  filenames and files whose text holds a secret, naming the matched class. A slice over 40 lines prints a
+  stderr hint.
+
 ### Changed
 
 - `start --new` and `show --new` refuse while the session already has an
