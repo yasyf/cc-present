@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -34,7 +35,7 @@ var secretNames = []secretPattern{
 
 var secretTexts = []secretPattern{
 	{"Anthropic API key", regexp.MustCompile(`(?i)sk-ant-`)},
-	{"sk- API key", regexp.MustCompile(`(?i)sk-[A-Za-z0-9]{32,}`)},
+	{"sk- API key", regexp.MustCompile(`(?i)\bsk-[A-Za-z0-9_-]{32,}`)},
 	{"AWS access key id", regexp.MustCompile(`(?i)AKIA[0-9A-Z]{16}`)},
 	{"private key block", regexp.MustCompile(`(?i)-----BEGIN [A-Z ]*PRIVATE KEY`)},
 	{"GitHub token", regexp.MustCompile(`(?i)gh[pousr]_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{30,}`)},
@@ -43,6 +44,8 @@ var secretTexts = []secretPattern{
 	{"JWT", regexp.MustCompile(`(?i)eyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{10,}\.`)},
 	{"password or token assignment", regexp.MustCompile(`(?i)(password|passwd|secret|api[_-]?key|access[_-]?token|auth[_-]?token)["']?\s*[:=]\s*["'][^"'\s$<{]{12,}["']`)},
 }
+
+var unquotedSecretAssignment = regexp.MustCompile(`(?im)(password|passwd|secret|api[_-]?key|access[_-]?token|auth[_-]?token)\s*[:=]\s*[A-Za-z0-9_+/=!@%^&*~-]{12,}(\s|$|[,;])`)
 
 type gitPlumbing string
 
@@ -60,11 +63,23 @@ func matchSecret(patterns []secretPattern, s string) string {
 	return ""
 }
 
+func secretInText(text string) string {
+	if class := matchSecret(secretTexts, text); class != "" {
+		return class
+	}
+	for _, m := range unquotedSecretAssignment.FindAllString(text, -1) {
+		if strings.ContainsAny(m, "0123456789") {
+			return "unquoted password or token assignment"
+		}
+	}
+	return ""
+}
+
 func runGit(ctx context.Context, dir string, sub gitPlumbing, args ...string) ([]byte, error) {
 	argv := append([]string{"-c", "core.fsmonitor=false", "-c", "core.hooksPath=/dev/null", "-C", dir, string(sub)}, args...)
 	//nolint:gosec // G204: the subcommand is a rev-parse/cat-file constant; args never reach a shell.
 	cmd := exec.CommandContext(ctx, "git", argv...)
-	cmd.Env = append(os.Environ(), "GIT_OPTIONAL_LOCKS=0", "GIT_TERMINAL_PROMPT=0", "GIT_PAGER=cat")
+	cmd.Env = append(os.Environ(), "GIT_OPTIONAL_LOCKS=0", "GIT_TERMINAL_PROMPT=0", "GIT_PAGER=cat", "GIT_NO_LAZY_FETCH=1")
 	return cmd.Output()
 }
 
@@ -113,28 +128,55 @@ func readCodeSrc(root, src string) (string, []byte, error) {
 	if class := matchSecret(secretNames, rel); class != "" {
 		return "", nil, fmt.Errorf("src %q resolves to %s, which looks like a secret file (%s); not reading it", src, rel, class)
 	}
-	info, err := os.Stat(resolved)
+	data, err := readUnderRoot(root, filepath.FromSlash(rel))
 	if err != nil {
 		return "", nil, fmt.Errorf("src %q: %w", src, err)
-	}
-	if !info.Mode().IsRegular() {
-		return "", nil, fmt.Errorf("src %q is not a regular file", src)
-	}
-	if info.Size() > maxCodeSrcBytes {
-		return "", nil, fmt.Errorf("src %q is %d bytes, exceeds %d", src, info.Size(), maxCodeSrcBytes)
-	}
-	//nolint:gosec // G304: resolved is fenced under root and past the secret-name check above.
-	data, err := os.ReadFile(resolved)
-	if err != nil {
-		return "", nil, fmt.Errorf("read src %q: %w", src, err)
 	}
 	if !utf8.Valid(data) {
 		return "", nil, fmt.Errorf("src %q is not UTF-8 text", src)
 	}
-	if class := matchSecret(secretTexts, string(data)); class != "" {
+	if class := secretInText(string(data)); class != "" {
 		return "", nil, fmt.Errorf("src %q holds a secret (%s); not reading any of it", src, class)
 	}
 	return rel, data, nil
+}
+
+func readUnderRoot(root, rel string) ([]byte, error) {
+	r, err := os.OpenRoot(root)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = r.Close() }()
+	f, err := r.Open(rel)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = f.Close() }()
+	info, err := f.Stat()
+	if err != nil {
+		return nil, err
+	}
+	link, err := r.Lstat(rel)
+	if err != nil {
+		return nil, err
+	}
+	if !os.SameFile(info, link) {
+		return nil, errors.New("changed while being read")
+	}
+	if !info.Mode().IsRegular() {
+		return nil, errors.New("not a regular file")
+	}
+	if info.Size() > maxCodeSrcBytes {
+		return nil, fmt.Errorf("%d bytes exceeds %d", info.Size(), maxCodeSrcBytes)
+	}
+	data, err := io.ReadAll(io.LimitReader(f, maxCodeSrcBytes+1))
+	if err != nil {
+		return nil, err
+	}
+	if len(data) > maxCodeSrcBytes {
+		return nil, fmt.Errorf("grew past %d bytes while being read", maxCodeSrcBytes)
+	}
+	return data, nil
 }
 
 func stampSha(ctx context.Context, root, rel string, data []byte) string {

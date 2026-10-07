@@ -34,6 +34,7 @@ const (
 	MaxRecordChips  = 8
 	MaxRecordLinks  = 8
 	MaxTriageItems  = 50
+	MaxCodeLine     = 1_000_000
 )
 
 var (
@@ -941,8 +942,8 @@ func validateCodeSource(c *Code) error {
 }
 
 func codeSpan(c *Code) (int, int, error) {
-	if c.Start < 0 {
-		return 0, 0, fmt.Errorf("start %d must be positive", c.Start)
+	if c.Start < 0 || c.Start > MaxCodeLine {
+		return 0, 0, fmt.Errorf("start %d must be between 1 and %d", c.Start, MaxCodeLine)
 	}
 	n := strings.Count(c.Code, "\n") + 1
 	if c.Lines == "" {
@@ -980,6 +981,9 @@ func ParseLineRange(s string) (int, int, error) {
 	}
 	if b < a {
 		return 0, 0, fmt.Errorf("line range %q ends before it starts", s)
+	}
+	if b > MaxCodeLine {
+		return 0, 0, fmt.Errorf("line range %q exceeds line %d", s, MaxCodeLine)
 	}
 	return a, b, nil
 }

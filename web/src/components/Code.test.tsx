@@ -129,6 +129,20 @@ describe('Code grounded in a file', () => {
     expect(notes[1]?.classList.contains('code-pin-default')).toBe(true);
   });
 
+  it('tints only displayed rows when start and highlight sit past the safe-integer edge', async () => {
+    await renderCode({
+      id: 'big',
+      type: 'code',
+      lang: 'text',
+      code: 'x\ny',
+      start: 9007199254740992,
+      highlight: '9007199254740992',
+    });
+    const rows = [...container.querySelectorAll('.code-row')];
+    expect(rows).toHaveLength(2);
+    expect(rows[0]?.classList.contains('code-lit')).toBe(true);
+  });
+
   it('renders plain rows for an uncurated language', async () => {
     await renderCode({ ...grounded, lang: 'text', pins: undefined, highlight: undefined });
     expect(container.querySelector('.code-lang')?.textContent).toBe('text · plain text');

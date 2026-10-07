@@ -65,13 +65,12 @@ function CodeTools({ block, highlightable }: { block: CodeBlock; highlightable: 
   );
 }
 
-function litLines(highlight: string | undefined): Set<number> {
-  const lit = new Set<number>();
-  for (const range of highlight?.split(',') ?? []) {
+function litRows(highlight: string | undefined, start: number, count: number): boolean[] {
+  const ranges = (highlight?.split(',') ?? []).map((range) => {
     const [a, b] = range.split('-').map(Number) as [number, number?];
-    for (let n = a; n <= (b ?? a); n++) lit.add(n);
-  }
-  return lit;
+    return [a, b ?? a] as const;
+  });
+  return Array.from({ length: count }, (_, i) => ranges.some(([a, b]) => start + i >= a && start + i <= b));
 }
 
 function sourceLabel(block: CodeBlock): string | null {
@@ -83,7 +82,8 @@ function sourceLabel(block: CodeBlock): string | null {
 
 function GroundedCode({ block }: { block: CodeBlock }) {
   const lines = useMemo(() => block.code.split('\n'), [block.code]);
-  const lit = useMemo(() => litLines(block.highlight), [block.highlight]);
+  const start = block.start ?? 1;
+  const lit = useMemo(() => litRows(block.highlight, start, lines.length), [block.highlight, start, lines.length]);
   const pins = useMemo(() => block.pins ?? [], [block.pins]);
   const pinsByLine = useMemo(() => {
     const m = new Map<number, number[]>();
@@ -111,7 +111,6 @@ function GroundedCode({ block }: { block: CodeBlock }) {
   }, [block.code, block.lang]);
 
   const rowTokens = tokens?.code === block.code ? tokens.lines : null;
-  const start = block.start ?? 1;
   const label = sourceLabel(block);
 
   return (
@@ -128,7 +127,7 @@ function GroundedCode({ block }: { block: CodeBlock }) {
           const n = start + i;
           const marks = pinsByLine.get(n);
           return (
-            <div key={n} className={`code-row${lit.has(n) ? ' code-lit' : ''}`}>
+            <div key={n} className={`code-row${lit[i] ? ' code-lit' : ''}`}>
               <span className="code-gutter">{n}</span>
               <code className="code-text">
                 {rowTokens?.[i]

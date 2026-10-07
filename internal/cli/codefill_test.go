@@ -166,3 +166,84 @@ func TestLongCodeNudge(t *testing.T) {
 		t.Fatalf("longCodeNudge() = %q, want %q", got, want)
 	}
 }
+
+func TestRunGitDisablesLazyFetch(t *testing.T) {
+	bin := t.TempDir()
+	shim := "#!/bin/sh\necho \"$GIT_NO_LAZY_FETCH $GIT_OPTIONAL_LOCKS $GIT_TERMINAL_PROMPT\"\n"
+	//nolint:gosec // G306: the fake git shim must be executable to resolve.
+	if err := os.WriteFile(filepath.Join(bin, "git"), []byte(shim), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin)
+	out, err := runGit(t.Context(), t.TempDir(), gitCatFile, "blob", "HEAD:./a.go")
+	if err != nil {
+		t.Fatalf("runGit: %v", err)
+	}
+	if got := strings.TrimSpace(string(out)); got != "1 0 0" {
+		t.Fatalf("git env = %q, want %q", got, "1 0 0")
+	}
+}
+
+func TestReadUnderRootRefusesSwappedPaths(t *testing.T) {
+	root, _ := gitRepo(t, map[string]string{"main.go": mainGo, ".env": "PORT=1\n", "cfg/a.txt": "a\n"})
+	root, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	outside := filepath.Join(t.TempDir(), "outside.go")
+	if err := os.WriteFile(outside, []byte(mainGo), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, filepath.Join(root, "swapped.go")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(filepath.Join("..", ".env"), filepath.Join(root, "cfg", "swapped")); err != nil {
+		t.Fatal(err)
+	}
+	tests := []struct {
+		name string
+		rel  string
+		want string
+	}{
+		{"symlink out of the root", "swapped.go", "escapes"},
+		{"symlink inside the root", filepath.Join("cfg", "swapped"), "changed while being read"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			data, err := readUnderRoot(root, tt.rel)
+			if err == nil || !strings.Contains(err.Error(), tt.want) {
+				t.Fatalf("readUnderRoot() = (%q, %v), want error containing %q", data, err, tt.want)
+			}
+		})
+	}
+	data, err := readUnderRoot(root, "main.go")
+	if err != nil || string(data) != mainGo {
+		t.Fatalf("readUnderRoot(main.go) = (%q, %v), want the file", data, err)
+	}
+}
+
+func TestSecretInText(t *testing.T) {
+	tests := []struct {
+		name string
+		text string
+		want string
+	}{
+		{"sk-proj key", "OPENAI = \"sk-" + "proj-Ab3dEf6hIj9kLm2nOp5qRs8tUv1wXy4z_AbCdEf\"\n", "sk- API key"},
+		{"sk-svcacct key", "key: sk-" + "svcacct-Zy9xWv8uTs7rQp6oNm5lKj4iHg3fEd2cBa1\n", "sk- API key"},
+		{"unquoted yaml password", "db:\n  password: " + "Hunter2Hunter2Hunter2\n", "unquoted password or token assignment"},
+		{"unquoted env api key", "API_KEY=" + "abc123def456ghi789\nPORT=1\n", "unquoted password or token assignment"},
+		{"quoted assignment", `password = "` + `correct-horse-battery"` + "\n", "password or token assignment"},
+		{"typed field", "interface C {\n  apiKey: ApiKeyStorageInterface;\n}\n", ""},
+		{"env lookup", "password := os.Getenv(\"DB_PASSWORD\")\n", ""},
+		{"templated secret", "password: ${{ secrets.DB_PASSWORD_2 }}\n", ""},
+		{"short value", "password: hunter2\n", ""},
+		{"disk prefix", "disk-0123456789abcdef0123456789abcdef01\n", ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := secretInText(tt.text); got != tt.want {
+				t.Fatalf("secretInText() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}

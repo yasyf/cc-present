@@ -80,7 +80,8 @@ toggle overrides it.
   the `filetree` path rules. `lines` and `sha` require `src`; `lines` spans exactly
   as many lines as `code`, and `start`, when set, matches its first line. Every
   `highlight` range and `pins[].line` falls inside the lines the block shows; a pin's
-  `title` is non-empty and single-line, and its `tone` is a fact tone. `sha` is a hex
+  `title` is non-empty and single-line, and its `tone` is a fact tone. `start` and
+  every line in `lines` and `highlight` are at most **1,000,000**. `sha` is a hex
   commit, optionally suffixed `+wt`.
 - On `term`, `output` is non-empty and at most **32 KiB**; `command` and `title`, when
   set, are single-line.
