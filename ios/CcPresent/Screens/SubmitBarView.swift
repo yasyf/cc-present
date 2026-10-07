@@ -11,7 +11,7 @@ struct SubmitBarView: View {
     let blocks: [Block]
     let doc: Doc
     let store: BoardStore
-    let packInteractive: Set<String>
+    let packTypes: PackTypes
     let hasHistory: Bool
 
     @State private var confirming = false
@@ -21,7 +21,7 @@ struct SubmitBarView: View {
     }
 
     private var items: [SubmitItem] {
-        submitItems(blocks, interactions, packInteractive)
+        submitItems(blocks, interactions, packTypes)
     }
 
     private var total: Int {
@@ -137,7 +137,7 @@ private struct PreviewPoster: InteractionPoster {
             blocks: blocks,
             doc: Doc(title: "Review", submit: Doc.Submit(label: "Submit review", note: "2 files"), blocks: blocks),
             store: store,
-            packInteractive: [],
+            packTypes: PackTypes(interactive: []),
             hasHistory: true
         )
     }

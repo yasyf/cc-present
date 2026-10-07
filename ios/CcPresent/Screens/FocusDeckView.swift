@@ -77,19 +77,19 @@ final class FocusDeckModel {
     /// deck. A momentum first pass prefers steps the agent is not actively `revising`;
     /// a revising step stays reachable on the fallback pass, never locked out. It
     /// settles on the summary only when nothing is undecided. Mirrors the web next().
-    func next(_ steps: [FocusStep], _ interactions: Interactions, _ packInteractive: Set<String>, _ revising: Set<String>) {
+    func next(_ steps: [FocusStep], _ interactions: Interactions, _ packTypes: PackTypes, _ revising: Set<String>) {
         guard !steps.isEmpty else { return }
         let from = index(steps)
         for hop in 1 ... steps.count {
             let idx = (from + hop) % steps.count
-            if stepUndecided(steps[idx], interactions, packInteractive), !revising.contains(steps[idx].id) {
+            if stepUndecided(steps[idx], interactions, packTypes), !revising.contains(steps[idx].id) {
                 go(steps, to: idx)
                 return
             }
         }
         for hop in 1 ... steps.count {
             let idx = (from + hop) % steps.count
-            if stepUndecided(steps[idx], interactions, packInteractive) {
+            if stepUndecided(steps[idx], interactions, packTypes) {
                 go(steps, to: idx)
                 return
             }
@@ -190,7 +190,7 @@ private struct FocusContentHeightKey: PreferenceKey {
 struct FocusDeckView: View {
     let steps: [FocusStep]
     let store: BoardStore
-    let packInteractive: Set<String>
+    let packTypes: PackTypes
     var client: APIClient?
     var packContext: PackContext?
 
@@ -203,13 +203,13 @@ struct FocusDeckView: View {
     init(
         steps: [FocusStep],
         store: BoardStore,
-        packInteractive: Set<String>,
+        packTypes: PackTypes,
         client: APIClient? = nil,
         packContext: PackContext? = nil
     ) {
         self.steps = steps
         self.store = store
-        self.packInteractive = packInteractive
+        self.packTypes = packTypes
         self.client = client
         self.packContext = packContext
         _model = State(initialValue: FocusDeckModel(anchorId: steps.first?.id ?? deckEnd))
@@ -257,12 +257,12 @@ struct FocusDeckView: View {
                 steps: steps,
                 index: index,
                 interactions: interactions,
-                packInteractive: packInteractive,
+                packTypes: packTypes,
                 revisions: revisions,
                 onJump: jump,
                 onBack: { model.move(steps, -1) },
                 onSkip: { model.move(steps, 1) },
-                onNext: { model.next(steps, interactions, packInteractive, Set(revisions.revising.blockIds)) }
+                onNext: { model.next(steps, interactions, packTypes, Set(revisions.revising.blockIds)) }
             )
         }
         .frame(maxWidth: .infinity)
@@ -313,7 +313,7 @@ struct FocusDeckView: View {
                 FocusSummaryView(
                     steps: steps,
                     interactions: interactions,
-                    packInteractive: packInteractive,
+                    packTypes: packTypes,
                     revisions: revisions,
                     onJump: jump
                 )
@@ -386,7 +386,7 @@ struct FocusStepDots: View {
     let steps: [FocusStep]
     let index: Int
     let interactions: Interactions
-    let packInteractive: Set<String>
+    let packTypes: PackTypes
     let revisions: RevisionState
     let onJump: (String) -> Void
 
@@ -405,7 +405,7 @@ struct FocusStepDots: View {
     }
 
     private func dot(_ step: FocusStep, position: Int) -> some View {
-        let status = stepStatus(step, interactions, packInteractive)
+        let status = stepStatus(step, interactions, packTypes)
         let look = dotAppearance(status)
         let current = position == index
         let revState = revisionDotState(
@@ -1021,7 +1021,7 @@ struct SwipeableFocusCard: View {
 struct FocusSummaryView: View {
     let steps: [FocusStep]
     let interactions: Interactions
-    let packInteractive: Set<String>
+    let packTypes: PackTypes
     let revisions: RevisionState
     let onJump: (String) -> Void
 
@@ -1055,7 +1055,7 @@ struct FocusSummaryView: View {
     }
 
     private func receipt(_ step: FocusStep) -> some View {
-        let status = stepStatus(step, interactions, packInteractive)
+        let status = stepStatus(step, interactions, packTypes)
         let answers = chosenAnswers(step)
         return VStack(alignment: .leading, spacing: Metrics.space1) {
             HStack {
@@ -1134,7 +1134,7 @@ struct FocusNavView: View {
     let steps: [FocusStep]
     let index: Int
     let interactions: Interactions
-    let packInteractive: Set<String>
+    let packTypes: PackTypes
     let revisions: RevisionState
     let onJump: (String) -> Void
     let onBack: () -> Void
@@ -1175,7 +1175,7 @@ struct FocusNavView: View {
                     steps: steps,
                     index: index,
                     interactions: interactions,
-                    packInteractive: packInteractive,
+                    packTypes: packTypes,
                     revisions: revisions,
                     onJump: onJump
                 )

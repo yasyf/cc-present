@@ -235,55 +235,80 @@ private let statusCases: [StatusCase] = [
 @Test("stepStatus mirrors the web receipt classification", arguments: statusCases)
 private func stepStatusMatchesWeb(_ testCase: StatusCase) {
     let step = focusSteps(testCase.blocks, testCase.pack)[0]
-    #expect(stepStatus(step, testCase.interactions, testCase.pack) == testCase.expected, "case: \(testCase.name)")
+    #expect(stepStatus(step, testCase.interactions, PackTypes(interactive: testCase.pack)) == testCase.expected, "case: \(testCase.name)")
 }
 
 @Test("stepUndecided tracks an interactive pack decision")
 private func stepUndecidedTracksPack() {
     let step = focusSteps([pack("r1", "ex.rating")], ["ex.rating"])[0]
-    #expect(stepUndecided(step, Interactions(), ["ex.rating"]) == true)
+    #expect(stepUndecided(step, Interactions(), PackTypes(interactive: ["ex.rating"])) == true)
     let decided = Interactions(packs: ["r1": PackValue(payload: .object(["value": .int(5)]))])
-    #expect(stepUndecided(step, decided, ["ex.rating"]) == false)
+    #expect(stepUndecided(step, decided, PackTypes(interactive: ["ex.rating"])) == false)
     // A static pack contributes no tally item, so its step is never "undecided".
     let staticStep = focusSteps([pack("c1", "ex.callout")], [])[0]
-    #expect(stepUndecided(staticStep, Interactions(), []) == false)
+    #expect(stepUndecided(staticStep, Interactions(), PackTypes(interactive: [])) == false)
+}
+
+@Test("an optional pack keeps its decision step but never tallies")
+private func optionalPackStaysNavigableUntallied() {
+    let types = PackTypes(interactive: ["plan.calls"], optional: ["plan.calls"])
+    let step = focusSteps([pack("p1", "plan.calls")], types.interactive)[0]
+    #expect(step.kind == .decision)
+    #expect(stepStatus(step, Interactions(), types) == nil)
+    #expect(stepUndecided(step, Interactions(), types) == false)
 }
 
 private struct ClassifyCase: CustomStringConvertible {
     let name: String
-    let declared: Set<String>?
+    let manifest: PacksResponse?
     let blocks: [Block]
-    let expected: Set<String>
+    let expected: PackTypes
 
     var description: String {
         name
     }
 }
 
+private func manifest(_ blocks: [PacksResponse.Pack.BlockType]) -> PacksResponse {
+    PacksResponse(packs: [PacksResponse.Pack(blocks: blocks)])
+}
+
 private let classifyCases: [ClassifyCase] = [
     ClassifyCase(
         name: "pre-fetch falls back to every present pack type as interactive",
-        declared: nil,
+        manifest: nil,
         blocks: [pack("r1", "ex.rating"), pack("c1", "ex.callout")],
-        expected: ["ex.rating", "ex.callout"]
+        expected: PackTypes(interactive: ["ex.rating", "ex.callout"])
     ),
     ClassifyCase(
         name: "the declared manifest set replaces the fallback once it arrives",
-        declared: ["ex.rating"],
+        manifest: manifest([
+            .init(type: "ex.rating", interactive: true),
+            .init(type: "ex.callout", interactive: false),
+        ]),
         blocks: [pack("r1", "ex.rating"), pack("c1", "ex.callout")],
-        expected: ["ex.rating"]
+        expected: PackTypes(interactive: ["ex.rating"])
     ),
     ClassifyCase(
         name: "a declared set with nothing interactive classifies no pack",
-        declared: [],
+        manifest: manifest([.init(type: "ex.callout", interactive: false)]),
         blocks: [pack("c1", "ex.callout")],
-        expected: []
+        expected: PackTypes(interactive: [])
+    ),
+    ClassifyCase(
+        name: "the manifest's optional types carry through",
+        manifest: manifest([
+            .init(type: "plan.calls", interactive: true, optional: true),
+            .init(type: "ex.rating", interactive: true),
+        ]),
+        blocks: [pack("p1", "plan.calls")],
+        expected: PackTypes(interactive: ["plan.calls", "ex.rating"], optional: ["plan.calls"])
     ),
 ]
 
-@Test("interactivePackTypes progresses from all-interactive to the manifest set", arguments: classifyCases)
-private func interactivePackTypesClassifies(_ testCase: ClassifyCase) {
-    #expect(interactivePackTypes(declared: testCase.declared, blocks: testCase.blocks) == testCase.expected, "case: \(testCase.name)")
+@Test("resolvePackTypes progresses from all-interactive to the manifest classes", arguments: classifyCases)
+private func resolvePackTypesClassifies(_ testCase: ClassifyCase) {
+    #expect(resolvePackTypes(manifest: testCase.manifest, blocks: testCase.blocks) == testCase.expected, "case: \(testCase.name)")
 }
 
 // MARK: - Headline resolution

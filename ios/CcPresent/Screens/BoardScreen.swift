@@ -16,7 +16,7 @@ struct BoardScreen: View {
     @State private var store: BoardStore
     @State private var viewOverride: ViewMode?
     @State private var preferenceError: String?
-    @State private var declaredInteractive: Set<String>?
+    @State private var packManifest: PacksResponse?
     @State private var commentsModel = CommentsModel()
     private let client: APIClient
     private let bearerToken: String?
@@ -50,12 +50,12 @@ struct BoardScreen: View {
         state.doc.blocks.filter { state.rounds.blockRounds[$0.id] == state.rounds.current }
     }
 
-    private var packInteractive: Set<String> {
-        interactivePackTypes(declared: declaredInteractive, blocks: currentBlocks)
+    private var packTypes: PackTypes {
+        resolvePackTypes(manifest: packManifest, blocks: currentBlocks)
     }
 
     private var deckSteps: [FocusStep] {
-        focusSteps(currentBlocks, packInteractive)
+        focusSteps(currentBlocks, packTypes.interactive)
     }
 
     private var mode: ViewMode {
@@ -94,7 +94,7 @@ struct BoardScreen: View {
             }
             .task {
                 if let response = try? await client.packs() {
-                    declaredInteractive = response.interactiveTypes
+                    packManifest = response
                 }
             }
     }
@@ -142,7 +142,7 @@ struct BoardScreen: View {
                     FocusDeckView(
                         steps: deckSteps,
                         store: store,
-                        packInteractive: packInteractive,
+                        packTypes: packTypes,
                         client: client,
                         packContext: packContext
                     )
@@ -177,7 +177,7 @@ struct BoardScreen: View {
         }
         ForEach(group.blocks, id: \.id) { block in
             BlockView(block: block, store: store, client: client, packContext: packContext)
-                .environment(\.receiptReceded, blockDecided(block, state.interactions, packInteractive))
+                .environment(\.receiptReceded, blockDecided(block, state.interactions, packTypes))
                 .id(block.id)
         }
     }
@@ -287,7 +287,7 @@ struct BoardScreen: View {
                 blocks: currentBlocks,
                 doc: state.doc,
                 store: store,
-                packInteractive: packInteractive,
+                packTypes: packTypes,
                 hasHistory: hasHistory
             )
         }

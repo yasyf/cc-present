@@ -113,10 +113,10 @@ private func nextUndecidedWraps() {
         "a1": Decision(verdict: "approved"),
         "a2": Decision(verdict: "approved"),
     ])
-    model.next(steps, interactions, [], [])
+    model.next(steps, interactions, PackTypes(interactive: []), [])
     #expect(model.anchorId == "a3")
     // From a3 with a3 still undecided, next wraps forward and stays on a3.
-    model.next(steps, interactions, [], [])
+    model.next(steps, interactions, PackTypes(interactive: []), [])
     #expect(model.anchorId == "a3")
 }
 
@@ -130,7 +130,7 @@ private func nextLandsOnSummary() {
         "a1": Decision(verdict: "approved"),
         "a2": Decision(verdict: "rejected"),
     ])
-    model.next(steps, interactions, [], [])
+    model.next(steps, interactions, PackTypes(interactive: []), [])
     #expect(model.anchorId == deckEnd)
 }
 
@@ -142,7 +142,7 @@ private func nextSkipsRevisingFirst() {
     model.reconcile(steps)
     // a1 decided; a2 undecided but under a live rewrite; a3 undecided and settled.
     let interactions = Interactions(decisions: ["a1": Decision(verdict: "approved")])
-    model.next(steps, interactions, [], ["a2"])
+    model.next(steps, interactions, PackTypes(interactive: []), ["a2"])
     #expect(model.anchorId == "a3")
 }
 
@@ -154,7 +154,7 @@ private func nextFallsBackToRevising() {
     model.reconcile(steps)
     // a1 decided; only a2 is undecided, and it is being revised — never locked out.
     let interactions = Interactions(decisions: ["a1": Decision(verdict: "approved")])
-    model.next(steps, interactions, [], ["a2"])
+    model.next(steps, interactions, PackTypes(interactive: []), ["a2"])
     #expect(model.anchorId == "a2")
 }
 

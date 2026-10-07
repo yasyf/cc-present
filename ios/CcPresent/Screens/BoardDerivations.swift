@@ -78,6 +78,18 @@ func sectionGroups(_ blocks: [Block]) -> [SectionGroup] {
     return groups
 }
 
+/// PackTypes is the manifest's classification of pack block types: an interactive type
+/// earns a focus step, and one not marked optional also joins the submit tally.
+struct PackTypes: Equatable {
+    var interactive: Set<String>
+    var optional: Set<String> = []
+
+    /// tallies reports whether a pack block of `type` counts toward the submit tally.
+    func tallies(_ type: String) -> Bool {
+        interactive.contains(type) && !optional.contains(type)
+    }
+}
+
 /// SubmitItem is one entry of the submit tally: an approval, choice, or interactive
 /// pack block with its decided state. Inputs never count toward the tally.
 struct SubmitItem: Equatable {
@@ -96,9 +108,9 @@ struct SubmitItem: Equatable {
 
 /// submitItems is the tally set — approvals, choices, and interactive pack blocks in
 /// document order with their decided state — driving the SubmitBar count. A pack
-/// block joins the tally only when its type is in `packInteractive`, the manifest's
-/// interactive set. Mirrors web/src/decide.ts `submitItems`.
-func submitItems(_ blocks: [Block], _ interactions: Interactions, _ packInteractive: Set<String>) -> [SubmitItem] {
+/// block joins the tally only when its type is interactive and not optional.
+/// Mirrors web/src/decide.ts `submitItems`.
+func submitItems(_ blocks: [Block], _ interactions: Interactions, _ packTypes: PackTypes) -> [SubmitItem] {
     var out: [SubmitItem] = []
     for block in flatten(blocks) {
         switch block {
@@ -109,7 +121,7 @@ func submitItems(_ blocks: [Block], _ interactions: Interactions, _ packInteract
         case let .triage(triage):
             out.append(SubmitItem(id: triage.id, kind: .triage, decided: isDecided(block, interactions)))
         case let .pack(pack):
-            if packInteractive.contains(pack.packType) {
+            if packTypes.tallies(pack.packType) {
                 out.append(SubmitItem(id: pack.id, kind: .pack, decided: isDecided(block, interactions)))
             }
         default:
@@ -147,8 +159,8 @@ func isDecided(_ block: Block, _ interactions: Interactions) -> Bool {
 /// undecidable row never does). It drives the BoardScreen receipt dimming — the
 /// native mirror of web/src/decide.ts `blockDecided`, the BoardBlocks
 /// `data-decided` signal.
-func blockDecided(_ block: Block, _ interactions: Interactions, _ packInteractive: Set<String>) -> Bool {
-    let items = submitItems([block], interactions, packInteractive)
+func blockDecided(_ block: Block, _ interactions: Interactions, _ packTypes: PackTypes) -> Bool {
+    let items = submitItems([block], interactions, packTypes)
     return !items.isEmpty && items.allSatisfy(\.decided)
 }
 
