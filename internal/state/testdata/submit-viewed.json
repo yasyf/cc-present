@@ -59,7 +59,7 @@
       ]
     },
     "interactions": {
-      "viewed": { "a1": true, "c1": true, "ch1": true },
+      "viewed": { "a1": true, "c1": true },
       "submitted": { "value": true, "revision": 1 }
     },
     "rounds": {

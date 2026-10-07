@@ -1,0 +1,52 @@
+{
+  "name": "submit-viewed-stale-round",
+  "events": [
+    {
+      "origin": "agent",
+      "type": "doc.replaced",
+      "seq": 1,
+      "payload": {
+        "schemaVersion": 1,
+        "type": "doc.replaced",
+        "revision": 1,
+        "doc": { "version": 1, "title": "T", "blocks": [{ "id": "c", "type": "markdown", "md": "first draft" }] }
+      }
+    },
+    { "origin": "human", "type": "submit", "seq": 2, "payload": { "schemaVersion": 1, "type": "submit", "revision": 1, "viewed": ["c"] } },
+    { "origin": "agent", "type": "block.upserted", "seq": 3, "payload": { "schemaVersion": 1, "type": "block.upserted", "block": { "id": "c", "type": "markdown", "md": "second draft" } } },
+    { "origin": "human", "type": "submit", "seq": 4, "payload": { "schemaVersion": 1, "type": "submit", "revision": 1 } }
+  ],
+  "expected": {
+    "schemaVersion": 1,
+    "doc": { "version": 1, "title": "T", "blocks": [{ "id": "c", "type": "markdown", "md": "second draft" }] },
+    "interactions": {
+      "submitted": { "value": true, "revision": 1 }
+    },
+    "rounds": {
+      "current": 3,
+      "blockRounds": { "c": 2 },
+      "history": [
+        {
+          "number": 1,
+          "blocks": [{ "id": "c", "type": "markdown", "md": "first draft" }],
+          "decisions": {},
+          "choices": {},
+          "inputs": {},
+          "feedback": {},
+          "viewed": { "c": true },
+          "submittedRevision": 1
+        },
+        {
+          "number": 2,
+          "blocks": [{ "id": "c", "type": "markdown", "md": "second draft" }],
+          "decisions": {},
+          "choices": {},
+          "inputs": {},
+          "feedback": {},
+          "viewed": {},
+          "submittedRevision": 1
+        }
+      ]
+    }
+  }
+}

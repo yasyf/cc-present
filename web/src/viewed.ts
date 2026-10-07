@@ -10,8 +10,6 @@ export const VIEWED_KEY_PREFIX = 'cc-present:viewed:v1:';
 export const FOCUS_DWELL_MS = 800;
 export const BOARD_DWELL_MS = 1_500;
 
-const VISIBLE_THRESHOLDS = Array.from({ length: 21 }, (_, i) => i / 20);
-
 interface ViewedStorage {
   getItem(key: string): string | null;
   setItem(key: string, value: string): void;
@@ -78,38 +76,38 @@ export function blockViewIds(blocks: Block[]): string[] {
   return flatten(blocks).map((b) => b.id);
 }
 
-// A block taller than two viewports never reaches a 0.5 ratio, so filling half the
-// viewport counts too.
-function onScreen(entry: IntersectionObserverEntry): boolean {
-  if (!entry.isIntersecting) return false;
-  if (entry.intersectionRatio >= 0.5) return true;
-  return entry.rootBounds !== null && entry.intersectionRect.height >= entry.rootBounds.height / 2;
-}
+// A row past half on screen, or one spanning the viewport's middle line, counts as
+// on screen; the second test is what lets a row many viewports tall qualify.
+const OBSERVED: { init: IntersectionObserverInit; on: (entry: IntersectionObserverEntry) => boolean }[] = [
+  { init: { threshold: 0.5 }, on: (entry) => entry.intersectionRatio >= 0.5 },
+  { init: { rootMargin: '-50% 0px -50% 0px' }, on: (entry) => entry.isIntersecting },
+];
 
 // useViewedOnScreen marks block opened once ref's element stays on screen for
-// BOARD_DWELL_MS; scrolling away first cancels the dwell.
+// BOARD_DWELL_MS; leaving the screen first cancels the dwell.
 export function useViewedOnScreen(ref: RefObject<HTMLElement | null>, block: Block): void {
   useEffect(() => {
     const el = ref.current!;
+    const visible = OBSERVED.map(() => false);
     let timer: ReturnType<typeof setTimeout> | null = null;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const entry = entries[entries.length - 1]!;
-        if (!onScreen(entry)) {
-          if (timer) clearTimeout(timer);
-          timer = null;
-          return;
-        }
-        timer ??= setTimeout(() => {
-          viewedStore.mark(blockViewIds([block]));
-          observer.disconnect();
-        }, BOARD_DWELL_MS);
-      },
-      { threshold: VISIBLE_THRESHOLDS },
+    const observers = OBSERVED.map(
+      ({ init, on }, i) =>
+        new IntersectionObserver((entries) => {
+          visible[i] = on(entries[entries.length - 1]!);
+          if (!visible.some(Boolean)) {
+            if (timer) clearTimeout(timer);
+            timer = null;
+            return;
+          }
+          timer ??= setTimeout(() => {
+            viewedStore.mark(blockViewIds([block]));
+            for (const observer of observers) observer.disconnect();
+          }, BOARD_DWELL_MS);
+        }, init),
     );
-    observer.observe(el);
+    for (const observer of observers) observer.observe(el);
     return () => {
-      observer.disconnect();
+      for (const observer of observers) observer.disconnect();
       if (timer) clearTimeout(timer);
     };
   }, [ref, block]);

@@ -35,7 +35,6 @@
       ]
     },
     "interactions": {
-      "viewed": { "a1": true, "a2": true, "c1": true, "m1": true },
       "submitted": { "value": true, "revision": 1 }
     },
     "rounds": {

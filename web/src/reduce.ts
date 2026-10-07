@@ -385,7 +385,8 @@ function isDirty(state: PresentState): boolean {
   return state.doc.blocks.some((b) => state.rounds.blockRounds[b.id] === state.rounds.current);
 }
 
-// closeRound appends a frozen snapshot of the current round and advances current.
+// closeRound appends a frozen snapshot of the current round, empties the round's
+// viewed set, and advances current.
 // The caller owns currentTitle: submit clears it, round.started sets the next.
 function closeRound(state: PresentState, revision: number | undefined): PresentState {
   const cur = state.rounds.current;
@@ -410,7 +411,7 @@ function closeRound(state: PresentState, revision: number | undefined): PresentS
     current: cur + 1,
     history: [...state.rounds.history, record],
   };
-  return { ...state, rounds };
+  return { ...withInteractions(state, { viewed: {} }), rounds };
 }
 
 // topLevelRound resolves the round of the top-level block enclosing `id`: the

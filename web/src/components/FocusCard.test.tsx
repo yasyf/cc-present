@@ -430,6 +430,17 @@ describe('FocusCard viewed tracking', () => {
     expect(viewedStore.viewed()).toEqual(['c1', 'a1']);
   });
 
+  it('re-arms the dwell when a child joins the step it already marked', () => {
+    vi.useFakeTimers();
+    renderCard(card('c1', 'Pick', [approval('a1', 'Ship?')]));
+    act(() => vi.advanceTimersByTime(FOCUS_DWELL_MS));
+    renderCard(card('c1', 'Pick', [approval('a1', 'Ship?'), code('k1')]));
+    act(() => vi.advanceTimersByTime(FOCUS_DWELL_MS - 1));
+    expect(viewedStore.viewed()).toEqual(['c1', 'a1']);
+    act(() => vi.advanceTimersByTime(1));
+    expect(viewedStore.viewed()).toEqual(['c1', 'a1', 'k1']);
+  });
+
   it('never marks a step the human skips past before the dwell', () => {
     vi.useFakeTimers();
     renderCard(markdown('b1', 'body'));

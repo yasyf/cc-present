@@ -171,7 +171,7 @@ export const FocusCard = forwardRef<HTMLDivElement, { step: FocusStep; interacti
   { step, interactions },
   ref,
 ) {
-  const { post, closed } = usePresent();
+  const { post, closed, currentRound } = usePresent();
   const closedRef = useRef(closed);
   closedRef.current = closed;
   const present = useIsPresent();
@@ -211,10 +211,11 @@ export const FocusCard = forwardRef<HTMLDivElement, { step: FocusStep; interacti
 
   const viewIdsRef = useRef<string[]>([]);
   viewIdsRef.current = blockViewIds([...step.context, step.block]);
+  const viewKey = JSON.stringify(viewIdsRef.current);
   useEffect(() => {
     const timer = setTimeout(() => viewedStore.mark(viewIdsRef.current), FOCUS_DWELL_MS);
     return () => clearTimeout(timer);
-  }, [step.id]);
+  }, [viewKey, step.block, currentRound]);
 
   const onPointerDown = useCallback(
     (e: ReactPointerEvent<HTMLDivElement>) => {

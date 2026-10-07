@@ -23,23 +23,30 @@ class ResizeObserverStub {
 (globalThis as { ResizeObserver?: unknown }).ResizeObserver = ResizeObserverStub;
 
 class IntersectionObserverStub {
-  static live = new Map<Element, IntersectionObserverStub>();
-  constructor(private readonly callback: IntersectionObserverCallback) {}
+  static live = new Set<IntersectionObserverStub>();
+  private readonly targets = new Set<Element>();
+  constructor(
+    private readonly callback: IntersectionObserverCallback,
+    private readonly init: IntersectionObserverInit = {},
+  ) {}
   observe(el: Element): void {
-    IntersectionObserverStub.live.set(el, this);
+    this.targets.add(el);
+    IntersectionObserverStub.live.add(this);
   }
   disconnect(): void {
-    for (const [el, obs] of IntersectionObserverStub.live) if (obs === this) IntersectionObserverStub.live.delete(el);
+    IntersectionObserverStub.live.delete(this);
   }
-  static show(el: Element, ratio: number, rectHeight = 100, viewportHeight = 1000): void {
-    const obs = IntersectionObserverStub.live.get(el)!;
-    const entry = {
-      isIntersecting: ratio > 0,
-      intersectionRatio: ratio,
-      intersectionRect: { height: rectHeight },
-      rootBounds: { height: viewportHeight },
-    } as IntersectionObserverEntry;
-    act(() => obs.callback([entry], obs as unknown as IntersectionObserver));
+  // emit plays one geometry for el against every live observer: the ratio observer
+  // reads `ratio`, the middle-line observer reads whether el spans that line.
+  static emit(el: Element, ratio: number, spansMiddle: boolean): void {
+    for (const obs of [...IntersectionObserverStub.live].filter((o) => o.targets.has(el))) {
+      const middle = obs.init.rootMargin !== undefined;
+      const entry = {
+        isIntersecting: middle ? spansMiddle : ratio > 0,
+        intersectionRatio: middle ? (spansMiddle ? 1 : 0) : ratio,
+      } as IntersectionObserverEntry;
+      act(() => obs.callback([entry], obs as unknown as IntersectionObserver));
+    }
   }
 }
 (globalThis as { IntersectionObserver?: unknown }).IntersectionObserver = IntersectionObserverStub;
@@ -139,7 +146,7 @@ describe('BoardBlocks viewed tracking', () => {
 
   it('marks a card and its children once the row stays half visible for the dwell', () => {
     render([card('c1', [approval('a1')]), markdown('m1')], empty());
-    IntersectionObserverStub.show(row('c1'), 0.6);
+    IntersectionObserverStub.emit(row('c1'), 0.6, false);
     act(() => vi.advanceTimersByTime(BOARD_DWELL_MS - 1));
     expect(viewedStore.viewed()).toEqual([]);
     act(() => vi.advanceTimersByTime(1));
@@ -148,17 +155,29 @@ describe('BoardBlocks viewed tracking', () => {
 
   it('cancels the dwell when the row scrolls away first', () => {
     render([markdown('m1')], empty());
-    IntersectionObserverStub.show(row('m1'), 0.6);
+    IntersectionObserverStub.emit(row('m1'), 0.6, false);
     act(() => vi.advanceTimersByTime(BOARD_DWELL_MS / 2));
-    IntersectionObserverStub.show(row('m1'), 0.2);
+    IntersectionObserverStub.emit(row('m1'), 0.2, false);
     act(() => vi.advanceTimersByTime(BOARD_DWELL_MS));
     expect(viewedStore.viewed()).toEqual([]);
   });
 
-  it('counts a row taller than the viewport once it fills half of it', () => {
+  it('counts a row many viewports tall once it spans the middle of the viewport', () => {
     render([markdown('m1')], empty());
-    IntersectionObserverStub.show(row('m1'), 0.2, 600, 1000);
+    IntersectionObserverStub.emit(row('m1'), 0.0001, false);
     act(() => vi.advanceTimersByTime(BOARD_DWELL_MS));
+    expect(viewedStore.viewed()).toEqual([]);
+    IntersectionObserverStub.emit(row('m1'), 0.012, true);
+    act(() => vi.advanceTimersByTime(BOARD_DWELL_MS));
+    expect(viewedStore.viewed()).toEqual(['m1']);
+  });
+
+  it('keeps the dwell running while either test still holds', () => {
+    render([markdown('m1')], empty());
+    IntersectionObserverStub.emit(row('m1'), 0.6, true);
+    act(() => vi.advanceTimersByTime(BOARD_DWELL_MS / 2));
+    IntersectionObserverStub.emit(row('m1'), 0.4, true);
+    act(() => vi.advanceTimersByTime(BOARD_DWELL_MS / 2));
     expect(viewedStore.viewed()).toEqual(['m1']);
   });
 });

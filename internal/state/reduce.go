@@ -110,8 +110,8 @@ type Closed struct {
 // submit and close signals. Decisions, choices, inputs, and packs are
 // last-write-wins; triage is last-write-wins per item; feedback and replies are
 // append-only; annotations are an ordered per-block list with last-write-wins
-// upsert by annotation id; viewed is the set of block ids the human opened,
-// merged on each submit.
+// upsert by annotation id; viewed is the set of block ids the human opened in
+// the current round, merged on each submit and emptied when the round closes.
 type Interactions struct {
 	Decisions   map[string]Decision            `json:"decisions"`
 	Choices     map[string]Selection           `json:"choices"`
@@ -500,6 +500,7 @@ func (s *State) apply(ev Event) error {
 			}
 			s.Rounds.History = append(s.Rounds.History, rec)
 			s.Rounds.Current++
+			s.Interactions.Viewed = map[string]bool{}
 			s.Rounds.CurrentTitle = ""
 		}
 		return nil
@@ -519,6 +520,7 @@ func (s *State) apply(ev Event) error {
 			}
 			s.Rounds.History = append(s.Rounds.History, rec)
 			s.Rounds.Current++
+			s.Interactions.Viewed = map[string]bool{}
 		}
 		s.Rounds.CurrentTitle = p.Title
 		return nil

@@ -272,7 +272,7 @@ export interface Interactions {
   annotations: Record<string, Annotation[]>;
   // Per-block, per-item verdicts; a `cleared` verdict deletes the item entry.
   triage: Record<string, Record<string, Decision>>;
-  // The block ids the human opened, merged from every submit's viewed list.
+  // The block ids the human opened this round; emptied when the round closes.
   viewed: Record<string, boolean>;
   submitted: Submitted;
   closed: Closed;
