@@ -40,7 +40,8 @@ type Pack struct {
 }
 
 // BlockType is one compiled pack block: its dotted-type halves, the compiled
-// block and interaction schemas, and their raw bytes for the /api/packs surface.
+// block and interaction schemas, their raw bytes for the /api/packs surface, and
+// whether the manifest marks it optional.
 type BlockType struct {
 	Pack             *Pack
 	Name             string
@@ -48,6 +49,7 @@ type BlockType struct {
 	Interaction      *jsonschema.Schema
 	SchemaBytes      json.RawMessage
 	InteractionBytes json.RawMessage
+	Optional         bool
 }
 
 // FullType is the block's dotted wire type `<pack>.<name>`.
@@ -264,7 +266,7 @@ func buildBlock(root *os.Root, p *Pack, name string, bm BlockManifest) (*BlockTy
 	if err != nil {
 		return nil, fmt.Errorf("block %q schema: %w", name, err)
 	}
-	bt := &BlockType{Pack: p, Name: name, Schema: sch, SchemaBytes: schemaBytes}
+	bt := &BlockType{Pack: p, Name: name, Schema: sch, SchemaBytes: schemaBytes, Optional: bm.Optional}
 	if bm.Interaction != "" {
 		ib, isch, err := compileSchema(root, bm.Interaction)
 		if err != nil {

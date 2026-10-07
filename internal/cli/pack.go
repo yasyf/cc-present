@@ -118,7 +118,10 @@ func printPacks(w io.Writer, reg *packs.Registry) {
 		_, _ = fmt.Fprintln(w, "  blocks:")
 		for _, bt := range p.Blocks {
 			marker := ""
-			if bt.Interactive() {
+			switch {
+			case bt.Optional:
+				marker = " (interactive, optional)"
+			case bt.Interactive():
 				marker = " (interactive)"
 			}
 			_, _ = fmt.Fprintf(w, "    %s%s\n", bt.FullType(), marker)

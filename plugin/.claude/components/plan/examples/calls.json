@@ -1,0 +1,36 @@
+{
+  "id": "send-later-calls",
+  "type": "plan.calls",
+  "title": "Scheduling",
+  "caption": "Tap a row to read its note; strike a marked row you do not want.",
+  "calls": [
+    {
+      "call": "<Composer/>",
+      "mark": "~",
+      "at": "web/src/composer/Composer.tsx:41",
+      "calls": [
+        {
+          "id": "menu",
+          "call": "<SendLaterMenu/>",
+          "mark": "+",
+          "new": true,
+          "at": "web/src/composer/SendLaterMenu.tsx:12",
+          "calls": [{ "call": "POST /api/scheduled", "mark": "+", "at": "web/src/api/scheduled.ts:9" }]
+        },
+        { "call": "legacyQueue(message)", "mark": "-", "at": "web/src/composer/queue.ts:30", "note": "No longer used once the menu lands." },
+        { "id": "metrics", "call": "trackScheduled()", "mark": "?", "at": "web/src/metrics.ts:14", "note": "Proposed: strike it if the event is not wanted." },
+        { "call": "saveDraft()", "mark": " ", "at": "web/src/drafts.ts:22" }
+      ]
+    },
+    {
+      "call": "createScheduled(req)",
+      "mark": "+",
+      "new": true,
+      "at": "server/src/scheduled/routes.ts:18",
+      "calls": [
+        { "call": "assertUnderLimit(userId)", "mark": "+", "new": true, "at": "server/src/scheduled/limits.ts:6" },
+        { "call": "insert into scheduled_messages", "mark": "+", "at": "server/src/scheduled/store.ts:31" }
+      ]
+    }
+  ]
+}

@@ -30,6 +30,7 @@ examples = ["examples/callout.json"]
 description = "1-5 rating."
 schema = "schema/rating.json"
 interaction = "schema/rating.interaction.json"
+optional = true
 examples = ["examples/rating.json"]
 `
 
@@ -98,6 +99,7 @@ func TestPacksAPI(t *testing.T) {
 			Blocks      []struct {
 				Type        string          `json:"type"`
 				Interactive bool            `json:"interactive"`
+				Optional    bool            `json:"optional"`
 				Schema      json.RawMessage `json:"schema"`
 				Interaction json.RawMessage `json:"interaction"`
 			} `json:"blocks"`
@@ -128,12 +130,12 @@ func TestPacksAPI(t *testing.T) {
 	if len(p.Blocks) != 2 {
 		t.Fatalf("blocks = %d, want 2", len(p.Blocks))
 	}
-	// name-sorted: callout (non-interactive), rating (interactive)
-	if p.Blocks[0].Type != "example.callout" || p.Blocks[0].Interactive {
+	// name-sorted: callout (non-interactive), rating (interactive, optional)
+	if p.Blocks[0].Type != "example.callout" || p.Blocks[0].Interactive || p.Blocks[0].Optional {
 		t.Fatalf("block[0] = %+v, want example.callout non-interactive", p.Blocks[0])
 	}
-	if p.Blocks[1].Type != "example.rating" || !p.Blocks[1].Interactive {
-		t.Fatalf("block[1] = %+v, want example.rating interactive", p.Blocks[1])
+	if p.Blocks[1].Type != "example.rating" || !p.Blocks[1].Interactive || !p.Blocks[1].Optional {
+		t.Fatalf("block[1] = %+v, want example.rating interactive and optional", p.Blocks[1])
 	}
 	if len(p.Blocks[1].Interaction) == 0 {
 		t.Fatal("rating interaction schema not inlined")

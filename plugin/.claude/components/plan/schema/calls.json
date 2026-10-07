@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "plan.calls",
+  "type": "object",
+  "required": ["id", "type", "calls"],
+  "additionalProperties": false,
+  "properties": {
+    "id": { "type": "string", "minLength": 1 },
+    "type": { "const": "plan.calls" },
+    "title": { "$ref": "#/$defs/line" },
+    "caption": { "type": "string", "minLength": 1 },
+    "calls": { "$ref": "#/$defs/rows" }
+  },
+  "$defs": {
+    "line": { "type": "string", "minLength": 1, "pattern": "^[^\\n]*$" },
+    "rows": { "type": "array", "minItems": 1, "maxItems": 40, "items": { "$ref": "#/$defs/row" } },
+    "row": {
+      "type": "object",
+      "required": ["call", "mark"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_.:-]*$", "maxLength": 64 },
+        "call": { "$ref": "#/$defs/line" },
+        "mark": { "enum": ["+", "-", "~", "?", " "] },
+        "new": { "type": "boolean" },
+        "at": { "type": "string", "pattern": "^[^\\s:]+:[1-9][0-9]*$" },
+        "note": { "type": "string", "minLength": 1 },
+        "calls": { "$ref": "#/$defs/rows" }
+      }
+    }
+  }
+}

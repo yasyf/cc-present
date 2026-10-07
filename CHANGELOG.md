@@ -22,6 +22,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   half on screen for 1.5 s, or the human acts on it. The reduced state gains
   `interactions.viewed` and a per-round `viewed` snapshot, so `outcomes` can
   tell a default the human saw and kept from one they never opened.
+- A pack manifest's `[blocks.<name>]` table takes `optional = true` beside an
+  `interaction` schema. The web board leaves an optional block out of the
+  submit tally, so "All answered" never waits on it, and `/api/packs` reports
+  the flag per block. A table that sets `optional` without `interaction` fails
+  to load.
+- The plugin ships a `plan` pack with three exhibits for a plan.
+  `plan.calls` draws call trees with `+`, `−`, `~`, and `?` rows and
+  `path:line` cites, and the reader can strike a row and its subtree.
+  `plan.machine` draws a state machine on an optional grid with a screen per
+  state, and names unreachable states and non-final dead ends in an error
+  banner. `plan.mock` renders HTML in a script-free sandboxed frame with
+  numbered pins the reader can comment on. `plan.calls` and `plan.mock` are
+  optional.
 
 ### Changed
 

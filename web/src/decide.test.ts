@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import {
   choiceToggle,
   decidableIds,
@@ -9,6 +9,7 @@ import {
   submitItems,
   verdictToggle,
 } from './decide';
+import { registerPack, resetPacksForTest } from './packs/registry';
 import type { Block } from './schema';
 import type { Interactions } from './events';
 
@@ -116,6 +117,27 @@ describe('submitItems', () => {
       { id: 'a1', kind: 'approval', decided: false },
       { id: 'r1', kind: 'pack', decided: true },
     ]);
+  });
+
+  describe('with an optional pack type registered', () => {
+    afterEach(resetPacksForTest);
+
+    it('leaves the optional block out of the tally while it stays in the ring', () => {
+      registerPack({
+        name: 'plan',
+        version: '0',
+        description: '',
+        bundle: '/packs/plan/dist/pack.js',
+        blocks: [{ type: 'plan.calls', interactive: true, optional: true, schema: {} }],
+      });
+      const blocks = [approval('a1'), pack('k1', 'plan.calls'), pack('r1', 'ex.rating')];
+      const interactive = new Set(['plan.calls', 'ex.rating']);
+      expect(submitItems(blocks, emptyInteractions(), interactive)).toEqual([
+        { id: 'a1', kind: 'approval', decided: false },
+        { id: 'r1', kind: 'pack', decided: false },
+      ]);
+      expect(decidableIds(blocks, interactive)).toEqual(['a1', 'k1', 'r1']);
+    });
   });
 });
 

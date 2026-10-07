@@ -6,11 +6,12 @@
 
 // PackBlockInfo is one block type a pack declares. `type` is the full dotted
 // wire type (`<pack>.<name>`); `interactive` is true when the manifest declared
-// an interaction schema. `schema`/`interaction` are the raw JSON Schema bodies,
-// opaque to the host.
+// an interaction schema, and `optional` keeps such a block out of the submit
+// tally. `schema`/`interaction` are the raw JSON Schema bodies, opaque to the host.
 export interface PackBlockInfo {
   type: string;
   interactive: boolean;
+  optional: boolean;
   schema: unknown;
   interaction?: unknown;
 }

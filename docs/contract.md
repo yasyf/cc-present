@@ -236,6 +236,7 @@ root.
 | `blocks.<name>.description` | yes | Non-empty prose. |
 | `blocks.<name>.schema` | yes | JSON Schema (Draft 2020-12) for the whole block object. |
 | `blocks.<name>.interaction` | no | JSON Schema for the human interaction payload; its presence marks the block interactive. |
+| `blocks.<name>.optional` | no | `true` keeps an interactive block out of the web board's submit tally, so "All answered" never waits on it. Requires `interaction`. |
 | `blocks.<name>.examples` | one or more | Example block objects; `pack lint` validates each against the schema. |
 
 Schemas compile with a loader that rejects every external `$ref`, so a schema
@@ -318,7 +319,7 @@ PacksResponse = {
     name, version, description,
     bundle,                 // "/packs/<name>/dist/…?v=<version>"
     styles?,                // same URL shape
-    blocks: { type, interactive, schema, interaction? }[]
+    blocks: { type, interactive, optional, schema, interaction? }[]
   }[],
   dropped: { dir, reason }[]
 }

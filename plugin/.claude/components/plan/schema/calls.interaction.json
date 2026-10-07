@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "plan.calls interaction",
+  "type": "object",
+  "required": ["struck"],
+  "additionalProperties": false,
+  "properties": {
+    "struck": {
+      "type": "array",
+      "maxItems": 200,
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1, "maxLength": 64 }
+    }
+  }
+}

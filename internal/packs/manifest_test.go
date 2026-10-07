@@ -63,6 +63,21 @@ func TestBuildPackValid(t *testing.T) {
 	if len(p.Blocks[1].InteractionBytes) == 0 {
 		t.Fatalf("rating interaction bytes empty")
 	}
+	if p.Blocks[0].Optional || p.Blocks[1].Optional {
+		t.Fatalf("no block declares optional")
+	}
+}
+
+func TestBuildPackOptional(t *testing.T) {
+	f := validFiles()
+	f["cc-present.toml"] = strings.Replace(validManifest, `interaction = "schema/rating.interaction.json"`, "interaction = \"schema/rating.interaction.json\"\noptional = true", 1)
+	p, err := buildPack(writeTree(t, f), syncBuilds{ctx: t.Context()})
+	if err != nil {
+		t.Fatalf("buildPack: %v", err)
+	}
+	if !p.Blocks[1].Optional || !p.Blocks[1].Interactive() {
+		t.Fatalf("rating = %+v, want interactive and optional", p.Blocks[1])
+	}
 }
 
 func TestBuildPackErrors(t *testing.T) {
@@ -95,6 +110,9 @@ func TestBuildPackErrors(t *testing.T) {
 		{"schema escapes root", func(f map[string]string) {
 			f["cc-present.toml"] = strings.Replace(validManifest, `schema = "schema/callout.json"`, `schema = "../../etc/passwd"`, 1)
 		}, "resolve inside the pack root"},
+		{"optional without interaction", func(f map[string]string) {
+			f["cc-present.toml"] = strings.Replace(validManifest, `schema = "schema/callout.json"`, "schema = \"schema/callout.json\"\noptional = true", 1)
+		}, `block "callout": optional requires an interaction schema`},
 		{"block name not dot-free", func(f map[string]string) {
 			f["cc-present.toml"] = strings.Replace(validManifest, "[blocks.callout]", `[blocks."bad.name"]`, 1)
 		}, "block name"},

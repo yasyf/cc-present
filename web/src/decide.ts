@@ -3,6 +3,7 @@
 // is a plain function over blocks + the reduced interactions so it can be tested
 // without a DOM (see decide.test.ts).
 
+import { getOptionalPackTypes } from './packs/registry';
 import { isPackBlock } from './schema';
 import type { Block, BuiltinBlockType } from './schema';
 import type { Interactions, Verdict } from './events';
@@ -104,16 +105,17 @@ export function isDecided(block: Block, interactions: Interactions): boolean {
 
 // submitItems is the tally set — approvals, choices, and interactive pack blocks
 // in document order with their decided state — driving both the count and the
-// SubmitBar progress dots.
+// SubmitBar progress dots. A pack type its manifest marks optional never tallies.
 export function submitItems(
   blocks: Block[],
   interactions: Interactions,
   packInteractive: ReadonlySet<string>,
 ): SubmitItem[] {
   const out: SubmitItem[] = [];
+  const optional = getOptionalPackTypes();
   for (const block of flatten(blocks)) {
     if (isPackBlock(block)) {
-      if (packInteractive.has(block.type)) {
+      if (packInteractive.has(block.type) && !optional.has(block.type)) {
         out.push({ id: block.id, kind: 'pack', decided: isDecided(block, interactions) });
       }
       continue;

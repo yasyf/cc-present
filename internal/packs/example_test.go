@@ -181,3 +181,96 @@ func TestDisplayPackSchemas(t *testing.T) {
 		})
 	}
 }
+
+func TestLintPlanPack(t *testing.T) {
+	src := filepath.Join("..", "..", "plugin", ".claude", "components", "plan")
+	dir := t.TempDir()
+	copyPackTree(t, src, dir)
+	writeTreeInto(t, dir, map[string]string{"dist/pack.js": "0", "dist/pack.css": ""})
+
+	p, err := Lint(t.Context(), dir)
+	if err != nil {
+		t.Fatalf("Lint(plan pack): %v", err)
+	}
+	if p.Name != "plan" {
+		t.Errorf("pack name = %q, want %q", p.Name, "plan")
+	}
+	got := blockNames(p)
+	slices.Sort(got)
+	if want := []string{"calls", "machine", "mock"}; !slices.Equal(got, want) {
+		t.Fatalf("blocks = %v, want %v", got, want)
+	}
+	for _, bt := range p.Blocks {
+		wantInteractive := bt.Name != "machine"
+		if bt.Interactive() != wantInteractive || bt.Optional != wantInteractive {
+			t.Errorf("%s interactive=%v optional=%v, want both %v", bt.Name, bt.Interactive(), bt.Optional, wantInteractive)
+		}
+	}
+}
+
+func TestPlanPackSchemas(t *testing.T) {
+	src := filepath.Join("..", "..", "plugin", ".claude", "components", "plan")
+	dir := t.TempDir()
+	copyPackTree(t, src, dir)
+	writeTreeInto(t, dir, map[string]string{"dist/pack.js": "0", "dist/pack.css": ""})
+	reg := buildRegistry([]packRoot{{dir: dir, tier: tierDev}}, nil, nil, syncBuilds{ctx: t.Context()})
+	if len(reg.Dropped) != 0 {
+		t.Fatalf("dropped = %+v", reg.Dropped)
+	}
+
+	blocks := []struct {
+		name, block string
+		ok          bool
+	}{
+		{"calls nested", `{"id":"c","type":"plan.calls","calls":[{"call":"a()","mark":"~","calls":[{"id":"b","call":"b()","mark":"+","new":true,"at":"web/b.ts:12"}]}]}`, true},
+		{"calls missing mark", `{"id":"c","type":"plan.calls","calls":[{"call":"a()"}]}`, false},
+		{"calls unknown mark", `{"id":"c","type":"plan.calls","calls":[{"call":"a()","mark":"*"}]}`, false},
+		{"calls at without line", `{"id":"c","type":"plan.calls","calls":[{"call":"a()","mark":"+","at":"web/b.ts"}]}`, false},
+		{"calls multiline call", `{"id":"c","type":"plan.calls","calls":[{"call":"a()\nb()","mark":"+"}]}`, false},
+		{"machine grid", `{"id":"m","type":"plan.machine","states":[{"id":"a"},{"id":"b","final":true,"screen":{"md":"x"}}],"grid":[["a","b"],[null,null]],"transitions":[{"from":"a","event":"go","to":"b","mark":"?"}]}`, true},
+		{"machine mock screen", `{"id":"m","type":"plan.machine","states":[{"id":"a","screen":{"mock":{"html":"<p>x</p>","frame":"phone"}}}],"transitions":[]}`, true},
+		{"machine screen both", `{"id":"m","type":"plan.machine","states":[{"id":"a","screen":{"md":"x","mock":{"html":"x"}}}],"transitions":[]}`, false},
+		{"machine screen pins", `{"id":"m","type":"plan.machine","states":[{"id":"a","screen":{"mock":{"html":"x","pins":[]}}}],"transitions":[]}`, false},
+		{"machine state mark ask", `{"id":"m","type":"plan.machine","states":[{"id":"a","mark":"?"}],"transitions":[]}`, false},
+		{"machine bad state id", `{"id":"m","type":"plan.machine","states":[{"id":"a b"}],"transitions":[]}`, false},
+		{"mock pins", `{"id":"k","type":"plan.mock","html":"<b data-ref=\"x\">x</b>","w":440,"frame":"browser","url":"https://a.test","pins":[{"ref":"x","title":"New"}]}`, true},
+		{"mock narrow", `{"id":"k","type":"plan.mock","html":"x","w":100}`, false},
+		{"mock unknown frame", `{"id":"k","type":"plan.mock","html":"x","frame":"watch"}`, false},
+		{"mock bad ref", `{"id":"k","type":"plan.mock","html":"x","pins":[{"ref":"1x","title":"t"}]}`, false},
+	}
+	for _, tt := range blocks {
+		t.Run(tt.name, func(t *testing.T) {
+			var typ struct {
+				Type string `json:"type"`
+			}
+			if err := json.Unmarshal([]byte(tt.block), &typ); err != nil {
+				t.Fatal(err)
+			}
+			err := reg.ValidateBlock(typ.Type, json.RawMessage(tt.block))
+			if (err == nil) != tt.ok {
+				t.Fatalf("ValidateBlock err = %v, want ok=%v", err, tt.ok)
+			}
+		})
+	}
+
+	interactions := []struct {
+		name, typ, payload string
+		ok                 bool
+	}{
+		{"calls struck", "plan.calls", `{"struck":["b","0.1"]}`, true},
+		{"calls duplicate", "plan.calls", `{"struck":["b","b"]}`, false},
+		{"calls extra key", "plan.calls", `{"struck":[],"note":"x"}`, false},
+		{"mock comments", "plan.mock", `{"comments":{"later":"split it"}}`, true},
+		{"mock empty comment", "plan.mock", `{"comments":{"later":""}}`, false},
+		{"mock bad ref", "plan.mock", `{"comments":{"1x":"y"}}`, false},
+		{"machine read-only", "plan.machine", `{}`, false},
+	}
+	for _, tt := range interactions {
+		t.Run(tt.name, func(t *testing.T) {
+			err := reg.ValidateInteraction(tt.typ, json.RawMessage(tt.payload))
+			if (err == nil) != tt.ok {
+				t.Fatalf("ValidateInteraction err = %v, want ok=%v", err, tt.ok)
+			}
+		})
+	}
+}

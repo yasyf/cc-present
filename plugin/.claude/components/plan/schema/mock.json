@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "plan.mock",
+  "type": "object",
+  "required": ["id", "type", "html"],
+  "additionalProperties": false,
+  "properties": {
+    "id": { "type": "string", "minLength": 1 },
+    "type": { "const": "plan.mock" },
+    "title": { "$ref": "#/$defs/line" },
+    "caption": { "type": "string", "minLength": 1 },
+    "html": { "$ref": "#/$defs/html" },
+    "css": { "$ref": "#/$defs/css" },
+    "w": { "$ref": "#/$defs/w" },
+    "h": { "$ref": "#/$defs/h" },
+    "frame": { "$ref": "#/$defs/frame" },
+    "url": { "$ref": "#/$defs/line" },
+    "pins": { "$ref": "#/$defs/pins" }
+  },
+  "$defs": {
+    "line": { "type": "string", "minLength": 1, "pattern": "^[^\\n]*$" },
+    "html": { "type": "string", "minLength": 1, "maxLength": 262144 },
+    "css": { "type": "string", "minLength": 1, "maxLength": 65536 },
+    "w": { "type": "integer", "minimum": 200, "maximum": 1600, "default": 480 },
+    "h": { "type": "integer", "minimum": 60, "maximum": 4000 },
+    "frame": { "enum": ["none", "browser", "phone", "desktop", "terminal"], "default": "none" },
+    "pins": {
+      "type": "array",
+      "maxItems": 9,
+      "items": {
+        "type": "object",
+        "required": ["ref", "title"],
+        "additionalProperties": false,
+        "properties": {
+          "ref": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_-]*$", "maxLength": 64 },
+          "title": { "$ref": "#/$defs/line" },
+          "body": { "type": "string", "minLength": 1 }
+        }
+      }
+    }
+  }
+}

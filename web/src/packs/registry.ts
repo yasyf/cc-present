@@ -34,6 +34,7 @@ export type PackDefState = 'loading' | 'unknown' | 'failed' | 'ready';
 interface PackEntry {
   status: 'loading' | 'ready' | 'failed';
   interactiveTypes: string[];
+  optionalTypes: string[];
   components: Map<string, PackComponent>;
 }
 
@@ -41,6 +42,7 @@ let manifestLoaded = false;
 const entries = new Map<string, PackEntry>();
 const listeners = new Set<() => void>();
 let interactiveTypes: ReadonlySet<string> = new Set();
+let optionalTypes: ReadonlySet<string> = new Set();
 
 function packNameOf(fullType: string): string {
   return fullType.slice(0, fullType.indexOf('.'));
@@ -52,8 +54,13 @@ function bareNameOf(fullType: string): string {
 
 function emit(): void {
   const next = new Set<string>();
-  for (const entry of entries.values()) for (const t of entry.interactiveTypes) next.add(t);
+  const optional = new Set<string>();
+  for (const entry of entries.values()) {
+    for (const t of entry.interactiveTypes) next.add(t);
+    for (const t of entry.optionalTypes) optional.add(t);
+  }
   interactiveTypes = next;
+  optionalTypes = optional;
   for (const listener of listeners) listener();
 }
 
@@ -71,6 +78,7 @@ export function registerPack(def: PackInfo, components?: Record<string, PackComp
   entries.set(def.name, {
     status: components ? 'ready' : 'loading',
     interactiveTypes: def.blocks.filter((b) => b.interactive).map((b) => b.type),
+    optionalTypes: def.blocks.filter((b) => b.optional).map((b) => b.type),
     components: new Map(components ? Object.entries(components) : []),
   });
   emit();
@@ -83,6 +91,7 @@ export function markFailed(name: string): void {
   if (!entry) return;
   entry.status = 'failed';
   entry.interactiveTypes = [];
+  entry.optionalTypes = [];
   entry.components.clear();
   emit();
 }
@@ -98,6 +107,7 @@ export function resetPacksForTest(): void {
   manifestLoaded = false;
   entries.clear();
   interactiveTypes = new Set();
+  optionalTypes = new Set();
   listeners.clear();
 }
 
@@ -113,6 +123,13 @@ export function getPackDefState(fullType: string): PackDefState {
 
 export function getInteractivePackTypes(): ReadonlySet<string> {
   return interactiveTypes;
+}
+
+// getOptionalPackTypes is the interactive types whose manifest marks them
+// optional. It changes in the same emit as getInteractivePackTypes, so a caller
+// keyed on the interactive set recomputes when it changes.
+export function getOptionalPackTypes(): ReadonlySet<string> {
+  return optionalTypes;
 }
 
 export function usePackComponent(fullType: string): PackComponent | undefined {

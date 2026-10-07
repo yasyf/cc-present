@@ -144,7 +144,7 @@ describe('SingleBlockView stale-round context', () => {
   beforeEach(() => {
     resetPacksForTest();
     registerPack(
-      { name: 'ex', version: '0', description: '', bundle: '/packs/ex/dist/pack.js', blocks: [{ type: 'ex.ctx', interactive: true, schema: {} }] },
+      { name: 'ex', version: '0', description: '', bundle: '/packs/ex/dist/pack.js', blocks: [{ type: 'ex.ctx', interactive: true, optional: false, schema: {} }] },
       { ctx: Ctx },
     );
     markPacksLoaded();

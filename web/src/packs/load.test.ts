@@ -19,8 +19,8 @@ function manifest(patch: { styles?: string } = {}): PacksResponse {
         bundle: '/packs/ex/dist/pack.js?v=0.1.0',
         ...(patch.styles ? { styles: patch.styles } : {}),
         blocks: [
-          { type: 'ex.rating', interactive: true, schema: {} },
-          { type: 'ex.callout', interactive: false, schema: {} },
+          { type: 'ex.rating', interactive: true, optional: false, schema: {} },
+          { type: 'ex.callout', interactive: false, optional: false, schema: {} },
         ],
       },
     ],
