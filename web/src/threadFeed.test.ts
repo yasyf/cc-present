@@ -47,6 +47,7 @@ function round(number: number, blocks: Block[], feedback: Record<string, Feedbac
     feedback,
     annotations: {},
     triage: {},
+    viewed: {},
   };
 }
 

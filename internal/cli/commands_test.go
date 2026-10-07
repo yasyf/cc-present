@@ -36,6 +36,7 @@ const reducedFixture = `{
     "replies": {},
     "annotations": {"m1": [{"id":"an1","anchor":"L1","text":"note","quote":"hi"}], "in1": [{"id":"an2","anchor":"L2","text":"other","quote":"q"}]},
     "triage": {"m1": {"t1": {"verdict":"approved"}}, "in1": {"t2": {"verdict":"rejected"}}},
+    "viewed": {"m1": true, "in1": true},
     "submitted": {"value":true,"revision":0},
     "closed": {"value":false}
   },
@@ -54,6 +55,7 @@ const reducedFixture = `{
     "feedback":{"ch1":[{"id":"f0","text":"z","round":1}]},
     "annotations":{},
     "triage":{},
+    "viewed":{},
     "submittedRevision":0}
   ]},
   "revising": {"blockIds":[]}
@@ -119,7 +121,7 @@ func interactionKeys(t *testing.T, raw json.RawMessage, group string) []string {
 	return keys
 }
 
-func TestFilterBlockNarrowsAnnotationsAndTriage(t *testing.T) {
+func TestFilterBlockNarrowsAnnotationsTriageAndViewed(t *testing.T) {
 	got, err := filterBlock(json.RawMessage(reducedFixture), "in1")
 	if err != nil {
 		t.Fatalf("filterBlock() error = %v", err)
@@ -132,7 +134,7 @@ func TestFilterBlockNarrowsAnnotationsAndTriage(t *testing.T) {
 	if err := json.Unmarshal(m["interactions"], &itx); err != nil {
 		t.Fatalf("unmarshal interactions: %v", err)
 	}
-	for _, key := range []string{"annotations", "triage"} {
+	for _, key := range []string{"annotations", "triage", "viewed"} {
 		var byBlock map[string]json.RawMessage
 		if err := json.Unmarshal(itx[key], &byBlock); err != nil {
 			t.Fatalf("unmarshal %s: %v", key, err)

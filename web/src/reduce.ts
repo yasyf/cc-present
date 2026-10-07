@@ -41,6 +41,7 @@ export function emptyState(): PresentState {
       replies: {},
       annotations: {},
       triage: {},
+      viewed: {},
       submitted: { value: false, revision: 0 },
       closed: { value: false },
     },
@@ -198,9 +199,11 @@ export function applyEvent(state: PresentState, ev: PresentEvent): PresentState 
       });
     }
     case 'submit': {
-      const { revision } = ev.payload;
+      const { revision, viewed } = ev.payload;
+      const merged = { ...state.interactions.viewed };
+      for (const id of viewed ?? []) merged[id] = true;
       const submitted = {
-        ...withInteractions(state, { submitted: { value: true, revision } }),
+        ...withInteractions(state, { viewed: merged, submitted: { value: true, revision } }),
         revising: { blockIds: [] },
       };
       if (!isDirty(submitted)) return submitted;
@@ -382,7 +385,8 @@ function isDirty(state: PresentState): boolean {
   return state.doc.blocks.some((b) => state.rounds.blockRounds[b.id] === state.rounds.current);
 }
 
-// closeRound appends a frozen snapshot of the current round and advances current.
+// closeRound appends a frozen snapshot of the current round, empties the round's
+// viewed set, and advances current.
 // The caller owns currentTitle: submit clears it, round.started sets the next.
 function closeRound(state: PresentState, revision: number | undefined): PresentState {
   const cur = state.rounds.current;
@@ -398,6 +402,7 @@ function closeRound(state: PresentState, revision: number | undefined): PresentS
     feedback: filterClone(state.interactions.feedback, ids, (v) => [...v]),
     annotations: filterClone(state.interactions.annotations, ids, (v) => [...v]),
     triage: filterClone(state.interactions.triage, ids, (v) => ({ ...v })),
+    viewed: filterMap(state.interactions.viewed, ids),
   };
   if (state.rounds.currentTitle) record.title = state.rounds.currentTitle;
   if (revision !== undefined) record.submittedRevision = revision;
@@ -406,7 +411,7 @@ function closeRound(state: PresentState, revision: number | undefined): PresentS
     current: cur + 1,
     history: [...state.rounds.history, record],
   };
-  return { ...state, rounds };
+  return { ...withInteractions(state, { viewed: {} }), rounds };
 }
 
 // topLevelRound resolves the round of the top-level block enclosing `id`: the

@@ -11,7 +11,7 @@
 | `feedback.created` | `{"schemaVersion":1,"blockId":"cli-approval","id":"9f2c11ab","text":"mention the exit code","type":"feedback.created"}` | Append-only note thread for approvals, choices, and interactive pack blocks; `id` is the entry's stable identity | Actionable — a writer replies with `reply --block` and redrafts the card via `update-block` with `"status": "redrafted"` when warranted. |
 | `input.submitted` | `{"schemaVersion":1,"blockId":"board-notes","text":"also check the docs site","type":"input.submitted"}` | Last-write-wins per block | Informational until submit. |
 | `pack.interaction` | `{"schemaVersion":1,"blockId":"ex-rating","payload":{"value":4},"type":"pack.interaction"}` — `payload` is the pack block's own interaction shape, validated against the pack's interaction schema at the REST edge | Last-write-wins per block; the reducer stores the payload verbatim under `interactions.packs`, never inspecting its shape | Informational until submit; the pack's reference fragment says what the payload means. |
-| `submit` | `{"schemaVersion":1,"revision":1,"type":"submit"}` | Marks submitted with the revision; when the round is dirty (some top-level block was agent-touched this round) it also snapshots the round into `rounds.history` (with `submittedRevision`) and advances the round; either way it clears the revising working set. Never closes the artifact | Drain `outcomes --no-doc` in the main session, summarize in chat, apply, then start the next round or `close`. |
+| `submit` | `{"schemaVersion":1,"revision":1,"type":"submit","viewed":["card-cli","cli-approval"]}` — `viewed` lists the blocks the human opened this round and is absent when they opened none | Merges `viewed` into `interactions.viewed`, then marks submitted with the revision; when the round is dirty (some top-level block was agent-touched this round) it also snapshots the round into `rounds.history` (with `submittedRevision`) and advances the round; either way it clears the revising working set. Never closes the artifact | Drain `outcomes --no-doc` in the main session, summarize in chat, apply, then start the next round or `close`. |
 | `channel.changed` | `{"type":"channel.changed","connected":true}` | Presence frame (system origin); skipped by the reducer | Informational — a browser tab connected or dropped. Needs no reply. |
 | `present.closed` | `{"schemaVersion":1,"summary":"Both drafts approved.","type":"present.closed"}` — `summary` only when `close --summary` passed one | Terminal (system origin): your own `close` echoing back; every later event is a no-op in the reduction | Nothing — `watch` exits on it, so its Monitor completes on its own. |
 
@@ -45,6 +45,7 @@ For completeness — these are what your own CLI calls append. The browser reduc
     "packs":     { "ex-rating": { "payload": { "value": 4 } } },
     "feedback":  { "cli-approval": [ { "id": "9f2c11ab", "text": "mention the exit code" } ] },
     "replies":   { "cli-approval": [ { "id": "4dd66d6b", "md": "Adding it." } ] },
+    "viewed":    { "card-cli": true, "cli-approval": true },
     "submitted": { "value": true, "revision": 1 },
     "closed":    { "value": false }
   },
@@ -52,17 +53,28 @@ For completeness — these are what your own CLI calls append. The browser reduc
     "current": 2,
     "blockRounds": { "card-cli": 2, "card-opener": 1 },
     "history": [
-      { "number": 1, "blocks": [], "decisions": {}, "choices": {}, "inputs": {}, "packs": {}, "feedback": {}, "submittedRevision": 1 }
+      { "number": 1, "blocks": [], "decisions": {}, "choices": {}, "inputs": {}, "packs": {}, "feedback": {}, "viewed": {}, "submittedRevision": 1 }
     ]
   },
   "revising": { "blockIds": [] }
 }
 ```
 
-`rounds` partitions the board over time. `current` is 1-based; `blockRounds` maps each top-level block id to the round of its last agent touch — an upsert stamps the block into the current round, and a full push stamps every new or changed top-level block while blocks byte-identical to the previous document keep their round. Each closed round lands in `history` as a frozen record: deep copies of that round's blocks plus the decisions, choices, inputs, and feedback filtered to those blocks (card children included, one level deep). `submittedRevision` appears only when a submit closed the round, not a `round` call. An `InputValue` carries the round it was entered in; an input re-upserted into a later round renders empty with a dim "last round" hint, so never ask the human to clear a field.
+`rounds` partitions the board over time. `current` is 1-based; `blockRounds` maps each top-level block id to the round of its last agent touch — an upsert stamps the block into the current round, and a full push stamps every new or changed top-level block while blocks byte-identical to the previous document keep their round. Each closed round lands in `history` as a frozen record: deep copies of that round's blocks plus the decisions, choices, inputs, feedback, and viewed ids filtered to those blocks (card children included, one level deep). `submittedRevision` appears only when a submit closed the round, not a `round` call. An `InputValue` carries the round it was entered in; an input re-upserted into a later round renders empty with a dim "last round" hint, so never ask the human to clear a field.
 
 `revising` is your own declared working set reflected back in state (see Agent-origin events): the top-level block ids you announced you're rewriting, plus an optional shared `note`. It clears itself as you upsert those blocks, and any submit or `round` boundary clears the whole set, so it reads `{ "blockIds": [] }` at rest — it is your announcement, not a human interaction. A rewrite that lands under a new id clears nothing on its own: send `revising --clear` or remove the superseded block. On the human side, a `choices` entry gains an `other` string when the human wrote in past the options, and `feedback` keys approvals, choices, and interactive pack blocks by block id, so a choice's note thread lands there beside its selection.
 
 Document state and human state never mix: the document carries only agent-owned display state (`card.status`, `progress`), while verdicts live in `interactions`, keyed by block id — which is why re-upserting a block never clobbers a human's decision, and why a redrafted card's approval block keeps its id if you want the standing verdict to survive the redraft (give it a fresh id to demand a fresh verdict).
 
 The flip side: interactions outlive their blocks, so `outcomes` may hold keys for blocks a later redraft removed — match interaction keys against the current `doc.blocks` when applying results.
+
+## Reading `viewed`
+
+The browser counts a block as opened when its focus step stays up for 800 ms, its board row stays at least half on screen for 1.5 s, or the human interacts with it. Opening a card counts its children too. `interactions.viewed` holds the blocks opened in the open round and empties when the round closes. A closed round's `viewed` holds only the blocks of that round the human opened during it, so a block you redrafted reads as unopened until the human opens the new version. A choice's `recommended` option never counts as an answer. Read each block by what `outcomes` shows for it:
+
+| What `outcomes` shows | Read it as |
+|---|---|
+| A decision, selection, input, or pack value | The human's explicit answer. |
+| In `viewed`, unanswered, with a `recommended` option | Kept as proposed. The human saw your default and let it stand. |
+| In `viewed`, unanswered, no `recommended` option | Seen, left open. Ask in chat if you need an answer. |
+| Absent from `viewed` | Never opened. Silence here is no agreement, so ask in chat before acting on your default. |

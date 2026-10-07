@@ -34,6 +34,7 @@ function record(choice: Selection): RoundRecord {
     feedback: {},
     annotations: {},
     triage: {},
+    viewed: {},
   };
 }
 

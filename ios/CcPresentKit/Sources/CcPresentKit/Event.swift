@@ -160,9 +160,11 @@ public struct PackInteractionPayload: Decodable, Equatable, Sendable {
     public var payload: JSONValue
 }
 
-/// SubmitPayload records a human submit with the submitted revision.
+/// SubmitPayload records a human submit with the submitted revision and the
+/// block ids the human opened that round, absent when none were.
 public struct SubmitPayload: Decodable, Equatable, Sendable {
     public var revision: Int
+    public var viewed: [String]?
 }
 
 /// RevisingChangedPayload replaces the agent's declared revising working set.

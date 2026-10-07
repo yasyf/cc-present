@@ -69,6 +69,7 @@ const cases: Case[] = [
         feedback: {},
         annotations: {},
         triage: {},
+        viewed: {},
         submittedRevision: 3,
       },
     },

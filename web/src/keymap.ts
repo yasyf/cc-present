@@ -36,7 +36,7 @@ export interface KeymapRow {
 
 export const KEYMAP: KeymapRow[] = [
   { section: 'Navigate', keys: ['j', '↓', 'k', '↑'], context: 'Browsing', action: 'Move to the next / previous item' },
-  { section: 'Navigate', keys: ['n'], context: 'Browsing', action: 'Jump to the next undecided item' },
+  { section: 'Navigate', keys: ['n'], context: 'Browsing', action: 'Jump to the next unanswered item' },
   { section: 'Decide', keys: ['a', 'r'], context: 'On an approval or triage item', action: 'Approve / reject (press again to clear)' },
   { section: 'Decide', keys: ['c'], context: 'On an approval or triage item', action: 'Clear the verdict' },
   { section: 'Decide', keys: ['1', '…', '9'], context: 'On a choice or triage', action: 'Toggle option / jump to item 1–9' },

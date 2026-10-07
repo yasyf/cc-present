@@ -10,7 +10,8 @@ import { KeyboardProvider } from '../keyboard';
 import { SubmitBar } from './SubmitBar';
 import { emptyState } from '../reduce';
 import { revisionStore } from '../revision';
-import type { Interactions, Verdict, WireFrame } from '../events';
+import { viewedStore } from '../viewed';
+import type { Interaction, Interactions, Verdict, WireFrame } from '../events';
 import type { Approval, Block, Choice, Doc } from '../schema';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -29,12 +30,14 @@ function Bar({
   blocks,
   interactions,
   showTally = true,
+  post = async () => true,
 }: {
   blocks: Block[];
   interactions: Interactions;
   showTally?: boolean;
+  post?: PresentApi['post'];
 }) {
-  const present: PresentApi = { post: async () => true, closed: false, currentRound: 1 };
+  const present: PresentApi = { post, closed: false, currentRound: 1 };
   return (
     <QueryClientProvider client={new QueryClient()}>
       <PresentContext.Provider value={present}>
@@ -58,6 +61,7 @@ let root: Root;
 
 beforeEach(() => {
   revisionStore.reset();
+  viewedStore.reset();
   container = document.createElement('div');
   document.body.appendChild(container);
   root = createRoot(container);
@@ -66,9 +70,15 @@ afterEach(() => {
   act(() => root.unmount());
   container.remove();
   revisionStore.reset();
+  viewedStore.reset();
 });
 
-function render(props: { blocks: Block[]; interactions: Interactions; showTally?: boolean }): void {
+function render(props: {
+  blocks: Block[];
+  interactions: Interactions;
+  showTally?: boolean;
+  post?: PresentApi['post'];
+}): void {
   act(() => root.render(<Bar {...props} />));
 }
 
@@ -80,7 +90,7 @@ describe('SubmitBar tally segments', () => {
     const blocks = [approval('a1')];
     render({ blocks, interactions: empty(), showTally: false });
     expect(container.querySelector('.tally-strip')).toBeNull();
-    expect(container.querySelector('.submit-count')?.textContent).toBe('0 / 1 decided');
+    expect(container.querySelector('.submit-count')?.textContent).toBe('1 to answer');
     render({ blocks, interactions: empty(), showTally: true });
     expect(container.querySelector('.tally-strip')).not.toBeNull();
   });
@@ -131,6 +141,34 @@ describe('SubmitBar tally segments', () => {
     });
     expect(container.querySelector('.tally-strip.tally-complete')).not.toBeNull();
     expect(container.querySelector('.submit-btn.submit-ready')).not.toBeNull();
+  });
+
+  it('counts what is left to answer, never treating a recommended option as answered', () => {
+    const recommended: Choice = { id: 'c1', type: 'choice', options: [{ id: 'o1', label: 'one', recommended: true }] };
+    const blocks = [approval('a1'), recommended];
+    render({ blocks, interactions: empty() });
+    expect(container.querySelector('.submit-count')?.textContent).toBe('2 to answer');
+    render({ blocks, interactions: withState({ decisions: decisions({ a1: 'approved' }) }) });
+    expect(container.querySelector('.submit-count')?.textContent).toBe('1 to answer');
+    render({
+      blocks,
+      interactions: withState({ decisions: decisions({ a1: 'approved' }), choices: { c1: { optionIds: ['o1'] } } }),
+    });
+    expect(container.querySelector('.submit-count')?.textContent).toBe('All answered');
+  });
+});
+
+describe('SubmitBar submit payload', () => {
+  it('carries the blocks the human opened this round', () => {
+    const posted: Interaction[] = [];
+    const post = async (interaction: Interaction) => {
+      posted.push(interaction);
+      return true;
+    };
+    viewedStore.mark(['a1', 'm1']);
+    render({ blocks: [approval('a1')], interactions: withState({ decisions: decisions({ a1: 'approved' }) }), post });
+    act(() => (container.querySelector('.submit-btn') as HTMLButtonElement).click());
+    expect(posted).toEqual([{ type: 'submit', revision: 0, viewed: ['a1', 'm1'] }]);
   });
 });
 

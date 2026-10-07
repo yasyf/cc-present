@@ -17,6 +17,7 @@ export function RoundGroup({ record, interactions }: { record: RoundRecord; inte
     replies: interactions.replies,
     annotations: record.annotations,
     triage: record.triage,
+    viewed: record.viewed,
     submitted: interactions.submitted,
     closed: interactions.closed,
   };

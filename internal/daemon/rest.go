@@ -37,6 +37,8 @@ const maxHumanTextBytes = 64 << 10
 // lines can't bloat the anchored excerpt echoed back into the log.
 const maxQuoteBytes = 2 << 10
 
+const maxViewedIDs = 500
+
 // restServer holds the REST plane's shared state: the event-log connection, the
 // Append chokepoint, the subject resolver, the asset store, and the SPA handler
 // that /assets/{sha} falls through to for the app's own build files.
@@ -73,6 +75,7 @@ type interaction struct {
 	Quote     string                 `json:"quote,omitempty"`
 	Verdicts  map[string]triageEntry `json:"verdicts,omitempty"`
 	Revision  int                    `json:"revision"`
+	Viewed    []string               `json:"viewed"`
 	Payload   json.RawMessage        `json:"payload"`
 }
 
@@ -218,7 +221,8 @@ func (rs *restServer) handleInteractions(w http.ResponseWriter, r *http.Request)
 // block-scoped interaction on a block from a round already closed, and a
 // submit naming a revision the log never produced (revision is the count of
 // doc.replaced events; 0 is a document never replaced). Submit is exempt from
-// the round guard: it is what closes a round. A pack.interaction validates its
+// the round guard: it is what closes a round, and its viewed ids narrow to
+// blocks the document still addresses. A pack.interaction validates its
 // payload against the block's declared interaction schema in reg.
 func validateInteraction(st *state.State, revision int, it *interaction, reg *packs.Registry) (json.RawMessage, error) {
 	switch it.Type {
@@ -226,7 +230,11 @@ func validateInteraction(st *state.State, revision int, it *interaction, reg *pa
 		if it.Revision < 0 || it.Revision > revision {
 			return nil, fmt.Errorf("submit revision %d does not exist (current revision is %d)", it.Revision, revision)
 		}
-		return mustJSON(map[string]int{"revision": it.Revision}), nil
+		p := map[string]any{"revision": it.Revision}
+		if viewed := viewedIDs(st.Doc, it.Viewed); len(viewed) > 0 {
+			p["viewed"] = viewed
+		}
+		return mustJSON(p), nil
 	case EventDecisionCreated:
 		ap, topID, err := requireApproval(st, it.BlockID)
 		if err != nil {
@@ -541,6 +549,27 @@ func requireCurrentRound(st *state.State, id, topID string) error {
 		return fmt.Errorf("block %q belongs to closed round %d", id, r)
 	}
 	return nil
+}
+
+// viewedIDs drops rather than rejects an id d no longer addresses, since a block
+// can vanish after the human saw it.
+func viewedIDs(d *doc.Doc, ids []string) []string {
+	out := []string{}
+	seen := map[string]bool{}
+	for _, id := range ids {
+		if len(out) == maxViewedIDs {
+			break
+		}
+		if seen[id] {
+			continue
+		}
+		if loc, ok := doc.Locate(d, id); !ok || loc.Visual() {
+			continue
+		}
+		seen[id] = true
+		out = append(out, id)
+	}
+	return out
 }
 
 // findBlock locates an addressable block and returns its enclosing top-level id.

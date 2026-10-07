@@ -232,6 +232,9 @@ func initMaps(s *state.State) {
 	if s.Interactions.Triage == nil {
 		s.Interactions.Triage = map[string]map[string]state.Decision{}
 	}
+	if s.Interactions.Viewed == nil {
+		s.Interactions.Viewed = map[string]bool{}
+	}
 	if s.Doc == nil {
 		s.Doc = &doc.Doc{Version: 1, Blocks: []doc.Block{}}
 	}
@@ -256,6 +259,9 @@ func initMaps(s *state.State) {
 		}
 		if s.Rounds.History[i].Triage == nil {
 			s.Rounds.History[i].Triage = map[string]map[string]state.Decision{}
+		}
+		if s.Rounds.History[i].Viewed == nil {
+			s.Rounds.History[i].Viewed = map[string]bool{}
 		}
 	}
 }

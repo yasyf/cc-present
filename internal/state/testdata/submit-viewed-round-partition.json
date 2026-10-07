@@ -1,0 +1,70 @@
+{
+  "name": "submit-viewed-round-partition",
+  "events": [
+    {
+      "origin": "agent",
+      "type": "doc.replaced",
+      "seq": 1,
+      "payload": {
+        "schemaVersion": 1,
+        "type": "doc.replaced",
+        "revision": 1,
+        "doc": {
+          "version": 1,
+          "title": "T",
+          "blocks": [
+            { "id": "c1", "type": "card", "children": [{ "id": "a1", "type": "approval", "prompt": "Use?" }] },
+            { "id": "m1", "type": "markdown", "md": "context" }
+          ]
+        }
+      }
+    },
+    { "origin": "human", "type": "submit", "seq": 2, "payload": { "schemaVersion": 1, "type": "submit", "revision": 1, "viewed": ["c1", "a1"] } },
+    { "origin": "agent", "type": "block.upserted", "seq": 3, "payload": { "schemaVersion": 1, "type": "block.upserted", "block": { "id": "a2", "type": "approval", "prompt": "Follow up?" } } },
+    { "origin": "human", "type": "submit", "seq": 4, "payload": { "schemaVersion": 1, "type": "submit", "revision": 1, "viewed": ["a2", "m1"] } }
+  ],
+  "expected": {
+    "schemaVersion": 1,
+    "doc": {
+      "version": 1,
+      "title": "T",
+      "blocks": [
+        { "id": "c1", "type": "card", "children": [{ "id": "a1", "type": "approval", "prompt": "Use?" }] },
+        { "id": "m1", "type": "markdown", "md": "context" },
+        { "id": "a2", "type": "approval", "prompt": "Follow up?" }
+      ]
+    },
+    "interactions": {
+      "submitted": { "value": true, "revision": 1 }
+    },
+    "rounds": {
+      "current": 3,
+      "blockRounds": { "a2": 2, "c1": 1, "m1": 1 },
+      "history": [
+        {
+          "number": 1,
+          "blocks": [
+            { "id": "c1", "type": "card", "children": [{ "id": "a1", "type": "approval", "prompt": "Use?" }] },
+            { "id": "m1", "type": "markdown", "md": "context" }
+          ],
+          "decisions": {},
+          "choices": {},
+          "inputs": {},
+          "feedback": {},
+          "viewed": { "a1": true, "c1": true },
+          "submittedRevision": 1
+        },
+        {
+          "number": 2,
+          "blocks": [{ "id": "a2", "type": "approval", "prompt": "Follow up?" }],
+          "decisions": {},
+          "choices": {},
+          "inputs": {},
+          "feedback": {},
+          "viewed": { "a2": true },
+          "submittedRevision": 1
+        }
+      ]
+    }
+  }
+}

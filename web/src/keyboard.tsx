@@ -231,7 +231,7 @@ export function KeyboardProvider({ blocks, interactions, closed, round, onViewTo
     }
     const target = nextUndecided(ringRef.current, undecidedRef.current, cursorRef.current);
     if (!target) {
-      announce('All items decided');
+      announce('All answered');
       return;
     }
     jumpTo(target);

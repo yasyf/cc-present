@@ -110,7 +110,8 @@ type Closed struct {
 // submit and close signals. Decisions, choices, inputs, and packs are
 // last-write-wins; triage is last-write-wins per item; feedback and replies are
 // append-only; annotations are an ordered per-block list with last-write-wins
-// upsert by annotation id.
+// upsert by annotation id; viewed is the set of block ids the human opened in
+// the current round, merged on each submit and emptied when the round closes.
 type Interactions struct {
 	Decisions   map[string]Decision            `json:"decisions"`
 	Choices     map[string]Selection           `json:"choices"`
@@ -120,6 +121,7 @@ type Interactions struct {
 	Replies     map[string][]Reply             `json:"replies"`
 	Annotations map[string][]Annotation        `json:"annotations"`
 	Triage      map[string]map[string]Decision `json:"triage"`
+	Viewed      map[string]bool                `json:"viewed"`
 	Submitted   Submitted                      `json:"submitted"`
 	Closed      Closed                         `json:"closed"`
 }
@@ -138,6 +140,7 @@ type RoundRecord struct {
 	Feedback          map[string][]Feedback          `json:"feedback"`
 	Annotations       map[string][]Annotation        `json:"annotations"`
 	Triage            map[string]map[string]Decision `json:"triage"`
+	Viewed            map[string]bool                `json:"viewed"`
 	SubmittedRevision *int                           `json:"submittedRevision,omitempty"`
 }
 
@@ -203,6 +206,7 @@ func Reduce(events []Event) (State, error) {
 			Replies:     map[string][]Reply{},
 			Annotations: map[string][]Annotation{},
 			Triage:      map[string]map[string]Decision{},
+			Viewed:      map[string]bool{},
 		},
 		Rounds: Rounds{
 			Current:     1,
@@ -478,10 +482,14 @@ func (s *State) apply(ev Event) error {
 	case "submit":
 		var p struct {
 			payloadIdentity
-			Revision int `json:"revision"`
+			Revision int      `json:"revision"`
+			Viewed   []string `json:"viewed"`
 		}
 		if err := decodeEventPayload(ev, &p); err != nil {
 			return err
+		}
+		for _, id := range p.Viewed {
+			s.Interactions.Viewed[id] = true
 		}
 		s.Interactions.Submitted = Submitted{Value: true, Revision: p.Revision}
 		s.Revising = Revising{BlockIDs: []string{}}
@@ -492,6 +500,7 @@ func (s *State) apply(ev Event) error {
 			}
 			s.Rounds.History = append(s.Rounds.History, rec)
 			s.Rounds.Current++
+			s.Interactions.Viewed = map[string]bool{}
 			s.Rounds.CurrentTitle = ""
 		}
 		return nil
@@ -511,6 +520,7 @@ func (s *State) apply(ev Event) error {
 			}
 			s.Rounds.History = append(s.Rounds.History, rec)
 			s.Rounds.Current++
+			s.Interactions.Viewed = map[string]bool{}
 		}
 		s.Rounds.CurrentTitle = p.Title
 		return nil
@@ -615,6 +625,7 @@ func (s *State) closeRound(revision *int) (RoundRecord, error) {
 		Feedback:          filterMap(s.Interactions.Feedback, ids, cloneSlice[Feedback]),
 		Annotations:       filterMap(s.Interactions.Annotations, ids, cloneSlice[Annotation]),
 		Triage:            filterMap(s.Interactions.Triage, ids, cloneVerdicts),
+		Viewed:            filterMap(s.Interactions.Viewed, ids, identity[bool]),
 		SubmittedRevision: revision,
 	}, nil
 }

@@ -6,8 +6,10 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"testing"
 	"testing/fstest"
@@ -17,6 +19,7 @@ import (
 	ccstore "github.com/yasyf/cc-interact/store"
 
 	"github.com/yasyf/cc-present/internal/assets"
+	"github.com/yasyf/cc-present/internal/doc"
 	"github.com/yasyf/cc-present/internal/packs"
 )
 
@@ -756,5 +759,69 @@ func TestInteractionDraftTriageClosedRound(t *testing.T) {
 	tri := h.post(t, `{"subject":"board--abcd0000","nonce":"cr-tr","interaction":{"type":"triage.decided","blockId":"tr1","verdicts":{"i1":{"verdict":"approved"}}}}`)
 	if tri.Code != http.StatusBadRequest || !strings.Contains(tri.Body.String(), "closed round") {
 		t.Fatalf("triage status = %d body %q, want 400 closed round", tri.Code, tri.Body.String())
+	}
+}
+
+// TestInteractionSubmitViewed proves the submit echo keeps only the viewed ids
+// the document addresses, deduplicated in order, and omits an empty set so a
+// submit without views appends the same payload it always did.
+func TestInteractionSubmitViewed(t *testing.T) {
+	tests := []struct {
+		name   string
+		viewed string
+		want   []string
+	}{
+		{"absent", ``, nil},
+		{"empty", `,"viewed":[]`, nil},
+		{"only unknown and visual ids", `,"viewed":["nope","v1","tv1"]`, nil},
+		{"filtered and deduplicated", `,"viewed":["ch1","nope","a1","v1","ch1"]`, []string{"ch1", "a1"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := newRestHarness(t)
+			body := `{"subject":"board--abcd0000","nonce":"sub","interaction":{"type":"submit","revision":1` + tt.viewed + `}}`
+			if w := h.post(t, body); w.Code != http.StatusOK {
+				t.Fatalf("status = %d, want 200 (%s)", w.Code, w.Body.String())
+			}
+			events, err := h.cc.EventsSince(context.Background(), h.id, 0, "")
+			if err != nil {
+				t.Fatal(err)
+			}
+			var p map[string]json.RawMessage
+			if err := json.Unmarshal(events[1].Payload, &p); err != nil {
+				t.Fatalf("decode payload: %v", err)
+			}
+			raw, ok := p["viewed"]
+			if tt.want == nil {
+				if ok {
+					t.Fatalf("payload viewed = %s, want the key omitted", raw)
+				}
+				return
+			}
+			var got []string
+			if err := json.Unmarshal(raw, &got); err != nil {
+				t.Fatalf("decode viewed: %v", err)
+			}
+			if !slices.Equal(got, tt.want) {
+				t.Fatalf("viewed = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestViewedIDsCap(t *testing.T) {
+	blocks := make([]string, maxViewedIDs+1)
+	ids := make([]string, maxViewedIDs+1)
+	for i := range blocks {
+		ids[i] = fmt.Sprintf("m%d", i)
+		blocks[i] = fmt.Sprintf(`{"id":%q,"type":"markdown","md":"x"}`, ids[i])
+	}
+	var d doc.Doc
+	if err := json.Unmarshal([]byte(`{"version":1,"title":"T","blocks":[`+strings.Join(blocks, ",")+`]}`), &d); err != nil {
+		t.Fatalf("decode doc: %v", err)
+	}
+	got := viewedIDs(&d, ids)
+	if !slices.Equal(got, ids[:maxViewedIDs]) {
+		t.Fatalf("viewedIDs kept %d ids, want the first %d", len(got), maxViewedIDs)
 	}
 }

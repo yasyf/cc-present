@@ -108,8 +108,11 @@ export interface PackInteractionPayload {
   payload: unknown;
 }
 
+// viewed lists the block ids the human opened this round; the daemon drops ids
+// the document no longer addresses and omits the key when none remain.
 export interface SubmitPayload {
   revision: number;
+  viewed?: string[];
 }
 
 // revising.changed replaces the agent's declared revising working set wholesale.
@@ -269,6 +272,8 @@ export interface Interactions {
   annotations: Record<string, Annotation[]>;
   // Per-block, per-item verdicts; a `cleared` verdict deletes the item entry.
   triage: Record<string, Record<string, Decision>>;
+  // The block ids the human opened this round; emptied when the round closes.
+  viewed: Record<string, boolean>;
   submitted: Submitted;
   closed: Closed;
 }
@@ -287,6 +292,7 @@ export interface RoundRecord {
   feedback: Record<string, Feedback[]>;
   annotations: Record<string, Annotation[]>;
   triage: Record<string, Record<string, Decision>>;
+  viewed: Record<string, boolean>;
   submittedRevision?: number;
 }
 

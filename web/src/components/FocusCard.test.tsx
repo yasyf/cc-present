@@ -12,6 +12,7 @@ import { contextTitle, FocusCard, NO_DRAG, resolveDragEnd, swipeCommit } from '.
 import { focusSteps } from '../focus';
 import { emptyState } from '../reduce';
 import { DECAY_MS, revisionStore } from '../revision';
+import { FOCUS_DWELL_MS, viewedStore } from '../viewed';
 import type { Interaction, PresentState, Revising, WireFrame } from '../events';
 import type { Block } from '../schema';
 
@@ -132,6 +133,7 @@ let root: Root;
 
 beforeEach(() => {
   revisionStore.reset();
+  viewedStore.reset();
   container = document.createElement('div');
   document.body.appendChild(container);
   root = createRoot(container);
@@ -415,5 +417,36 @@ describe('FocusCard live-revision callout', () => {
     expect(revisionStore.unseenChange('b1')).not.toBeNull();
     renderCard(markdown('b2', 'body'));
     expect(revisionStore.unseenChange('b1')).toBeNull();
+  });
+});
+
+describe('FocusCard viewed tracking', () => {
+  it('marks a step and its card children viewed once it dwells', () => {
+    vi.useFakeTimers();
+    renderCard(card('c1', 'Pick', [approval('a1', 'Ship?')]));
+    act(() => vi.advanceTimersByTime(FOCUS_DWELL_MS - 1));
+    expect(viewedStore.viewed()).toEqual([]);
+    act(() => vi.advanceTimersByTime(1));
+    expect(viewedStore.viewed()).toEqual(['c1', 'a1']);
+  });
+
+  it('re-arms the dwell when a child joins the step it already marked', () => {
+    vi.useFakeTimers();
+    renderCard(card('c1', 'Pick', [approval('a1', 'Ship?')]));
+    act(() => vi.advanceTimersByTime(FOCUS_DWELL_MS));
+    renderCard(card('c1', 'Pick', [approval('a1', 'Ship?'), code('k1')]));
+    act(() => vi.advanceTimersByTime(FOCUS_DWELL_MS - 1));
+    expect(viewedStore.viewed()).toEqual(['c1', 'a1']);
+    act(() => vi.advanceTimersByTime(1));
+    expect(viewedStore.viewed()).toEqual(['c1', 'a1', 'k1']);
+  });
+
+  it('never marks a step the human skips past before the dwell', () => {
+    vi.useFakeTimers();
+    renderCard(markdown('b1', 'body'));
+    act(() => vi.advanceTimersByTime(FOCUS_DWELL_MS / 2));
+    renderCard(markdown('b2', 'body'));
+    act(() => vi.advanceTimersByTime(FOCUS_DWELL_MS));
+    expect(viewedStore.viewed()).toEqual(['b2']);
   });
 });

@@ -24,6 +24,7 @@ import type { PresentState } from './events';
 import { ActiveBlockProvider, useActiveBlock } from './activeBlock';
 import { useMediaQuery } from './useMediaQuery';
 import { threadFeed } from './threadFeed';
+import { viewedStore } from './viewed';
 import type { ThreadEntry, ThreadProjection } from './threadFeed';
 import { interactionErrorText } from './interactionError';
 import { BoardBlocks } from './components/BoardBlocks';
@@ -114,9 +115,14 @@ function PresentView({ subject }: { subject: string }) {
     return () => clearTimeout(timer);
   }, [stream.caughtUp, hasContent]);
 
+  useEffect(() => viewedStore.scope(subject, currentRound), [subject, currentRound]);
+
   const api = useMemo<PresentApi>(
     () => ({
-      post: (interaction) => mutation.mutateAsync(interaction).then(() => true, () => false),
+      post: (interaction) => {
+        if (interaction.type !== 'submit') viewedStore.mark([interaction.blockId]);
+        return mutation.mutateAsync(interaction).then(() => true, () => false);
+      },
       closed,
       currentRound,
     }),
