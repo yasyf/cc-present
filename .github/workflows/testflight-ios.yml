@@ -5,7 +5,7 @@ name: TestFlight (iOS)
 # Connect API key) means no certificates or provisioning profiles live in CI.
 # The archive is ad-hoc signed (a dev profile would need a registered device);
 # export re-signs it for distribution via cloud-managed signing.
-# Pinned to macos-26 for the Xcode 26.x toolchain this app targets.
+# Pinned to the xcode-27 image for the Xcode 27 toolchain this app targets.
 on:
   workflow_dispatch:
 
@@ -14,7 +14,7 @@ permissions:
 
 jobs:
   upload:
-    runs-on: macos-26
+    runs-on: xcode-27
     steps:
       - uses: actions/checkout@v7
 

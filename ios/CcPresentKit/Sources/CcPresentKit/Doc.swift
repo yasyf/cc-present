@@ -336,18 +336,58 @@ public enum Block: Codable, Equatable, Sendable {
         }
     }
 
-    /// Code is a syntax-highlighted code block.
+    /// Code is a syntax-highlighted code block. One with `src` is grounded in a repository
+    /// file: the CLI fills `code`, `start`, `lang`, and `sha` from the `lines` slice of `src`.
     public struct Code: Codable, Equatable, Sendable {
         public var id: String
         public var lang: String
         public var code: String
         public var title: String?
+        public var src: String?
+        public var lines: String?
+        public var start: Int?
+        public var highlight: String?
+        public var pins: [CodePin]?
+        public var sha: String?
 
-        public init(id: String, lang: String, code: String, title: String? = nil) {
+        public init(
+            id: String,
+            lang: String,
+            code: String,
+            title: String? = nil,
+            src: String? = nil,
+            lines: String? = nil,
+            start: Int? = nil,
+            highlight: String? = nil,
+            pins: [CodePin]? = nil,
+            sha: String? = nil
+        ) {
             self.id = id
             self.lang = lang
             self.code = code
             self.title = title
+            self.src = src
+            self.lines = lines
+            self.start = start
+            self.highlight = highlight
+            self.pins = pins
+            self.sha = sha
+        }
+    }
+
+    /// CodePin is a numbered callout on one file line of a code block; tone is
+    /// `default`, `good`, `warn`, or `bad`.
+    public struct CodePin: Codable, Equatable, Sendable {
+        public var line: Int
+        public var title: String
+        public var body: String?
+        public var tone: String?
+
+        public init(line: Int, title: String, body: String? = nil, tone: String? = nil) {
+            self.line = line
+            self.title = title
+            self.body = body
+            self.tone = tone
         }
     }
 

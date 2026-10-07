@@ -127,7 +127,8 @@ public struct Closed: Decodable, Equatable, Sendable {
 
 /// Interactions holds every human interaction, keyed by block id, plus the submit
 /// and close signals. Decisions, choices, and inputs are last-write-wins;
-/// feedback and replies are append-only.
+/// feedback and replies are append-only; viewed is the set of block ids the human
+/// opened in the current round, merged on each submit and emptied when the round closes.
 public struct Interactions: Decodable, Equatable, Sendable {
     public var decisions: [String: Decision]
     public var choices: [String: Selection]
@@ -137,6 +138,7 @@ public struct Interactions: Decodable, Equatable, Sendable {
     public var replies: [String: [Reply]]
     public var annotations: [String: [Annotation]]
     public var triage: [String: [String: Decision]]
+    public var viewed: [String: Bool]
     public var submitted: Submitted
     public var closed: Closed
 
@@ -149,6 +151,7 @@ public struct Interactions: Decodable, Equatable, Sendable {
         replies: [String: [Reply]] = [:],
         annotations: [String: [Annotation]] = [:],
         triage: [String: [String: Decision]] = [:],
+        viewed: [String: Bool] = [:],
         submitted: Submitted = Submitted(value: false, revision: 0),
         closed: Closed = Closed(value: false, summary: nil)
     ) {
@@ -160,12 +163,13 @@ public struct Interactions: Decodable, Equatable, Sendable {
         self.replies = replies
         self.annotations = annotations
         self.triage = triage
+        self.viewed = viewed
         self.submitted = submitted
         self.closed = closed
     }
 
     private enum CodingKeys: String, CodingKey {
-        case decisions, choices, inputs, packs, feedback, replies, annotations, triage, submitted, closed
+        case decisions, choices, inputs, packs, feedback, replies, annotations, triage, viewed, submitted, closed
     }
 
     public init(from decoder: Decoder) throws {
@@ -178,6 +182,7 @@ public struct Interactions: Decodable, Equatable, Sendable {
         replies = try container.decodeIfPresent([String: [Reply]].self, forKey: .replies) ?? [:]
         annotations = try container.decodeIfPresent([String: [Annotation]].self, forKey: .annotations) ?? [:]
         triage = try container.decodeIfPresent([String: [String: Decision]].self, forKey: .triage) ?? [:]
+        viewed = try container.decodeIfPresent([String: Bool].self, forKey: .viewed) ?? [:]
         submitted = try container.decodeIfPresent(Submitted.self, forKey: .submitted)
             ?? Submitted(value: false, revision: 0)
         closed = try container.decodeIfPresent(Closed.self, forKey: .closed) ?? Closed(value: false, summary: nil)
@@ -198,6 +203,7 @@ public struct RoundRecord: Decodable, Equatable, Sendable {
     public var feedback: [String: [Feedback]]
     public var annotations: [String: [Annotation]]
     public var triage: [String: [String: Decision]]
+    public var viewed: [String: Bool]
     public var submittedRevision: Int?
 
     public init(
@@ -211,6 +217,7 @@ public struct RoundRecord: Decodable, Equatable, Sendable {
         feedback: [String: [Feedback]] = [:],
         annotations: [String: [Annotation]] = [:],
         triage: [String: [String: Decision]] = [:],
+        viewed: [String: Bool] = [:],
         submittedRevision: Int? = nil
     ) {
         self.number = number
@@ -223,11 +230,13 @@ public struct RoundRecord: Decodable, Equatable, Sendable {
         self.feedback = feedback
         self.annotations = annotations
         self.triage = triage
+        self.viewed = viewed
         self.submittedRevision = submittedRevision
     }
 
     private enum CodingKeys: String, CodingKey {
-        case number, title, blocks, decisions, choices, inputs, packs, feedback, annotations, triage, submittedRevision
+        case number, title, blocks, decisions, choices, inputs, packs, feedback, annotations, triage, viewed,
+             submittedRevision
     }
 
     public init(from decoder: Decoder) throws {
@@ -242,6 +251,7 @@ public struct RoundRecord: Decodable, Equatable, Sendable {
         feedback = try container.decodeIfPresent([String: [Feedback]].self, forKey: .feedback) ?? [:]
         annotations = try container.decodeIfPresent([String: [Annotation]].self, forKey: .annotations) ?? [:]
         triage = try container.decodeIfPresent([String: [String: Decision]].self, forKey: .triage) ?? [:]
+        viewed = try container.decodeIfPresent([String: Bool].self, forKey: .viewed) ?? [:]
         submittedRevision = try container.decodeIfPresent(Int.self, forKey: .submittedRevision)
     }
 }
@@ -457,11 +467,15 @@ private extension BoardState {
                 interactions.triage[payload.blockId] = block
             }
         case let .submit(payload):
+            for id in payload.viewed ?? [] {
+                interactions.viewed[id] = true
+            }
             interactions.submitted = Submitted(value: true, revision: payload.revision)
             revising = Revising()
             if dirty() {
                 rounds.history.append(closeRound(revision: payload.revision))
                 rounds.current += 1
+                interactions.viewed = [:]
                 rounds.currentTitle = ""
             }
         case let .roundStarted(payload):
@@ -474,12 +488,13 @@ private extension BoardState {
     }
 
     /// applyRoundStarted clears the revising set, closes a dirty round to advance
-    /// the current one, and titles it.
+    /// the current one and empty its viewed set, and titles it.
     mutating func applyRoundStarted(_ payload: RoundStartedPayload) {
         revising = Revising()
         if dirty() {
             rounds.history.append(closeRound(revision: nil))
             rounds.current += 1
+            interactions.viewed = [:]
         }
         rounds.currentTitle = payload.title ?? ""
     }
@@ -613,6 +628,7 @@ private extension BoardState {
             feedback: filterMap(interactions.feedback, ids),
             annotations: filterMap(interactions.annotations, ids),
             triage: filterMap(interactions.triage, ids),
+            viewed: filterMap(interactions.viewed, ids),
             submittedRevision: revision
         )
     }

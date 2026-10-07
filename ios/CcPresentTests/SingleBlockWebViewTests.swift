@@ -3,7 +3,7 @@ import CoreGraphics
 import Foundation
 import Testing
 
-@Suite("SingleBlockWebView height plumbing")
+@Suite("SingleBlockWebView message plumbing")
 struct SingleBlockWebViewTests {
     @Test("a well-formed ccPresentHeight body yields its px value")
     func heightReadsPxFromBody() {
@@ -16,6 +16,18 @@ struct SingleBlockWebViewTests {
         #expect(SingleBlockWebView.Coordinator.height(fromMessageBody: "214") == nil)
         #expect(SingleBlockWebView.Coordinator.height(fromMessageBody: ["height": 214]) == nil)
         #expect(SingleBlockWebView.Coordinator.height(fromMessageBody: ["px": "214"]) == nil)
+    }
+
+    @Test("a ccPresentInteraction body yields the interacted block id")
+    func interactionReadsBlockId() {
+        #expect(SingleBlockWebView.Coordinator.blockId(fromMessageBody: ["type": "interaction", "blockId": "p1"]) == "p1")
+    }
+
+    @Test("an interaction body of the wrong shape yields nil")
+    func interactionRejectsMalformedBody() {
+        #expect(SingleBlockWebView.Coordinator.blockId(fromMessageBody: "p1") == nil)
+        #expect(SingleBlockWebView.Coordinator.blockId(fromMessageBody: ["type": "interaction"]) == nil)
+        #expect(SingleBlockWebView.Coordinator.blockId(fromMessageBody: ["blockId": 1]) == nil)
     }
 
     @Test("a meaningfully different positive height is applied")

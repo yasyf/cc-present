@@ -19,15 +19,15 @@ permissions:
   contents: read
 
 # One job, not a matrix: everything needs the same macOS runner, and macOS
-# minutes bill 10x. macos-26 is pinned (not macos-latest) because the image
-# ships Xcode 26.x — the toolchain and iOS SDK this app targets.
+# minutes bill 10x. xcode-27 is pinned (not macos-latest) because that image
+# ships Xcode 27 — the toolchain and iOS SDK this app targets.
 jobs:
   test:
-    runs-on: macos-26
+    runs-on: xcode-27
     steps:
       - uses: actions/checkout@v7
       - name: Install lint tools missing from the image
-        # macos-26 ships swiftformat but not swiftlint; guard both against image churn.
+        # Guard both against image churn: not every macOS image ships them.
         run: |
           command -v swiftformat >/dev/null || brew install swiftformat
           command -v swiftlint >/dev/null || brew install swiftlint

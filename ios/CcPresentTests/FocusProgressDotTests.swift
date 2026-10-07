@@ -82,6 +82,6 @@ private let dotCases: [DotCase] = [
 @Test("dotAppearance mirrors the web dot rail", arguments: dotCases)
 private func dotAppearanceMatchesWeb(_ testCase: DotCase) {
     let step = focusSteps(testCase.blocks, testCase.pack)[0]
-    let status = stepStatus(step, testCase.interactions, testCase.pack)
+    let status = stepStatus(step, testCase.interactions, PackTypes(interactive: testCase.pack))
     #expect(dotAppearance(status) == testCase.expected, "case: \(testCase.name)")
 }

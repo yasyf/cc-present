@@ -58,7 +58,7 @@ private func triage(_ id: String, _ itemIds: [String]) -> Block {
         choices: ["ch1": Selection(optionIds: ["o1"])]
     )
 
-    let items = submitItems(blocks, interactions, [])
+    let items = submitItems(blocks, interactions, PackTypes(interactive: []))
 
     #expect(items.map(\.id) == ["ap1", "ap2", "ch1"])
     #expect(items.map(\.kind) == [.approval, .approval, .choice])
@@ -73,11 +73,30 @@ private func triage(_ id: String, _ itemIds: [String]) -> Block {
     ]
     let interactions = Interactions(packs: ["r1": PackValue(payload: .object(["value": .int(4)]))])
 
-    let items = submitItems(blocks, interactions, ["ex.rating"])
+    let items = submitItems(blocks, interactions, PackTypes(interactive: ["ex.rating"]))
 
     #expect(items.map(\.id) == ["r1", "ap1"])
     #expect(items.map(\.kind) == [.pack, .approval])
     #expect(items.map(\.decided) == [true, false])
+}
+
+@Test func blockViewIdsCoverCardChildren() {
+    let blocks: [Block] = [markdown("m1"), card("c1", children: [approval("a1"), markdown("m2")])]
+
+    #expect(blockViewIds(blocks) == ["m1", "c1", "a1", "m2"])
+}
+
+@Test func submitItemsSkipsOptionalPack() {
+    let blocks: [Block] = [
+        pack("p1", "plan.calls"),
+        pack("r1", "ex.rating"),
+    ]
+    let types = PackTypes(interactive: ["plan.calls", "ex.rating"], optional: ["plan.calls"])
+
+    let items = submitItems(blocks, Interactions(), types)
+
+    #expect(items.map(\.id) == ["r1"])
+    #expect(blockDecided(pack("p1", "plan.calls"), Interactions(), types) == false)
 }
 
 @Test func submitItemsTalliesTriageOnceAndNeverDraft() {
@@ -87,7 +106,7 @@ private func triage(_ id: String, _ itemIds: [String]) -> Block {
     ]
     let interactions = Interactions(triage: ["t1": ["i1": Decision(verdict: "approved"), "i2": Decision(verdict: "rejected")]])
 
-    let items = submitItems(blocks, interactions, [])
+    let items = submitItems(blocks, interactions, PackTypes(interactive: []))
 
     // The draft never tallies; the triage block counts once, decided when every item has a verdict.
     #expect(items.map(\.id) == ["t1"])
@@ -261,7 +280,7 @@ private let blockDecidedCases: [BlockDecidedCase] = [
 @Test("blockDecided receipts a row only when it holds decidables and all are decided", arguments: blockDecidedCases)
 private func blockDecidedReceiptsFullyDecidedRows(_ testCase: BlockDecidedCase) {
     #expect(
-        blockDecided(testCase.block, testCase.interactions, testCase.packInteractive) == testCase.decided,
+        blockDecided(testCase.block, testCase.interactions, PackTypes(interactive: testCase.packInteractive)) == testCase.decided,
         "case: \(testCase.name)"
     )
 }

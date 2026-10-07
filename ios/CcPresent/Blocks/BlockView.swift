@@ -71,7 +71,7 @@ struct BlockView: View {
             RecordBlockView(block: record, context: packContext)
         case let .pack(pack):
             if let packContext {
-                PackBlockWebView(block: pack, context: packContext)
+                PackBlockWebView(block: pack, context: packContext, viewed: store.viewed)
             } else {
                 PackPlaceholderView(pack: pack)
             }

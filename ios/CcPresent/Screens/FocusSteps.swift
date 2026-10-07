@@ -242,10 +242,10 @@ enum StepStatus: String {
 /// runs, input-only steps — inputs are never decided, matching the SubmitBar
 /// tally), otherwise decided/undecided, with approve/reject for a lone approval so
 /// its dot fills with the verdict color. An interactive pack decision step tallies
-/// like any other decidable now that submitItems is pack-aware. Mirrors
-/// web/src/focus.ts `stepStatus`.
-func stepStatus(_ step: FocusStep, _ interactions: Interactions, _ packInteractive: Set<String>) -> StepStatus? {
-    let items = submitItems([step.block], interactions, packInteractive)
+/// like any other decidable now that submitItems is pack-aware; an optional one has
+/// nothing to tally. Mirrors web/src/focus.ts `stepStatus`.
+func stepStatus(_ step: FocusStep, _ interactions: Interactions, _ packTypes: PackTypes) -> StepStatus? {
+    let items = submitItems([step.block], interactions, packTypes)
     if items.isEmpty {
         return nil
     }
@@ -260,8 +260,8 @@ func stepStatus(_ step: FocusStep, _ interactions: Interactions, _ packInteracti
 
 /// stepUndecided reports whether a step still has an undecided tally item — the
 /// predicate the deck's next-undecided walk and auto-advance guard use.
-func stepUndecided(_ step: FocusStep, _ interactions: Interactions, _ packInteractive: Set<String>) -> Bool {
-    submitItems([step.block], interactions, packInteractive).contains { !$0.decided }
+func stepUndecided(_ step: FocusStep, _ interactions: Interactions, _ packTypes: PackTypes) -> Bool {
+    submitItems([step.block], interactions, packTypes).contains { !$0.decided }
 }
 
 /// deckEnd is the sentinel anchor id for the review summary — never a real block id
@@ -329,7 +329,7 @@ func resolveViewMode(presentation: Doc.Presentation?, override: ViewMode?, steps
 /// presentPackTypes is the all-interactive fallback: every pack type present in the
 /// live blocks, treated as interactive. The classification the deck actually renders
 /// by comes from the daemon's `/api/packs` manifest; until that response lands (or if
-/// it fails) `interactivePackTypes` falls back here so a pack still earns a step.
+/// it fails) `resolvePackTypes` falls back here so a pack still earns a step.
 func presentPackTypes(_ blocks: [Block]) -> Set<String> {
     Set(flatten(blocks).compactMap { block -> String? in
         if case let .pack(pack) = block {
@@ -339,11 +339,13 @@ func presentPackTypes(_ blocks: [Block]) -> Set<String> {
     })
 }
 
-/// interactivePackTypes is the pack-interactivity set BoardScreen renders by: the
-/// manifest's declared interactive types once `/api/packs` has answered, else the
-/// all-interactive `presentPackTypes` fallback over the live blocks. Mirrors the web
-/// registry's progressive load — every pack is interactive until the manifest
-/// reclassifies it.
-func interactivePackTypes(declared: Set<String>?, blocks: [Block]) -> Set<String> {
-    declared ?? presentPackTypes(blocks)
+/// resolvePackTypes is the pack classification BoardScreen renders by: the manifest's
+/// interactive and optional types once `/api/packs` has answered, else the
+/// all-interactive `presentPackTypes` fallback over the live blocks with none optional.
+/// Mirrors the web registry's progressive load.
+func resolvePackTypes(manifest: PacksResponse?, blocks: [Block]) -> PackTypes {
+    guard let manifest else {
+        return PackTypes(interactive: presentPackTypes(blocks))
+    }
+    return PackTypes(interactive: manifest.interactiveTypes, optional: manifest.optionalTypes)
 }

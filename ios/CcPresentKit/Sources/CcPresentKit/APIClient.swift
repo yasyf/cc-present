@@ -11,7 +11,8 @@ import Foundation
 /// wire `type`, and it encodes to exactly the frame shape the SSE echo delivers
 /// (`{type, blockId?, …}`), so BoardStore reuses it as both the POST body and the
 /// optimistic overlay event. Feedback carries a client-generated `id`, like the
-/// request nonce, so a retry is idempotent.
+/// request nonce, so a retry is idempotent. Submit carries the blocks the human
+/// opened this round as `viewed`.
 public enum Interaction: Encodable, Equatable, Sendable {
     case decision(blockId: String, verdict: Verdict, note: String? = nil)
     case feedback(id: String, blockId: String, text: String)
@@ -20,7 +21,7 @@ public enum Interaction: Encodable, Equatable, Sendable {
     case annotation(id: String, blockId: String, anchor: String, text: String, quote: String)
     case annotationRemoved(id: String, blockId: String)
     case triage(blockId: String, verdicts: [String: TriageVerdict])
-    case submit(revision: Int)
+    case submit(revision: Int, viewed: [String])
 
     /// type is the wire discriminant, matching the human event names.
     public var type: String {
@@ -52,7 +53,7 @@ public enum Interaction: Encodable, Equatable, Sendable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case type, blockId, verdict, note, id, text, optionIds, other, anchor, quote, verdicts, revision
+        case type, blockId, verdict, note, id, text, optionIds, other, anchor, quote, verdicts, revision, viewed
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -86,8 +87,9 @@ public enum Interaction: Encodable, Equatable, Sendable {
         case let .triage(blockId, verdicts):
             try container.encode(blockId, forKey: .blockId)
             try container.encode(verdicts, forKey: .verdicts)
-        case let .submit(revision):
+        case let .submit(revision, viewed):
             try container.encode(revision, forKey: .revision)
+            try container.encode(viewed, forKey: .viewed)
         }
     }
 }
@@ -119,20 +121,23 @@ public struct SessionSummary: Decodable, Equatable, Sendable, Identifiable {
 }
 
 /// PacksResponse is the slice of GET /api/packs the client models: each registered
-/// pack's block types with their declared `interactive` flag. It drops the fields
+/// pack's block types with their declared `interactive` and `optional` flags. It drops the fields
 /// the native client never reads (bundle, styles, schemas, dropped) so decoding is
 /// forgiving of the wider contract shape (docs/contract.md — PacksResponse).
 public struct PacksResponse: Decodable, Equatable, Sendable {
     /// Pack is one registered block pack: only its block-type declarations are modeled.
     public struct Pack: Decodable, Equatable, Sendable {
-        /// BlockType is one block a pack contributes, tagged with its interactivity.
+        /// BlockType is one block a pack contributes, tagged with its interactivity; an
+        /// optional interactive block keeps its focus step but never joins the submit tally.
         public struct BlockType: Decodable, Equatable, Sendable {
             public let type: String
             public let interactive: Bool
+            public let optional: Bool
 
-            public init(type: String, interactive: Bool) {
+            public init(type: String, interactive: Bool, optional: Bool = false) {
                 self.type = type
                 self.interactive = interactive
+                self.optional = optional
             }
         }
 
@@ -153,6 +158,12 @@ public struct PacksResponse: Decodable, Equatable, Sendable {
     /// interactive — the classification the focus deck and SubmitBar tally by.
     public var interactiveTypes: Set<String> {
         Set(packs.flatMap(\.blocks).filter(\.interactive).map(\.type))
+    }
+
+    /// optionalTypes is the set of pack block types the manifest marks optional, which
+    /// the submit tally skips while their focus steps stay navigable.
+    public var optionalTypes: Set<String> {
+        Set(packs.flatMap(\.blocks).filter(\.optional).map(\.type))
     }
 }
 

@@ -70,7 +70,7 @@ The flip side: interactions outlive their blocks, so `outcomes` may hold keys fo
 
 ## Reading `viewed`
 
-The browser counts a block as opened when its focus step stays up for 800 ms, its board row stays at least half on screen for 1.5 s, or the human interacts with it. Opening a card counts its children too. `interactions.viewed` holds the blocks opened in the open round and empties when the round closes. A closed round's `viewed` holds only the blocks of that round the human opened during it, so a block you redrafted reads as unopened until the human opens the new version. A choice's `recommended` option never counts as an answer. Read each block by what `outcomes` shows for it:
+The web board and the iOS app count a block as opened when its focus step stays up for 800 ms, its board row stays at least half on screen for 1.5 s, or the human interacts with it. Opening a card counts its children too. `interactions.viewed` holds the blocks opened in the open round and empties when the round closes. A closed round's `viewed` holds only the blocks of that round the human opened during it, so a block you redrafted reads as unopened until the human opens the new version. A choice's `recommended` option never counts as an answer. Read each block by what `outcomes` shows for it:
 
 | What `outcomes` shows | Read it as |
 |---|---|

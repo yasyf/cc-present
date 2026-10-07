@@ -36,7 +36,7 @@ my-pack/
 
 ## 2. Manifest and schemas
 
-In `cc-present.toml`: `name`, `version`, `entry` (the bundle path, under `dist/`), and one `[blocks.<name>]` table per block, each pointing at its schema, an optional `interaction` schema, and at least one `examples` entry. The `interaction` schema's presence is what marks a block interactive; add `optional = true` when answering it is never required, and the web board's submit tally skips the block. Field-by-field rules, every exact validation error, and the discovery and conflict rules: `reference/manifest.md`.
+In `cc-present.toml`: `name`, `version`, `entry` (the bundle path, under `dist/`), and one `[blocks.<name>]` table per block, each pointing at its schema, an optional `interaction` schema, and at least one `examples` entry. The `interaction` schema's presence is what marks a block interactive; add `optional = true` when answering it is never required, and the submit tally on web and iOS skips the block. Field-by-field rules, every exact validation error, and the discovery and conflict rules: `reference/manifest.md`.
 
 Each block schema validates the whole block object — `id` and `type` included — as Draft 2020-12, with every external `$ref` rejected. Pin `type` to a `const` and set `additionalProperties: false` so `pack lint` catches a typoed field instead of passing it through:
 

@@ -566,21 +566,12 @@ private struct OptionFactRows: View {
                     Spacer(minLength: Metrics.space2)
                     Text(fact.value)
                         .font(.system(size: 14, weight: .semibold, design: .rounded))
-                        .foregroundStyle(factToneColor(fact.tone))
+                        .foregroundStyle(BlockPalette.factTone(fact.tone))
                         .multilineTextAlignment(.trailing)
                 }
             }
         }
         .accessibilityElement(children: .combine)
-    }
-}
-
-private func factToneColor(_ tone: String?) -> Color {
-    switch tone {
-    case "good": BlockPalette.approve
-    case "warn": BlockPalette.warn
-    case "bad": BlockPalette.reject
-    default: BlockPalette.ink
     }
 }
 

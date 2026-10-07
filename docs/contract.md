@@ -236,7 +236,7 @@ root.
 | `blocks.<name>.description` | yes | Non-empty prose. |
 | `blocks.<name>.schema` | yes | JSON Schema (Draft 2020-12) for the whole block object. |
 | `blocks.<name>.interaction` | no | JSON Schema for the human interaction payload; its presence marks the block interactive. |
-| `blocks.<name>.optional` | no | `true` keeps an interactive block out of the web board's submit tally, so "All answered" never waits on it. Requires `interaction`. |
+| `blocks.<name>.optional` | no | `true` keeps an interactive block out of the submit tally on web and iOS, so "All answered" never waits on it. Requires `interaction`. |
 | `blocks.<name>.examples` | one or more | Example block objects; `pack lint` validates each against the schema. |
 
 Schemas compile with a loader that rejects every external `$ref`, so a schema
@@ -337,7 +337,10 @@ loads in a webview per pack block. A block whose enclosing top-level block
 belongs to a closed round renders read-only, folded into the same `closed` flag
 every interactive block honors. When a `ccPresentHeight` WebKit message handler
 is present, the page posts `{type: "height", px}` on every content resize so
-the native host can size the webview.
+the native host can size the webview. When a `ccPresentInteraction` handler is
+present, the page also posts `{type: "interaction", blockId}` for every
+interaction it sends except `submit`, before the REST call, so the iOS app
+counts the block as viewed. The REST call itself is unchanged.
 
 Toasts raised in this mode (`ui.toast`, connection notices) render in-flow
 inside `.single-block`; the webview frame is block-height and unscrollable, so
@@ -422,7 +425,7 @@ fields. Persisted domain payloads without that exact identity are invalid.
 | human | `annotation.created` | `{id, blockId, anchor, text, quote}` | Upsert by `id` into the block's ordered annotation list: an existing id is replaced in place, a new id appends — an edit re-sends the id. Targets a `draft` block. The REST edge parses and resolves `anchor` against the block's current `text` (an unresolvable anchor is rejected), rewrites it to the normalized ranged form (see Line anchors), and stamps `quote` from the resolved lines (at most **2 KiB**) — the client-sent `quote` is advisory and always replaced. |
 | human | `annotation.removed` | `{id, blockId}` | Splice the annotation out of the block's list. A replayed unknown id is a reducer no-op; the REST edge rejects one with 400. Removing the last annotation leaves an empty list under the block key. |
 | human | `triage.decided` | `{blockId, verdicts}` | Partial-map merge, last-write-wins per item: `verdicts` is `{[itemId]: {verdict, note?}}`, folded entry by entry, so one event carries a single flip or an atomic accept-all. `cleared` removes the item's entry, and an emptied block map is removed with it. A `note` requires a non-cleared verdict and the block's `allowNotes`. The REST edge rejects an `itemId` outside the block's items. |
-| human | `submit` | `{revision, viewed?}` | Merge each `viewed` id into `interactions.viewed`, then set submitted with the revision. When the round is dirty, additionally snapshot the current round into `rounds.history` with `submittedRevision` set, empty `interactions.viewed`, advance `rounds.current`, and clear the title; a clean submit records only the revision. Does not close the document, so rounds continue. Either way the revising working set clears wholesale (see Live revision). The REST plane rejects a revision the log never produced (below 0 or past the current revision). It keeps only the `viewed` ids that name a top-level block or card child of the current document, deduplicated in order and capped at 500, and omits the key when none remain. |
+| human | `submit` | `{revision, viewed?}` | Merge each `viewed` id into `interactions.viewed`, then set submitted with the revision. When the round is dirty, additionally snapshot the current round into `rounds.history` with `submittedRevision` set, empty `interactions.viewed`, advance `rounds.current`, and clear the title; a clean submit records only the revision. Does not close the document, so rounds continue. Either way the revising working set clears wholesale (see Live revision). The REST plane rejects a revision the log never produced (below 0 or past the current revision). It keeps only the `viewed` ids that name a top-level block or card child of the current document, deduplicated in order and capped at 500, and omits the key when none remain. The web board and the iOS app both send `viewed` and record it with the same round-scoped rule. |
 | agent | `revising.changed` | `{blockIds, note?}` | Replace the revising working set wholesale (last-write-wins). Each id on the wire names a current top-level block — the daemon edge resolves an announced card-child id to its enclosing card before appending, deduplicating in input order. A `block.upserted` or `block.removed` drops its id (a child write drops the enclosing card's), and draining the last id clears the shared `note` too. `doc.replaced` clears everything, and a `submit` or `round.started` clears the whole set too, note included. An empty set with a `note` is the doc-level drafting state, while an empty set with no `note` abandons the announcement. Announcing never stamps rounds (see Live revision). |
 
 Post-close events are no-ops, not errors, by design. A human click can race an

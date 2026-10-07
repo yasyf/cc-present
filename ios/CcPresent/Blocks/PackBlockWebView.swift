@@ -27,16 +27,21 @@ struct PackContext {
 
 /// PackBlockWebView renders a plugin-supplied pack block through a SingleBlockWebView
 /// sized to its content. Height-sync, theming, and the disabled inner scroll all live
-/// in the shared host; the pack block just points it at its single-block page.
+/// in the shared host; each interaction the page posts marks its block viewed.
 struct PackBlockWebView: View {
     let block: Block.Pack
     let context: PackContext
+    let viewed: ViewedStore
 
     @State private var height: CGFloat = 140
 
     var body: some View {
-        SingleBlockWebView(url: context.singleBlockURL(blockId: block.id), height: $height)
-            .frame(height: height)
-            .frame(maxWidth: .infinity)
+        SingleBlockWebView(
+            url: context.singleBlockURL(blockId: block.id),
+            height: $height,
+            onInteraction: { viewed.mark([$0]) }
+        )
+        .frame(height: height)
+        .frame(maxWidth: .infinity)
     }
 }

@@ -77,8 +77,8 @@ An interactive block also declares an `interaction` schema — the shape of the
 payload a human submits, validated at the REST edge on every click. When
 answering is a nicety, such as striking a row or leaving a comment, set
 `optional = true` beside it. The block still takes clicks and joins the focus
-ring, but the web board's submit tally skips it, so "All answered" never waits
-on it.
+ring, but the submit tally on web and iOS skips it, so "All answered" never
+waits on it.
 
 Components import `react` normally and register through the entry's default
 export. This is `src/pack.tsx` from the reference pack:

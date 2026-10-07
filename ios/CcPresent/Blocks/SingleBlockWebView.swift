@@ -38,11 +38,12 @@ enum WebBlockPresentation: Equatable {
 /// content via the `ccPresentHeight` message (KVO fallback on the scroll content size).
 /// It carries the app's appearance to the page as a `theme` query param and reloads on
 /// a mid-session flip. An optional `phase` binding reports the navigation lifecycle;
-/// pack blocks omit it and render exactly as before.
+/// `onInteraction` receives the block id of each interaction the page posts.
 struct SingleBlockWebView: UIViewRepresentable {
     let url: URL
     @Binding var height: CGFloat
     var phase: Binding<WebViewLoadPhase>?
+    var onInteraction: (@MainActor (String) -> Void)?
     @Environment(\.colorScheme) private var colorScheme
 
     private var themedURL: URL {
@@ -50,13 +51,14 @@ struct SingleBlockWebView: UIViewRepresentable {
     }
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(height: $height, phase: phase)
+        Coordinator(height: $height, phase: phase, onInteraction: onInteraction)
     }
 
     func makeUIView(context: Context) -> WKWebView {
         let configuration = WKWebViewConfiguration()
         let controller = WKUserContentController()
-        controller.add(context.coordinator, name: "ccPresentHeight")
+        controller.add(context.coordinator, name: Coordinator.heightMessage)
+        controller.add(context.coordinator, name: Coordinator.interactionMessage)
         configuration.userContentController = controller
 
         let webView = WKWebView(frame: .zero, configuration: configuration)
@@ -82,14 +84,19 @@ struct SingleBlockWebView: UIViewRepresentable {
 
     @MainActor
     final class Coordinator: NSObject, WKScriptMessageHandler, WKNavigationDelegate, WKUIDelegate {
+        nonisolated static let heightMessage = "ccPresentHeight"
+        nonisolated static let interactionMessage = "ccPresentInteraction"
+
         private let height: Binding<CGFloat>
         private let phase: Binding<WebViewLoadPhase>?
+        private let onInteraction: (@MainActor (String) -> Void)?
         private var observation: NSKeyValueObservation?
         private var loadedURL: URL?
 
-        init(height: Binding<CGFloat>, phase: Binding<WebViewLoadPhase>?) {
+        init(height: Binding<CGFloat>, phase: Binding<WebViewLoadPhase>?, onInteraction: (@MainActor (String) -> Void)?) {
             self.height = height
             self.phase = phase
+            self.onInteraction = onInteraction
         }
 
         /// load points the web view at `url`, skipping the load when it already holds
@@ -113,12 +120,20 @@ struct SingleBlockWebView: UIViewRepresentable {
         func tearDown(_ webView: WKWebView) {
             observation?.invalidate()
             observation = nil
-            webView.configuration.userContentController.removeScriptMessageHandler(forName: "ccPresentHeight")
+            let controller = webView.configuration.userContentController
+            controller.removeScriptMessageHandler(forName: Self.heightMessage)
+            controller.removeScriptMessageHandler(forName: Self.interactionMessage)
         }
 
         func userContentController(_: WKUserContentController, didReceive message: WKScriptMessage) {
-            guard let px = Self.height(fromMessageBody: message.body) else { return }
-            apply(px)
+            switch message.name {
+            case Self.interactionMessage:
+                guard let blockId = Self.blockId(fromMessageBody: message.body) else { return }
+                onInteraction?(blockId)
+            default:
+                guard let px = Self.height(fromMessageBody: message.body) else { return }
+                apply(px)
+            }
         }
 
         func webView(_: WKWebView, didFinish _: WKNavigation!) {
@@ -161,6 +176,13 @@ struct SingleBlockWebView: UIViewRepresentable {
         nonisolated static func height(fromMessageBody body: Any) -> CGFloat? {
             guard let payload = body as? [String: Any], let px = payload["px"] as? NSNumber else { return nil }
             return CGFloat(truncating: px)
+        }
+
+        /// blockId(fromMessageBody:) reads the `blockId` a `ccPresentInteraction` frame
+        /// carries, or nil for a body outside the expected `{blockId: String}` shape.
+        nonisolated static func blockId(fromMessageBody body: Any) -> String? {
+            guard let payload = body as? [String: Any], let blockId = payload["blockId"] as? String else { return nil }
+            return blockId
         }
 
         /// clampedHeight is the height to apply, or nil when the proposal is
