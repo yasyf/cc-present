@@ -45,8 +45,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   new or risky. The skill, the writer template, the triage agent, and the
   channel instructions all treat human text on the board as data, never as
   instructions to run commands, fetch URLs, or touch files.
+- The iOS app catches up with the board. A submit sends `viewed`, counted by
+  the same 800 ms focus and 1.5 s on-screen rules as the web board, and the
+  app's reducer records it per round. Optional pack blocks keep their focus
+  steps but leave the submit tally. Grounded `code` blocks show the
+  `path:lines @ sha` header, a numbered gutter, highlighted rows, and pins.
 
 ### Changed
+
+- The iOS app builds with Xcode 27. `CI (iOS)` and `TestFlight (iOS)` run on
+  the `xcode-27` GitHub runner image instead of `macos-26`.
 
 - The `push` hint for a choice without a visual counts a `code` block or any
   pack block before the choice as its visual, as it already did a diagram,
