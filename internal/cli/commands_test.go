@@ -429,12 +429,12 @@ func TestVisualNudge(t *testing.T) {
 		{
 			name: "prose-only top-level choice",
 			raw:  `{"version":1,"title":"T","blocks":[{"id":"ch1","type":"choice","options":[{"id":"o1","label":"A"}]}]}`,
-			want: "hint: 1 choice ships without a visual (ch1); attach an option.visual or lead the card with a diagram",
+			want: "hint: 1 choice ships without a visual (ch1); attach an option.visual or lead the card with a diagram, code, or pack exhibit",
 		},
 		{
 			name: "prose-only choices at top level and inside a card",
 			raw:  `{"version":1,"title":"T","blocks":[{"id":"ch1","type":"choice","options":[{"id":"o1","label":"A"}]},{"id":"c1","type":"card","children":[{"id":"ch2","type":"choice","options":[{"id":"o2","label":"B"}]}]}]}`,
-			want: "hint: 2 choices ship without a visual (ch1, ch2); attach an option.visual or lead the card with a diagram",
+			want: "hint: 2 choices ship without a visual (ch1, ch2); attach an option.visual or lead the card with a diagram, code, or pack exhibit",
 		},
 		{
 			name: "top-level diagram lead-in satisfies the choice",
@@ -454,12 +454,12 @@ func TestVisualNudge(t *testing.T) {
 		{
 			name: "a section breaks the top-level lead-in",
 			raw:  `{"version":1,"title":"T","blocks":[{"id":"d1","type":"diagram","kind":"mermaid","source":"graph LR\n a-->b"},{"id":"s1","type":"section","title":"S"},{"id":"ch1","type":"choice","options":[{"id":"o1","label":"A"}]}]}`,
-			want: "hint: 1 choice ships without a visual (ch1); attach an option.visual or lead the card with a diagram",
+			want: "hint: 1 choice ships without a visual (ch1); attach an option.visual or lead the card with a diagram, code, or pack exhibit",
 		},
 		{
 			name: "a trailing diagram does not satisfy the choice",
 			raw:  `{"version":1,"title":"T","blocks":[{"id":"ch1","type":"choice","options":[{"id":"o1","label":"A"}]},{"id":"d1","type":"diagram","kind":"mermaid","source":"graph LR\n a-->b"}]}`,
-			want: "hint: 1 choice ships without a visual (ch1); attach an option.visual or lead the card with a diagram",
+			want: "hint: 1 choice ships without a visual (ch1); attach an option.visual or lead the card with a diagram, code, or pack exhibit",
 		},
 		{
 			name: "a diagram sibling satisfies a choice inside a card",
@@ -477,14 +477,29 @@ func TestVisualNudge(t *testing.T) {
 			want: "",
 		},
 		{
+			name: "a code sibling satisfies a choice inside a card",
+			raw:  `{"version":1,"title":"T","blocks":[{"id":"c1","type":"card","children":[{"id":"k1","type":"code","lang":"go","code":"x"},{"id":"ch1","type":"choice","options":[{"id":"o1","label":"A"}]}]}]}`,
+			want: "",
+		},
+		{
+			name: "a pack block sibling satisfies a choice inside a card",
+			raw:  `{"version":1,"title":"T","blocks":[{"id":"c1","type":"card","children":[{"id":"p1","type":"plan.calls","calls":[]},{"id":"ch1","type":"choice","options":[{"id":"o1","label":"A"}]}]}]}`,
+			want: "",
+		},
+		{
+			name: "top-level pack block lead-in satisfies the choice",
+			raw:  `{"version":1,"title":"T","blocks":[{"id":"p1","type":"plan.mock","html":"x"},{"id":"ch1","type":"choice","options":[{"id":"o1","label":"A"}]}]}`,
+			want: "",
+		},
+		{
 			name: "a term sibling does not satisfy the choice",
 			raw:  `{"version":1,"title":"T","blocks":[{"id":"tm1","type":"term","output":"ok"},{"id":"ch1","type":"choice","options":[{"id":"o1","label":"A"}]}]}`,
-			want: "hint: 1 choice ships without a visual (ch1); attach an option.visual or lead the card with a diagram",
+			want: "hint: 1 choice ships without a visual (ch1); attach an option.visual or lead the card with a diagram, code, or pack exhibit",
 		},
 		{
 			name: "a record sibling does not satisfy the choice",
 			raw:  `{"version":1,"title":"T","blocks":[{"id":"rec1","type":"record","facts":[{"label":"L","value":"x"}]},{"id":"ch1","type":"choice","options":[{"id":"o1","label":"A"}]}]}`,
-			want: "hint: 1 choice ships without a visual (ch1); attach an option.visual or lead the card with a diagram",
+			want: "hint: 1 choice ships without a visual (ch1); attach an option.visual or lead the card with a diagram, code, or pack exhibit",
 		},
 		{
 			name: "a term option.visual satisfies the choice",

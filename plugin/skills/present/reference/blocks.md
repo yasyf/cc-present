@@ -605,6 +605,77 @@ The dominant board shape: a section groups cards, and each card carries the befo
 }
 ```
 
+## Present a plan
+
+A plan board gets sign-off on a change before you build it. Each card makes one claim about behavior and proves it with one exhibit; the human answers the decisions, strikes calls, comments on pins, and submits. `examples/plan-board.json` in the repo is a full plan board.
+
+Build the deck in this order:
+
+1. **Why.** A card titled "Why" holds the requester's own words as blockquotes. Quote them; never reword them.
+2. **One card per behavior.** Split by what someone can now do or see, never by file, layer, or order of work. The title is a sentence that can be true or false, 12 words at most: "Tapping a cited row opens the lines it cites.", not "Excerpts". The card holds one exhibit from the table below, and a second exhibit means a second card. For a change with no visible behavior, such as a refactor, the cards state guarantees: "Nothing a caller sees changes."
+3. **Decisions in the card they change.** A `choice` follows the exhibit in the card whose claim it changes, and one option sets `recommended: true`. Ask 2 to 5 decisions per plan, only about forks that change what you build. When an option removes a card, its `hint` says so.
+4. **Shared, then Not changing.** A card titled "Shared: …" holds the record or part several behaviors use; skip it when there is none. The last card, "Not changing", lists what stays as it is.
+
+Write no TL;DR, `intro`, or steps list. Read the card titles aloud: they must tell the whole change.
+
+| The claim is about | Exhibit |
+|---|---|
+| UI that doesn't exist yet | `plan.mock` |
+| A lifecycle, with the screen in each state | `plan.machine` |
+| The calls a change adds, removes, or changes | `plan.calls` |
+| Code that exists today | `code` with `src` and `lines` |
+| A record or wire shape | `code` holding the schema in the project's own language: TypeScript, SQL, JSON Schema |
+
+Cite real paths and lines for code that exists. Code that doesn't exist yet goes inline in a `code` block whose `title` says "sketch". A schema is never a table or a made-up notation. The `plan.*` fields live in the reference fragment `cc-present pack list` prints for `plan`.
+
+`src` resolves under the git toplevel of the CLI's working directory. When you present from outside the repo, such as a scratch directory, pass `--root <checkout>` to `push`, `update-block`, and `start --doc`.
+
+The exhibits carry the plan; the words only name them. Every title, caption, pin, prompt, hint, and note on a plan board follows these rules:
+
+- Short sentences in the active voice: "The worker claims the row.", not "The row is claimed."
+- `must` for a rule and `can` for what is possible. Never `should`, `may`, or `might`.
+- No idioms, metaphors, or jokes.
+- One name for each thing, and the name the code uses.
+- No paragraph between a card's title and its exhibit. If the exhibit needs explaining, pick a better exhibit.
+
+Quotes, code, and the text inside a mock keep their own words.
+
+Set the `submit` note to say what an unopened decision means, so the human knows that silence isn't a yes. The `present` skill's step 5 covers how to read `viewed` on submit.
+
+**Plan skeleton**: Why, one behavior card, Shared, and Not changing:
+
+```json
+{
+  "version": 1,
+  "title": "Retries for failed sends",
+  "submit": { "label": "Send answers", "note": "I build the plan as answered. I ask in chat about any decision you never opened." },
+  "blocks": [
+    { "id": "card-why", "type": "card", "title": "Why", "children": [
+      { "id": "why-quotes", "type": "markdown", "md": "> \"A failed send just sits there. Retry it for me.\"" }
+    ]},
+    { "id": "card-retry", "type": "card", "title": "A failed send retries 3 times, 5 minutes apart.", "children": [
+      { "id": "retry-calls", "type": "plan.calls", "calls": [
+        { "call": "runScheduledSends()", "mark": "~", "at": "server/src/scheduled/worker.ts:40", "calls": [
+          { "call": "scheduleRetry(msg)", "mark": "+", "new": true, "at": "server/src/scheduled/worker.ts:72" }
+        ]}
+      ]},
+      { "id": "retry-count", "type": "choice", "prompt": "How many retries?", "options": [
+        { "id": "three", "label": "3 retries", "recommended": true, "hint": "covers a 15-minute outage",
+          "facts": [ { "label": "worst delay", "value": "15 min" } ] },
+        { "id": "none", "label": "No retries", "hint": "this card goes",
+          "facts": [ { "label": "worst delay", "value": "none" } ] }
+      ]}
+    ]},
+    { "id": "card-shared", "type": "card", "title": "Shared: each message row gains an attempts count.", "children": [
+      { "id": "shared-schema", "type": "code", "lang": "sql", "title": "sketch: migration", "code": "ALTER TABLE scheduled_messages ADD COLUMN attempts int NOT NULL DEFAULT 0;" }
+    ]},
+    { "id": "card-scope", "type": "card", "title": "Not changing", "children": [
+      { "id": "scope-list", "type": "markdown", "md": "- Normal send.\n- Drafts." }
+    ]}
+  ]
+}
+```
+
 ## Pack blocks
 
 Installed block packs extend the block set beyond the built-ins above. A pack block's `type` is dotted — `<pack>.<block>`, both segments lowercase kebab-case — and the dot is the namespace boundary: built-in types never contain one. Discover what is installed:

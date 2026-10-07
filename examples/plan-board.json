@@ -1,0 +1,226 @@
+{
+  "version": 1,
+  "title": "Code excerpts on plan.calls rows",
+  "submit": {
+    "label": "Send answers",
+    "note": "I build the plan as answered. A decision you never opened keeps my default, and I ask about it in chat first."
+  },
+  "blocks": [
+    {
+      "id": "card-why",
+      "type": "card",
+      "title": "Why",
+      "children": [
+        {
+          "id": "why-quotes",
+          "type": "markdown",
+          "md": "> \"A `path:line` cite makes me open the repo to check it.\"\n\n> \"Show me the line. I don't want to switch windows mid-review.\""
+        }
+      ]
+    },
+    {
+      "id": "card-open",
+      "type": "card",
+      "title": "Tapping a cited row opens the lines it cites.",
+      "children": [
+        {
+          "id": "open-mock",
+          "type": "plan.mock",
+          "title": "An open row",
+          "w": 440,
+          "html": "<div class=\"row\"><span class=\"m\">~</span><code>fillCode(ctx, dd.Blocks, root)</code><span class=\"at\">codefill.go:184</span></div><div class=\"ex\" data-ref=\"excerpt\"><div><i>182</i>}</div><div><i>183</i></div><div class=\"hit\"><i>184</i>func fillCode(ctx context.Context, blocks []doc.Block, …</div><div><i>185</i>\tvar grounded []*doc.Code</div><div><i>186</i>\tfor _, b := range blocks {</div></div><div class=\"sha\" data-ref=\"sha\">internal/cli/codefill.go:182-186 @ 7a000ec</div>",
+          "css": "body{font:13px system-ui;margin:8px}.row{display:flex;gap:8px;align-items:center;padding:6px 8px;border:1px solid #e3e3e3;border-radius:8px 8px 0 0}.m{color:#b26a00;font-weight:700}.at{margin-left:auto;color:#888;font-size:12px}.ex{font:12px ui-monospace,monospace;white-space:pre;background:#f7f7f7;border:1px solid #e3e3e3;border-top:0;padding:6px 0}.ex i{display:inline-block;width:34px;padding-right:8px;text-align:right;color:#aaa;font-style:normal}.hit{background:#fff4d6}.sha{font-size:11px;color:#888;padding:4px 8px;border:1px solid #e3e3e3;border-top:0;border-radius:0 0 8px 8px}",
+          "pins": [
+            { "ref": "excerpt", "title": "Five lines", "body": "The cited line is tinted." },
+            { "ref": "sha", "title": "Same stamp as code src", "body": "It gains `+wt` when the file differs from `HEAD`." }
+          ]
+        },
+        {
+          "id": "excerpt-size",
+          "type": "choice",
+          "prompt": "How many lines does an open row show?",
+          "options": [
+            {
+              "id": "five",
+              "label": "Two lines each side",
+              "hint": "enough to see the call",
+              "recommended": true,
+              "facts": [ { "label": "lines", "value": "5", "tone": "good" }, { "label": "row grows", "value": "≈90 px" } ],
+              "detail": { "pros": [ "Fits a phone screen with the tree above it" ], "cons": [ "A long signature can push the body out of view" ] }
+            },
+            {
+              "id": "eleven",
+              "label": "Five lines each side",
+              "hint": "more context, taller rows",
+              "facts": [ { "label": "lines", "value": "11" }, { "label": "row grows", "value": "≈200 px", "tone": "warn" } ],
+              "detail": { "pros": [ "Shows most short functions whole" ], "cons": [ "Two open rows fill the column on a phone" ] }
+            },
+            {
+              "id": "function",
+              "label": "The enclosing function",
+              "hint": "exact, but needs a parser per language",
+              "facts": [ { "label": "lines", "value": "varies", "tone": "warn" }, { "label": "row grows", "value": "varies", "tone": "warn" } ],
+              "detail": { "pros": [ "Always the whole unit of code" ], "cons": [ "The CLI must parse Go, TypeScript, and Swift", "A 200-line function hits the 40-line hint" ] }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "card-fill",
+      "type": "card",
+      "title": "Push fills excerpts in Go, beside code src.",
+      "children": [
+        {
+          "id": "fill-calls",
+          "type": "plan.calls",
+          "title": "Excerpt fill",
+          "caption": "Strike the proposed row if you do not want the hint.",
+          "calls": [
+            {
+              "call": "newPushCmd(d)",
+              "mark": " ",
+              "at": "internal/cli/commands.go:347",
+              "calls": [
+                {
+                  "call": "fillCode(ctx, dd.Blocks, root)",
+                  "mark": "~",
+                  "at": "internal/cli/codefill.go:184",
+                  "note": "Also walks `plan.calls` rows that carry `at`.",
+                  "calls": [
+                    { "call": "fillCodeBlock(ctx, root, c)", "mark": " ", "at": "internal/cli/codefill.go:153" },
+                    {
+                      "call": "fillCallExcerpts(ctx, root, rows)",
+                      "mark": "+",
+                      "new": true,
+                      "at": "internal/cli/codefill.go:207",
+                      "calls": [
+                        { "call": "readCodeSrc(root, path)", "mark": " ", "at": "internal/cli/codefill.go:94", "note": "The same secret fence as `code` src." }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "id": "nudge",
+                  "call": "excerptNudge(blocks)",
+                  "mark": "?",
+                  "new": true,
+                  "at": "internal/cli/codefill.go:223",
+                  "note": "Proposed: a stderr hint when one tree holds more than 20 excerpts."
+                }
+              ]
+            },
+            {
+              "call": "<Calls/>",
+              "mark": "~",
+              "at": "plugin/.claude/components/plan/src/Calls.tsx:15",
+              "calls": [
+                { "call": "<Excerpt/>", "mark": "+", "new": true, "at": "plugin/.claude/components/plan/src/Calls.tsx:112" }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "fill-site",
+          "type": "choice",
+          "prompt": "Where does the fill run?",
+          "options": [
+            {
+              "id": "go",
+              "label": "Go CLI, in fillCode",
+              "hint": "one secret fence for every file read",
+              "recommended": true,
+              "facts": [ { "label": "secret fences", "value": "1", "tone": "good" }, { "label": "runs on", "value": "push" } ],
+              "detail": { "pros": [ "Reuses readCodeSrc and the --root rules" ], "cons": [ "The CLI learns one pack's block shape" ] }
+            },
+            {
+              "id": "ts",
+              "label": "A pack resolver script",
+              "hint": "keeps the CLI pack-agnostic",
+              "facts": [ { "label": "secret fences", "value": "2", "tone": "bad" }, { "label": "runs on", "value": "by hand" } ],
+              "detail": { "pros": [ "The CLI stays unaware of plan.calls" ], "cons": [ "A second secret fence in TypeScript can drift from the Go one", "The author must run it before every push" ] }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "card-struck",
+      "type": "card",
+      "title": "A struck row closes and hides its excerpt.",
+      "children": [
+        {
+          "id": "row-machine",
+          "type": "plan.machine",
+          "title": "One cited row",
+          "initial": "closed",
+          "states": [
+            { "id": "closed", "note": "One line: the call and its cite.", "screen": { "md": "`~ fillCode(ctx, dd.Blocks, root)` · codefill.go:184" } },
+            { "id": "open", "note": "The excerpt shows under the row.", "screen": { "md": "The row, then five numbered lines with line 184 tinted." } },
+            { "id": "struck", "mark": "~", "note": "Struck through. The excerpt stays hidden.", "screen": { "md": "~~`fillCode(ctx, dd.Blocks, root)`~~ · Restore" } }
+          ],
+          "grid": [["closed", "open"], ["struck", null]],
+          "transitions": [
+            { "from": "closed", "event": "tap", "to": "open" },
+            { "from": "open", "event": "tap", "to": "closed" },
+            { "from": "open", "event": "strike", "to": "struck", "label": "Strike", "mark": "~" },
+            { "from": "closed", "event": "strike", "to": "struck", "label": "Strike" },
+            { "from": "struck", "event": "restore", "to": "closed", "label": "Restore" }
+          ]
+        },
+        {
+          "id": "default-open",
+          "type": "choice",
+          "prompt": "Which rows start open?",
+          "options": [
+            {
+              "id": "none",
+              "label": "None until tapped",
+              "hint": "the tree stays scannable",
+              "recommended": true,
+              "facts": [ { "label": "open at load", "value": "0", "tone": "good" } ],
+              "detail": { "pros": [ "The closed tree reads as the summary" ], "cons": [ "One tap per cite you want to check" ] }
+            },
+            {
+              "id": "added",
+              "label": "Every + row",
+              "hint": "new code shows at once",
+              "facts": [ { "label": "open at load", "value": "all +", "tone": "warn" } ],
+              "detail": { "pros": [ "New code is visible without a tap" ], "cons": [ "A tree with eight new calls fills two screens" ] }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "card-shared",
+      "type": "card",
+      "title": "Shared: each calls row gains one optional field.",
+      "children": [
+        {
+          "id": "shared-schema",
+          "type": "code",
+          "src": "plugin/.claude/components/plan/schema/calls.json",
+          "lines": "17-30",
+          "highlight": "26",
+          "pins": [
+            { "line": 26, "title": "The fill reads at" },
+            { "line": 28, "title": "excerpt goes after calls" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "card-scope",
+      "type": "card",
+      "title": "Not changing",
+      "children": [
+        {
+          "id": "scope-list",
+          "type": "markdown",
+          "md": "- `code` blocks and how `src` fills them.\n- The strike payload, `{\"struck\": [...]}`.\n- `plan.machine` and `plan.mock`."
+        }
+      ]
+    }
+  ]
+}

@@ -124,8 +124,8 @@ func dryRunReport(ctx context.Context, dd *doc.Doc, pt doc.PackTypes, root strin
 
 // visualNudge returns a single-line, non-blocking reminder naming every choice
 // that ships without a visual, or "" when every choice carries one. A choice is
-// satisfied by an option.visual, a diagram/image sibling in its card, or a
-// top-level diagram/image the forward-attaching run leads into it.
+// satisfied by an option.visual, an exhibit sibling in its card, or a top-level
+// exhibit the forward-attaching run leads into it.
 func visualNudge(dd *doc.Doc) string {
 	var proseOnly []string
 	leadHasVisual := false
@@ -152,23 +152,27 @@ func visualNudge(dd *doc.Doc) string {
 	if len(proseOnly) > 1 {
 		subject = "choices ship"
 	}
-	return fmt.Sprintf("hint: %d %s without a visual (%s); attach an option.visual or lead the card with a diagram",
+	return fmt.Sprintf("hint: %d %s without a visual (%s); attach an option.visual or lead the card with a diagram, code, or pack exhibit",
 		len(proseOnly), subject, strings.Join(proseOnly, ", "))
 }
 
-// isVisualLeadIn reports whether b is a rendered-picture block — diagram, image,
-// chart, or filetree — the block types that satisfy a choice by leading it in.
+// isVisualLeadIn reports whether b is an exhibit — diagram, image, chart,
+// filetree, code, or any pack block — the block types that satisfy a choice by
+// leading it in.
 func isVisualLeadIn(b doc.Block) bool {
+	if _, ok := b.(*doc.PackBlock); ok {
+		return true
+	}
 	switch b.BlockType() {
-	case "diagram", "image", "chart", "filetree":
+	case "diagram", "image", "chart", "filetree", "code":
 		return true
 	default:
 		return false
 	}
 }
 
-// cardHasVisualLeadIn reports whether a card carries a diagram or image sibling
-// that leads in every choice it nests.
+// cardHasVisualLeadIn reports whether a card carries an exhibit sibling that
+// leads in every choice it nests.
 func cardHasVisualLeadIn(card *doc.Card) bool {
 	for _, child := range card.Children {
 		if isVisualLeadIn(child) {
@@ -179,14 +183,14 @@ func cardHasVisualLeadIn(card *doc.Card) bool {
 }
 
 // continuesVisualRun reports whether the top-level forward-attaching run still
-// carries a diagram/image once b is consumed: a visual sustains it, a context
+// carries an exhibit once b is consumed: an exhibit sustains it, a context
 // block passes it through, a decidable/card/section ends it.
 func continuesVisualRun(b doc.Block, running bool) bool {
 	if isVisualLeadIn(b) {
 		return true
 	}
 	switch b.BlockType() {
-	case "markdown", "code", "diff", "table", "progress", "term", "record":
+	case "markdown", "diff", "table", "progress", "term", "record":
 		return running
 	default:
 		return false
