@@ -54,4 +54,17 @@ struct CodeBlockViewTests {
         let lines = splitLines(AttributedString("a\n\nc\n"))
         #expect(lines.map { String($0.characters) } == ["a", "", "c", ""])
     }
+
+    @Test("CRLF source splits on LF like web, one row per line with the CR dropped")
+    func splitLinesHandlesCRLF() {
+        var text = AttributedString("a\r\n\r\nc\r\n")
+        let bold = text.range(of: "c")!
+        text[bold].inlinePresentationIntent = .stronglyEmphasized
+
+        let lines = splitLines(text)
+
+        #expect(lines.map { String($0.characters) } == ["a", "", "c", ""])
+        #expect(lines[2].runs.first?.inlinePresentationIntent == .stronglyEmphasized)
+        #expect(litRows("3", start: 1, count: lines.count) == [false, false, true, false])
+    }
 }

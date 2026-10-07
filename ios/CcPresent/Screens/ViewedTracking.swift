@@ -14,10 +14,10 @@ extension View {
         modifier(ViewedOnScreen(block: block, round: round, store: store))
     }
 
-    /// viewedAfterFocus marks `ids` viewed once the focus step showing them stays up for
-    /// the focus dwell.
-    func viewedAfterFocus(_ ids: [String], store: ViewedStore) -> some View {
-        modifier(ViewedAfterFocus(ids: ids, store: store))
+    /// viewedAfterFocus marks the step's view ids once it stays up for the focus dwell; a
+    /// change to the ids, the focal block, or the round restarts the wait.
+    func viewedAfterFocus(_ step: FocusStep, round: Int, store: ViewedStore) -> some View {
+        modifier(ViewedAfterFocus(key: FocusDwellKey(step: step, round: round), store: store))
     }
 }
 
@@ -60,14 +60,28 @@ private struct ViewedOnScreen: ViewModifier {
     }
 }
 
-private struct ViewedAfterFocus: ViewModifier {
+/// FocusDwellKey is what restarts the focus dwell, matching the web FocusCard effect's
+/// dependencies: the step's view ids, its focal block's content, and the round.
+struct FocusDwellKey: Equatable {
     let ids: [String]
+    let block: Block
+    let round: Int
+
+    init(step: FocusStep, round: Int) {
+        ids = blockViewIds(step.context + [step.block])
+        block = step.block
+        self.round = round
+    }
+}
+
+private struct ViewedAfterFocus: ViewModifier {
+    let key: FocusDwellKey
     let store: ViewedStore
 
     @State private var dwell = Dwell<ContinuousClock.Instant>(duration: ViewedStore.focusDwell)
 
     func body(content: Content) -> some View {
-        content.task(id: ids) {
+        content.task(id: key) {
             dwell = Dwell(duration: ViewedStore.focusDwell)
             guard let deadline = dwell.update(active: true, at: .now) else { return }
             do {
@@ -76,7 +90,7 @@ private struct ViewedAfterFocus: ViewModifier {
                 return
             }
             if dwell.complete(at: .now) {
-                store.mark(ids)
+                store.mark(key.ids)
             }
         }
     }

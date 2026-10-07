@@ -219,22 +219,30 @@ func pinNumbers(_ pins: [Block.CodePin]) -> [Int: [Int]] {
     return out
 }
 
-/// splitLines cuts highlighted source at each newline, keeping every run's attributes,
-/// so row `n` is line `n` of the code.
+/// splitLines cuts highlighted source at each LF scalar, as web's `split('\n')` does, so
+/// CRLF source keeps its row count; a row's trailing CR is dropped from display.
 func splitLines(_ text: AttributedString) -> [AttributedString] {
+    let scalars = text.unicodeScalars
     var lines: [AttributedString] = []
     var lineStart = text.startIndex
     var index = text.startIndex
     while index < text.endIndex {
-        let next = text.characters.index(after: index)
-        if text.characters[index] == "\n" {
-            lines.append(AttributedString(text[lineStart ..< index]))
+        let next = scalars.index(after: index)
+        if scalars[index] == "\n" {
+            lines.append(row(text, from: lineStart, to: index))
             lineStart = next
         }
         index = next
     }
-    lines.append(AttributedString(text[lineStart ..< text.endIndex]))
+    lines.append(row(text, from: lineStart, to: text.endIndex))
     return lines
+}
+
+private func row(_ text: AttributedString, from start: AttributedString.Index, to end: AttributedString.Index) -> AttributedString {
+    guard start < end, text.unicodeScalars[text.unicodeScalars.index(before: end)] == "\r" else {
+        return AttributedString(text[start ..< end])
+    }
+    return AttributedString(text[start ..< text.unicodeScalars.index(before: end)])
 }
 
 #Preview("Code block") {

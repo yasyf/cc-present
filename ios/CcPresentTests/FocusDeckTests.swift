@@ -293,3 +293,15 @@ private func clearingPickCancelsAdvance() async {
     try? await Task.sleep(for: .milliseconds(650))
     #expect(model.anchorId == "c1")
 }
+
+@Test("the focus dwell key restarts on a redrafted focal block or a new round, not on an identical step")
+private func focusDwellKeyTracksBlockContent() {
+    let first = focusSteps([.approval(Block.Approval(id: "a1", prompt: "Ship?"))], [])[0]
+    let same = focusSteps([.approval(Block.Approval(id: "a1", prompt: "Ship?"))], [])[0]
+    let redrafted = focusSteps([.approval(Block.Approval(id: "a1", prompt: "Ship today?"))], [])[0]
+
+    #expect(FocusDwellKey(step: first, round: 1) == FocusDwellKey(step: same, round: 1))
+    #expect(FocusDwellKey(step: first, round: 1) != FocusDwellKey(step: redrafted, round: 1))
+    #expect(FocusDwellKey(step: first, round: 1) != FocusDwellKey(step: first, round: 2))
+    #expect(FocusDwellKey(step: first, round: 1).ids == ["a1"])
+}

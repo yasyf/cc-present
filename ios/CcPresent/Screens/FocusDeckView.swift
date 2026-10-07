@@ -320,7 +320,7 @@ struct FocusDeckView: View {
                 .accessibilityFocused($cardFocused)
             } else if let step = currentStep {
                 card(step)
-                    .viewedAfterFocus(blockViewIds(step.context + [step.block]), store: store.viewed)
+                    .viewedAfterFocus(step, round: round, store: store.viewed)
                     .id("\(round):\(step.id)")
                     .accessibilityFocused($cardFocused)
             }
