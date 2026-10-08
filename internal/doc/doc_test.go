@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"os"
 	"strings"
 	"testing"
 
@@ -437,6 +438,47 @@ progress "p1": value 9 out of range [0,3]`
 	}
 	if got := strings.Count(err.Error(), "\n"); got != 2 {
 		t.Fatalf("joined error has %d newlines, want 2 (one per violation, newline-joined)", got)
+	}
+}
+
+func TestDecodeRejectsUnknownFields(t *testing.T) {
+	sectionsEnvelope, err := os.ReadFile("testdata/sections-envelope.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	tests := []struct {
+		name string
+		doc  string
+		want string
+	}{
+		{
+			name: "sections envelope",
+			doc:  string(sectionsEnvelope),
+			want: `unmarshal doc: json: unknown field "sections" (a doc's keys are version, title, intro, stats, submit, presentation, and blocks; sections and cards are siblings in blocks)`,
+		},
+		{
+			name: "section children",
+			doc:  docWith(`{"id":"s1","type":"section","title":"S","children":[` + card("c1", "") + `]}`),
+			want: `block "s1": decode section block: json: unknown field "children"`,
+		},
+		{
+			name: "card child field",
+			doc:  docWith(card("c1", `{"id":"a1","type":"approval","label":"x"}`)),
+			want: `block "a1": decode approval block: json: unknown field "label"`,
+		},
+		{
+			name: "option field",
+			doc:  docWith(card("c1", `{"id":"ch1","type":"choice","options":[{"id":"o1","label":"L","why":"x"}]}`)),
+			want: `block "ch1": decode choice block: unmarshal option: json: unknown field "why"`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := parse(tt.doc)
+			if err == nil || !strings.Contains(err.Error(), tt.want) {
+				t.Fatalf("parse() error = %v, want it to contain %q", err, tt.want)
+			}
+		})
 	}
 }
 

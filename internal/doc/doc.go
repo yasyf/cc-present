@@ -6,6 +6,7 @@
 package doc
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -176,7 +177,7 @@ func (o *Option) UnmarshalJSON(data []byte) error {
 		Recommended bool            `json:"recommended"`
 		Visual      json.RawMessage `json:"visual"`
 	}
-	if err := json.Unmarshal(data, &raw); err != nil {
+	if err := decodeStrict(data, &raw); err != nil {
 		return fmt.Errorf("unmarshal option: %w", err)
 	}
 	o.ID = raw.ID
@@ -254,7 +255,7 @@ func (it *Item) UnmarshalJSON(data []byte) error {
 		Detail *Detail         `json:"detail"`
 		Visual json.RawMessage `json:"visual"`
 	}
-	if err := json.Unmarshal(data, &raw); err != nil {
+	if err := decodeStrict(data, &raw); err != nil {
 		return fmt.Errorf("unmarshal item: %w", err)
 	}
 	it.ID = raw.ID
@@ -435,8 +436,8 @@ func (d *Doc) UnmarshalJSON(data []byte) error {
 		Presentation *string           `json:"presentation"`
 		Blocks       []json.RawMessage `json:"blocks"`
 	}
-	if err := json.Unmarshal(data, &raw); err != nil {
-		return fmt.Errorf("unmarshal doc: %w", err)
+	if err := decodeStrict(data, &raw); err != nil {
+		return fmt.Errorf("unmarshal doc: %w (a doc's keys are version, title, intro, stats, submit, presentation, and blocks; sections and cards are siblings in blocks)", err)
 	}
 	d.Version = raw.Version
 	d.Title = raw.Title
@@ -463,7 +464,7 @@ func (c *Card) UnmarshalJSON(data []byte) error {
 		Status   string            `json:"status"`
 		Children []json.RawMessage `json:"children"`
 	}
-	if err := json.Unmarshal(data, &raw); err != nil {
+	if err := decodeStrict(data, &raw); err != nil {
 		return fmt.Errorf("unmarshal card: %w", err)
 	}
 	c.base = raw.base
@@ -513,7 +514,8 @@ func (bl *BlockList) UnmarshalJSON(data []byte) error {
 
 // DecodeBlock decodes a single block from its JSON, dispatching on the type tag.
 // A well-formed dotted type decodes to *PackBlock unconditionally; a malformed
-// dotted type and an unknown dot-free type are each an error naming the block id.
+// dotted type, an unknown dot-free type, and a field the type does not define are
+// each an error naming the block id.
 func DecodeBlock(data json.RawMessage) (Block, error) {
 	var head base
 	if err := json.Unmarshal(data, &head); err != nil {
@@ -533,14 +535,24 @@ func DecodeBlock(data json.RawMessage) (Block, error) {
 	if !ok {
 		return nil, fmt.Errorf("block %q: unknown type %q", head.ID, head.Type)
 	}
-	return sp.decode(data)
+	b, err := sp.decode(data)
+	if err != nil {
+		return nil, fmt.Errorf("block %q: %w", head.ID, err)
+	}
+	return b, nil
 }
 
 func decodeInto[T Block](data json.RawMessage, dst T) (Block, error) {
-	if err := json.Unmarshal(data, dst); err != nil {
+	if err := decodeStrict(data, dst); err != nil {
 		return nil, fmt.Errorf("decode %s block: %w", dst.BlockType(), err)
 	}
 	return dst, nil
+}
+
+func decodeStrict(data []byte, dst any) error {
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.DisallowUnknownFields()
+	return decoder.Decode(dst)
 }
 
 // Validate reports every structural violation in the document, joined via

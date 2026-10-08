@@ -1,0 +1,633 @@
+{
+ "version": 1,
+ "title": "Memory saving: prompt budget + end-of-session capture",
+ "intro": "Two blocked items. 1) The 'must save a memory when\u2026' rules don't fit the 64 KiB prompt cap (worst case is 15 bytes under today; the section adds 944). 2) End-of-session capture design (cc-notes doc e6779a8) has six forks. Pick each, then Submit.",
+ "sections": [
+  {
+   "type": "section",
+   "id": "s-budget",
+   "title": "Base-prompt save rules",
+   "children": [
+    {
+     "type": "card",
+     "id": "budget",
+     "title": "Make room for the 944-byte memory section",
+     "summary": "Worst-case prompt variant is 65,521 of 65,536 bytes; context caps take ~24 KB of it.",
+     "children": [
+      {
+       "type": "choice",
+       "id": "budget-pick",
+       "prompt": "How do we fit it?",
+       "multi": false,
+       "options": [
+        {
+         "id": "raise",
+         "label": "Raise the cap to ~66 KiB",
+         "hint": "one-line test change",
+         "facts": [
+          {
+           "label": "cost",
+           "value": "1 line"
+          },
+          {
+           "label": "risk",
+           "value": "low"
+          }
+         ],
+         "detail": {
+          "pros": [
+           "Ships the rules today",
+           "Leaves ~750 bytes headroom"
+          ],
+          "cons": [
+           "Prompt grows ~1.5% in the worst case"
+          ]
+         },
+         "recommended": true
+        },
+        {
+         "id": "trim",
+         "label": "Trim other always-loaded guidance",
+         "hint": "edit harnessInstructions / sand_iris.md",
+         "facts": [
+          {
+           "label": "cost",
+           "value": "~1 KB edits"
+          },
+          {
+           "label": "risk",
+           "value": "med"
+          }
+         ],
+         "detail": {
+          "pros": [
+           "Keeps the cap"
+          ],
+          "cons": [
+           "Rewrites guidance unrelated to memory"
+          ]
+         }
+        },
+        {
+         "id": "caps",
+         "label": "Lower org/chat/user context caps by ~1 KB",
+         "hint": "MaxOrgContextChars etc.",
+         "facts": [
+          {
+           "label": "cost",
+           "value": "3 consts"
+          },
+          {
+           "label": "risk",
+           "value": "med"
+          }
+         ],
+         "detail": {
+          "pros": [
+           "Keeps the cap, no guidance edits"
+          ],
+          "cons": [
+           "Less room for customer context"
+          ]
+         }
+        },
+        {
+         "id": "tooldesc",
+         "label": "Move it into a tool description",
+         "hint": "sent every session, not counted by the test",
+         "facts": [
+          {
+           "label": "cost",
+           "value": "small"
+          },
+          {
+           "label": "risk",
+           "value": "high"
+          }
+         ],
+         "detail": {
+          "pros": [
+           "Avoids the check"
+          ],
+          "cons": [
+           "Games the budget test; same tokens sent"
+          ]
+         }
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "type": "section",
+   "id": "s-capture",
+   "title": "End-of-session capture",
+   "children": [
+    {
+     "type": "card",
+     "id": "cap-model",
+     "title": "Capture model and where it runs",
+     "summary": "A reflection pass that proposes up to 3 memories.",
+     "children": [
+      {
+       "type": "choice",
+       "id": "cap-model-pick",
+       "prompt": "Which model, where?",
+       "multi": false,
+       "options": [
+        {
+         "id": "a",
+         "label": "Session's own model, warm cache",
+         "hint": "reflection over the live conversation in the agent process",
+         "facts": [
+          {
+           "label": "cost",
+           "value": "$0.04\u20130.10/pass"
+          },
+          {
+           "label": "risk",
+           "value": "low"
+          }
+         ],
+         "detail": {
+          "pros": [
+           "Full context incl. errors",
+           "Cache is warm, cheap"
+          ],
+          "cons": [
+           "Skipped when cache is cold"
+          ]
+         },
+         "recommended": true
+        },
+        {
+         "id": "b",
+         "label": "Haiku 4.5 / small model on a rendered transcript",
+         "hint": "agent process",
+         "facts": [
+          {
+           "label": "cost",
+           "value": "cheaper"
+          },
+          {
+           "label": "risk",
+           "value": "med"
+          }
+         ],
+         "detail": {
+          "pros": [
+           "Cheapest per pass"
+          ],
+          "cons": [
+           "Lossy transcript; weaker judgment"
+          ]
+         }
+        },
+        {
+         "id": "c",
+         "label": "runtime-v2 /capture route on Cerebras",
+         "hint": "server side",
+         "facts": [
+          {
+           "label": "cost",
+           "value": "cheap"
+          },
+          {
+           "label": "risk",
+           "value": "high"
+          }
+         ],
+         "detail": {
+          "pros": [
+           "Central"
+          ],
+          "cons": [
+           "Cerebras capacity 429s; transcript must be shipped to server"
+          ]
+         }
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "type": "card",
+     "id": "cap-trigger",
+     "title": "Trigger",
+     "summary": "When a pass runs.",
+     "children": [
+      {
+       "type": "choice",
+       "id": "cap-trigger-pick",
+       "prompt": "When?",
+       "multi": false,
+       "options": [
+        {
+         "id": "a",
+         "label": "3 quiet minutes after a final answer, plus exit/archive/subagent close",
+         "hint": "inside the 5-min cache window",
+         "facts": [
+          {
+           "label": "cost",
+           "value": "\u2014"
+          },
+          {
+           "label": "risk",
+           "value": "low"
+          }
+         ],
+         "detail": {
+          "pros": [
+           "Warm cache",
+           "Covers headless and subagents"
+          ],
+          "cons": [
+           "New turn cancels a pending pass"
+          ]
+         },
+         "recommended": true
+        },
+        {
+         "id": "b",
+         "label": "Only at session release",
+         "hint": "10-min idle, archive, exit",
+         "facts": [
+          {
+           "label": "cost",
+           "value": "\u2014"
+          },
+          {
+           "label": "risk",
+           "value": "med"
+          }
+         ],
+         "detail": {
+          "pros": [
+           "Fewer passes"
+          ],
+          "cons": [
+           "Cold cache; open desktop threads never release"
+          ]
+         }
+        },
+        {
+         "id": "c",
+         "label": "Every 5th notable task at turn end",
+         "hint": "nudge cadence",
+         "facts": [
+          {
+           "label": "cost",
+           "value": "\u2014"
+          },
+          {
+           "label": "risk",
+           "value": "med"
+          }
+         ],
+         "detail": {
+          "pros": [
+           "Predictable"
+          ],
+          "cons": [
+           "Interrupts mid-session"
+          ]
+         }
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "type": "card",
+     "id": "cap-scope",
+     "title": "Scope of captured memories",
+     "summary": "Who later finds them.",
+     "children": [
+      {
+       "type": "choice",
+       "id": "cap-scope-pick",
+       "prompt": "Which scope?",
+       "multi": false,
+       "options": [
+        {
+         "id": "a",
+         "label": "Model marks team or private; team is published",
+         "hint": "forced private if dedupe is down",
+         "facts": [
+          {
+           "label": "cost",
+           "value": "\u2014"
+          },
+          {
+           "label": "risk",
+           "value": "low"
+          }
+         ],
+         "detail": {
+          "pros": [
+           "Team-wide learnings reach other sessions"
+          ],
+          "cons": [
+           "Model may over-publish"
+          ]
+         },
+         "recommended": true
+        },
+        {
+         "id": "b",
+         "label": "Always private",
+         "hint": "same session tree only",
+         "facts": [
+          {
+           "label": "cost",
+           "value": "\u2014"
+          },
+          {
+           "label": "risk",
+           "value": "low"
+          }
+         ],
+         "detail": {
+          "pros": [
+           "No noise for others"
+          ],
+          "cons": [
+           "Other sessions never benefit"
+          ]
+         }
+        },
+        {
+         "id": "c",
+         "label": "Always team",
+         "hint": "\u2014",
+         "facts": [
+          {
+           "label": "cost",
+           "value": "\u2014"
+          },
+          {
+           "label": "risk",
+           "value": "high"
+          }
+         ],
+         "detail": {
+          "pros": [
+           "Max reach"
+          ],
+          "cons": [
+           "Noise and duplicates team-wide"
+          ]
+         }
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "type": "card",
+     "id": "cap-dedupe",
+     "title": "Dedupe",
+     "summary": "Avoid saving what's already there.",
+     "children": [
+      {
+       "type": "choice",
+       "id": "cap-dedupe-pick",
+       "prompt": "How?",
+       "multi": false,
+       "options": [
+        {
+         "id": "a",
+         "label": "Search + Jev 'already says' check; duplicates bump",
+         "hint": "new runtime-v2 /dedupe route",
+         "facts": [
+          {
+           "label": "cost",
+           "value": "new route"
+          },
+          {
+           "label": "risk",
+           "value": "low"
+          }
+         ],
+         "detail": {
+          "pros": [
+           "Semantic dedupe",
+           "Bumps reinforce good memories"
+          ],
+          "cons": [
+           "One more route"
+          ]
+         },
+         "recommended": true
+        },
+        {
+         "id": "b",
+         "label": "Prompt-only: show hits in the capture prompt",
+         "hint": "plus server exact-content check",
+         "facts": [
+          {
+           "label": "cost",
+           "value": "none"
+          },
+          {
+           "label": "risk",
+           "value": "med"
+          }
+         ],
+         "detail": {
+          "pros": [
+           "No new route"
+          ],
+          "cons": [
+           "Model judges its own duplicates"
+          ]
+         }
+        },
+        {
+         "id": "c",
+         "label": "Second cached reflection turn judges candidates",
+         "hint": "\u2014",
+         "facts": [
+          {
+           "label": "cost",
+           "value": "2nd turn"
+          },
+          {
+           "label": "risk",
+           "value": "med"
+          }
+         ],
+         "detail": {
+          "pros": [
+           "No new route"
+          ],
+          "cons": [
+           "Doubles cost"
+          ]
+         }
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "type": "card",
+     "id": "cap-sessions",
+     "title": "Sessions covered",
+     "summary": "Which sessions get capture.",
+     "children": [
+      {
+       "type": "choice",
+       "id": "cap-sessions-pick",
+       "prompt": "Which?",
+       "multi": false,
+       "options": [
+        {
+         "id": "a",
+         "label": "Every session with a team, subagents included",
+         "hint": "\u2014",
+         "facts": [
+          {
+           "label": "cost",
+           "value": "\u2014"
+          },
+          {
+           "label": "risk",
+           "value": "low"
+          }
+         ],
+         "detail": {
+          "pros": [
+           "Most coverage"
+          ],
+          "cons": [
+           "Most passes"
+          ]
+         },
+         "recommended": true
+        },
+        {
+         "id": "b",
+         "label": "Root sessions only",
+         "hint": "\u2014",
+         "facts": [
+          {
+           "label": "cost",
+           "value": "\u2014"
+          },
+          {
+           "label": "risk",
+           "value": "med"
+          }
+         ],
+         "detail": {
+          "pros": [
+           "Fewer passes"
+          ],
+          "cons": [
+           "Misses subagent learnings"
+          ]
+         }
+        },
+        {
+         "id": "c",
+         "label": "Headless and subagent only",
+         "hint": "\u2014",
+         "facts": [
+          {
+           "label": "cost",
+           "value": "\u2014"
+          },
+          {
+           "label": "risk",
+           "value": "med"
+          }
+         ],
+         "detail": {
+          "pros": [
+           "Targets where saves are rarest"
+          ],
+          "cons": [
+           "Misses interactive sessions"
+          ]
+         }
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "type": "card",
+     "id": "cap-visible",
+     "title": "Visibility in the thread",
+     "summary": "Whether users see captures.",
+     "children": [
+      {
+       "type": "choice",
+       "id": "cap-visible-pick",
+       "prompt": "Show it?",
+       "multi": false,
+       "options": [
+        {
+         "id": "a",
+         "label": "'Saved footgun: \u2026' on the final answer + 'captured' badge in Memories UI",
+         "hint": "\u2014",
+         "facts": [
+          {
+           "label": "cost",
+           "value": "\u2014"
+          },
+          {
+           "label": "risk",
+           "value": "low"
+          }
+         ],
+         "detail": {
+          "pros": [
+           "Transparent; easy to flag bad ones"
+          ],
+          "cons": [
+           "Slight thread noise"
+          ]
+         },
+         "recommended": true
+        },
+        {
+         "id": "b",
+         "label": "Silent; metrics and Memories UI only",
+         "hint": "\u2014",
+         "facts": [
+          {
+           "label": "cost",
+           "value": "\u2014"
+          },
+          {
+           "label": "risk",
+           "value": "low"
+          }
+         ],
+         "detail": {
+          "pros": [
+           "No noise"
+          ],
+          "cons": [
+           "Users can't tell what was saved"
+          ]
+         }
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "type": "submit",
+   "id": "submit",
+   "label": "Submit picks",
+   "md": "Submitting starts the base-prompt PR with your budget pick and the capture build with your fork picks."
+  }
+ ]
+}
