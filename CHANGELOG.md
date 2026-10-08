@@ -80,6 +80,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `display.sequence` hyphenates a label word that fits only by leaving one
   letter behind, instead of clipping it, and re-measures labels once web
   fonts load.
+- A document key the schema does not define now fails `start --doc`, `push`,
+  `update-block`, and `push --dry-run`, naming the key and its block id. A
+  board written with top-level `sections` instead of `blocks` used to pass
+  `push --dry-run` with `ok` and render with no blocks at all.
 
 ## [0.37.1] - 2026-10-03
 
