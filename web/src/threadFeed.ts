@@ -17,6 +17,7 @@ export interface ThreadEntry {
   feedback: Feedback[];
   replies: Reply[];
   locked: boolean;
+  live: boolean;
   // The thread's newest turn as plain text, for the feed row's one-line excerpt;
   // null only for a pinned entry that carries no conversation yet.
   lastComment: string | null;
@@ -80,6 +81,7 @@ export function threadFeed(
       // An approval that forbids feedback keeps its thread visible but shows no
       // composer, mirroring the inline FeedbackThread's locked composer.
       locked: block.type === 'approval' && block.allowFeedback === false,
+      live: true,
       lastComment: lastComment(feedback, blockReplies),
     });
   }
@@ -100,6 +102,7 @@ export function threadFeed(
         feedback,
         replies: blockReplies,
         locked: true,
+        live: false,
         lastComment: lastComment(feedback, blockReplies),
       });
     }

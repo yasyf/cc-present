@@ -135,12 +135,26 @@
   .rail-strip-count[data-count] {
     color: var(--accent-ink);
   }
+  .rail-strip-count[data-unread] {
+    position: relative;
+  }
+  .rail-strip-count[data-unread]::after {
+    content: '';
+    position: absolute;
+    top: -2px;
+    right: -4px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--accent-fill);
+  }
   .rail-strip-ticks {
     display: flex;
     flex-direction: column;
     align-items: center;
     gap: 6px;
     width: 100%;
+    padding: 1px 0;
     overflow: hidden;
   }
   .rail-tick {
@@ -154,6 +168,20 @@
     background: var(--pencil);
     opacity: 1;
     width: 18px;
+  }
+  .rail-tick[data-unread] {
+    position: relative;
+    opacity: 1;
+  }
+  .rail-tick[data-unread]::after {
+    content: '';
+    position: absolute;
+    top: -1px;
+    left: calc(100% + 3px);
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: var(--accent-fill);
   }
 
   /* The panel: an onionskin sliding over the galley. Anchored to the aside's right
@@ -427,6 +455,14 @@
 .comment-chip[data-count] {
   color: var(--accent-ink);
 }
+.comment-chip[data-unread]::after {
+  content: '';
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent-fill);
+}
 
 /* --- Document header (stamp masthead) --- */
 
@@ -467,29 +503,42 @@
   gap: var(--space-2);
   flex: none;
 }
-.peer,
-.conn {
+.peer {
   font-size: var(--text-2xs);
   color: var(--muted);
   border-radius: var(--radius-sm);
   padding: 0;
 }
-.peer::before,
-.conn::before {
+.peer::before {
   content: '[ ';
 }
-.peer::after,
-.conn::after {
+.peer::after {
   content: ' ]';
 }
 .peer-on {
   color: var(--approve);
 }
-.conn-on {
+.wire-lamp {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--text-2xs);
+  color: var(--muted);
+}
+.wire-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.wire-live {
   color: var(--accent-ink);
 }
-.conn-off {
+.wire-down {
   color: var(--pending);
+}
+.wire-down .wire-dot {
+  animation: focus-dot-pulse 1.4s var(--ease-out) infinite;
 }
 .theme-toggle {
   display: inline-flex;

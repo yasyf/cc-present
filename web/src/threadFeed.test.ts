@@ -99,6 +99,19 @@ describe('threadFeed order', () => {
     expect(feed[2]!.locked).toBe(true);
   });
 
+  it('marks doc blocks live and history entries not', () => {
+    const s = state({
+      blocks: [approval('a1')],
+      feedback: { a1: [fb('f1', 'x')] },
+      history: [round(1, [approval('h1')], { h1: [fb('f2', 'y')] })],
+    });
+    const { feed } = threadFeed(s, null, NO_PACKS);
+    expect(feed.map((e) => [e.blockId, e.live])).toEqual([
+      ['a1', true],
+      ['h1', false],
+    ]);
+  });
+
   it('only includes blocks that carry a note or reply', () => {
     const s = state({
       blocks: [approval('a1'), approval('a2'), approval('a3')],

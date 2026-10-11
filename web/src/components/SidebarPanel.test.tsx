@@ -6,7 +6,7 @@ import type { Root } from 'react-dom/client';
 import { PresentContext } from '../present';
 import type { PresentApi } from '../present';
 import { KeyboardProvider } from '../keyboard';
-import { ActiveBlockProvider } from '../activeBlock';
+import { ActiveBlockProvider, useActiveBlock } from '../activeBlock';
 import { SidebarPanel } from './SidebarPanel';
 import { emptyState } from '../reduce';
 import type { Approval } from '../schema';
@@ -31,10 +31,10 @@ function setViewport(desktop: boolean): void {
 }
 
 const projection: ThreadProjection = {
-  pinned: { blockId: 'a1', kind: 'approval', label: 'Ship one', feedback: [{ id: 'f1', text: 'go' }], replies: [], locked: false, lastComment: 'go' },
+  pinned: { blockId: 'a1', kind: 'approval', label: 'Ship one', feedback: [{ id: 'f1', text: 'go' }], replies: [], locked: false, live: true, lastComment: 'go' },
   feed: [
-    { blockId: 'a2', kind: 'choice', label: 'Pick a plan', feedback: [{ id: 'f2', text: 'hmm' }], replies: [], locked: false, lastComment: 'hmm' },
-    { blockId: 'h1', kind: 'approval', label: 'Old ship', feedback: [{ id: 'f3', text: 'past' }], replies: [], locked: true, lastComment: 'past' },
+    { blockId: 'a2', kind: 'choice', label: 'Pick a plan', feedback: [{ id: 'f2', text: 'hmm' }], replies: [], locked: false, live: true, lastComment: 'hmm' },
+    { blockId: 'h1', kind: 'approval', label: 'Old ship', feedback: [{ id: 'f3', text: 'past' }], replies: [], locked: true, live: false, lastComment: 'past' },
   ],
 };
 const empty: ThreadProjection = { pinned: null, feed: [] };
@@ -57,6 +57,13 @@ afterEach(() => {
   container.remove();
 });
 
+function Revealed() {
+  const { reveal } = useActiveBlock();
+  return <div data-testid="revealed">{reveal?.blockId ?? 'none'}</div>;
+}
+
+const revealed = (): string | null => container.querySelector('[data-testid="revealed"]')!.textContent;
+
 function render(proj: ThreadProjection = projection, onJumped?: () => void): void {
   const present: PresentApi = { post: async () => true, closed: false, currentRound: 1 };
   act(() =>
@@ -65,6 +72,7 @@ function render(proj: ThreadProjection = projection, onJumped?: () => void): voi
         <KeyboardProvider blocks={ringBlocks} interactions={emptyState().interactions} closed={false} round={1}>
           <ActiveBlockProvider>
             <SidebarPanel projection={proj} composeEpoch={0} openComposerOnMount={false} onJumped={onJumped} />
+            <Revealed />
           </ActiveBlockProvider>
         </KeyboardProvider>
       </PresentContext.Provider>,
@@ -104,19 +112,17 @@ describe('SidebarPanel jump', () => {
     render(projection, onJumped);
     act(() => (container.querySelectorAll('.rail-feed-row')[0] as HTMLButtonElement).click());
     expect(document.querySelector('.sr-only')!.textContent).toBe('Item 1 of 1');
+    expect(revealed()).toBe('none');
     expect(onJumped).toHaveBeenCalledTimes(1);
   });
 
-  it('scrolls a history jump into view by its data-block-id', () => {
+  it('reveals a history jump inside its frozen round', () => {
     const onJumped = vi.fn();
-    const frozen = document.createElement('div');
-    frozen.setAttribute('data-block-id', 'h1');
-    document.body.appendChild(frozen);
     render(projection, onJumped);
     act(() => (container.querySelectorAll('.rail-feed-row')[1] as HTMLButtonElement).click());
-    expect(frozen.scrollIntoView).toHaveBeenCalledTimes(1);
+    expect(revealed()).toBe('h1');
+    expect(document.querySelector('.sr-only')!.textContent).not.toBe('Item 1 of 1');
     expect(onJumped).toHaveBeenCalledTimes(1);
-    frozen.remove();
   });
 });
 

@@ -24,6 +24,7 @@ import type { PresentState } from './events';
 import { ActiveBlockProvider, useActiveBlock } from './activeBlock';
 import { useMediaQuery } from './useMediaQuery';
 import { threadFeed } from './threadFeed';
+import { revisionStore } from './revision';
 import { viewedStore } from './viewed';
 import type { ThreadEntry, ThreadProjection } from './threadFeed';
 import { interactionErrorText } from './interactionError';
@@ -289,6 +290,13 @@ function PresentShell({
     composing: active.composing,
     onDismiss: () => setPinnedOpen(false),
   });
+
+  const threadShowing = isDesktop ? rail.open : active.panelOpen;
+  const pinnedId = projection.pinned?.blockId;
+  const pinnedReplies = projection.pinned?.replies.length;
+  useEffect(() => {
+    if (threadShowing && pinnedId !== undefined) revisionStore.markRepliesRead(pinnedId);
+  }, [threadShowing, pinnedId, pinnedReplies]);
 
   const panel = (openComposerOnMount: boolean) => (
     <SidebarPanel

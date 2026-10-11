@@ -1,8 +1,12 @@
 // @vitest-environment jsdom
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import type { Root } from 'react-dom/client';
+import { PresentContext } from '../present';
+import type { PresentApi } from '../present';
+import { KeyboardProvider } from '../keyboard';
+import { ActiveBlockProvider, useActiveBlock } from '../activeBlock';
 import { RoundGroup } from './RoundGroup';
 import { emptyState } from '../reduce';
 import type { Interactions, RoundRecord, Selection } from '../events';
@@ -71,5 +75,39 @@ describe('RoundGroup picks chip', () => {
   it('does not count a fully cleared choice', () => {
     act(() => root.render(<RoundGroup record={record({ optionIds: [] })} interactions={empty()} />));
     expect(picksChip()).toBeUndefined();
+  });
+});
+
+function RevealButton({ blockId }: { blockId: string }) {
+  const { revealBlock } = useActiveBlock();
+  return <button data-testid="reveal" onClick={() => revealBlock(blockId)} />;
+}
+
+describe('RoundGroup reveal', () => {
+  it('a reveal expands the group, nested child included', () => {
+    Element.prototype.scrollIntoView = vi.fn();
+    const nested: RoundRecord = {
+      ...record({ optionIds: [] }),
+      blocks: [{ id: 'k1', type: 'card', children: [{ id: 'a1', type: 'approval' }] }],
+    };
+    const present: PresentApi = { post: async () => true, closed: false, currentRound: 2 };
+    act(() =>
+      root.render(
+        <PresentContext.Provider value={present}>
+          <KeyboardProvider blocks={[]} interactions={empty()} closed={false} round={2}>
+            <ActiveBlockProvider>
+              <RoundGroup record={nested} interactions={empty()} />
+              <RevealButton blockId="a1" />
+            </ActiveBlockProvider>
+          </KeyboardProvider>
+        </PresentContext.Provider>,
+      ),
+    );
+    expect(container.querySelector('.round-block')).toBeNull();
+
+    act(() => (container.querySelector('[data-testid="reveal"]') as HTMLButtonElement).click());
+    const revealed = container.querySelector('.round-block[data-block-id="k1"]')!;
+    expect(revealed.querySelector('.approval')).not.toBeNull();
+    expect(revealed.scrollIntoView).toHaveBeenCalledTimes(1);
   });
 });

@@ -1,13 +1,25 @@
+import { useCallback } from 'react';
 import { CollapsedGroup } from '@cc-interact/react';
 import { isPackBlock } from '../schema';
 import type { Interactions, RoundRecord } from '../events';
 import { flatten } from '../decide';
+import { useActiveBlock } from '../activeBlock';
 import { BlockRenderer } from './BlockRenderer';
+
+function scrollBehavior(): ScrollBehavior {
+  return window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth';
+}
 
 // RoundGroup renders one closed round as a read-only CollapsedGroup: the frozen
 // blocks and interaction snapshot from the record, with replies threaded live so
 // a late agent reply still surfaces inside the old round.
 export function RoundGroup({ record, interactions }: { record: RoundRecord; interactions: Interactions }) {
+  const { reveal } = useActiveBlock();
+  const target = reveal && record.blocks.find((b) => flatten([b]).some((c) => c.id === reveal.blockId));
+  const scrollToRevealed = useCallback((el: HTMLDivElement | null) => {
+    el?.scrollIntoView({ block: 'center', behavior: scrollBehavior() });
+  }, []);
+
   const frozen: Interactions = {
     decisions: record.decisions,
     choices: record.choices,
@@ -77,9 +89,9 @@ export function RoundGroup({ record, interactions }: { record: RoundRecord; inte
   );
 
   return (
-    <CollapsedGroup readOnly header={header}>
+    <CollapsedGroup key={target ? reveal.epoch : 0} defaultExpanded={!!target} readOnly header={header}>
       {record.blocks.map((b) => (
-        <div key={b.id} className="round-block" data-block-id={b.id}>
+        <div key={b.id} className="round-block" data-block-id={b.id} ref={b === target ? scrollToRevealed : undefined}>
           <BlockRenderer block={b} interactions={frozen} />
         </div>
       ))}

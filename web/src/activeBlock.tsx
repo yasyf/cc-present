@@ -5,8 +5,14 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import type { ReactNode } from 'react';
 import { PresentContext, usePresent } from './present';
 import type { PresentApi } from './present';
-import { useCursor } from './keyboard';
+import { useCursor, useKeyboardApi } from './keyboard';
 import type { Interaction } from './events';
+import type { ThreadEntry } from './threadFeed';
+
+export interface Reveal {
+  blockId: string;
+  epoch: number;
+}
 
 export interface ActiveBlockApi {
   // The block the rail pins its thread to; null when nothing is active yet.
@@ -23,12 +29,14 @@ export interface ActiveBlockApi {
   // True while a rail composer holds a draft — the rail stays open regardless of
   // hover or focus while this is set.
   composing: boolean;
+  reveal: Reveal | null;
   pin: (id: string) => void;
   openPanel: () => void;
   closePanel: () => void;
   requestCompose: () => void;
   setPinnedOpen: (open: boolean) => void;
   setComposing: (composing: boolean) => void;
+  revealBlock: (id: string) => void;
 }
 
 const NOOP: ActiveBlockApi = {
@@ -38,12 +46,14 @@ const NOOP: ActiveBlockApi = {
   composeEpoch: 0,
   pinnedOpen: false,
   composing: false,
+  reveal: null,
   pin: () => {},
   openPanel: () => {},
   closePanel: () => {},
   requestCompose: () => {},
   setPinnedOpen: () => {},
   setComposing: () => {},
+  revealBlock: () => {},
 };
 
 // A default no-op value lets an inline block (SingleBlockView's embed) call the
@@ -52,6 +62,18 @@ const ActiveBlockContext = createContext<ActiveBlockApi>(NOOP);
 
 export function useActiveBlock(): ActiveBlockApi {
   return useContext(ActiveBlockContext);
+}
+
+export function useJump(): (entry: ThreadEntry) => void {
+  const kbd = useKeyboardApi();
+  const { revealBlock } = useActiveBlock();
+  return useCallback(
+    (entry: ThreadEntry) => {
+      if (entry.live) kbd.jumpTo(entry.blockId);
+      else revealBlock(entry.blockId);
+    },
+    [kbd, revealBlock],
+  );
 }
 
 export function ActiveBlockProvider({ children }: { children: ReactNode }) {
@@ -64,6 +86,7 @@ export function ActiveBlockProvider({ children }: { children: ReactNode }) {
   const [pinnedOpen, setPinnedOpen] = useState(false);
   const [composeEpoch, setComposeEpoch] = useState(0);
   const [composing, setComposing] = useState(false);
+  const [reveal, setReveal] = useState<Reveal | null>(null);
 
   // A real cursor move supersedes an explicit pin, so the rail follows j/k
   // navigation once the human leaves the block they clicked a chip on.
@@ -106,6 +129,10 @@ export function ActiveBlockProvider({ children }: { children: ReactNode }) {
     setPanel({ open: true, compose: true });
     setPinnedOpen(true);
   }, []);
+  const revealBlock = useCallback(
+    (id: string) => setReveal((prev) => ({ blockId: id, epoch: (prev?.epoch ?? 0) + 1 })),
+    [],
+  );
 
   const value = useMemo<ActiveBlockApi>(
     () => ({
@@ -115,14 +142,29 @@ export function ActiveBlockProvider({ children }: { children: ReactNode }) {
       composeEpoch,
       pinnedOpen,
       composing,
+      reveal,
       pin,
       openPanel,
       closePanel,
       requestCompose,
       setPinnedOpen,
       setComposing,
+      revealBlock,
     }),
-    [activeId, panel.open, panel.compose, composeEpoch, pinnedOpen, composing, pin, openPanel, closePanel, requestCompose],
+    [
+      activeId,
+      panel.open,
+      panel.compose,
+      composeEpoch,
+      pinnedOpen,
+      composing,
+      reveal,
+      pin,
+      openPanel,
+      closePanel,
+      requestCompose,
+      revealBlock,
+    ],
   );
 
   return (
