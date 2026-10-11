@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
 import { threadFeed } from './threadFeed';
 import { emptyState } from './reduce';
@@ -241,6 +242,14 @@ describe('threadFeed order', () => {
       replies: { a1: [reply('r1', 'ok'), reply('r2', 'done')] },
     });
     expect(threadFeed(s, null, NO_PACKS).feed[0]!.lastComment).toBe('done');
+  });
+
+  it('excerpts a reply as plain text, without its markdown', () => {
+    const s = state({
+      blocks: [approval('a1', 'Ship')],
+      replies: { a1: [reply('r1', 'Second reply with *emphasis* and a list:\n\n- one\n- two')] },
+    });
+    expect(threadFeed(s, null, NO_PACKS).feed[0]!.lastComment).toBe('Second reply with emphasis and a list: one two');
   });
 
   it('falls back to the latest note when no reply exists', () => {
