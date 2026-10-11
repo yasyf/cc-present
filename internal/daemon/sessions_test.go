@@ -200,3 +200,31 @@ func TestSessionsUpdatedAtIsRFC3339String(t *testing.T) {
 		t.Fatalf("updatedAt = %s, want %s", parsed, updated)
 	}
 }
+
+func TestSessionsListsDocWhoseBlocksNoLongerDecode(t *testing.T) {
+	h := newSessionsHarness(t)
+	h.seed(t, "ok", "a--0001", statusOpen, time.Unix(1_700_000_100, 0), "Fine")
+	ctx := context.Background()
+	if _, err := ccstore.NewSubjectStore(h.cc.DB()).Create(ctx, "stale", "b--0002", "s-stale", "/repo/stale", 100, statusClosed); err != nil {
+		t.Fatalf("create subject: %v", err)
+	}
+	raw := json.RawMessage(`{"version":1,"title":"Legacy","blocks":[{"id":"a1","type":"approval","allowFeedback":true}]}`)
+	if _, err := h.cc.AppendEvent(ctx, &ccevent.Event{
+		SubjectID: "stale", Origin: ccevent.OriginAgent, Type: EventDocReplaced,
+		Payload: injectIdentity(EventDocReplaced, docReplacedPayload(raw, 1, nil)),
+	}); err != nil {
+		t.Fatalf("seed doc: %v", err)
+	}
+
+	var got []sessionSummary
+	if err := json.Unmarshal(h.getURL(t, "/api/sessions?all=true").Body.Bytes(), &got); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("got %d sessions, want 2: %+v", len(got), got)
+	}
+	titles := map[string]string{got[0].Subject: got[0].Title, got[1].Subject: got[1].Title}
+	if titles["stale"] != "Legacy" || titles["ok"] != "Fine" {
+		t.Fatalf("titles = %v, want stale=Legacy ok=Fine", titles)
+	}
+}
