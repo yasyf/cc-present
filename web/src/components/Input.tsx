@@ -27,16 +27,17 @@ export function Input({ block, interactions }: { block: InputBlock; interactions
     disabled: closed || readOnly,
     engage: () => fieldRef.current?.focus(),
   });
-  // The committed value is the source of truth; the field is uncontrolled and
-  // keyed on the text it shows (the committed value, or a rejected save's draft) so
-  // an echoed change re-seeds defaultValue without mirroring the committed text
-  // into component state. Only blur (or plain Enter) commits, never a keystroke.
   // In a live round the base value clears once the round advances past the entry,
   // so each round starts fresh; a read-only group always shows its frozen text.
   const v = interactions.inputs[block.id];
   const committed = v && (readOnly || v.round === currentRound) ? v.text : '';
-  const failed = useDraft<string>(block.id, 'input');
-  const shown = readOnly ? committed : (failed ?? committed);
+  const typed = useDraft<string>(block.id, 'input');
+  const shown = readOnly ? committed : (typed ?? committed);
+
+  function edit(value: string) {
+    if (value === committed) draftStore.clear(block.id, 'input');
+    else draftStore.set(block.id, 'input', value);
+  }
 
   async function save(value: string) {
     if (value === committed) {
@@ -45,14 +46,16 @@ export function Input({ block, interactions }: { block: InputBlock; interactions
     }
     // Stamp optimistically, then retract the tick if the post is rejected so the
     // rolled-back value and the mark agree; the draft keeps the rejected text.
+    const epoch = draftStore.epoch;
     setCommittedAt(Date.now());
     const ok = await post({ type: 'input.submitted', blockId: block.id, text: value });
+    const latest = draftStore.get<string>(block.id, 'input');
     if (ok) {
-      draftStore.clear(block.id, 'input');
-    } else {
-      setCommittedAt(0);
-      draftStore.set(block.id, 'input', value);
+      if (latest === value) draftStore.clear(block.id, 'input');
+      return;
     }
+    setCommittedAt(0);
+    if (latest === undefined && draftStore.epoch === epoch) draftStore.set(block.id, 'input', value);
   }
 
   const committing = committedAt !== 0;
@@ -73,22 +76,22 @@ export function Input({ block, interactions }: { block: InputBlock; interactions
       )}
       {block.multiline ? (
         <textarea
-          key={shown}
           ref={attachField}
-          defaultValue={shown}
+          value={shown}
           placeholder={block.placeholder}
           rows={3}
           disabled={closed || readOnly}
+          onChange={(e) => edit(e.target.value)}
           onBlur={(e) => save(e.currentTarget.value)}
         />
       ) : (
         <input
-          key={shown}
           ref={attachField}
           type="text"
-          defaultValue={shown}
+          value={shown}
           placeholder={block.placeholder}
           disabled={closed || readOnly}
+          onChange={(e) => edit(e.target.value)}
           onBlur={(e) => save(e.currentTarget.value)}
           onKeyDown={(e) => {
             // Plain Enter commits; a mod+Enter chord is left to the global

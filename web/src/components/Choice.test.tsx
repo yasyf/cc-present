@@ -3,6 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import type { Root } from 'react-dom/client';
+import { CollapsedGroup } from '@cc-interact/react';
+import { draftStore } from '../drafts';
 import { PresentContext } from '../present';
 import type { PresentApi } from '../present';
 import { KeyboardProvider } from '../keyboard';
@@ -57,6 +59,7 @@ afterEach(() => {
   act(() => root.unmount());
   container.remove();
   vi.restoreAllMocks();
+  draftStore.reset();
 });
 
 function render(block: ChoiceBlock, interactions: Interactions): void {
@@ -109,6 +112,39 @@ function renderCapturing(block: ChoiceBlock, interactions: Interactions): unknow
     ),
   );
   return posted;
+}
+
+function renderPending(block: ChoiceBlock): {
+  posted: unknown[];
+  settle: ((ok: boolean) => void)[];
+  show: (interactions: Interactions) => void;
+} {
+  const posted: unknown[] = [];
+  const settle: ((ok: boolean) => void)[] = [];
+  const present: PresentApi = {
+    post: (ev) => {
+      posted.push(ev);
+      return new Promise((resolve) => settle.push(resolve));
+    },
+    closed: false,
+    currentRound: 1,
+  };
+  const show = (interactions: Interactions): void =>
+    act(() =>
+      root.render(
+        <PresentContext.Provider value={present}>
+          <KeyboardProvider blocks={[block]} interactions={interactions} closed={false} round={1}>
+            <Choice block={block} interactions={interactions} />
+          </KeyboardProvider>
+        </PresentContext.Provider>,
+      ),
+    );
+  return { posted, settle, show };
+}
+
+function remount(): void {
+  act(() => root.unmount());
+  root = createRoot(container);
 }
 
 // renderWithStage mounts the choice under a FocusStageContext, so `stage` is
@@ -294,6 +330,27 @@ describe('Choice detail disclosure', () => {
     expect(posted).toEqual([]);
     act(() => (container.querySelector('.option') as HTMLElement).click());
     expect(posted).toEqual([{ type: 'choice.selected', blockId: 'c1', optionIds: ['o0'] }]);
+  });
+
+  it('leaves mod+Enter on the Details control to the global submit path, and keeps plain Enter', () => {
+    const heard: string[] = [];
+    const listen = (e: KeyboardEvent): void => {
+      heard.push(e.metaKey || e.ctrlKey ? 'chord' : 'plain');
+    };
+    document.addEventListener('keydown', listen);
+    for (const [mode, control] of [
+      ['inline', '.cc-group-header'],
+      ['modal', '.detail-trigger'],
+    ] as const) {
+      render(withDetail({ md: 'why', mode }), empty());
+      const target = container.querySelector(`.option-detail ${control}`) as HTMLElement;
+      modEnter(target, { metaKey: true });
+      modEnter(target, { ctrlKey: true });
+      modEnter(target, {});
+    }
+    document.removeEventListener('keydown', listen);
+
+    expect(heard).toEqual(['chord', 'chord', 'chord', 'chord']);
   });
 
   it('renders a modal detail as a trigger button over a dialog, not a CollapsedGroup', () => {
@@ -630,37 +687,15 @@ describe('Choice write-in selection semantics', () => {
   });
 
   it('keeps an edited write-in typed and checked when its POST fails and the answer rolls back', async () => {
-    const block = choice('c1', ['A', 'B']);
     const answered = (other: string): Interactions => ({ ...empty(), choices: { c1: { optionIds: [], other } } });
-    const posted: unknown[] = [];
-    let fail!: () => void;
-    const present: PresentApi = {
-      post: (ev) => {
-        posted.push(ev);
-        return new Promise((resolve) => {
-          fail = () => resolve(false);
-        });
-      },
-      closed: false,
-      currentRound: 1,
-    };
-    const show = (interactions: Interactions): void =>
-      act(() =>
-        root.render(
-          <PresentContext.Provider value={present}>
-            <KeyboardProvider blocks={[block]} interactions={interactions} closed={false} round={1}>
-              <Choice block={block} interactions={interactions} />
-            </KeyboardProvider>
-          </PresentContext.Provider>,
-        ),
-      );
+    const { posted, settle, show } = renderPending(choice('c1', ['A', 'B']));
 
     show(answered('first'));
     typeOther('first, revised');
     blurOther();
     show(answered('first, revised'));
     show(answered('first'));
-    await act(async () => fail());
+    await act(async () => settle[0]!(false));
 
     expect(otherField().value).toBe('first, revised');
     expect(otherCard().getAttribute('aria-checked')).toBe('true');
@@ -670,6 +705,92 @@ describe('Choice write-in selection semantics', () => {
       { type: 'choice.selected', blockId: 'c1', optionIds: [], other: 'first, revised' },
       { type: 'choice.selected', blockId: 'c1', optionIds: [], other: 'first, revised' },
     ]);
+  });
+
+  it('leaves an authored pick standing when an earlier write-in POST fails after it', async () => {
+    const { posted, settle, show } = renderPending(choice('c1', ['A', 'B']));
+
+    show(empty());
+    typeOther('mine');
+    blurOther();
+    act(() => (container.querySelector('.option') as HTMLElement).click());
+    show({ ...empty(), choices: { c1: { optionIds: ['o0'] } } });
+    await act(async () => settle[0]!(false));
+
+    expect(otherCard().getAttribute('aria-checked')).toBe('false');
+    expect(container.querySelector('.option')?.getAttribute('aria-checked')).toBe('true');
+    expect(otherField().value).toBe('mine');
+
+    blurOther();
+    expect(posted).toEqual([
+      { type: 'choice.selected', blockId: 'c1', optionIds: [], other: 'mine' },
+      { type: 'choice.selected', blockId: 'c1', optionIds: ['o0'] },
+    ]);
+  });
+});
+
+describe('Choice kept write-in', () => {
+  const block = choice('c1', ['A', 'B']);
+  const picked = (): Interactions => ({ ...empty(), choices: { c1: { optionIds: ['o0'] } } });
+
+  it('shows the kept text again after the choice remounts, still unselected', () => {
+    render(block, empty());
+    typeOther('roll our own');
+    blurOther();
+    act(() => (container.querySelector('.option') as HTMLElement).click());
+    remount();
+
+    const posted = renderCapturing(block, picked());
+    expect(otherField().value).toBe('roll our own');
+    expect(otherCard().getAttribute('aria-checked')).toBe('false');
+    expect(container.querySelector('.option')?.getAttribute('aria-checked')).toBe('true');
+
+    act(() => otherCard().click());
+    expect(posted).toEqual([{ type: 'choice.selected', blockId: 'c1', optionIds: [], other: 'roll our own' }]);
+  });
+
+  it('forgets the text once the box is emptied', () => {
+    render(block, empty());
+    typeOther('roll our own');
+    expect(draftStore.get('c1', 'other')).toBe('roll our own');
+    typeOther('');
+    expect(draftStore.get('c1', 'other')).toBeUndefined();
+    remount();
+
+    render(block, empty());
+    expect(otherField().value).toBe('');
+  });
+
+  it('shows a committed write-in over the kept text', () => {
+    draftStore.set('c1', 'other', 'never sent');
+    render(block, { ...empty(), choices: { c1: { optionIds: [], other: 'sent' } } });
+    expect(otherField().value).toBe('sent');
+    expect(otherCard().getAttribute('aria-checked')).toBe('true');
+  });
+
+  it('neither shows nor replaces the kept text in a read-only round', () => {
+    const present: PresentApi = { post: async () => true, closed: false, currentRound: 2 };
+    const frozen = (interactions: Interactions): void =>
+      act(() =>
+        root.render(
+          <PresentContext.Provider value={present}>
+            <KeyboardProvider blocks={[]} interactions={interactions} closed={false} round={2}>
+              <CollapsedGroup defaultExpanded readOnly header="Round 1">
+                <Choice block={block} interactions={interactions} />
+              </CollapsedGroup>
+            </KeyboardProvider>
+          </PresentContext.Provider>,
+        ),
+      );
+    draftStore.set('c1', 'other', 'this round');
+
+    frozen(picked());
+    expect(otherField().value).toBe('');
+    remount();
+    frozen({ ...empty(), choices: { c1: { optionIds: [], other: 'last round' } } });
+
+    expect(otherField().value).toBe('last round');
+    expect(draftStore.get('c1', 'other')).toBe('this round');
   });
 });
 

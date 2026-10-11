@@ -54,7 +54,12 @@ afterEach(() => {
   draftStore.reset();
 });
 
-function renderCapturing(block: TriageBlock, interactions: Interactions, closed = false, accepted = true): unknown[] {
+function renderCapturing(
+  block: TriageBlock,
+  interactions: Interactions,
+  closed = false,
+  accepted: boolean | Promise<boolean> = true,
+): unknown[] {
   const posted: unknown[] = [];
   const present: PresentApi = {
     post: async (ev) => {
@@ -83,6 +88,8 @@ function setValue(el: HTMLTextAreaElement, value: string): void {
     el.dispatchEvent(new Event('input', { bubbles: true }));
   });
 }
+
+const flush = (): Promise<void> => new Promise((resolve) => setTimeout(resolve));
 
 function row(i: number): HTMLElement {
   return container.querySelectorAll('.triage-item')[i] as HTMLElement;
@@ -206,6 +213,34 @@ describe('Triage unsent notes', () => {
     renderCapturing(block, decided());
     await save();
     expect(noteInput(0)).toBeNull();
+  });
+
+  it('keeps text typed while the save is in flight', async () => {
+    let land!: () => void;
+    const landed = new Promise<boolean>((resolve) => {
+      land = () => resolve(true);
+    });
+    renderCapturing(block, decided(), false, landed);
+    openNote(0);
+    setValue(noteInput(0)!, 'flaky');
+    act(() => (row(0).querySelector('.triage-note-actions .primary') as HTMLElement).click());
+    setValue(noteInput(0)!, 'flaky on CI');
+    await act(async () => {
+      land();
+      await flush();
+    });
+
+    expect(noteInput(0)?.value).toBe('flaky on CI');
+  });
+
+  it('opens no editor for the block note draft on an item that shares its slot name', () => {
+    const named = triage('t1', [], { items: [{ id: 'note', label: 'A' }] });
+    draftStore.set('t1', 'note', 'a general note');
+
+    renderCapturing(named, withTriage(named, { t1: { note: { verdict: 'approved' } } }));
+
+    expect(container.querySelector('.triage-note-input')).toBeNull();
+    expect(row(0).querySelector('.triage-note-affordance .link-btn')?.textContent).toBe('Add note');
   });
 
   it('keeps drafts across a remount', () => {

@@ -4,7 +4,7 @@ import { isPackBlock, type Block, type BuiltinBlockType } from '../schema';
 import type { Interactions } from '../events';
 import { usePresent } from '../present';
 import { useInteractivePackTypes } from '../packs/registry';
-import { ownsThread } from '../threadFeed';
+import { ownsThread, threadTurns } from '../threadFeed';
 import { Section } from './Section';
 import { Card } from './Card';
 import { Approval } from './Approval';
@@ -26,6 +26,7 @@ import { RecordView } from './RecordView';
 import { PackBlockView } from './PackBlockView';
 import { BlockThread } from './BlockThread';
 import { ReplyThread } from './ReplyThread';
+import { useThreadHost } from './threadHost';
 
 export interface BlockProps {
   block: Block;
@@ -72,22 +73,24 @@ export function BlockRenderer({ block, interactions, note }: BlockProps & { note
   return (
     <>
       {inner}
-      {note && <BlockNote block={block} interactions={interactions} />}
+      {note && <BlockNote block={block} interactions={interactions} packInteractive={packInteractive} />}
       <ReplyThread replies={interactions.replies[block.id] ?? []} />
     </>
   );
 }
 
-function BlockNote({ block, interactions }: BlockProps) {
+function BlockNote({ block, interactions, packInteractive }: BlockProps & { packInteractive: ReadonlySet<string> }) {
   const { closed } = usePresent();
   const readOnly = useGroupReadOnly();
+  const rail = useThreadHost() === 'rail';
   if (block.type === 'section') return null;
+  const turns = threadTurns(block, interactions.feedback, interactions.replies, packInteractive);
   return (
     <BlockThread
       blockId={block.id}
       type={block.type}
-      feedback={interactions.feedback[block.id] ?? []}
-      replies={[]}
+      feedback={turns.feedback}
+      replies={rail ? turns.replies : []}
       locked={closed || readOnly}
     />
   );

@@ -14,6 +14,8 @@ import { Mark } from './Mark';
 import { Clamped } from './Clamped';
 import { DetailDisclosure } from './Detail';
 
+const ITEM_NOTES = 'item-notes';
+
 // Triage renders a multi-item accept/reject block: each item carries its own
 // verdict pair, bulk Accept all / Reject all post one full merge carrying existing
 // notes forward, and an optional per-item note composer opens once the item has a
@@ -31,7 +33,7 @@ export function Triage({ block, interactions }: { block: TriageBlock; interactio
 
   const [itemCursor, setItemCursor] = useState(0);
   const [noteFor, setNoteFor] = useState<string | null>(null);
-  const drafts = useDrafts<string>(block.id);
+  const drafts = useDrafts<string>(block.id, ITEM_NOTES);
   const noteRef = useRef<HTMLTextAreaElement>(null);
 
   function postItem(itemId: string, verdict: Verdict, note?: string) {
@@ -61,7 +63,7 @@ export function Triage({ block, interactions }: { block: TriageBlock; interactio
   }
 
   function openNote(itemId: string) {
-    if (!drafts.has(itemId)) draftStore.set(block.id, itemId, verdicts[itemId]?.note ?? '');
+    if (!drafts.has(itemId)) draftStore.setEntry(block.id, ITEM_NOTES, itemId, verdicts[itemId]?.note ?? '');
     setNoteFor(itemId);
     requestAnimationFrame(() => noteRef.current?.focus());
   }
@@ -69,8 +71,11 @@ export function Triage({ block, interactions }: { block: TriageBlock; interactio
   async function sendNote(itemId: string) {
     const verdict = verdicts[itemId]?.verdict;
     if (!verdict || verdict === 'cleared') return;
-    const ok = await postItem(itemId, verdict, drafts.get(itemId)!.trim() || undefined);
-    if (ok) draftStore.clear(block.id, itemId);
+    const sent = drafts.get(itemId)!;
+    const ok = await postItem(itemId, verdict, sent.trim() || undefined);
+    if (ok && draftStore.entries<string>(block.id, ITEM_NOTES).get(itemId) === sent) {
+      draftStore.clearEntry(block.id, ITEM_NOTES, itemId);
+    }
   }
 
   function advanceFrom(itemId: string) {
@@ -143,9 +148,9 @@ export function Triage({ block, interactions }: { block: TriageBlock; interactio
             noteDraft={drafts.get(item.id)}
             noteRef={noteFor === item.id ? noteRef : undefined}
             onNoteOpen={() => openNote(item.id)}
-            onNoteChange={(text) => draftStore.set(block.id, item.id, text)}
+            onNoteChange={(text) => draftStore.setEntry(block.id, ITEM_NOTES, item.id, text)}
             onNoteSend={() => void sendNote(item.id)}
-            onNoteCancel={() => draftStore.clear(block.id, item.id)}
+            onNoteCancel={() => draftStore.clearEntry(block.id, ITEM_NOTES, item.id)}
           />
         ))}
       </div>

@@ -148,6 +148,22 @@ describe('ActiveBlockProvider composing latch', () => {
     click('compose-off');
     expect(active()).toBe('a3');
   });
+
+  it('follows an explicit pin or jump while the composer holds a draft', () => {
+    render();
+    click('cursor-a3');
+    click('compose-on');
+    click('pin-a1');
+    expect(active()).toBe('a1');
+
+    click('jump-live');
+    expect(active()).toBe('a2');
+    click('jump-history');
+    expect(active()).toBe('h1');
+
+    click('compose-off');
+    expect(active()).toBe('h1');
+  });
 });
 
 describe('ActiveBlockProvider panel state', () => {

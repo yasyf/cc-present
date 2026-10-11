@@ -35,7 +35,7 @@ function stopClick(e: MouseEvent) {
 }
 
 function stopSelectKeys(e: KeyboardEvent) {
-  if (e.key === 'Enter' || e.key === ' ') e.stopPropagation();
+  if ((e.key === 'Enter' || e.key === ' ') && !e.metaKey && !e.ctrlKey) e.stopPropagation();
 }
 
 function DetailInline({

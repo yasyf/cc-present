@@ -7,8 +7,6 @@ import { isPackBlock } from './schema';
 import type { Block } from './schema';
 import type { Feedback, PresentState, Reply } from './events';
 
-// A ThreadEntry is one block's conversation: its feedback (the human's notes) and
-// the agent's replies. locked marks a thread with no composer: closed, stale, or history.
 export interface ThreadEntry {
   blockId: string;
   type: string;
@@ -42,6 +40,17 @@ export function noteCopy(type: string): NoteCopy {
 export function ownsThread(block: Block, packInteractive: ReadonlySet<string>): boolean {
   if (isPackBlock(block)) return packInteractive.has(block.type);
   return block.type === 'approval' || block.type === 'choice';
+}
+
+export function threadTurns(
+  block: Block,
+  feedback: Record<string, Feedback[]>,
+  replies: Record<string, Reply[]>,
+  packInteractive: ReadonlySet<string>,
+): { feedback: Feedback[]; replies: Reply[] } {
+  const folded = block.type === 'card' ? block.children.filter((child) => !ownsThread(child, packInteractive)) : [];
+  const ids = [block, ...folded].map((b) => b.id);
+  return { feedback: ids.flatMap((id) => feedback[id] ?? []), replies: ids.flatMap((id) => replies[id] ?? []) };
 }
 
 interface Member {
@@ -93,27 +102,31 @@ export function threadFeed(
 
   const all: ThreadEntry[] = [];
   const seen = new Set<string>();
-  const admit = ({ block, top, owns }: Member, feedback: Feedback[], locked: boolean, isLive: boolean) => {
+  const admit = (
+    { block, top, owns }: Member,
+    feedback: Record<string, Feedback[]>,
+    locked: boolean,
+    isLive: boolean,
+  ) => {
     if ((!owns && block !== top) || seen.has(block.id)) return;
     seen.add(block.id);
-    const blockReplies = replies[block.id] ?? [];
+    const turns = threadTurns(block, feedback, replies, packInteractive);
     all.push({
       blockId: block.id,
       type: block.type,
       label: label(block),
-      feedback,
-      replies: blockReplies,
+      ...turns,
       locked,
       live: isLive,
-      lastComment: lastComment(feedback, blockReplies),
+      lastComment: lastComment(turns.feedback, turns.replies),
     });
   };
   for (const member of live) {
     const stale = topLevelRound(state, member.top.id) !== state.rounds.current;
-    admit(member, state.interactions.feedback[member.block.id] ?? [], closed || stale, true);
+    admit(member, state.interactions.feedback, closed || stale, !stale);
   }
   for (const { round, members: frozen } of past) {
-    for (const member of frozen) admit(member, round.feedback[member.block.id] ?? [], true, false);
+    for (const member of frozen) admit(member, round.feedback, true, false);
   }
 
   const holder = [...live, ...past.flatMap((p) => p.members)].find((m) => m.block.id === activeId);

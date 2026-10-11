@@ -1,5 +1,36 @@
-import { describe, expect, it } from 'vitest';
-import { inView } from './OptionStrip';
+// @vitest-environment jsdom
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { act, createRef } from 'react';
+import { createRoot } from 'react-dom/client';
+import type { Root } from 'react-dom/client';
+import { OptionStrip, inView } from './OptionStrip';
+
+(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+
+const observers: { callback: ResizeObserverCallback; observed: Element[] }[] = [];
+globalThis.ResizeObserver = class {
+  private observed: Element[] = [];
+  constructor(callback: ResizeObserverCallback) {
+    observers.push({ callback, observed: this.observed });
+  }
+  observe(el: Element) {
+    this.observed.push(el);
+  }
+  unobserve() {}
+  disconnect() {}
+} as unknown as typeof ResizeObserver;
+
+function resize(el: Element): void {
+  act(() => {
+    for (const { callback, observed } of observers) {
+      if (observed.includes(el)) callback([], {} as ResizeObserver);
+    }
+  });
+}
+
+function lay(el: Element, box: { offsetLeft?: number; offsetWidth?: number; clientWidth?: number }): void {
+  for (const [key, value] of Object.entries(box)) Object.defineProperty(el, key, { value, configurable: true });
+}
 
 describe('inView', () => {
   const cases: { name: string; left: number; width: number; scrollLeft: number; clientWidth: number; want: boolean }[] = [
@@ -18,4 +49,62 @@ describe('inView', () => {
       expect(inView(c.left, c.width, c.scrollLeft, c.clientWidth)).toBe(c.want);
     });
   }
+});
+
+describe('OptionStrip position dots', () => {
+  let container: HTMLDivElement;
+  let root: Root;
+
+  beforeEach(() => {
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
+  });
+  afterEach(() => {
+    act(() => root.unmount());
+    container.remove();
+    observers.length = 0;
+  });
+
+  const lit = (): boolean[] => [...container.querySelectorAll('.strip-dot')].map((dot) => dot.classList.contains('on'));
+
+  function mount(): { scroller: HTMLElement; cards: HTMLElement[] } {
+    act(() =>
+      root.render(
+        <OptionStrip strip role="radiogroup" cardCount={3} picked={new Set()} containerRef={createRef<HTMLDivElement>()}>
+          <div className="option" />
+          <div className="option" />
+          <div className="option" />
+        </OptionStrip>,
+      ),
+    );
+    const scroller = container.querySelector('.options') as HTMLElement;
+    return { scroller, cards: [...scroller.children] as HTMLElement[] };
+  }
+
+  it('lights the cards in view again when the scroller resizes', () => {
+    const { scroller, cards } = mount();
+    expect(lit()).toEqual([true, true, true]);
+
+    cards.forEach((card, i) => lay(card, { offsetLeft: i * 220, offsetWidth: 200 }));
+    lay(scroller, { clientWidth: 420 });
+    resize(scroller);
+    expect(lit()).toEqual([true, true, false]);
+
+    lay(scroller, { clientWidth: 200 });
+    resize(scroller);
+    expect(lit()).toEqual([true, false, false]);
+  });
+
+  it('lights the cards in view again when a card resizes', () => {
+    const { scroller, cards } = mount();
+    cards.forEach((card, i) => lay(card, { offsetLeft: i * 220, offsetWidth: 200 }));
+    lay(scroller, { clientWidth: 640 });
+    resize(cards[2]!);
+    expect(lit()).toEqual([true, true, true]);
+
+    lay(cards[2]!, { offsetLeft: 440, offsetWidth: 600 });
+    resize(cards[2]!);
+    expect(lit()).toEqual([true, true, false]);
+  });
 });

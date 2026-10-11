@@ -15,6 +15,7 @@ import { SubmitBar } from './SubmitBar';
 import * as focusMotion from './focusMotion';
 import { focusSteps } from '../focus';
 import { loadView, saveView } from '../viewmode';
+import { draftStore } from '../drafts';
 import { emptyState } from '../reduce';
 import { revisionStore } from '../revision';
 import type { Interactions, Verdict } from '../events';
@@ -119,6 +120,7 @@ afterEach(() => {
   container.remove();
   vi.useRealTimers();
   revisionStore.reset();
+  draftStore.reset();
 });
 
 type DeckProps = Parameters<typeof Deck>[0];
