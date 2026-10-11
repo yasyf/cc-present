@@ -12,11 +12,10 @@ export interface ExitCustom {
 // cardVariants animate the deck's AnimatePresence child. A card enters from the
 // peek's resting transform (so the next card appears to promote to the front) and
 // settles with a spring; it exits in the threaded direction — a full fly-off on a
-// verdict, a short slide on navigation. rotate/x on a swipeable card come from its
-// own drag motion values, so the variants never set them on enter/center.
+// verdict, a short slide on navigation.
 export const cardVariants: Variants = {
   enter: { opacity: 0, y: 10, scale: 0.96 },
-  center: { opacity: 1, y: 0, scale: 1, transition: { type: 'spring', stiffness: 360, damping: 30 } },
+  center: { opacity: 1, x: 0, y: 0, scale: 1, transition: { type: 'spring', stiffness: 360, damping: 30 } },
   exit: (c: ExitCustom) =>
     c.kind === 'verdict'
       ? { x: c.dir * 1.2 * window.innerWidth, opacity: 0, transition: { duration: 0.28, ease: 'easeOut' } }

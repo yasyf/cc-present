@@ -177,6 +177,20 @@ describe('FocusDeck navigation', () => {
     expect(currentPrompt()).toBe('Ship one');
   });
 
+  it(
+    'rests a card at its origin after it re-enters mid-exit',
+    async () => {
+      render({ blocks: three, interactions: empty() });
+      pressKey('j');
+      await act(() => new Promise((resolve) => setTimeout(resolve, 100)));
+      pressKey('k');
+      await act(() => new Promise((resolve) => setTimeout(resolve, 1000)));
+      expect(currentPrompt()).toBe('Ship one');
+      expect(container.querySelector<HTMLElement>('.focus-card:not([data-exiting])')!.style.transform).toBe('none');
+    },
+    15000,
+  );
+
   it('jumps to a step when its dot is tapped', () => {
     render({ blocks: three, interactions: empty() });
     act(() => (container.querySelectorAll('.focus-dot')[2] as HTMLButtonElement).click());
