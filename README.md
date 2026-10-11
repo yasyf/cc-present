@@ -99,13 +99,13 @@ A bespoke review UI takes a repo each. Blocks compose, so the document that rend
 
 ## Blocks
 
-The document is a flat list of typed blocks, and a `card` nests leaf blocks one level deep. The document-level Submit button emits `submit`:
+The document is a flat list of typed blocks, and a `card` nests leaf blocks one level deep. Every card and top-level block carries an Add note thread that emits `feedback.created`, and the document-level Submit button emits `submit`:
 
 | Block | Renders | A click emits |
 |---|---|---|
 | `section` | a header with optional prose | nothing |
 | `card` | a titled container with chips and a status, nesting leaf blocks | nothing |
-| `approval` | approve/reject controls, plus a feedback box when allowed | `decision.created`, `feedback.created` |
+| `approval` | approve/reject controls | `decision.created` |
 | `choice` | a single- or multi-select set of options | `choice.selected` |
 | `input` | a free-text field | `input.submitted` |
 | `markdown` | prose, optionally struck through | nothing |

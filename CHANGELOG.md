@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- The human can leave a note on any block. `POST /api/interactions` accepts a
+  `feedback.created` on every block in the current round, top-level or a
+  card's child, where it used to take only approvals, choices, and interactive
+  pack blocks. A note on a card is keyed to the card id in
+  `interactions.feedback`, and it freezes into the round's history with the
+  card.
 - `code` blocks read from a repository file. Set `src` and `lines`, and
   `start --doc`, `push`, and `update-block` fill `code`, `start`, `lang`, and a
   `sha` stamp on every push; the stamp gains `+wt` when the file differs from
@@ -69,6 +75,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `--replace`. A subagent shares its parent's session id, so its `--new` had
   closed the parent's live board. `--replace` is now the only way to close an
   open artifact from `start` or `show`.
+
+### Removed
+
+- The `allowFeedback` key on an `approval`. A verdict takes a note on every
+  approval, and a document that still sends the key fails with `unknown field
+  "allowFeedback"`. An open board whose stored document carries the key no
+  longer loads; restart it with `start --replace`.
 
 ### Fixed
 

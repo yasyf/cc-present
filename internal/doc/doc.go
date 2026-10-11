@@ -123,12 +123,11 @@ type Card struct {
 	Children []Block `json:"children"`
 }
 
-// Approval is an approve/reject control with optional free-text feedback.
+// Approval is an approve/reject control whose verdict may carry a note.
 type Approval struct {
 	base
-	Prompt        string  `json:"prompt,omitempty"`
-	AllowFeedback *bool   `json:"allowFeedback,omitempty"`
-	Detail        *Detail `json:"detail,omitempty"`
+	Prompt string  `json:"prompt,omitempty"`
+	Detail *Detail `json:"detail,omitempty"`
 }
 
 // Fact is one scannable key/value in an option's up-front cluster.

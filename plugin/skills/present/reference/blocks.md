@@ -111,7 +111,6 @@ A board with any decision unit opens in focus mode by default: one step at a tim
   "id": "opener-approval",
   "type": "approval",
   "prompt": "Approve this opener?",
-  "allowFeedback": true,
   "detail": {
     "pros": [ "Shortest opener of the round", "Doubles as the About text unchanged" ],
     "cons": [ "Tone risks reading as a gimmick" ],
@@ -120,7 +119,7 @@ A board with any decision unit opens in focus mode by default: one step at a tim
 }
 ```
 
-`allowFeedback` defaults to true; set `false` to forbid free-text feedback and verdict notes on this block. Optional `detail` carries the pros, cons, and why for the single approve/reject gate — same shape and drill-down as a choice option's `detail` (below).
+Optional `detail` carries the pros, cons, and why for the single approve/reject gate — same shape and drill-down as a choice option's `detail` (below).
 
 ### `choice` — pick from options
 

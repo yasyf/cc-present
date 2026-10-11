@@ -1,0 +1,80 @@
+{
+  "name": "feedback-on-card-freezes",
+  "events": [
+    {
+      "origin": "agent",
+      "type": "doc.replaced",
+      "seq": 1,
+      "payload": {
+        "schemaVersion": 1,
+        "type": "doc.replaced",
+        "revision": 1,
+        "doc": {
+          "version": 1,
+          "title": "T",
+          "blocks": [
+            {
+              "id": "c1",
+              "type": "card",
+              "children": [{ "id": "m1", "type": "markdown", "md": "child" }]
+            },
+            { "id": "m2", "type": "markdown", "md": "top" }
+          ]
+        }
+      }
+    },
+    { "origin": "human", "type": "feedback.created", "seq": 2, "payload": { "schemaVersion": 1, "type": "feedback.created", "id": "f1", "blockId": "c1", "text": "note on the card" } },
+    { "origin": "human", "type": "feedback.created", "seq": 3, "payload": { "schemaVersion": 1, "type": "feedback.created", "id": "f2", "blockId": "m1", "text": "note on the child" } },
+    { "origin": "human", "type": "feedback.created", "seq": 4, "payload": { "schemaVersion": 1, "type": "feedback.created", "id": "f3", "blockId": "m2", "text": "note on the top-level block" } },
+    { "origin": "human", "type": "submit", "seq": 5, "payload": { "schemaVersion": 1, "type": "submit", "revision": 1 } }
+  ],
+  "expected": {
+    "schemaVersion": 1,
+    "doc": {
+      "version": 1,
+      "title": "T",
+      "blocks": [
+        {
+          "id": "c1",
+          "type": "card",
+          "children": [{ "id": "m1", "type": "markdown", "md": "child" }]
+        },
+        { "id": "m2", "type": "markdown", "md": "top" }
+      ]
+    },
+    "interactions": {
+      "feedback": {
+        "c1": [{ "id": "f1", "text": "note on the card" }],
+        "m1": [{ "id": "f2", "text": "note on the child" }],
+        "m2": [{ "id": "f3", "text": "note on the top-level block" }]
+      },
+      "submitted": { "value": true, "revision": 1 }
+    },
+    "rounds": {
+      "current": 2,
+      "blockRounds": { "c1": 1, "m2": 1 },
+      "history": [
+        {
+          "number": 1,
+          "blocks": [
+            {
+              "id": "c1",
+              "type": "card",
+              "children": [{ "id": "m1", "type": "markdown", "md": "child" }]
+            },
+            { "id": "m2", "type": "markdown", "md": "top" }
+          ],
+          "decisions": {},
+          "choices": {},
+          "inputs": {},
+          "feedback": {
+            "c1": [{ "id": "f1", "text": "note on the card" }],
+            "m1": [{ "id": "f2", "text": "note on the child" }],
+            "m2": [{ "id": "f3", "text": "note on the top-level block" }]
+          },
+          "submittedRevision": 1
+        }
+      ]
+    }
+  }
+}

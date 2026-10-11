@@ -217,13 +217,14 @@ func (rs *restServer) handleInteractions(w http.ResponseWriter, r *http.Request)
 // validateInteraction checks one interaction against the reduced document and
 // returns the reducer payload to append. It rejects an unknown block, a block
 // whose type does not match the interaction, an out-of-set choice option, a
-// verdict outside the enum, feedback on an approval that forbids it, a
-// block-scoped interaction on a block from a round already closed, and a
-// submit naming a revision the log never produced (revision is the count of
-// doc.replaced events; 0 is a document never replaced). Submit is exempt from
-// the round guard: it is what closes a round, and its viewed ids narrow to
-// blocks the document still addresses. A pack.interaction validates its
-// payload against the block's declared interaction schema in reg.
+// verdict outside the enum, a block-scoped interaction on a block from a round
+// already closed, and a submit naming a revision the log never produced
+// (revision is the count of doc.replaced events; 0 is a document never
+// replaced). Feedback targets any addressable block, top-level or a card's
+// child. Submit is exempt from the round guard: it is what closes a round, and
+// its viewed ids narrow to blocks the document still addresses. A
+// pack.interaction validates its payload against the block's declared
+// interaction schema in reg.
 func validateInteraction(st *state.State, revision int, it *interaction, reg *packs.Registry) (json.RawMessage, error) {
 	switch it.Type {
 	case EventSubmit:
@@ -236,7 +237,7 @@ func validateInteraction(st *state.State, revision int, it *interaction, reg *pa
 		}
 		return mustJSON(p), nil
 	case EventDecisionCreated:
-		ap, topID, err := requireApproval(st, it.BlockID)
+		_, topID, err := requireApproval(st, it.BlockID)
 		if err != nil {
 			return nil, err
 		}
@@ -245,9 +246,6 @@ func validateInteraction(st *state.State, revision int, it *interaction, reg *pa
 		}
 		if !validVerdict[it.Verdict] {
 			return nil, fmt.Errorf("invalid verdict %q", it.Verdict)
-		}
-		if it.Note != "" && !allowsFeedback(ap) {
-			return nil, fmt.Errorf("block %q does not allow feedback", it.BlockID)
 		}
 		if len(it.Note) > maxHumanTextBytes {
 			return nil, fmt.Errorf("decision %q note exceeds %d bytes", it.BlockID, maxHumanTextBytes)
@@ -303,27 +301,12 @@ func validateInteraction(st *state.State, revision int, it *interaction, reg *pa
 		}
 		return mustJSON(p), nil
 	case EventFeedbackCreated:
-		b, topID, err := findBlock(st.Doc, it.BlockID)
+		_, topID, err := findBlock(st.Doc, it.BlockID)
 		if err != nil {
 			return nil, err
 		}
-		var ap *doc.Approval
-		switch target := b.(type) {
-		case *doc.Approval:
-			ap = target
-		case *doc.Choice:
-		case *doc.PackBlock:
-			if !reg.Interactive(target.Type) {
-				return nil, fmt.Errorf("pack block %q is a %s, which takes no feedback", it.BlockID, target.Type)
-			}
-		default:
-			return nil, fmt.Errorf("block %q is a %s, not an approval, choice, or interactive pack block", it.BlockID, b.BlockType())
-		}
 		if err := requireCurrentRound(st, it.BlockID, topID); err != nil {
 			return nil, err
-		}
-		if ap != nil && !allowsFeedback(ap) {
-			return nil, fmt.Errorf("block %q does not allow feedback", it.BlockID)
 		}
 		if visuallyEmpty(it.Text) {
 			return nil, fmt.Errorf("feedback requires text")
@@ -589,12 +572,6 @@ func pointingError(id string, loc doc.Location) error {
 		return fmt.Errorf("block %q is the visual of item %q on triage %q; address the triage", id, loc.ItemID, loc.TriageID)
 	}
 	return fmt.Errorf("block %q is the visual of option %q on choice %q; address the choice", id, loc.OptionID, loc.ChoiceID)
-}
-
-// allowsFeedback reports whether an approval permits free-text feedback;
-// allowFeedback defaults to true when unset.
-func allowsFeedback(ap *doc.Approval) bool {
-	return ap.AllowFeedback == nil || *ap.AllowFeedback
 }
 
 // allowsNotes reports whether a triage permits per-item notes; allowNotes

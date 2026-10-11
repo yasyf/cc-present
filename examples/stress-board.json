@@ -164,7 +164,6 @@
           "id": "degradation-approval",
           "type": "approval",
           "prompt": "Approve a customer-visible degraded mode for overload events?",
-          "allowFeedback": true,
           "detail": {
             "md": "Approval permits the API to return an explicit degraded response instead of accepting work it cannot deliver inside the SLO."
           }
@@ -261,7 +260,6 @@
       "id": "architecture-approval",
       "type": "approval",
       "prompt": "Approve the selected Northstar architecture as the production implementation brief?",
-      "allowFeedback": true,
       "detail": {
         "pros": [ "Thirteen explicit decisions with visible tradeoffs", "Launch scope and degraded behavior are reviewable" ],
         "cons": [ "Capacity numbers still require load-test confirmation" ],
