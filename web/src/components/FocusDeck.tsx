@@ -154,6 +154,10 @@ export function FocusDeck({ steps, interactions, round, closed, onEndChange }: F
     setExitCustom({ dir: 1, kind: 'nav' });
     go(list.length);
   }, [go]);
+  const end = useCallback(() => {
+    setExitCustom({ dir: 1, kind: 'nav' });
+    go(stepsRef.current.length);
+  }, [go]);
 
   // Stray input retracts an armed advance; a pick (.verdict/.option — its re-decide
   // re-arms below) or anything in a live composer ([data-composing]) is exempt.
@@ -174,9 +178,9 @@ export function FocusDeck({ steps, interactions, round, closed, onEndChange }: F
   }, [wantId, currentId, index]);
 
   useEffect(() => {
-    api.registerStepNav({ move, next, jump });
+    api.registerStepNav({ move, next, jump, end });
     return () => api.registerStepNav(null);
-  }, [api, move, next, jump]);
+  }, [api, move, next, jump, end]);
 
   const primaryId = currentStep?.primary?.id ?? null;
   useEffect(() => {
@@ -204,9 +208,16 @@ export function FocusDeck({ steps, interactions, round, closed, onEndChange }: F
       timerRef.current = null;
       setAdvancing(false);
     }
+    // A composer holds the advance whether it lives inline in the card or out
+    // in the margin rail / comments sheet (rail mode routes `f` there).
+    const composerOpen = () =>
+      Boolean(
+        deckRef.current?.querySelector('.focus-card:not([data-exiting]) [data-composing]') ||
+          document.querySelector('.margin-rail [data-composing], dialog [data-composing]'),
+      );
     // Arm 450ms after the signature changes on this lone current decidable — never
     // on arrival, revisit, or echo. The fly-off sign is read when the timer fires.
-    if (advancer && decided && revised && !timerRef.current) {
+    if (advancer && decided && revised && !timerRef.current && !composerOpen()) {
       const advancerId = advancer.id;
       const isApproval = advancer.type === 'approval';
       setAdvancing(true);
@@ -216,13 +227,7 @@ export function FocusDeck({ steps, interactions, round, closed, onEndChange }: F
         id: setTimeout(() => {
           timerRef.current = null;
           setAdvancing(false);
-          // A composer holds the advance whether it lives inline in the card or out
-          // in the margin rail / comments sheet (rail mode routes `f` there).
-          if (
-            deckRef.current?.querySelector('.focus-card:not([data-exiting]) [data-composing]') ||
-            document.querySelector('.margin-rail [data-composing], dialog [data-composing]')
-          )
-            return;
+          if (composerOpen()) return;
           const dir: 1 | -1 =
             isApproval && interactionsRef.current.decisions[advancerId]?.verdict === 'rejected' ? -1 : 1;
           setExitCustom({ dir, kind: 'verdict' });

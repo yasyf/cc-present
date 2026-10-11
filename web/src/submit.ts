@@ -1,9 +1,24 @@
 // Pure derivations for the SubmitBar's armed confirm.
 
-// undecidedKey folds an unordered set of undecided approval ids into a stable
-// string so the armed confirm can key on the exact set, not just its count. A
-// same-round block swap that preserves the count still changes the set, so the
-// key changes and the stale "Submit anyway?" derives false.
+import type { SubmitItem } from './decide';
+
+// undecidedKey folds a set of undecided item ids into a stable string, so the
+// armed confirm keys on the exact set: a same-count block swap still changes it.
 export function undecidedKey(ids: readonly string[]): string {
   return [...ids].sort().join('\n');
+}
+
+const SUMMARY_NOUNS: readonly [kind: SubmitItem['kind'], one: string, many: string][] = [
+  ['approval', 'approval', 'approvals'],
+  ['choice', 'choice', 'choices'],
+  ['triage', 'triage list', 'triage lists'],
+  ['pack', 'block', 'blocks'],
+];
+
+export function unansweredSummary(items: readonly SubmitItem[]): string {
+  const counts = SUMMARY_NOUNS.flatMap(([kind, one, many]) => {
+    const count = items.filter((i) => i.kind === kind && !i.decided).length;
+    return count === 0 ? [] : [`${count} ${count === 1 ? one : many}`];
+  });
+  return `${counts.join(', ')} unanswered`;
 }

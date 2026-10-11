@@ -102,6 +102,14 @@ describe('keyboard global-shortcut gate behind a modal dialog', () => {
     expect(document.querySelectorAll('dialog[open]').length).toBe(1);
   });
 
+  it('opens help on ? and closes it on a second ?', () => {
+    render(() => {}, false, () => {});
+    press('?');
+    expect(document.querySelector('dialog.help-dialog[open]')).not.toBeNull();
+    press('?');
+    expect(document.querySelector('dialog[open]')).toBeNull();
+  });
+
   it('lets Escape through to close the dialog, then restores shortcuts', () => {
     const toggle = vi.fn();
     const onClose = vi.fn();

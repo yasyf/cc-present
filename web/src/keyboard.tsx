@@ -40,6 +40,7 @@ export interface StepNav {
   move: (delta: 1 | -1) => void;
   next: () => void;
   jump: (id: string) => void;
+  end: () => void;
 }
 
 export interface KeyboardApi {
@@ -275,11 +276,11 @@ export function KeyboardProvider({ blocks, interactions, closed, round, onViewTo
       const typing = isTypingTarget(e.target);
       const action = interpretKey(descriptorOf(e), typing, closedRef.current);
       if (!action) return;
-      // Any open modal dialog (help, an image lightbox) owns the page: global
-      // shortcuts stay suppressed behind it, and Esc rides the dialog's native
-      // cancel back to state.
-      const dialogOpen = document.querySelector('dialog[open]') !== null;
-      if (dialogOpen && action.kind !== 'escape') return;
+      // An open modal dialog (help, an image lightbox) owns the page: shortcuts stay
+      // suppressed behind it, Esc rides its native cancel, and `?` closes help.
+      const dialog = document.querySelector('dialog[open]');
+      const closingHelp = action.kind === 'help-toggle' && dialog?.classList.contains('help-dialog');
+      if (dialog && action.kind !== 'escape' && !closingHelp) return;
 
       const handle = cursorRef.current ? registry.get(cursorRef.current) : undefined;
       switch (action.kind) {
@@ -316,16 +317,18 @@ export function KeyboardProvider({ blocks, interactions, closed, round, onViewTo
             handle.specRef.current.engage();
           }
           break;
-        case 'submit':
-          if (submitFnRef.current) {
+        case 'submit': {
+          const run = submitFnRef.current ?? stepNavRef.current?.end;
+          if (run) {
             e.preventDefault();
             // A focused input commits only on blur; blur it first so its draft
             // posts before submit, mirroring the mouse path when focus leaves.
             const active = document.activeElement;
             if (active instanceof HTMLElement && isTypingTarget(active)) active.blur();
-            submitFnRef.current();
+            run();
           }
           break;
+        }
         case 'view-toggle':
           e.preventDefault();
           viewToggleRef.current?.();
@@ -349,7 +352,7 @@ export function KeyboardProvider({ blocks, interactions, closed, round, onViewTo
           if (typing && e.target instanceof HTMLElement) {
             e.preventDefault();
             e.target.blur();
-          } else if (!dialogOpen && escapeFnRef.current?.()) {
+          } else if (!dialog && escapeFnRef.current?.()) {
             e.preventDefault();
           }
           break;

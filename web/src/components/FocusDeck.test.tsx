@@ -135,8 +135,8 @@ function clickNext(): void {
 function clickDot(i: number): void {
   act(() => (container.querySelectorAll('.focus-dot')[i] as HTMLButtonElement).click());
 }
-function pressKey(key: string): void {
-  act(() => document.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true })));
+function pressKey(key: string, modifiers: KeyboardEventInit = {}): void {
+  act(() => document.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, ...modifiers })));
 }
 
 describe('FocusDeck navigation', () => {
@@ -190,6 +190,13 @@ describe('FocusDeck navigation', () => {
     expect(container.querySelector('.focus-step-count')?.textContent).toBe('Review');
     expect(container.querySelector('.focus-summary-head')?.textContent).toBe('Review');
     expect(container.querySelector('.focus-receipt-title')?.textContent).toBe('Ship one');
+  });
+
+  it('jumps to the review summary on mod+Enter from an early step', () => {
+    render({ blocks: three, interactions: empty() });
+    pressKey('Enter', { metaKey: true });
+    expect(container.querySelector('.focus-card:not([data-exiting])')).toBeNull();
+    expect(container.querySelector('.focus-summary-head')?.textContent).toBe('Review');
   });
 });
 
@@ -269,6 +276,20 @@ describe('FocusDeck auto-advance', () => {
     );
     expect(container.querySelector('[data-composing]')).not.toBeNull();
     render({ blocks: three, interactions: withVerdict('a1', 'approved') });
+    act(() => vi.advanceTimersByTime(AUTO_ADVANCE_MS));
+    expect(currentPrompt()).toBe('Ship one');
+  });
+
+  it('does not arm while a composer is open', () => {
+    vi.useFakeTimers();
+    render({ blocks: three, interactions: empty() });
+    act(() =>
+      (
+        container.querySelector('.focus-card:not([data-exiting]) .feedback-affordance .link-btn') as HTMLButtonElement
+      ).click(),
+    );
+    render({ blocks: three, interactions: withVerdict('a1', 'approved') });
+    expect(container.querySelector('.wizard-bar .btn-primary.advancing')).toBeNull();
     act(() => vi.advanceTimersByTime(AUTO_ADVANCE_MS));
     expect(currentPrompt()).toBe('Ship one');
   });
@@ -459,6 +480,16 @@ describe('FocusDeck choice auto-advance', () => {
     expect(currentPrompt()).toBe('Pick one');
     act(() => vi.advanceTimersByTime(300));
     expect(currentPrompt()).toBe('Ship two');
+  });
+
+  it('does not arm on a write-in that posts while its field holds focus', () => {
+    vi.useFakeTimers();
+    render({ blocks: twoStep, interactions: empty() });
+    act(() => (liveCard().querySelector('textarea.option-other-input') as HTMLTextAreaElement).focus());
+    render({ blocks: twoStep, interactions: withChoice('c1', [], 'foo') });
+    expect(advancing()).toBeNull();
+    act(() => vi.advanceTimersByTime(AUTO_ADVANCE_MS));
+    expect(currentPrompt()).toBe('Pick one');
   });
 
   it('a feedback thread neither arms nor cancels the choice cue', () => {

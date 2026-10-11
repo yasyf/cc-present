@@ -170,6 +170,14 @@ describe('SubmitBar submit payload', () => {
     act(() => (container.querySelector('.submit-btn') as HTMLButtonElement).click());
     expect(posted).toEqual([{ type: 'submit', revision: 0, viewed: ['a1', 'm1'] }]);
   });
+
+  it('reads Submitting… while the post awaits its echo', () => {
+    render({ blocks: [approval('a1')], interactions: withState({ decisions: decisions({ a1: 'approved' }) }) });
+    const btn = () => container.querySelector('.submit-btn') as HTMLButtonElement;
+    act(() => btn().click());
+    expect(btn().textContent).toBe('Submitting…');
+    expect(btn().disabled).toBe(true);
+  });
 });
 
 describe('SubmitBar armed confirm', () => {
@@ -180,8 +188,42 @@ describe('SubmitBar armed confirm', () => {
     expect(btn().textContent).toBe('Submit');
     act(() => btn().click());
     expect(btn().textContent).toBe('Submit anyway?');
-    expect(container.querySelector('.submit-warn')?.textContent).toBe('1 approval still undecided');
+    expect(container.querySelector('.submit-warn')?.textContent).toBe('1 approval unanswered');
     act(() => (container.querySelector('.submit-actions .btn-ghost') as HTMLButtonElement).click());
+    expect(btn().textContent).toBe('Submit');
+    expect(container.querySelector('.submit-warn')).toBeNull();
+  });
+
+  it('arms on a board whose only unanswered item is a choice', () => {
+    const posted: Interaction[] = [];
+    const post = async (interaction: Interaction) => {
+      posted.push(interaction);
+      return true;
+    };
+    render({ blocks: [choice('c1')], interactions: empty(), post });
+    const btn = () => container.querySelector('.submit-btn') as HTMLButtonElement;
+    act(() => btn().click());
+    expect(btn().textContent).toBe('Submit anyway?');
+    expect(container.querySelector('.submit-warn')?.textContent).toBe('1 choice unanswered');
+    expect(posted).toEqual([]);
+  });
+
+  it('names every unanswered kind in the warning', () => {
+    const blocks = [approval('a1'), choice('c1'), approval('a2'), approval('a3')];
+    render({ blocks, interactions: withState({ decisions: decisions({ a3: 'approved' }) }) });
+    act(() => (container.querySelector('.submit-btn') as HTMLButtonElement).click());
+    expect(container.querySelector('.submit-warn')?.textContent).toBe('2 approvals, 1 choice unanswered');
+  });
+
+  it('jumps to the first unanswered item from Go to first and disarms', () => {
+    const blocks = [approval('a1'), choice('c1'), approval('a2')];
+    render({ blocks, interactions: withState({ decisions: decisions({ a1: 'approved' }) }) });
+    const btn = () => container.querySelector('.submit-btn') as HTMLButtonElement;
+    act(() => btn().click());
+    const ghosts = [...container.querySelectorAll('.submit-actions .btn-ghost')] as HTMLButtonElement[];
+    expect(ghosts.map((b) => b.textContent)).toEqual(['Cancel', 'Go to first']);
+    act(() => ghosts[1]!.click());
+    expect(container.querySelector('.sr-only[role="status"]')?.textContent).toBe('Item 2 of 3');
     expect(btn().textContent).toBe('Submit');
     expect(container.querySelector('.submit-warn')).toBeNull();
   });
