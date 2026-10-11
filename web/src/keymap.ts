@@ -41,6 +41,7 @@ export const KEYMAP: KeymapRow[] = [
   { section: 'Decide', keys: ['c'], context: 'On an approval or triage item', action: 'Clear the verdict' },
   { section: 'Decide', keys: ['1', '…', '9'], context: 'On a choice or triage', action: 'Toggle option / jump to item 1–9' },
   { section: 'Respond', keys: ['f'], context: 'On an approval, triage item, draft, or field', action: 'Add feedback or a note / focus the field' },
+  { section: 'Respond', keys: ['f'], context: 'On a focus step with nothing to answer', action: 'Add a note on the step' },
   { section: 'Respond', keys: ['⌘/Ctrl', '⏎'], context: 'Anywhere', action: 'Submit the round (confirm when items are undecided); while writing feedback, sends the note instead' },
   { section: 'View', keys: ['v'], context: 'Anywhere', action: 'Toggle focus / board view' },
   { section: 'View', keys: ['e'], context: 'Anywhere', action: 'Expand / collapse all clamped content' },

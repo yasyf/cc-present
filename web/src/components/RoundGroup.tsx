@@ -92,7 +92,7 @@ export function RoundGroup({ record, interactions }: { record: RoundRecord; inte
     <CollapsedGroup key={target ? reveal.epoch : 0} defaultExpanded={!!target} readOnly header={header}>
       {record.blocks.map((b) => (
         <div key={b.id} className="round-block" data-block-id={b.id} ref={b === target ? scrollToRevealed : undefined}>
-          <BlockRenderer block={b} interactions={frozen} />
+          <BlockRenderer block={b} interactions={frozen} note />
         </div>
       ))}
     </CollapsedGroup>

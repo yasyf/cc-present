@@ -32,7 +32,7 @@ const blocks: Approval[] = [
 
 const entry = (blockId: string, live: boolean): ThreadEntry => ({
   blockId,
-  kind: 'approval',
+  type: 'approval',
   label: blockId,
   feedback: [],
   replies: [],
@@ -52,6 +52,14 @@ function Probe() {
       <div data-testid="reveal">{reveal ? `${reveal.blockId}@${reveal.epoch}` : 'none'}</div>
       <button data-testid="jump-live" onClick={() => jump(entry('a2', true))} />
       <button data-testid="jump-history" onClick={() => jump(entry('h1', false))} />
+      <button data-testid="jump-card" onClick={() => jump(entry('k1', true))} />
+      <button
+        data-testid="jump-card-onto-a3"
+        onClick={() => {
+          jump(entry('k1', true));
+          kbd.setCursor('a3');
+        }}
+      />
       <div data-testid="panel-open">{String(panelOpen)}</div>
       <div data-testid="pinned-open">{String(pinnedOpen)}</div>
       <button data-testid="post-a1" onClick={() => void post({ type: 'decision.created', blockId: 'a1', verdict: 'approved' })} />
@@ -165,12 +173,30 @@ describe('ActiveBlockProvider jump', () => {
     expect(reveal()).toBe('none');
   });
 
-  it('reveals a history entry under a fresh epoch each time', () => {
+  it('pins a history entry and reveals it under a fresh epoch each time', () => {
     render();
     click('jump-history');
     expect(reveal()).toBe('h1@1');
     click('jump-history');
     expect(reveal()).toBe('h1@2');
-    expect(active()).toBe('none');
+    expect(active()).toBe('h1');
+  });
+
+  it('keeps the pin of a jump whose target the cursor cannot reach', () => {
+    render();
+    click('cursor-a2');
+    click('jump-card');
+    expect(active()).toBe('k1');
+    click('cursor-a3');
+    expect(active()).toBe('a3');
+  });
+
+  it('keeps the pin when the jump lands with a cursor move', () => {
+    render();
+    click('cursor-a2');
+    click('jump-card-onto-a3');
+    expect(active()).toBe('k1');
+    click('cursor-a2');
+    expect(active()).toBe('a2');
   });
 });

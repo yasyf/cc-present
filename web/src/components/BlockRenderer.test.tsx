@@ -8,8 +8,9 @@ import type { PresentApi } from '../present';
 import { KeyboardProvider } from '../keyboard';
 import { BlockRenderer } from './BlockRenderer';
 import { emptyState } from '../reduce';
+import { markPacksLoaded, registerPack, resetPacksForTest } from '../packs/registry';
 import type { Interactions, Reply } from '../events';
-import type { Approval, Block, Input, Markdown } from '../schema';
+import type { Approval, Block, Input, Markdown, PackBlock } from '../schema';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -34,13 +35,13 @@ function api(over: Partial<PresentApi> = {}): PresentApi {
   return { post: async () => true, closed: false, currentRound: 1, ...over };
 }
 
-function Board({ blocks, interactions }: { blocks: Block[]; interactions: Interactions }) {
+function Board({ blocks, interactions, note }: { blocks: Block[]; interactions: Interactions; note?: boolean }) {
   const present = api();
   return (
     <PresentContext.Provider value={present}>
       <KeyboardProvider blocks={blocks} interactions={interactions} closed={present.closed} round={present.currentRound}>
         {blocks.map((b) => (
-          <BlockRenderer key={b.id} block={b} interactions={interactions} />
+          <BlockRenderer key={b.id} block={b} interactions={interactions} note={note} />
         ))}
       </KeyboardProvider>
     </PresentContext.Provider>
@@ -59,10 +60,11 @@ beforeEach(() => {
 afterEach(() => {
   act(() => root.unmount());
   container.remove();
+  resetPacksForTest();
 });
 
-function render(blocks: Block[], interactions: Interactions): void {
-  act(() => root.render(<Board blocks={blocks} interactions={interactions} />));
+function render(blocks: Block[], interactions: Interactions, note?: boolean): void {
+  act(() => root.render(<Board blocks={blocks} interactions={interactions} note={note} />));
 }
 
 describe('BlockRenderer reply threading', () => {
@@ -97,6 +99,26 @@ describe('BlockRenderer reply threading', () => {
     expect(container.textContent).toContain('agent reply');
   });
 
+  it('renders exactly one thread for an interactive pack block with replies', () => {
+    registerPack(
+      {
+        name: 'ex',
+        version: '0',
+        description: '',
+        bundle: '/packs/ex/dist/pack.js',
+        blocks: [{ type: 'ex.fork', interactive: true, optional: false, schema: {} }],
+      },
+      { fork: () => <span>fork-body</span> },
+    );
+    markPacksLoaded();
+    const fork = { id: 'k1', type: 'ex.fork' } as PackBlock;
+    render([fork], withReplies({ k1: [{ id: 'r1', md: 'agent reply' }] }));
+
+    expect(container.textContent).toContain('fork-body');
+    expect(container.querySelectorAll('.thread')).toHaveLength(1);
+    expect(container.querySelectorAll('.reply-item')).toHaveLength(1);
+  });
+
   it('threads replies after an input block, following its label', () => {
     render([inputBlock('i1', 'Your name')], withReplies({ i1: [{ id: 'r1', md: 'agent note' }] }));
 
@@ -108,5 +130,27 @@ describe('BlockRenderer reply threading', () => {
     expect(container.textContent).toContain('agent note');
     const following = label!.compareDocumentPosition(thread!) & Node.DOCUMENT_POSITION_FOLLOWING;
     expect(following).toBeTruthy();
+  });
+});
+
+describe('BlockRenderer note channel', () => {
+  it('renders no note control unless the caller asks for one', () => {
+    render([markdownBlock('m1', 'hi')], emptyState().interactions);
+    expect(container.querySelector('.feedback-affordance')).toBeNull();
+  });
+
+  it('places the note control between the block and its replies', () => {
+    render([markdownBlock('m1', 'hi')], withReplies({ m1: [{ id: 'r1', md: 'agent reply' }] }), true);
+    const body = container.querySelector('.markdown-block')!;
+    const note = container.querySelector('.feedback-affordance')!;
+    const reply = container.querySelector('.reply-item')!;
+    expect(note.querySelector('.link-btn')!.textContent).toBe('Add note');
+    expect(body.compareDocumentPosition(note) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(note.compareDocumentPosition(reply) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('adds no second note control to a block that owns its thread', () => {
+    render([approvalBlock('a1')], emptyState().interactions, true);
+    expect(container.querySelectorAll('.feedback-affordance')).toHaveLength(1);
   });
 });

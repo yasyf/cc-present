@@ -66,13 +66,14 @@ export function useActiveBlock(): ActiveBlockApi {
 
 export function useJump(): (entry: ThreadEntry) => void {
   const kbd = useKeyboardApi();
-  const { revealBlock } = useActiveBlock();
+  const { pin, revealBlock } = useActiveBlock();
   return useCallback(
     (entry: ThreadEntry) => {
+      pin(entry.blockId);
       if (entry.live) kbd.jumpTo(entry.blockId);
       else revealBlock(entry.blockId);
     },
-    [kbd, revealBlock],
+    [kbd, pin, revealBlock],
   );
 }
 
@@ -81,22 +82,23 @@ export function ActiveBlockProvider({ children }: { children: ReactNode }) {
   const cursor = useCursor();
 
   const [lastInteracted, setLastInteracted] = useState<string | null>(null);
-  const [pinnedId, setPinnedId] = useState<string | null>(null);
+  const [pinned, setPinned] = useState<{ id: string } | null>(null);
   const [panel, setPanel] = useState<{ open: boolean; compose: boolean }>({ open: false, compose: false });
   const [pinnedOpen, setPinnedOpen] = useState(false);
   const [composeEpoch, setComposeEpoch] = useState(0);
   const [composing, setComposing] = useState(false);
   const [reveal, setReveal] = useState<Reveal | null>(null);
 
-  // A real cursor move supersedes an explicit pin, so the rail follows j/k
-  // navigation once the human leaves the block they clicked a chip on.
-  const prevCursor = useRef(cursor);
+  // A real cursor move supersedes an explicit pin, so the rail follows j/k once the
+  // human leaves the block they pinned. A pin landing with the move is a jump, so it holds.
+  const committed = useRef({ cursor, pinned });
   useEffect(() => {
-    if (cursor !== null && cursor !== prevCursor.current) setPinnedId(null);
-    prevCursor.current = cursor;
-  }, [cursor]);
+    const moved = cursor !== null && cursor !== committed.current.cursor;
+    if (moved && pinned !== null && pinned === committed.current.pinned) setPinned(null);
+    committed.current = { cursor, pinned };
+  }, [cursor, pinned]);
 
-  const raw = pinnedId ?? cursor ?? lastInteracted;
+  const raw = pinned?.id ?? cursor ?? lastInteracted;
   const frozenRef = useRef(raw);
   useEffect(() => {
     if (!composing) frozenRef.current = raw;
@@ -113,7 +115,7 @@ export function ActiveBlockProvider({ children }: { children: ReactNode }) {
   const api = useMemo<PresentApi>(() => ({ ...parent, post }), [parent, post]);
 
   const pin = useCallback((id: string) => {
-    setPinnedId(id);
+    setPinned({ id });
     setPanel({ open: true, compose: false });
   }, []);
   const openPanel = useCallback(() => setPanel({ open: true, compose: false }), []);

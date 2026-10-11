@@ -270,6 +270,11 @@
   border-left: none;
   padding-inline: 0;
 }
+.focus-card-body > .comment-chip-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 0;
+}
 /* Rotated swipe affordances — the stamp aesthetic, revealed as the card is dragged
    (opacity is driven inline by the drag position). */
 .swipe-label {

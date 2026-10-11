@@ -49,7 +49,7 @@ function BoardRow({ block, interactions, decided }: { block: Block; interactions
       data-flip-key={block.id}
       data-decided={decided || undefined}
     >
-      <BlockRenderer block={block} interactions={interactions} />
+      <BlockRenderer block={block} interactions={interactions} note />
     </div>
   );
 }

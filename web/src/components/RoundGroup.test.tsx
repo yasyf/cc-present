@@ -8,6 +8,7 @@ import type { PresentApi } from '../present';
 import { KeyboardProvider } from '../keyboard';
 import { ActiveBlockProvider, useActiveBlock } from '../activeBlock';
 import { RoundGroup } from './RoundGroup';
+import { ThreadHostContext } from './threadHost';
 import { emptyState } from '../reduce';
 import type { Interactions, RoundRecord, Selection } from '../events';
 
@@ -109,5 +110,41 @@ describe('RoundGroup reveal', () => {
     const revealed = container.querySelector('.round-block[data-block-id="k1"]')!;
     expect(revealed.querySelector('.approval')).not.toBeNull();
     expect(revealed.scrollIntoView).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('RoundGroup notes', () => {
+  it('shows a chip only on the frozen block that carries notes', () => {
+    Element.prototype.scrollIntoView = vi.fn();
+    const noted: RoundRecord = {
+      ...record({ optionIds: [] }),
+      blocks: [
+        { id: 'k1', type: 'card', children: [{ id: 'a1', type: 'approval' }] },
+        { id: 'k2', type: 'card', children: [{ id: 'a2', type: 'approval' }] },
+      ],
+      feedback: { k1: [{ id: 'f1', text: 'tighten this' }] },
+    };
+    const present: PresentApi = { post: async () => true, closed: false, currentRound: 2 };
+    act(() =>
+      root.render(
+        <PresentContext.Provider value={present}>
+          <ThreadHostContext.Provider value="rail">
+            <KeyboardProvider blocks={[]} interactions={empty()} closed={false} round={2}>
+              <ActiveBlockProvider>
+                <RoundGroup record={noted} interactions={empty()} />
+                <RevealButton blockId="k1" />
+              </ActiveBlockProvider>
+            </KeyboardProvider>
+          </ThreadHostContext.Provider>
+        </PresentContext.Provider>,
+      ),
+    );
+    act(() => (container.querySelector('[data-testid="reveal"]') as HTMLButtonElement).click());
+
+    const chips = [...container.querySelectorAll('.comment-chip')];
+    expect(chips.map((chip) => chip.textContent)).toEqual(['1 comment']);
+    expect(chips[0]!.closest('.comment-chip-row')!.parentElement).toBe(
+      container.querySelector('.round-block[data-block-id="k1"]'),
+    );
   });
 });

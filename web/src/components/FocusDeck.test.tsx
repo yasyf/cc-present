@@ -7,7 +7,10 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { PresentContext } from '../present';
 import type { PresentApi } from '../present';
 import { KeyboardProvider } from '../keyboard';
+import { ActiveBlockProvider, useActiveBlock, useJump } from '../activeBlock';
+import type { ThreadEntry } from '../threadFeed';
 import { FocusDeck } from './FocusDeck';
+import { ThreadHostContext } from './threadHost';
 import { SubmitBar } from './SubmitBar';
 import * as focusMotion from './focusMotion';
 import { focusSteps } from '../focus';
@@ -15,7 +18,7 @@ import { loadView, saveView } from '../viewmode';
 import { emptyState } from '../reduce';
 import { revisionStore } from '../revision';
 import type { Interactions, Verdict } from '../events';
-import type { Approval, Block, Choice, Doc } from '../schema';
+import type { Approval, Block, Card, ChildBlock, Choice, Doc, Markdown } from '../schema';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -197,6 +200,81 @@ describe('FocusDeck navigation', () => {
     pressKey('Enter', { metaKey: true });
     expect(container.querySelector('.focus-card:not([data-exiting])')).toBeNull();
     expect(container.querySelector('.focus-summary-head')?.textContent).toBe('Review');
+  });
+});
+
+describe('FocusDeck step notes', () => {
+  const markdown = (id: string): Markdown => ({ id, type: 'markdown', md: id });
+  const card = (id: string, title: string, children: ChildBlock[]): Card => ({ id, type: 'card', title, children });
+  const entry = (blockId: string): ThreadEntry => ({
+    blockId,
+    type: 'card',
+    label: blockId,
+    feedback: [],
+    replies: [],
+    locked: false,
+    live: true,
+    lastComment: null,
+  });
+
+  function RailProbe({ target }: { target: string }) {
+    const { activeId, composeEpoch } = useActiveBlock();
+    const jump = useJump();
+    return (
+      <>
+        <div data-testid="active">{activeId ?? 'none'}</div>
+        <div data-testid="compose-epoch">{composeEpoch}</div>
+        <button data-testid="jump" onClick={() => jump(entry(target))} />
+      </>
+    );
+  }
+
+  function renderRail(blocks: Block[], target: string): void {
+    const interactions = empty();
+    const present: PresentApi = { post: async () => true, closed: false, currentRound: 1 };
+    act(() =>
+      root.render(
+        <PresentContext.Provider value={present}>
+          <ThreadHostContext.Provider value="rail">
+            <KeyboardProvider blocks={blocks} interactions={interactions} closed={false} round={1}>
+              <ActiveBlockProvider>
+                <FocusDeck steps={focusSteps(blocks, new Set())} interactions={interactions} round={1} closed={false} />
+                <RailProbe target={target} />
+              </ActiveBlockProvider>
+            </KeyboardProvider>
+          </ThreadHostContext.Provider>
+        </PresentContext.Provider>,
+      ),
+    );
+  }
+
+  const probe = (id: string): string | null => container.querySelector(`[data-testid="${id}"]`)!.textContent;
+  const jump = (): void => act(() => (container.querySelector('[data-testid="jump"]') as HTMLButtonElement).click());
+
+  it('opens the step note on f when the step has nothing of its own to engage', () => {
+    renderRail([markdown('m1'), markdown('m2')], 'm2');
+    expect(probe('active')).toBe('none');
+    pressKey('f');
+    expect(probe('active')).toBe('m2');
+    expect(probe('compose-epoch')).toBe('1');
+  });
+
+  it('lands a jump to a lead-in block on the step that shows it', () => {
+    renderRail([approval('a1', 'Ship one'), markdown('m1'), markdown('m2')], 'm1');
+    jump();
+    expect(container.querySelector('.focus-card:not([data-exiting]) .focus-context')).not.toBeNull();
+    expect(probe('active')).toBe('m1');
+  });
+
+  it('keeps a card thread pinned through the jump that moves the cursor onto its step', () => {
+    renderRail([approval('a1', 'Ship one'), card('k1', 'Rollout', [approval('a2', 'Ship two')])], 'k1');
+    expect(probe('active')).toBe('a1');
+    jump();
+    expect(currentPrompt()).toBe('Ship two');
+    expect(probe('active')).toBe('k1');
+    pressKey('k');
+    expect(currentPrompt()).toBe('Ship one');
+    expect(probe('active')).toBe('a1');
   });
 });
 

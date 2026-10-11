@@ -69,8 +69,6 @@ export interface Approval {
   id: string;
   type: 'approval';
   prompt?: string;
-  // Defaults to true when omitted; the default is applied at render time.
-  allowFeedback?: boolean;
   // Drill-down tradeoffs and rationale behind a "Details" affordance.
   detail?: Detail;
 }

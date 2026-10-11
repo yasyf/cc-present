@@ -46,7 +46,7 @@ afterEach(() => {
 
 const entry = (blockId: string): ThreadEntry => ({
   blockId,
-  kind: 'approval',
+  type: 'approval',
   label: blockId,
   feedback: [],
   replies: [{ id: `r-${blockId}`, md: 'ok' }],

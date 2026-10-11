@@ -47,6 +47,7 @@ export interface KeyboardApi {
   register: (handle: DecidableHandle) => void;
   unregister: (handle: DecidableHandle) => void;
   registerSubmit: (fn: (() => void) | null) => void;
+  registerNote: (fn: (() => void) | null) => void;
   registerEscape: (fn: (() => boolean) | null) => void;
   registerStepNav: (nav: StepNav | null) => void;
   setCursor: (id: string | null) => void;
@@ -155,6 +156,7 @@ export function KeyboardProvider({ blocks, interactions, closed, round, onViewTo
   const [liveMsg, setLiveMsg] = useState('');
   const registry = useRef(new Map<string, DecidableHandle>()).current;
   const submitFnRef = useRef<(() => void) | null>(null);
+  const noteFnRef = useRef<(() => void) | null>(null);
   const escapeFnRef = useRef<(() => boolean) | null>(null);
   const stepNavRef = useRef<StepNav | null>(null);
   const viewToggleRef = useRef(onViewToggle);
@@ -195,6 +197,9 @@ export function KeyboardProvider({ blocks, interactions, closed, round, onViewTo
   const registerSubmit = useCallback((fn: (() => void) | null) => {
     submitFnRef.current = fn;
   }, []);
+  const registerNote = useCallback((fn: (() => void) | null) => {
+    noteFnRef.current = fn;
+  }, []);
   const registerEscape = useCallback((fn: (() => boolean) | null) => {
     escapeFnRef.current = fn;
   }, []);
@@ -217,6 +222,13 @@ export function KeyboardProvider({ blocks, interactions, closed, round, onViewTo
     (id: string) => {
       if (stepNavRef.current) {
         stepNavRef.current.jump(id);
+        return;
+      }
+      if (!ringRef.current.includes(id)) {
+        [...document.querySelectorAll<HTMLElement>('[data-block-id]')]
+          .filter((row) => row.dataset.blockId === id)
+          .at(-1)
+          ?.scrollIntoView({ block: 'center', behavior: scrollBehavior() });
         return;
       }
       setCursorId(id);
@@ -311,12 +323,14 @@ export function KeyboardProvider({ blocks, interactions, closed, round, onViewTo
             handle.specRef.current.choose?.(action.option);
           }
           break;
-        case 'engage':
-          if (handle?.specRef.current.engage) {
+        case 'engage': {
+          const engage = handle?.specRef.current.engage ?? noteFnRef.current;
+          if (engage) {
             e.preventDefault();
-            handle.specRef.current.engage();
+            engage();
           }
           break;
+        }
         case 'submit': {
           const run = submitFnRef.current ?? stepNavRef.current?.end;
           if (run) {
@@ -377,8 +391,30 @@ export function KeyboardProvider({ blocks, interactions, closed, round, onViewTo
   }, [registry, moveCursor, jumpNextUndecided]);
 
   const api = useMemo<KeyboardApi>(
-    () => ({ register, unregister, registerSubmit, registerEscape, registerStepNav, setCursor, jumpTo, jumpNextUndecided, announce }),
-    [register, unregister, registerSubmit, registerEscape, registerStepNav, setCursor, jumpTo, jumpNextUndecided, announce],
+    () => ({
+      register,
+      unregister,
+      registerSubmit,
+      registerNote,
+      registerEscape,
+      registerStepNav,
+      setCursor,
+      jumpTo,
+      jumpNextUndecided,
+      announce,
+    }),
+    [
+      register,
+      unregister,
+      registerSubmit,
+      registerNote,
+      registerEscape,
+      registerStepNav,
+      setCursor,
+      jumpTo,
+      jumpNextUndecided,
+      announce,
+    ],
   );
 
   return (

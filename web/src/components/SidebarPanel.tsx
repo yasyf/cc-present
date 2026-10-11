@@ -3,13 +3,8 @@ import { useActiveBlock, useJump } from '../activeBlock';
 import { useMediaQuery } from '../useMediaQuery';
 import { FeedbackThread } from './FeedbackThread';
 import type { FeedbackHandle } from './FeedbackThread';
-import type { ThreadEntry, ThreadKind, ThreadProjection } from '../threadFeed';
-
-const LABELS: Record<ThreadKind, { add: string; placeholder: string }> = {
-  approval: { add: 'Add feedback', placeholder: 'Add feedback for the agent…' },
-  choice: { add: 'Add note', placeholder: 'Add a note for the agent…' },
-  pack: { add: 'Add note', placeholder: 'Add a note for the agent…' },
-};
+import { noteCopy } from '../threadFeed';
+import type { ThreadEntry, ThreadProjection } from '../threadFeed';
 
 function commentCount(entry: ThreadEntry): number {
   return entry.feedback.length + entry.replies.length;
@@ -119,8 +114,8 @@ export function SidebarPanel({
                   feedback={pinned.feedback}
                   replies={pinned.replies}
                   locked={pinned.locked}
-                  addLabel={LABELS[pinned.kind].add}
-                  placeholder={LABELS[pinned.kind].placeholder}
+                  addLabel={noteCopy(pinned.type).add}
+                  placeholder={noteCopy(pinned.type).placeholder}
                   onComposingChange={setComposing}
                 />
               </div>

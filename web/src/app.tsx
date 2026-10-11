@@ -21,9 +21,11 @@ import { useInteractivePackTypes } from './packs/registry';
 import { PresentContext } from './present';
 import type { PresentApi } from './present';
 import type { PresentState } from './events';
-import { ActiveBlockProvider, useActiveBlock } from './activeBlock';
+import { ActiveBlockProvider, useActiveBlock, useJump } from './activeBlock';
 import { useMediaQuery } from './useMediaQuery';
 import { threadFeed } from './threadFeed';
+import { useThreadOpener } from './threadOpen';
+import { draftStore } from './drafts';
 import { revisionStore } from './revision';
 import { viewedStore } from './viewed';
 import type { ThreadEntry, ThreadProjection } from './threadFeed';
@@ -117,6 +119,7 @@ function PresentView({ subject }: { subject: string }) {
   }, [stream.caughtUp, hasContent]);
 
   useEffect(() => viewedStore.scope(subject, currentRound), [subject, currentRound]);
+  useEffect(() => draftStore.scope(subject, currentRound), [subject, currentRound]);
 
   const api = useMemo<PresentApi>(
     () => ({
@@ -282,6 +285,11 @@ function PresentShell({
 }) {
   const active = useActiveBlock();
   const { setPinnedOpen } = active;
+  const jump = useJump();
+  useThreadOpener((entry) => {
+    jump(entry);
+    setPinnedOpen(true);
+  });
   const isDesktop = useMediaQuery('(min-width: 1100px)');
   const packInteractive = useInteractivePackTypes();
   const projection = threadFeed(state, active.activeId, packInteractive);
@@ -314,7 +322,7 @@ function PresentShell({
         <MarginRail
           open={rail.open}
           projection={projection}
-          activeId={active.activeId}
+          activeId={projection.pinned?.blockId ?? null}
           total={totalComments(projection)}
           onToggle={() => setPinnedOpen(!active.pinnedOpen)}
           railRef={rail.ref}

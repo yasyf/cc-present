@@ -1,15 +1,22 @@
 import { describe, expect, it } from 'vitest';
 import { threadFeed } from './threadFeed';
 import { emptyState } from './reduce';
-import type { Approval, Block, Choice, PackBlock } from './schema';
+import type { Approval, Block, Card, ChildBlock, Choice, Input, Markdown, PackBlock } from './schema';
 import type { Feedback, PresentState, Reply, RoundRecord } from './events';
 
-const approval = (id: string, prompt?: string, allowFeedback?: boolean): Approval => ({
+const approval = (id: string, prompt?: string): Approval => ({
   id,
   type: 'approval',
   ...(prompt !== undefined ? { prompt } : {}),
-  ...(allowFeedback !== undefined ? { allowFeedback } : {}),
 });
+const card = (id: string, children: ChildBlock[], title?: string): Card => ({
+  id,
+  type: 'card',
+  ...(title !== undefined ? { title } : {}),
+  children,
+});
+const markdown = (id: string): Markdown => ({ id, type: 'markdown', md: 'prose' });
+const input = (id: string, label: string): Input => ({ id, type: 'input', label });
 const choice = (id: string, prompt?: string): Choice => ({
   id,
   type: 'choice',
@@ -27,12 +34,18 @@ function state(over: {
   feedback?: Record<string, Feedback[]>;
   replies?: Record<string, Reply[]>;
   history?: RoundRecord[];
+  closed?: boolean;
+  current?: number;
+  blockRounds?: Record<string, number>;
 }): PresentState {
   const s = emptyState();
   s.doc.blocks = over.blocks ?? [];
   s.interactions.feedback = over.feedback ?? {};
   s.interactions.replies = over.replies ?? {};
+  s.interactions.closed = { value: over.closed ?? false };
   s.rounds.history = over.history ?? [];
+  s.rounds.current = over.current ?? s.rounds.current;
+  s.rounds.blockRounds = over.blockRounds ?? {};
   return s;
 }
 
@@ -80,10 +93,60 @@ describe('threadFeed pinned', () => {
     expect(threadFeed(s, null, NO_PACKS).feed.map((e) => e.blockId)).toEqual(['a1']);
   });
 
-  it('marks an approval that forbids feedback as locked', () => {
-    const s = state({ blocks: [approval('a1', 'Ship', false)] });
+  it('locks every live thread once the board is closed', () => {
+    const blocks = [approval('a1', 'Ship'), markdown('m1')];
+    expect(threadFeed(state({ blocks }), 'a1', NO_PACKS).pinned?.locked).toBe(false);
+    const closed = state({ blocks, closed: true });
+    expect(threadFeed(closed, 'a1', NO_PACKS).pinned?.locked).toBe(true);
+    expect(threadFeed(closed, 'm1', NO_PACKS).pinned?.locked).toBe(true);
+  });
+
+  it('locks a live thread whose top-level block sits in a stale round', () => {
+    const s = state({
+      blocks: [card('k1', [approval('a1', 'Old call')]), approval('a2', 'New call')],
+      current: 2,
+      blockRounds: { k1: 1, a2: 2 },
+    });
+    expect(threadFeed(s, 'k1', NO_PACKS).pinned?.locked).toBe(true);
     expect(threadFeed(s, 'a1', NO_PACKS).pinned?.locked).toBe(true);
-    expect(threadFeed(state({ blocks: [approval('a2', 'Ship')] }), 'a2', NO_PACKS).pinned?.locked).toBe(false);
+    expect(threadFeed(s, 'a2', NO_PACKS).pinned?.locked).toBe(false);
+  });
+});
+
+describe('threadFeed ownership', () => {
+  const blocks: Block[] = [
+    card('k1', [markdown('m1'), approval('a1', 'Ship'), input('i1', 'Why')], 'Rollout'),
+    markdown('m2'),
+    input('i2', 'Your name'),
+  ];
+  const noted = Object.fromEntries(['k1', 'm1', 'a1', 'i1', 'm2', 'i2'].map((id) => [id, [fb(`f-${id}`, id)]]));
+
+  it('gives a card, a top-level content block, and a top-level input each an entry', () => {
+    const { feed } = threadFeed(state({ blocks, feedback: noted }), null, NO_PACKS);
+    expect(feed.map((e) => [e.blockId, e.type, e.label])).toEqual([
+      ['k1', 'card', 'Rollout'],
+      ['a1', 'approval', 'Ship'],
+      ['m2', 'markdown', 'Markdown'],
+      ['i2', 'input', 'Your name'],
+    ]);
+  });
+
+  it('gives a card child that owns no thread no entry of its own', () => {
+    const { feed } = threadFeed(state({ blocks, feedback: noted }), null, NO_PACKS);
+    expect(feed.some((e) => e.blockId === 'm1' || e.blockId === 'i1')).toBe(false);
+  });
+
+  it('pins the card for a child that owns no thread, and the child itself when it does', () => {
+    const s = state({ blocks });
+    expect(threadFeed(s, 'm1', NO_PACKS).pinned?.blockId).toBe('k1');
+    expect(threadFeed(s, 'i1', NO_PACKS).pinned?.blockId).toBe('k1');
+    expect(threadFeed(s, 'a1', NO_PACKS).pinned?.blockId).toBe('a1');
+    expect(threadFeed(s, 'i2', NO_PACKS).pinned?.blockId).toBe('i2');
+  });
+
+  it('pins the frozen card for a history child that owns no thread', () => {
+    const s = state({ history: [round(1, [card('h1', [markdown('hm1')])], { h1: [fb('f1', 'past')] })] });
+    expect(threadFeed(s, 'hm1', NO_PACKS).pinned).toMatchObject({ blockId: 'h1', locked: true, live: false });
   });
 });
 
@@ -167,14 +230,23 @@ describe('threadFeed order', () => {
 describe('threadFeed pack blocks', () => {
   const interactive: ReadonlySet<string> = new Set(['dd.fork']);
 
-  it('threads an interactive pack block under its question, and skips a display-only one', () => {
+  it('threads an interactive pack block under its question', () => {
     const s = state({
-      blocks: [pack('k1', 'dd.fork', { question: 'Where does it run?' }), pack('c1', 'dd.callout')],
-      feedback: { k1: [fb('f1', 'neither')], c1: [fb('f2', 'stray')] },
+      blocks: [pack('k1', 'dd.fork', { question: 'Where does it run?' })],
+      feedback: { k1: [fb('f1', 'neither')] },
     });
     const { pinned, feed } = threadFeed(s, 'k1', interactive);
-    expect(pinned).toMatchObject({ blockId: 'k1', kind: 'pack', label: 'Where does it run?', locked: false });
+    expect(pinned).toMatchObject({ blockId: 'k1', type: 'dd.fork', label: 'Where does it run?', locked: false });
     expect(feed).toEqual([]);
+  });
+
+  it('threads a nested pack block only when it is interactive', () => {
+    const s = state({
+      blocks: [card('c1', [pack('k1', 'dd.fork'), pack('k2', 'dd.callout')])],
+      feedback: { k1: [fb('f1', 'neither')], k2: [fb('f2', 'stray')] },
+    });
+    expect(threadFeed(s, null, interactive).feed.map((e) => e.blockId)).toEqual(['k1']);
+    expect(threadFeed(s, 'k2', interactive).pinned?.blockId).toBe('c1');
   });
 
   it('labels a pack block with no heading field by its dotted type', () => {
@@ -182,8 +254,8 @@ describe('threadFeed pack blocks', () => {
     expect(threadFeed(s, 'k1', interactive).pinned?.label).toBe('dd.fork');
   });
 
-  it('leaves every pack block unthreaded until its pack reports interactive', () => {
-    const s = state({ blocks: [pack('k1', 'dd.fork')], feedback: { k1: [fb('f1', 'neither')] } });
-    expect(threadFeed(s, 'k1', NO_PACKS)).toEqual({ pinned: null, feed: [] });
+  it('threads a top-level display-only pack block as plain content', () => {
+    const s = state({ blocks: [pack('k1', 'dd.callout')], feedback: { k1: [fb('f1', 'noted')] } });
+    expect(threadFeed(s, 'k1', interactive).pinned).toMatchObject({ blockId: 'k1', type: 'dd.callout' });
   });
 });
