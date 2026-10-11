@@ -66,12 +66,27 @@ function FocusContextBlock({ block, interactions }: { block: Block; interactions
   return <BlockRenderer block={block} interactions={interactions} />;
 }
 
-// StageMedia is the option-visual stage. It always mounts the .focus-media slot
-// (empty until an option publishes a visual); at --bp-compact a present visual
-// collapses to a titled <details> so it never crowds the options, expanding inline.
-function StageMedia({ visual, interactions }: { visual: OptionVisual | null; interactions: Interactions }) {
+function hasStage(block: Block): boolean {
+  if (block.type === 'choice') return block.options.some((option) => option.visual);
+  if (block.type === 'card') return block.children.some(hasStage);
+  return false;
+}
+
+function StageMedia({
+  visual,
+  staged,
+  interactions,
+}: {
+  visual: OptionVisual | null;
+  staged: boolean;
+  interactions: Interactions;
+}) {
   const compact = useMediaQuery('(max-width: 440px)');
-  if (!visual) return <div className="focus-media" />;
+  if (!visual) {
+    return (
+      <div className="focus-media">{staged && <p className="focus-media-empty">No preview for this option</p>}</div>
+    );
+  }
   if (compact) {
     return (
       <details className="focus-media focus-media-disclosure">
@@ -184,14 +199,12 @@ export const FocusCard = forwardRef<HTMLDivElement, { step: FocusStep; interacti
   const approveOpacity = useTransform(x, [30, 130], [0, 1]);
   const rejectOpacity = useTransform(x, [-130, -30], [1, 0]);
 
-  // The active option's visual, published by the step's Choice; rendered in the
-  // stage above the controls. Resets with the step (this card remounts per step).
   const [activeVisual, setActiveVisual] = useState<OptionVisual | null>(null);
   const stageValue = useMemo<FocusStageValue>(() => ({ setVisual: setActiveVisual }), []);
+  const staged = hasStage(step.block);
 
-  // Gate the body's top/bottom fade on actual overflow: both edges parked means
-  // nothing scrolls, so focus.css drops the mask (mirrors OptionStrip's x-axis cue).
   const { ref: bodyRef, edges: bodyEdges } = useScrollEdges<HTMLDivElement>('y');
+  const { ref: mainRef, edges: mainEdges } = useScrollEdges<HTMLDivElement>('y');
 
   const primaryId = step.primary?.id;
   const swipeable = step.swipeable && primaryId !== undefined && !closed;
@@ -315,16 +328,24 @@ export const FocusCard = forwardRef<HTMLDivElement, { step: FocusStep; interacti
           ref={bodyRef}
           data-edge-start={bodyEdges.atStart || undefined}
           data-edge-end={bodyEdges.atEnd || undefined}
+          data-stage={staged || undefined}
         >
-          {step.context.length > 0 && (
-            <div className="focus-context">
-              {step.context.map((block) => (
-                <FocusContextBlock key={block.id} block={block} interactions={interactions} />
-              ))}
-            </div>
-          )}
-          <StageMedia visual={activeVisual} interactions={interactions} />
-          <BlockRenderer key={step.block.id} block={step.block} interactions={interactions} note />
+          <div
+            className="focus-main"
+            ref={mainRef}
+            data-edge-start={mainEdges.atStart || undefined}
+            data-edge-end={mainEdges.atEnd || undefined}
+          >
+            {step.context.length > 0 && (
+              <div className="focus-context">
+                {step.context.map((block) => (
+                  <FocusContextBlock key={block.id} block={block} interactions={interactions} />
+                ))}
+              </div>
+            )}
+            <BlockRenderer key={step.block.id} block={step.block} interactions={interactions} note />
+          </div>
+          <StageMedia visual={activeVisual} staged={staged} interactions={interactions} />
         </div>
       </m.div>
       </FocusStageContext.Provider>

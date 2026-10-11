@@ -9,6 +9,8 @@ import { PresentContext } from '../present';
 import type { PresentApi } from '../present';
 import { KeyboardProvider } from '../keyboard';
 import { contextTitle, FocusCard, NO_DRAG, resolveDragEnd, swipeCommit } from './FocusCard';
+import { ThreadHostContext } from './threadHost';
+import type { ThreadHost } from './threadHost';
 import { focusSteps } from '../focus';
 import { emptyState } from '../reduce';
 import { DECAY_MS, revisionStore } from '../revision';
@@ -106,10 +108,20 @@ const card = (id: string, title: string, children: Block[]): Block => ({
   title,
   children: children as never,
 });
+const staged = (id: string): Block =>
+  ({
+    id,
+    type: 'choice',
+    prompt: 'Which transport?',
+    options: [
+      { id: `${id}o0`, label: 'A' },
+      { id: `${id}o1`, label: 'B', visual: { id: `${id}o1v`, type: 'code', lang: 'go', code: 'package main' } },
+    ],
+  }) as Block;
 
 // renderStep renders the step focusSteps derives at `index` from a block run, so a
 // step's demoted lead-in context (the run before its anchor) can be exercised.
-function renderStep(blocks: Block[], index = 0): void {
+function renderStep(blocks: Block[], index = 0, host: ThreadHost = 'inline'): void {
   const step = focusSteps(blocks, new Set())[index]!;
   const interactions = emptyState().interactions;
   const present: PresentApi = { post: async () => true, closed: false, currentRound: 1 };
@@ -118,9 +130,11 @@ function renderStep(blocks: Block[], index = 0): void {
       <LazyMotion features={domMax} strict>
         <MotionConfig reducedMotion="user">
           <PresentContext.Provider value={present}>
-            <KeyboardProvider blocks={blocks} interactions={interactions} closed={false} round={1}>
-              <FocusCard step={step} interactions={interactions} />
-            </KeyboardProvider>
+            <ThreadHostContext.Provider value={host}>
+              <KeyboardProvider blocks={blocks} interactions={interactions} closed={false} round={1}>
+                <FocusCard step={step} interactions={interactions} />
+              </KeyboardProvider>
+            </ThreadHostContext.Provider>
           </PresentContext.Provider>
         </MotionConfig>
       </LazyMotion>,
@@ -303,6 +317,36 @@ describe('FocusCard question-first anatomy', () => {
     renderStep([withVisual]);
     // The first option is active at rest, so its visual mounts in the stage.
     expect(container.querySelector('.focus-media .code-block')).not.toBeNull();
+  });
+
+  it('marks the body staged when a choice option carries a visual, bare or inside a card', () => {
+    renderStep([staged('c1')]);
+    expect(container.querySelector('.focus-card-body')?.hasAttribute('data-stage')).toBe(true);
+    renderStep([card('k1', 'Transport choice', [staged('c2')])]);
+    expect(container.querySelector('.focus-card-body')?.hasAttribute('data-stage')).toBe(true);
+  });
+
+  it('leaves a step with no option visual unstaged, its media slot empty', () => {
+    renderStep([choice('c1', 'Which transport?', ['A', 'B'])]);
+    expect(container.querySelector('.focus-card-body')?.hasAttribute('data-stage')).toBe(false);
+    expect(container.querySelector('.focus-media')?.childElementCount).toBe(0);
+  });
+
+  it('holds the stage with a placeholder while the active option has no visual', () => {
+    renderStep([staged('c1')]);
+    expect(container.querySelector('.focus-media > .focus-media-empty')?.textContent).toBe(
+      'No preview for this option',
+    );
+    expect(container.querySelector('.focus-media .code-block')).toBeNull();
+  });
+
+  it('stacks the lead-in, the block, and its note row in the left column, the stage beside it', () => {
+    renderStep([markdown('m1', 'Lead-in'), card('k1', 'Transport choice', [staged('c1')])], 0, 'rail');
+    const body = container.querySelector('.focus-card-body')!;
+    expect([...body.children].map((child) => child.className)).toEqual(['focus-main', 'focus-media']);
+    const main = body.querySelector(':scope > .focus-main')!;
+    expect([...main.children].map((child) => child.classList[0])).toEqual(['focus-context', 'card', 'comment-chip-row']);
+    expect(main.querySelector(':scope > .card .choice')).not.toBeNull();
   });
 
   it('collapses the option-visual stage to a titled disclosure at the compact breakpoint', () => {
