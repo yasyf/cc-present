@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import type { Root } from 'react-dom/client';
+import { draftStore } from '../drafts';
 import { PresentContext } from '../present';
 import type { PresentApi } from '../present';
 import { KeyboardProvider } from '../keyboard';
@@ -50,14 +51,15 @@ beforeEach(() => {
 afterEach(() => {
   act(() => root.unmount());
   container.remove();
+  draftStore.reset();
 });
 
-function renderCapturing(block: TriageBlock, interactions: Interactions, closed = false): unknown[] {
+function renderCapturing(block: TriageBlock, interactions: Interactions, closed = false, accepted = true): unknown[] {
   const posted: unknown[] = [];
   const present: PresentApi = {
     post: async (ev) => {
       posted.push(ev);
-      return true;
+      return accepted;
     },
     closed,
     currentRound: 1,
@@ -84,6 +86,14 @@ function setValue(el: HTMLTextAreaElement, value: string): void {
 
 function row(i: number): HTMLElement {
   return container.querySelectorAll('.triage-item')[i] as HTMLElement;
+}
+
+function openNote(i: number): void {
+  act(() => (row(i).querySelector('.triage-note-affordance .link-btn') as HTMLElement).click());
+}
+
+function noteInput(i: number): HTMLTextAreaElement | null {
+  return row(i).querySelector('.triage-note-input');
 }
 
 describe('Triage per-item verdict', () => {
@@ -162,6 +172,79 @@ describe('Triage note gating', () => {
       blockId: 't1',
       verdicts: { i0: { verdict: 'rejected', note: 'flaky on CI' } },
     });
+  });
+});
+
+describe('Triage unsent notes', () => {
+  const block = triage('t1', ['A', 'B'], { allowNotes: true });
+  const decided = (): Interactions => withTriage(block, { t1: { i0: { verdict: 'approved' }, i1: { verdict: 'rejected' } } });
+
+  it('leaves the first note open with its text when a second opens', () => {
+    renderCapturing(block, decided());
+    openNote(0);
+    setValue(noteInput(0)!, 'first thought');
+    openNote(1);
+
+    expect(noteInput(0)?.value).toBe('first thought');
+    expect(noteInput(1)?.value).toBe('');
+  });
+
+  it('keeps the draft when the save fails and clears it once one lands', async () => {
+    const save = async (): Promise<void> => {
+      await act(async () => {
+        (row(0).querySelector('.triage-note-actions .primary') as HTMLElement).click();
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+    };
+    renderCapturing(block, decided(), false, false);
+    openNote(0);
+    setValue(noteInput(0)!, 'flaky on CI');
+    await save();
+    expect(noteInput(0)?.value).toBe('flaky on CI');
+
+    renderCapturing(block, decided());
+    await save();
+    expect(noteInput(0)).toBeNull();
+  });
+
+  it('keeps drafts across a remount', () => {
+    renderCapturing(block, decided());
+    openNote(1);
+    setValue(noteInput(1)!, 'half a thought');
+    act(() => root.unmount());
+    root = createRoot(container);
+
+    renderCapturing(block, decided());
+
+    expect(noteInput(1)?.value).toBe('half a thought');
+    expect(noteInput(0)).toBeNull();
+  });
+
+  it('holds a draft while its verdict is toggled off', () => {
+    renderCapturing(block, decided());
+    openNote(0);
+    setValue(noteInput(0)!, 'still deciding');
+
+    renderCapturing(block, withTriage(block, { t1: { i1: { verdict: 'rejected' } } }));
+    expect(noteInput(0)).toBeNull();
+
+    renderCapturing(block, decided());
+    expect(noteInput(0)?.value).toBe('still deciding');
+  });
+
+  it('seeds a note editor from the saved note and discards the edit on Cancel', () => {
+    renderCapturing(block, withTriage(block, { t1: { i0: { verdict: 'approved', note: 'looks fine' } } }));
+    openNote(0);
+    expect(noteInput(0)?.value).toBe('looks fine');
+    setValue(noteInput(0)!, 'looks wrong');
+
+    act(() => (row(0).querySelector('.triage-note-actions button:not(.primary)') as HTMLElement).click());
+
+    expect(noteInput(0)).toBeNull();
+    expect(row(0).querySelector('.triage-note-text')?.textContent).toBe('looks fine');
+    openNote(0);
+    expect(noteInput(0)?.value).toBe('looks fine');
   });
 });
 

@@ -6,6 +6,7 @@ import type { Root } from 'react-dom/client';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { EventStreamProvider } from '../stream';
 import { presentKey, queryClient } from '../api';
+import { draftStore } from '../drafts';
 import { reduce } from '../reduce';
 import { SingleBlockView } from './SingleBlockView';
 import { packToast, setPackToastSink } from '../packs/toasts';
@@ -63,6 +64,7 @@ afterEach(() => {
   container.remove();
   queryClient.clear();
   setPackToastSink(null);
+  draftStore.reset();
 });
 
 function render(subject: string, blockId: string, state: PresentState): void {
@@ -106,6 +108,22 @@ describe('SingleBlockView closed-round fallback', () => {
     expect(container.textContent).toContain('live block');
     expect(container.textContent).not.toContain('No block');
     expect(container.textContent).not.toContain('historical block');
+  });
+});
+
+describe('SingleBlockView draft scope', () => {
+  it('keeps unsent drafts within a round and drops them when the round advances', () => {
+    const opening = reduce([
+      { origin: 'agent', type: 'doc.replaced', seq: 1, payload: { schemaVersion: 1, type: 'doc.replaced', doc: doc([markdownBlock('l1', 'live block')]), revision: 1 } },
+    ]);
+    render('s', 'l1', opening);
+    draftStore.set('l1', 'note', 'half a thought');
+
+    render('s', 'l1', opening);
+    expect(draftStore.get('l1', 'note')).toBe('half a thought');
+
+    render('s', 'l1', historyState());
+    expect(draftStore.get('l1', 'note')).toBeUndefined();
   });
 });
 

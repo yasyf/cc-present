@@ -5,11 +5,12 @@ import { useExpandAll } from '../expand';
 interface ClampedProps {
   html?: string;
   children?: ReactNode;
+  contentKey?: string;
   lines: number;
   className?: string;
 }
 
-export function Clamped({ html, children, lines, className }: ClampedProps) {
+export function Clamped({ html, children, contentKey, lines, className }: ClampedProps) {
   const { epoch, expanded: wantExpanded } = useExpandAll();
   const contentRef = useRef<HTMLDivElement>(null);
   const [expanded, setExpanded] = useState(false);
@@ -48,7 +49,7 @@ export function Clamped({ html, children, lines, className }: ClampedProps) {
       return;
     }
     setExpanded(wantExpandedRef.current);
-  }, [html, children]);
+  }, [html, contentKey]);
 
   const collapsed = !expanded;
   const contentClass = `clamped-content${className ? ` ${className}` : ''}${
@@ -79,7 +80,9 @@ export function Clamped({ html, children, lines, className }: ClampedProps) {
             e.stopPropagation();
             setExpanded((v) => !v);
           }}
-          onKeyDown={(e) => e.stopPropagation()}
+          onKeyDown={(e) => {
+            if ((e.key === 'Enter' || e.key === ' ') && !e.metaKey && !e.ctrlKey) e.stopPropagation();
+          }}
         >
           {expanded ? 'Show less' : 'Show more'}
         </button>
