@@ -32,7 +32,7 @@ const reducedFixture = `{
     "choices": {"ch1": {"optionIds":["o1"],"round":1}},
     "inputs": {"in1": {"text":"hello","round":1}},
     "packs": {},
-    "feedback": {"ap1": [{"id":"f1","text":"x","round":1}], "ch1": [{"id":"f2","text":"y","round":1}]},
+    "feedback": {"ap1": [{"id":"f1","text":"x","round":1}], "ch1": [{"id":"f2","text":"y","round":1}], "card1": [{"id":"f3","text":"w","round":1}]},
     "replies": {},
     "annotations": {"m1": [{"id":"an1","anchor":"L1","text":"note","quote":"hi"}], "in1": [{"id":"an2","anchor":"L2","text":"other","quote":"q"}]},
     "triage": {"m1": {"t1": {"verdict":"approved"}}, "in1": {"t2": {"verdict":"rejected"}}},
@@ -181,10 +181,11 @@ func TestFilterBlock(t *testing.T) {
 			wantFeedback: []string{"ch1"},
 		},
 		{
-			name:         "top-level card keeps the card but no child interactions",
+			name:         "top-level card keeps its own feedback but no child interactions",
 			id:           "card1",
 			wantDoc:      []string{"card1"},
 			wantChildren: []string{"ch1", "ap1"},
+			wantFeedback: []string{"card1"},
 		},
 	}
 	for _, tt := range tests {

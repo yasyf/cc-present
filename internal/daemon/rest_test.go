@@ -24,7 +24,7 @@ import (
 )
 
 const seedDoc = `{"version":1,"title":"T","blocks":[
-  {"id":"a1","type":"approval","allowFeedback":false},
+  {"id":"a1","type":"approval"},
   {"id":"a2","type":"approval"},
   {"id":"ch1","type":"choice","options":[{"id":"o1","label":"A","visual":{"id":"v1","type":"code","lang":"go","code":"x"}},{"id":"o2","label":"B"}]},
   {"id":"ch2","type":"choice","multi":true,"options":[{"id":"m1","label":"A"},{"id":"m2","label":"B"}]},
@@ -41,6 +41,17 @@ const draftTriageDoc = `{"version":1,"title":"T","blocks":[
   {"id":"tr1","type":"triage","items":[{"id":"i1","label":"First"},{"id":"i2","label":"Second"}]},
   {"id":"trn","type":"triage","allowNotes":false,"items":[{"id":"j1","label":"NoNotes"}]},
   {"id":"a1","type":"approval"}
+]}`
+
+const feedbackTargetsDoc = `{"version":1,"title":"T","blocks":[
+  {"id":"s1","type":"section","title":"S"},
+  {"id":"c1","type":"card","children":[{"id":"cm1","type":"markdown","md":"child"}]},
+  {"id":"m1","type":"markdown","md":"top"},
+  {"id":"in1","type":"input","label":"Name"},
+  {"id":"d1","type":"draft","lang":"markdown","text":"Intro line."},
+  {"id":"t1","type":"triage","items":[{"id":"i1","label":"A"}]},
+  {"id":"cal1","type":"example.callout","tone":"warn"},
+  {"id":"ch1","type":"choice","options":[{"id":"o1","label":"A","visual":{"id":"v1","type":"code","lang":"go","code":"x"}}]}
 ]}`
 
 type restHarness struct {
@@ -173,8 +184,7 @@ func TestInteractionValidation(t *testing.T) {
 		{"bad verdict", `{"subject":"board--abcd0000","nonce":"n6","interaction":{"type":"decision.created","blockId":"a2","verdict":"maybe"}}`, 400, "invalid verdict"},
 		{"unknown choice option", `{"subject":"board--abcd0000","nonce":"n7","interaction":{"type":"choice.selected","blockId":"ch1","optionIds":["o9"]}}`, 400, "no option"},
 		{"single-select overload", `{"subject":"board--abcd0000","nonce":"n8","interaction":{"type":"choice.selected","blockId":"ch1","optionIds":["o1","o2"]}}`, 400, "single-select"},
-		{"feedback forbidden", `{"subject":"board--abcd0000","nonce":"n9","interaction":{"type":"feedback.created","blockId":"a1","text":"hi"}}`, 400, "does not allow feedback"},
-		{"note forbidden", `{"subject":"board--abcd0000","nonce":"n10","interaction":{"type":"decision.created","blockId":"a1","verdict":"approved","note":"x"}}`, 400, "does not allow feedback"},
+		{"decision note accepted", `{"subject":"board--abcd0000","nonce":"n10","interaction":{"type":"decision.created","blockId":"a1","verdict":"approved","note":"x"}}`, 200, ""},
 		{"oversized decision note", `{"subject":"board--abcd0000","nonce":"n12","interaction":{"type":"decision.created","blockId":"a2","verdict":"approved","note":"` + strings.Repeat("a", maxHumanTextBytes+1) + `"}}`, 400, "exceeds"},
 		{"oversized input text", `{"subject":"board--abcd0000","nonce":"n14","interaction":{"type":"input.submitted","blockId":"in1","text":"` + strings.Repeat("a", maxHumanTextBytes+1) + `"}}`, 400, "exceeds"},
 		{"duplicate optionIds", `{"subject":"board--abcd0000","nonce":"n13","interaction":{"type":"choice.selected","blockId":"ch2","optionIds":["m1","m1"]}}`, 400, "more than once"},
@@ -314,6 +324,80 @@ func TestInteractionChoiceOtherAndFeedback(t *testing.T) {
 			}
 			if payload.Other != nil && *payload.Other != tt.wantOther {
 				t.Fatalf("other = %q, want %q", *payload.Other, tt.wantOther)
+			}
+		})
+	}
+}
+
+func TestInteractionFeedbackAnyBlock(t *testing.T) {
+	const submit = `{"subject":"board--abcd0000","nonce":"sub","interaction":{"type":"submit","revision":1}}`
+	tests := []struct {
+		name     string
+		prior    string
+		blockID  string
+		wantCode int
+		wantErr  string
+	}{
+		{name: "card", blockID: "c1", wantCode: http.StatusOK},
+		{name: "card child markdown", blockID: "cm1", wantCode: http.StatusOK},
+		{name: "top-level markdown", blockID: "m1", wantCode: http.StatusOK},
+		{name: "input", blockID: "in1", wantCode: http.StatusOK},
+		{name: "draft", blockID: "d1", wantCode: http.StatusOK},
+		{name: "triage", blockID: "t1", wantCode: http.StatusOK},
+		{name: "section", blockID: "s1", wantCode: http.StatusOK},
+		{name: "non-interactive pack block", blockID: "cal1", wantCode: http.StatusOK},
+		{
+			name:     "option visual rejected",
+			blockID:  "v1",
+			wantCode: http.StatusBadRequest,
+			wantErr:  `block "v1" is the visual of option "o1" on choice "ch1"; address the choice`,
+		},
+		{
+			name:     "closed-round block rejected",
+			prior:    submit,
+			blockID:  "m1",
+			wantCode: http.StatusBadRequest,
+			wantErr:  `block "m1" belongs to closed round 1`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := newRestHarnessWith(t, feedbackTargetsDoc, packLoader(t, writePackTree(t)))
+			if tt.prior != "" {
+				if w := h.post(t, tt.prior); w.Code != http.StatusOK {
+					t.Fatalf("prior status = %d, want 200 (body %q)", w.Code, w.Body.String())
+				}
+			}
+			w := h.post(t, fmt.Sprintf(`{"subject":"board--abcd0000","nonce":"fb","interaction":{"type":"feedback.created","id":"f1","blockId":%q,"text":"a note"}}`, tt.blockID))
+			if w.Code != tt.wantCode {
+				t.Fatalf("status = %d, want %d (body %q)", w.Code, tt.wantCode, w.Body.String())
+			}
+			if tt.wantCode != http.StatusOK {
+				if got := strings.TrimSpace(w.Body.String()); got != tt.wantErr {
+					t.Fatalf("body = %q, want %q", got, tt.wantErr)
+				}
+				return
+			}
+			events, err := h.cc.EventsSince(context.Background(), h.id, 0, "")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(events) != 2 {
+				t.Fatalf("events = %d, want 2", len(events))
+			}
+			if events[1].Type != EventFeedbackCreated {
+				t.Fatalf("event type = %q, want %q", events[1].Type, EventFeedbackCreated)
+			}
+			var payload struct {
+				ID      string `json:"id"`
+				BlockID string `json:"blockId"`
+				Text    string `json:"text"`
+			}
+			if err := json.Unmarshal(events[1].Payload, &payload); err != nil {
+				t.Fatalf("decode payload: %v", err)
+			}
+			if payload.ID != "f1" || payload.BlockID != tt.blockID || payload.Text != "a note" {
+				t.Fatalf("payload = %+v, want id f1, blockId %s, text %q", payload, tt.blockID, "a note")
 			}
 		})
 	}

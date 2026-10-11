@@ -24,7 +24,7 @@ Write the document JSON to a file in your **session scratchpad** and pass the pa
 - Give every decision a visual — the default is a picture of the tradeoff, not a paragraph about it: attach a `code` sample, a `diagram`, a `chart` (the default picture of a *quantitative* tradeoff), a `term`, a `filetree`, or a `record` to each option via `option.visual`. Leading the card with an exhibit works too: a `diagram`, `chart`, `image`, `filetree`, `code` block, or pack block such as `plan.mock`. A prose-only decision is the exception, and `push` prints a non-blocking reminder when a choice ships without one. See `reference/blocks.md` for the visual types and the mermaid style rules.
 - Recommend at most one option — set `recommended: true` on your suggested pick (one per single-select choice) and it renders a stamp badge, replacing the old "Recommended —" `hint` prefix.
 - Keep facts in one order — same labels, same sequence across every option, so matched labels engage the aligned comparison grid that reads column-to-column; a single mismatched label silently drops the whole choice back to per-option chips.
-- Never author an escape hatch: every choice already carries a write-in and a note thread as chrome, so don't add an "Other" option or promise a notes field. Approvals and interactive pack blocks carry the same note thread. They come back in `outcomes`: a write-in as `other` on the choice, a note as `feedback` keyed to the block id.
+- Never author an escape hatch: every choice already carries a write-in and a note thread as chrome, so don't add an "Other" option or promise a notes field. Every card and top-level block carries an Add note thread too, and approvals and interactive pack blocks keep their own. They come back in `outcomes`: a write-in as `other` on the choice, a note as `feedback` keyed to the block id, which may be a card or a content block.
 - Front-load the context — a step's lead-in markdown shows ~6 lines before it clamps to expand in place, and a heavier block (code, diff, table, image) collapses to a one-line titled disclosure. Lead with the one sentence that bears on the decision.
 - Order consequential picks first — a step with a lone single-select choice (or a lone approval) auto-advances the deck the moment it's decided, so the picks that reshape later steps come early, and you announce their revisions promptly (see step 4).
 - A content-heavy card gets a one-sentence `summary` — the dim lede under its title.
@@ -108,7 +108,7 @@ Each event (Monitor line or channel tag) is the event's JSON payload, self-descr
 
 | `type` | Payload | Route |
 |---|---|---|
-| `feedback.created` | `{blockId, id, text, type}` | **Actionable** — a reply is owed, and a redraft when the feedback invalidates the draft. |
+| `feedback.created` | `{blockId, id, text, type}` | **Actionable** — a reply is owed, and a redraft when the feedback invalidates the draft. `blockId` may name a card or a content block. A note counts as engagement with the round, so your next `push` or `update-block` that adds a top-level block must declare `--round`. |
 | `decision.created` | `{blockId, note?, type, verdict}` | `rejected`, or `approved` with a note that asks for change — **actionable** (redraft). `approved` with no note — informational. `cleared` — the human withdrew their verdict; nothing to do. |
 | `choice.selected` | `{blockId, optionIds, other?, type}` | Informational until submit; `other` is the human's write-in past your options. |
 | `input.submitted` | `{blockId, text, type}` | Informational until submit. |

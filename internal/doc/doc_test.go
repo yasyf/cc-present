@@ -38,7 +38,7 @@ const richDoc = `{
     {"id": "c1", "type": "card", "title": "acme", "flagged": true, "status": "open",
      "chips": [{"label": "demo", "tone": "demo"}, {"label": "flagged", "tone": "flag"}],
      "children": [
-       {"id": "a1", "type": "approval", "prompt": "Use this opener?", "allowFeedback": false},
+       {"id": "a1", "type": "approval", "prompt": "Use this opener?"},
        {"id": "ch1", "type": "choice", "prompt": "Pick a variant", "multi": true,
         "options": [{"id": "o1", "label": "Terse", "md": "A terse line."}, {"id": "o2", "label": "Warm"}]},
        {"id": "in1", "type": "input", "label": "Notes", "placeholder": "optional", "multiline": true},
@@ -465,6 +465,11 @@ func TestDecodeRejectsUnknownFields(t *testing.T) {
 			name: "card child field",
 			doc:  docWith(card("c1", `{"id":"a1","type":"approval","label":"x"}`)),
 			want: `block "a1": decode approval block: json: unknown field "label"`,
+		},
+		{
+			name: "approval allowFeedback",
+			doc:  docWith(`{"id":"a1","type":"approval","allowFeedback":false}`),
+			want: `block "a1": decode approval block: json: unknown field "allowFeedback"`,
 		},
 		{
 			name: "option field",
