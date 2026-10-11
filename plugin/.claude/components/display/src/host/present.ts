@@ -49,7 +49,11 @@ export interface CcPresentHost {
   jsxRuntime: typeof import('react/jsx-runtime');
   reactDom: { createPortal: (...args: unknown[]) => unknown };
   ui: {
-    Clamped: import('react').ComponentType<{ lines?: number; children?: import('react').ReactNode }>;
+    Clamped: import('react').ComponentType<{
+      lines?: number;
+      children?: import('react').ReactNode;
+      contentKey?: string;
+    }>;
     DiagramView: import('react').ComponentType<DiagramViewProps>;
     DiffView: import('react').ComponentType<DiffViewProps>;
     renderMarkdown: (md: string) => string;

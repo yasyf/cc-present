@@ -628,6 +628,49 @@ describe('Choice write-in selection semantics', () => {
     expect(otherField().value).toBe('second');
     expect(otherCard().getAttribute('aria-checked')).toBe('false');
   });
+
+  it('keeps an edited write-in typed and checked when its POST fails and the answer rolls back', async () => {
+    const block = choice('c1', ['A', 'B']);
+    const answered = (other: string): Interactions => ({ ...empty(), choices: { c1: { optionIds: [], other } } });
+    const posted: unknown[] = [];
+    let fail!: () => void;
+    const present: PresentApi = {
+      post: (ev) => {
+        posted.push(ev);
+        return new Promise((resolve) => {
+          fail = () => resolve(false);
+        });
+      },
+      closed: false,
+      currentRound: 1,
+    };
+    const show = (interactions: Interactions): void =>
+      act(() =>
+        root.render(
+          <PresentContext.Provider value={present}>
+            <KeyboardProvider blocks={[block]} interactions={interactions} closed={false} round={1}>
+              <Choice block={block} interactions={interactions} />
+            </KeyboardProvider>
+          </PresentContext.Provider>,
+        ),
+      );
+
+    show(answered('first'));
+    typeOther('first, revised');
+    blurOther();
+    show(answered('first, revised'));
+    show(answered('first'));
+    await act(async () => fail());
+
+    expect(otherField().value).toBe('first, revised');
+    expect(otherCard().getAttribute('aria-checked')).toBe('true');
+
+    blurOther();
+    expect(posted).toEqual([
+      { type: 'choice.selected', blockId: 'c1', optionIds: [], other: 'first, revised' },
+      { type: 'choice.selected', blockId: 'c1', optionIds: [], other: 'first, revised' },
+    ]);
+  });
 });
 
 describe('Choice submit chord', () => {

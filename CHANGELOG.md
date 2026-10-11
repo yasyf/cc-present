@@ -14,6 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   pack blocks. A note on a card is keyed to the card id in
   `interactions.feedback`, and it freezes into the round's history with the
   card.
+- Every top-level board row and the focal block of every focus step carries
+  an Add note control, which reads Add feedback on an approval. A `section`
+  block has none. In focus mode `f` opens the step's note when the block
+  under the cursor has nothing of its own to engage.
 - `code` blocks read from a repository file. Set `src` and `lines`, and
   `start --doc`, `push`, and `update-block` fill `code`, `start`, `lang`, and a
   `sha` stamp on every push; the stamp gains `+wt` when the file differs from
@@ -58,6 +62,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the single-block page names the block to the app through a
   `ccPresentInteraction` message. Grounded `code` blocks show the
   `path:lines @ sha` header, a numbered gutter, highlighted rows, and pins.
+- An agent reply that arrives live puts an unread dot on its block's comment
+  chip and on that block's margin rail row. The dot clears once the thread is
+  shown, and a reload clears every dot.
 
 ### Changed
 
@@ -75,6 +82,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `--replace`. A subagent shares its parent's session id, so its `--new` had
   closed the parent's live board. `--replace` is now the only way to close an
   open artifact from `start` or `show`.
+- The reply toast shows the block's label, the human's latest note, and the
+  agent's reply as plain text, and it stays up for 12 seconds instead of 5.
+  On the board a click opens that block's thread. The toast used to read
+  "The agent replied" and nothing else.
+- The submit confirm arms on every unanswered item, counts them by kind, and
+  offers Go to first. It used to arm on approvals alone.
 
 ### Removed
 
@@ -97,6 +110,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `update-block`, and `push --dry-run`, naming the key and its block id. A
   board written with top-level `sections` instead of `blocks` used to pass
   `push --dry-run` with `ok` and render with no blocks at all.
+- An answer whose POST fails rolls back to what the board showed before it.
+  The answer used to stay on screen as if it had saved. An `input` block
+  and a choice's write-in keep the typed text, and the next blur sends it
+  again.
+- Unsent text survives a closed comments sheet, a swap between the margin
+  rail and the sheet, and a step to another focus card. A note, a triage
+  note, or a `draft` annotation stays until the human sends it, cancels it,
+  or the round changes.
+- A choice's write-in keeps its text when focus leaves it, and the stage
+  preview rests on the selected option, then on the last pointed card.
+- The header's connection lamp has styles, so a dropped stream no longer
+  reads like a live one. Its dot pulses while the board reconnects.
+- A margin rail jump to a block in a past round expands that round and
+  scrolls to the block. The jump used to find nothing in a collapsed round.
 
 ## [0.37.1] - 2026-10-03
 
