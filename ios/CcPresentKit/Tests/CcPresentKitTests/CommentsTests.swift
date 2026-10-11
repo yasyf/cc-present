@@ -9,7 +9,7 @@ private func fixtureDoc() -> Doc {
         .approval(.init(id: "ap1", prompt: "Ship it?")),
         .choice(.init(id: "ch1", prompt: "Pick one", options: [])),
         .card(.init(id: "card1", title: "Card A", children: [
-            .approval(.init(id: "ap2", prompt: "Nested?", allowFeedback: false)),
+            .approval(.init(id: "ap2", prompt: "Nested?")),
         ])),
         .input(.init(id: "in1", label: "Name")),
     ])
@@ -66,12 +66,12 @@ struct CommentsTests {
         #expect(resolveActiveComment(pinned: nil, focusActive: nil, lastInteracted: nil) == nil)
     }
 
-    @Test("only an approval that allows feedback, or a choice, shows a composer")
+    @Test("only an approval or a choice shows a composer")
     func acceptsFeedback() {
         let doc = fixtureDoc()
         #expect(commentAcceptsFeedback(doc, "ap1"))
         #expect(commentAcceptsFeedback(doc, "ch1"))
-        #expect(!commentAcceptsFeedback(doc, "ap2")) // allowFeedback: false
+        #expect(commentAcceptsFeedback(doc, "ap2"))
         #expect(!commentAcceptsFeedback(doc, "in1"))
         #expect(!commentAcceptsFeedback(doc, "missing"))
     }
