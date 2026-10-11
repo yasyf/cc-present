@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import type { Root } from 'react-dom/client';
+import { draftStore } from '../drafts';
 import { PresentContext } from '../present';
 import type { PresentApi } from '../present';
 import { KeyboardProvider } from '../keyboard';
@@ -58,6 +59,7 @@ beforeEach(() => {
 afterEach(() => {
   act(() => root.unmount());
   container.remove();
+  draftStore.reset();
 });
 
 function renderCapturing(block: Draft, interactions: Interactions, closed = false): unknown[] {
@@ -98,6 +100,18 @@ function gutter(n: number): HTMLButtonElement {
   return container.querySelector(`.draft-row[data-line="${n}"] .draft-gutter`) as HTMLButtonElement;
 }
 
+function composerInputs(): HTMLTextAreaElement[] {
+  return [...container.querySelectorAll<HTMLTextAreaElement>('.draft-composer-input')];
+}
+
+function composerRanges(): (string | null)[] {
+  return [...container.querySelectorAll('.draft-composer-range')].map((el) => el.textContent);
+}
+
+function press(key: string): void {
+  act(() => document.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true })));
+}
+
 describe('DraftView annotation composer', () => {
   it('posts a single-line annotation with the ranged anchor and stamped quote', () => {
     const posted = renderCapturing(draft(), empty());
@@ -128,6 +142,93 @@ describe('DraftView annotation composer', () => {
       anchor: formatRangeAnchor(1, 3, anchorOf('line one')),
       quote: 'line one\nline two\nline three',
     });
+  });
+});
+
+describe('DraftView unsent notes', () => {
+  it('keeps the first composer and its text when a second selection starts', () => {
+    renderCapturing(draft(), empty());
+    mouseDown(gutter(1));
+    setValue(composerInputs()[0]!, 'first note');
+    mouseDown(gutter(3));
+
+    expect(composerRanges()).toEqual(['Line 1', 'Line 3']);
+    expect(composerInputs().map((ta) => ta.value)).toEqual(['first note', '']);
+    const inSpan = [...container.querySelectorAll<HTMLElement>('.draft-row.in-span')].map((el) => el.dataset.line);
+    expect(inSpan).toEqual(['1', '3']);
+  });
+
+  it('moves an empty composer to the next selection instead of stacking another', () => {
+    renderCapturing(draft(), empty());
+    mouseDown(gutter(1));
+    mouseDown(gutter(2));
+
+    expect(composerRanges()).toEqual(['Line 2']);
+  });
+
+  it('keeps a draft across a remount', () => {
+    renderCapturing(draft(), empty());
+    mouseDown(gutter(2));
+    setValue(composerInputs()[0]!, 'half a thought');
+    act(() => root.unmount());
+    root = createRoot(container);
+
+    renderCapturing(draft(), empty());
+
+    expect(composerRanges()).toEqual(['Line 2']);
+    expect(composerInputs()[0]?.value).toBe('half a thought');
+  });
+
+  it('refocuses an open composer on f without wiping its text', () => {
+    renderCapturing(draft(), empty());
+    mouseDown(gutter(2));
+    setValue(composerInputs()[0]!, 'keep me');
+    composerInputs()[0]!.blur();
+
+    press('j');
+    press('f');
+
+    expect(composerRanges()).toEqual(['Line 2']);
+    expect(composerInputs()[0]?.value).toBe('keep me');
+    expect(document.activeElement).toBe(composerInputs()[0]);
+  });
+
+  it('opens line 1 on f when no composer is active', () => {
+    renderCapturing(draft(), empty());
+
+    press('j');
+    press('f');
+
+    expect(composerRanges()).toEqual(['Line 1']);
+  });
+
+  it('sends against the last line when the text shrank under the selection', () => {
+    renderCapturing(draft(), empty());
+    mouseDown(gutter(2));
+    mouseDown(gutter(3), true);
+    setValue(composerInputs()[0]!, 'about the ending');
+
+    const posted = renderCapturing(draft({ text: 'line one' }), empty());
+    expect(composerRanges()).toEqual(['Line 1']);
+    act(() => (container.querySelector('.draft-composer .primary') as HTMLElement).click());
+
+    expect(posted[0]).toMatchObject({
+      anchor: formatRangeAnchor(1, 1, anchorOf('line one')),
+      text: 'about the ending',
+      quote: 'line one',
+    });
+  });
+
+  it('labels the composer Save only for an existing annotation', () => {
+    const ann: Annotation = { id: 'a1', anchor: formatRangeAnchor(2, 2, anchorOf('line two')), text: 'old', quote: 'line two' };
+    renderCapturing(draft(), { ...empty(), annotations: { d1: [ann] } });
+    mouseDown(gutter(1));
+    setValue(composerInputs()[0]!, 'new note');
+    act(() => (container.querySelector('.draft-note-actions .link-btn') as HTMLElement).click());
+
+    const labels = [...container.querySelectorAll('.draft-composer .primary')].map((b) => b.textContent);
+    expect(labels).toEqual(['Add note', 'Save']);
+    expect(composerInputs().map((ta) => ta.value)).toEqual(['new note', 'old']);
   });
 });
 

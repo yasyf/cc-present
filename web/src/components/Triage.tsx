@@ -3,6 +3,7 @@ import type { CSSProperties } from 'react';
 import { useGroupReadOnly } from '@cc-interact/react';
 import type { Item, Triage as TriageBlock } from '../schema';
 import type { Interactions, Verdict } from '../events';
+import { draftStore, useDrafts } from '../drafts';
 import { usePresent } from '../present';
 import { nextUndecided, verdictToggle } from '../decide';
 import { factAxes } from '../focus';
@@ -30,24 +31,24 @@ export function Triage({ block, interactions }: { block: TriageBlock; interactio
 
   const [itemCursor, setItemCursor] = useState(0);
   const [noteFor, setNoteFor] = useState<string | null>(null);
-  const [noteDraft, setNoteDraft] = useState('');
+  const drafts = useDrafts<string>(block.id);
   const noteRef = useRef<HTMLTextAreaElement>(null);
 
   function postItem(itemId: string, verdict: Verdict, note?: string) {
     const entry: { verdict: Verdict; note?: string } = { verdict };
     if (note) entry.note = note;
-    void post({ type: 'triage.decided', blockId: block.id, verdicts: { [itemId]: entry } });
+    return post({ type: 'triage.decided', blockId: block.id, verdicts: { [itemId]: entry } });
   }
 
   function decide(itemId: string, target: 'approved' | 'rejected') {
     const next = verdictToggle(verdicts[itemId]?.verdict, target);
     // A verdict flip carries the existing note forward; a clear drops it.
     const note = next === 'cleared' ? undefined : verdicts[itemId]?.note || undefined;
-    postItem(itemId, next, note);
+    void postItem(itemId, next, note);
   }
 
   function clearItem(itemId: string) {
-    if (verdicts[itemId]) postItem(itemId, 'cleared');
+    if (verdicts[itemId]) void postItem(itemId, 'cleared');
   }
 
   function bulk(target: 'approved' | 'rejected') {
@@ -60,17 +61,16 @@ export function Triage({ block, interactions }: { block: TriageBlock; interactio
   }
 
   function openNote(itemId: string) {
+    if (!drafts.has(itemId)) draftStore.set(block.id, itemId, verdicts[itemId]?.note ?? '');
     setNoteFor(itemId);
-    setNoteDraft(verdicts[itemId]?.note ?? '');
     requestAnimationFrame(() => noteRef.current?.focus());
   }
 
-  function sendNote(itemId: string) {
+  async function sendNote(itemId: string) {
     const verdict = verdicts[itemId]?.verdict;
     if (!verdict || verdict === 'cleared') return;
-    postItem(itemId, verdict, noteDraft.trim() || undefined);
-    setNoteFor(null);
-    setNoteDraft('');
+    const ok = await postItem(itemId, verdict, drafts.get(itemId)!.trim() || undefined);
+    if (ok) draftStore.clear(block.id, itemId);
   }
 
   function advanceFrom(itemId: string) {
@@ -140,13 +140,12 @@ export function Triage({ block, interactions }: { block: TriageBlock; interactio
             cursored={cursor && i === itemCursor}
             interactions={interactions}
             onDecide={(target) => decide(item.id, target)}
-            noteOpen={noteFor === item.id}
-            noteDraft={noteDraft}
-            noteRef={noteRef}
+            noteDraft={drafts.get(item.id)}
+            noteRef={noteFor === item.id ? noteRef : undefined}
             onNoteOpen={() => openNote(item.id)}
-            onNoteChange={setNoteDraft}
-            onNoteSend={() => sendNote(item.id)}
-            onNoteCancel={() => setNoteFor(null)}
+            onNoteChange={(text) => draftStore.set(block.id, item.id, text)}
+            onNoteSend={() => void sendNote(item.id)}
+            onNoteCancel={() => draftStore.clear(block.id, item.id)}
           />
         ))}
       </div>
@@ -166,9 +165,8 @@ interface TriageRowProps {
   cursored: boolean;
   interactions: Interactions;
   onDecide: (target: 'approved' | 'rejected') => void;
-  noteOpen: boolean;
-  noteDraft: string;
-  noteRef: React.RefObject<HTMLTextAreaElement | null>;
+  noteDraft?: string;
+  noteRef?: React.RefObject<HTMLTextAreaElement | null>;
   onNoteOpen: () => void;
   onNoteChange: (text: string) => void;
   onNoteSend: () => void;
@@ -187,7 +185,6 @@ function TriageRow({
   cursored,
   interactions,
   onDecide,
-  noteOpen,
   noteDraft,
   noteRef,
   onNoteOpen,
@@ -197,6 +194,7 @@ function TriageRow({
 }: TriageRowProps) {
   const decided = verdict === 'approved' || verdict === 'rejected';
   const noteChannel = allowNotes && decided;
+  const noteOpen = noteDraft !== undefined;
   return (
     <div className={`triage-item${cursored ? ' cursor' : ''}`} data-index={index + 1}>
       <div className="triage-item-main">

@@ -1,4 +1,5 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
+import { draftStore, useDraft } from '../drafts';
 import { usePresent } from '../present';
 import { uuid } from '../uuid';
 import { Button } from './Button';
@@ -33,8 +34,10 @@ export const FeedbackThread = forwardRef<FeedbackHandle, FeedbackThreadProps>(fu
 ) {
   const { post } = usePresent();
   const rail = useThreadHost() === 'rail';
-  const [composing, setComposing] = useState(false);
-  const [draft, setDraft] = useState('');
+  const [open, setOpen] = useState(false);
+  const draft = useDraft<string>(blockId, 'note');
+  const text = draft ?? '';
+  const composing = open || draft !== undefined;
   // Feedback is append-only and echoes back through the stream; a pending item
   // shows optimistically until its id lands in interactions.feedback.
   const [pending, setPending] = useState<{ id: string; text: string }[]>([]);
@@ -44,18 +47,18 @@ export const FeedbackThread = forwardRef<FeedbackHandle, FeedbackThreadProps>(fu
     ref,
     () => ({
       open: () => {
-        if (composing) {
+        if (open) {
           if (rail) composerRef.current?.focus();
           return;
         }
-        setComposing(true);
+        setOpen(true);
       },
     }),
-    [composing, rail],
+    [open, rail],
   );
   useEffect(() => {
-    onComposingChange?.(composing && draft.trim().length > 0);
-  }, [composing, draft, onComposingChange]);
+    onComposingChange?.(composing && text.trim().length > 0);
+  }, [composing, text, onComposingChange]);
   // Unmounting mid-draft (the sheet closing over an open composer) must release the
   // host latch, or the desktop rail inherits a composing=true it can never clear.
   useEffect(
@@ -65,20 +68,23 @@ export const FeedbackThread = forwardRef<FeedbackHandle, FeedbackThreadProps>(fu
     [onComposingChange],
   );
   useEffect(() => {
-    if (composing) composerRef.current?.focus();
-  }, [composing]);
+    if (open) composerRef.current?.focus();
+  }, [open]);
 
   const stillPending = pending.filter((p) => !feedback.some((f) => f.id === p.id));
 
   async function send() {
-    const text = draft.trim();
-    if (!text) return;
+    const body = text.trim();
+    if (!body) return;
     const id = uuid();
-    setPending((prev) => [...prev, { id, text }]);
-    setDraft('');
-    setComposing(false);
-    const ok = await post({ type: 'feedback.created', id, blockId, text });
-    if (!ok) setPending((prev) => prev.filter((p) => p.id !== id));
+    setPending((prev) => [...prev, { id, text: body }]);
+    draftStore.clear(blockId, 'note');
+    setOpen(false);
+    const ok = await post({ type: 'feedback.created', id, blockId, text: body });
+    if (ok) return;
+    setPending((prev) => prev.filter((p) => p.id !== id));
+    const typed = draftStore.get<string>(blockId, 'note');
+    draftStore.set(blockId, 'note', typed ? `${body}\n${typed}` : body);
   }
 
   return (
@@ -90,10 +96,14 @@ export const FeedbackThread = forwardRef<FeedbackHandle, FeedbackThreadProps>(fu
               <textarea
                 ref={composerRef}
                 className="field"
-                value={draft}
+                value={text}
                 rows={2}
                 placeholder={placeholder}
-                onChange={(e) => setDraft(e.target.value)}
+                onFocus={() => setOpen(true)}
+                onChange={(e) => {
+                  if (e.target.value) draftStore.set(blockId, 'note', e.target.value);
+                  else draftStore.clear(blockId, 'note');
+                }}
                 onKeyDown={(e) => {
                   if (!e.repeat && (e.metaKey || e.ctrlKey) && e.key === 'Enter') {
                     e.preventDefault();
@@ -109,8 +119,8 @@ export const FeedbackThread = forwardRef<FeedbackHandle, FeedbackThreadProps>(fu
                   variant="ghost"
                   size="sm"
                   onClick={() => {
-                    setComposing(false);
-                    setDraft('');
+                    draftStore.clear(blockId, 'note');
+                    setOpen(false);
                   }}
                 >
                   Cancel
@@ -118,7 +128,7 @@ export const FeedbackThread = forwardRef<FeedbackHandle, FeedbackThreadProps>(fu
               </div>
             </div>
           ) : (
-            <button type="button" className="link-btn" onClick={() => setComposing(true)}>
+            <button type="button" className="link-btn" onClick={() => setOpen(true)}>
               {addLabel}
             </button>
           )}

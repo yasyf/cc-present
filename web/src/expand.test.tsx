@@ -121,3 +121,43 @@ describe('Clamped resync on content change', () => {
     expect(clamp(contents()[0]!)).toBe(true);
   });
 });
+
+describe('Clamped children', () => {
+  const show = (lines: string[]): void =>
+    act(() =>
+      root.render(
+        <Clamped lines={2} contentKey={lines.join('\n')}>
+          {lines.map((line) => (
+            <p key={line}>{line}</p>
+          ))}
+        </Clamped>,
+      ),
+    );
+
+  it('stays expanded across a parent re-render and re-syncs only when contentKey changes', () => {
+    show(['alpha', 'beta']);
+    act(() => (container.querySelector('.clamp-toggle') as HTMLElement).click());
+    expect(clamp(contents()[0]!)).toBe(false);
+    show(['alpha', 'beta']);
+    expect(clamp(contents()[0]!)).toBe(false);
+    show(['alpha', 'beta revised']);
+    expect(clamp(contents()[0]!)).toBe(true);
+  });
+});
+
+describe('Clamped toggle keys', () => {
+  it('lets a shortcut key reach the document and keeps activation keys to itself', () => {
+    act(() => root.render(<Clamped html="<p>alpha</p>" lines={2} />));
+    const heard: string[] = [];
+    const listen = (e: KeyboardEvent): void => {
+      heard.push(e.key);
+    };
+    document.addEventListener('keydown', listen);
+    const toggle = container.querySelector('.clamp-toggle') as HTMLElement;
+    for (const key of ['v', 'Enter', ' ']) {
+      act(() => toggle.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true })));
+    }
+    document.removeEventListener('keydown', listen);
+    expect(heard).toEqual(['v']);
+  });
+});

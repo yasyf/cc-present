@@ -4,6 +4,7 @@ import type { ThemedToken } from 'shiki/core';
 import { useGroupReadOnly } from '@cc-interact/react';
 import type { Draft } from '../schema';
 import type { Annotation, Interactions } from '../events';
+import { draftStore, useDrafts } from '../drafts';
 import { usePresent } from '../present';
 import { useDecidable } from '../keyboard';
 import { anchorOf, formatRangeAnchor, parseAnchor, resolveAnchor } from '../anchor';
@@ -20,6 +21,19 @@ interface Resolved {
   moved: boolean;
   from: number;
   detached: boolean;
+}
+
+interface NoteDraft {
+  anchor: number;
+  focus: number;
+  text: string;
+}
+
+function spanOf(draft: NoteDraft, lineCount: number): { start: number; end: number } {
+  return {
+    start: Math.min(draft.anchor, draft.focus, lineCount),
+    end: Math.min(Math.max(draft.anchor, draft.focus), lineCount),
+  };
 }
 
 function resolveAll(annotations: Annotation[], lines: string[]): Resolved[] {
@@ -62,15 +76,13 @@ export function DraftView({ block, interactions }: { block: Draft; interactions:
     };
   }, [block.text, block.lang]);
 
-  const [selection, setSelection] = useState<{ anchor: number; focus: number } | null>(null);
+  const drafts = useDrafts<NoteDraft>(block.id);
+  const [activeId, setActiveId] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
-  const [draftText, setDraftText] = useState('');
-  const [editingId, setEditingId] = useState<string | null>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
 
-  const span = selection
-    ? { start: Math.min(selection.anchor, selection.focus), end: Math.max(selection.anchor, selection.focus) }
-    : null;
+  const active = activeId === null ? undefined : drafts.get(activeId);
+  const composers = [...drafts].map(([id, draft]) => ({ id, draft, ...spanOf(draft, lines.length) }));
 
   useEffect(() => {
     if (!dragging) return;
@@ -80,53 +92,47 @@ export function DraftView({ block, interactions }: { block: Draft; interactions:
   }, [dragging]);
 
   useEffect(() => {
-    if (selection && composerRef.current) composerRef.current.focus();
-  }, [selection]);
+    composerRef.current?.focus();
+  }, [activeId, active?.anchor, active?.focus]);
 
   function openAt(line: number) {
-    setEditingId(null);
-    setDraftText('');
-    setSelection({ anchor: line, focus: line });
+    const id = uuid();
+    draftStore.set(block.id, id, { anchor: line, focus: line, text: '' });
+    setActiveId(id);
+  }
+
+  function updateActive(draft: NoteDraft) {
+    draftStore.set(block.id, activeId!, draft);
   }
 
   function gutterDown(line: number, shift: boolean) {
     if (locked) return;
-    setEditingId(null);
-    if (shift && selection) {
-      setSelection({ anchor: selection.anchor, focus: line });
-    } else {
-      setDraftText('');
-      setSelection({ anchor: line, focus: line });
-    }
+    if (active && shift) updateActive({ ...active, focus: line });
+    else if (active && active.text === '') updateActive({ ...active, anchor: line, focus: line });
+    else openAt(line);
     setDragging(true);
   }
 
   function gutterEnter(line: number) {
-    if (dragging && selection) setSelection({ anchor: selection.anchor, focus: line });
+    if (dragging && active) updateActive({ ...active, focus: line });
   }
 
   function editAnnotation(r: Resolved) {
     if (locked) return;
-    setEditingId(r.ann.id);
-    setDraftText(r.ann.text);
-    setSelection({ anchor: r.start, focus: r.end });
+    if (!drafts.has(r.ann.id)) draftStore.set(block.id, r.ann.id, { anchor: r.start, focus: r.end, text: r.ann.text });
+    if (activeId === r.ann.id) composerRef.current?.focus();
+    else setActiveId(r.ann.id);
   }
 
-  function cancel() {
-    setSelection(null);
-    setDraftText('');
-    setEditingId(null);
-  }
-
-  async function send() {
-    if (!span) return;
-    const text = draftText.trim();
+  async function send(id: string) {
+    const draft = drafts.get(id)!;
+    const text = draft.text.trim();
     if (!text) return;
-    const anchor = formatRangeAnchor(span.start, span.end, anchorOf(lines[span.start - 1]!));
-    const quote = lines.slice(span.start - 1, span.end).join('\n');
-    const id = editingId ?? uuid();
+    const { start, end } = spanOf(draft, lines.length);
+    const anchor = formatRangeAnchor(start, end, anchorOf(lines[start - 1]!));
+    const quote = lines.slice(start - 1, end).join('\n');
     const ok = await post({ type: 'annotation.created', id, blockId: block.id, anchor, text, quote });
-    if (ok) cancel();
+    if (ok) draftStore.clear(block.id, id);
   }
 
   function remove(id: string) {
@@ -137,7 +143,10 @@ export function DraftView({ block, interactions }: { block: Draft; interactions:
   const { ref, cursor } = useDecidable(block.id, {
     kind: 'draft',
     disabled: locked,
-    engage: () => openAt(span?.start ?? 1),
+    engage: () => {
+      if (active) composerRef.current?.focus();
+      else openAt(1);
+    },
   });
 
   const marked = new Map<number, Resolved[]>();
@@ -158,11 +167,11 @@ export function DraftView({ block, interactions }: { block: Draft; interactions:
   return (
     <figure className="draft-block" ref={ref} data-kbd-cursor={cursor || undefined}>
       {block.title && <figcaption className="draft-title">{block.title}</figcaption>}
-      <Clamped lines={32} className="draft-lines">
+      <Clamped lines={32} className="draft-lines" contentKey={block.text}>
         {lines.map((line, i) => {
           const n = i + 1;
           const rowTokens = tokens?.[i];
-          const inSpan = span !== null && n >= span.start && n <= span.end;
+          const inSpan = composers.some((c) => n >= c.start && n <= c.end);
           const marks = marked.get(n);
           return (
             <div
@@ -199,35 +208,35 @@ export function DraftView({ block, interactions }: { block: Draft; interactions:
         })}
       </Clamped>
 
-      {selection && !locked && (
-        <div className="draft-composer">
-          <div className="draft-composer-range">
-            {span && (span.start === span.end ? `Line ${span.start}` : `Lines ${span.start}–${span.end}`)}
+      {!locked &&
+        composers.map(({ id, draft, start, end }) => (
+          <div key={id} className="draft-composer">
+            <div className="draft-composer-range">{start === end ? `Line ${start}` : `Lines ${start}–${end}`}</div>
+            <textarea
+              ref={id === activeId ? composerRef : undefined}
+              className="draft-composer-input"
+              rows={2}
+              value={draft.text}
+              placeholder="Add a note on these lines…"
+              onFocus={() => setActiveId(id)}
+              onChange={(e) => draftStore.set(block.id, id, { ...draft, text: e.target.value })}
+              onKeyDown={(e) => {
+                if (!e.repeat && (e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+                  e.preventDefault();
+                  void send(id);
+                }
+              }}
+            />
+            <div className="draft-composer-actions">
+              <button type="button" className="primary" onClick={() => void send(id)}>
+                {annotations.some((a) => a.id === id) ? 'Save' : 'Add note'}
+              </button>
+              <button type="button" onClick={() => draftStore.clear(block.id, id)}>
+                Cancel
+              </button>
+            </div>
           </div>
-          <textarea
-            ref={composerRef}
-            className="draft-composer-input"
-            rows={2}
-            value={draftText}
-            placeholder="Add a note on these lines…"
-            onChange={(e) => setDraftText(e.target.value)}
-            onKeyDown={(e) => {
-              if (!e.repeat && (e.metaKey || e.ctrlKey) && e.key === 'Enter') {
-                e.preventDefault();
-                void send();
-              }
-            }}
-          />
-          <div className="draft-composer-actions">
-            <button type="button" className="primary" onClick={send}>
-              {editingId ? 'Save' : 'Add note'}
-            </button>
-            <button type="button" onClick={cancel}>
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
+        ))}
 
       {attached.length > 0 && (
         <ul className="draft-notes">
