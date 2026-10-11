@@ -1,6 +1,3 @@
-// The rail's control layer: records the last-touched block, resolves the
-// addressed block (pin > cursor > last touch), and freezes it while composing.
-
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { PresentContext, usePresent } from './present';
@@ -115,6 +112,7 @@ export function ActiveBlockProvider({ children }: { children: ReactNode }) {
   const api = useMemo<PresentApi>(() => ({ ...parent, post }), [parent, post]);
 
   const pin = useCallback((id: string) => {
+    frozenRef.current = id;
     setPinned({ id });
     setPanel({ open: true, compose: false });
   }, []);

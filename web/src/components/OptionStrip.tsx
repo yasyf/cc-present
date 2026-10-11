@@ -65,7 +65,7 @@ export function OptionStrip({
     [edgesRef, containerRef],
   );
 
-  const onScroll = useCallback(() => {
+  const measure = useCallback(() => {
     const el = edgesRef.current;
     if (!el) return;
     const next = cardsInView(el);
@@ -75,10 +75,16 @@ export function OptionStrip({
   useEffect(() => {
     const el = edgesRef.current;
     if (!el) return;
-    onScroll();
-    el.addEventListener('scroll', onScroll, { passive: true });
-    return () => el.removeEventListener('scroll', onScroll);
-  }, [edgesRef, onScroll]);
+    measure();
+    el.addEventListener('scroll', measure, { passive: true });
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    for (const card of el.children) ro.observe(card);
+    return () => {
+      el.removeEventListener('scroll', measure);
+      ro.disconnect();
+    };
+  }, [edgesRef, measure, cardCount]);
 
   const scrollToCard = useCallback(
     (i: number) => {

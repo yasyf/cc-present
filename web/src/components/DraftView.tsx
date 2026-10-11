@@ -29,6 +29,12 @@ interface NoteDraft {
   text: string;
 }
 
+const ANNOTATIONS = 'annotations';
+
+function sameDraft(a: NoteDraft, b: NoteDraft | undefined): boolean {
+  return b !== undefined && a.anchor === b.anchor && a.focus === b.focus && a.text === b.text;
+}
+
 function spanOf(draft: NoteDraft, lineCount: number): { start: number; end: number } {
   return {
     start: Math.min(draft.anchor, draft.focus, lineCount),
@@ -76,7 +82,7 @@ export function DraftView({ block, interactions }: { block: Draft; interactions:
     };
   }, [block.text, block.lang]);
 
-  const drafts = useDrafts<NoteDraft>(block.id);
+  const drafts = useDrafts<NoteDraft>(block.id, ANNOTATIONS);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
   const composerRef = useRef<HTMLTextAreaElement>(null);
@@ -97,12 +103,12 @@ export function DraftView({ block, interactions }: { block: Draft; interactions:
 
   function openAt(line: number) {
     const id = uuid();
-    draftStore.set(block.id, id, { anchor: line, focus: line, text: '' });
+    draftStore.setEntry(block.id, ANNOTATIONS, id, { anchor: line, focus: line, text: '' });
     setActiveId(id);
   }
 
   function updateActive(draft: NoteDraft) {
-    draftStore.set(block.id, activeId!, draft);
+    draftStore.setEntry(block.id, ANNOTATIONS, activeId!, draft);
   }
 
   function gutterDown(line: number, shift: boolean) {
@@ -119,7 +125,9 @@ export function DraftView({ block, interactions }: { block: Draft; interactions:
 
   function editAnnotation(r: Resolved) {
     if (locked) return;
-    if (!drafts.has(r.ann.id)) draftStore.set(block.id, r.ann.id, { anchor: r.start, focus: r.end, text: r.ann.text });
+    if (!drafts.has(r.ann.id)) {
+      draftStore.setEntry(block.id, ANNOTATIONS, r.ann.id, { anchor: r.start, focus: r.end, text: r.ann.text });
+    }
     if (activeId === r.ann.id) composerRef.current?.focus();
     else setActiveId(r.ann.id);
   }
@@ -132,7 +140,9 @@ export function DraftView({ block, interactions }: { block: Draft; interactions:
     const anchor = formatRangeAnchor(start, end, anchorOf(lines[start - 1]!));
     const quote = lines.slice(start - 1, end).join('\n');
     const ok = await post({ type: 'annotation.created', id, blockId: block.id, anchor, text, quote });
-    if (ok) draftStore.clear(block.id, id);
+    if (ok && sameDraft(draft, draftStore.entries<NoteDraft>(block.id, ANNOTATIONS).get(id))) {
+      draftStore.clearEntry(block.id, ANNOTATIONS, id);
+    }
   }
 
   function remove(id: string) {
@@ -219,7 +229,7 @@ export function DraftView({ block, interactions }: { block: Draft; interactions:
               value={draft.text}
               placeholder="Add a note on these lines…"
               onFocus={() => setActiveId(id)}
-              onChange={(e) => draftStore.set(block.id, id, { ...draft, text: e.target.value })}
+              onChange={(e) => draftStore.setEntry(block.id, ANNOTATIONS, id, { ...draft, text: e.target.value })}
               onKeyDown={(e) => {
                 if (!e.repeat && (e.metaKey || e.ctrlKey) && e.key === 'Enter') {
                   e.preventDefault();
@@ -231,7 +241,7 @@ export function DraftView({ block, interactions }: { block: Draft; interactions:
               <button type="button" className="primary" onClick={() => void send(id)}>
                 {annotations.some((a) => a.id === id) ? 'Save' : 'Add note'}
               </button>
-              <button type="button" onClick={() => draftStore.clear(block.id, id)}>
+              <button type="button" onClick={() => draftStore.clearEntry(block.id, ANNOTATIONS, id)}>
                 Cancel
               </button>
             </div>

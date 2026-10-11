@@ -62,12 +62,17 @@ afterEach(() => {
   draftStore.reset();
 });
 
-function renderCapturing(block: Draft, interactions: Interactions, closed = false): unknown[] {
+function renderCapturing(
+  block: Draft,
+  interactions: Interactions,
+  closed = false,
+  accepted: boolean | Promise<boolean> = true,
+): unknown[] {
   const posted: unknown[] = [];
   const present: PresentApi = {
     post: async (ev) => {
       posted.push(ev);
-      return true;
+      return accepted;
     },
     closed,
     currentRound: 1,
@@ -91,6 +96,8 @@ function setValue(el: HTMLTextAreaElement, value: string): void {
     el.dispatchEvent(new Event('input', { bubbles: true }));
   });
 }
+
+const flush = (): Promise<void> => new Promise((resolve) => setTimeout(resolve));
 
 function mouseDown(el: Element, shiftKey = false): void {
   act(() => el.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, shiftKey })));
@@ -146,6 +153,42 @@ describe('DraftView annotation composer', () => {
 });
 
 describe('DraftView unsent notes', () => {
+  it('opens no composer for the note, input, or write-in drafts filed on its block', () => {
+    draftStore.set('d1', 'note', 'a general note');
+    draftStore.set('d1', 'input', 'typed');
+    draftStore.set('d1', 'other', 'written in');
+
+    renderCapturing(draft(), empty());
+
+    expect(container.querySelector('.draft-composer')).toBeNull();
+    expect(container.querySelector('.draft-row.in-span')).toBeNull();
+  });
+
+  it('keeps text typed while the save is in flight, and closes the composer once it lands unchanged', async () => {
+    let land!: () => void;
+    const landed = new Promise<boolean>((resolve) => {
+      land = () => resolve(true);
+    });
+    const save = (): void => (container.querySelector('.draft-composer .primary') as HTMLElement).click();
+    renderCapturing(draft(), empty(), false, landed);
+    mouseDown(gutter(2));
+    setValue(composerInputs()[0]!, 'first pass');
+    act(save);
+    setValue(composerInputs()[0]!, 'first pass, and more');
+    await act(async () => {
+      land();
+      await flush();
+    });
+
+    expect(composerInputs().map((ta) => ta.value)).toEqual(['first pass, and more']);
+
+    await act(async () => {
+      save();
+      await flush();
+    });
+    expect(composerInputs()).toEqual([]);
+  });
+
   it('keeps the first composer and its text when a second selection starts', () => {
     renderCapturing(draft(), empty());
     mouseDown(gutter(1));

@@ -5,23 +5,23 @@ const NO_DRAFTS: ReadonlyMap<string, never> = new Map<string, never>();
 class DraftStore {
   private subject: string | null = null;
   private round = 0;
+  private scopes = 0;
   private drafts = new Map<string, ReadonlyMap<string, unknown>>();
   private listeners = new Set<() => void>();
+
+  get epoch(): number {
+    return this.scopes;
+  }
 
   scope(subject: string, round: number): void {
     if (this.subject === subject && this.round === round) return;
     this.subject = subject;
     this.round = round;
-    this.drafts.clear();
-    this.emit();
+    this.drop();
   }
 
   get<T>(blockId: string, slot: string): T | undefined {
     return this.drafts.get(blockId)?.get(slot) as T | undefined;
-  }
-
-  all<T>(blockId: string): ReadonlyMap<string, T> {
-    return (this.drafts.get(blockId) ?? NO_DRAFTS) as ReadonlyMap<string, T>;
   }
 
   set(blockId: string, slot: string, value: unknown): void {
@@ -39,6 +39,21 @@ class DraftStore {
     this.emit();
   }
 
+  entries<T>(blockId: string, group: string): ReadonlyMap<string, T> {
+    return this.get<ReadonlyMap<string, T>>(blockId, group) ?? NO_DRAFTS;
+  }
+
+  setEntry(blockId: string, group: string, id: string, value: unknown): void {
+    this.set(blockId, group, new Map(this.entries(blockId, group)).set(id, value));
+  }
+
+  clearEntry(blockId: string, group: string, id: string): void {
+    const rest = new Map(this.entries(blockId, group));
+    if (!rest.delete(id)) return;
+    if (rest.size === 0) this.clear(blockId, group);
+    else this.set(blockId, group, rest);
+  }
+
   subscribe = (listener: () => void): (() => void) => {
     this.listeners.add(listener);
     return () => {
@@ -49,6 +64,11 @@ class DraftStore {
   reset(): void {
     this.subject = null;
     this.round = 0;
+    this.drop();
+  }
+
+  private drop(): void {
+    this.scopes += 1;
     this.drafts.clear();
     this.emit();
   }
@@ -64,6 +84,6 @@ export function useDraft<T>(blockId: string, slot: string): T | undefined {
   return useSyncExternalStore(draftStore.subscribe, () => draftStore.get<T>(blockId, slot));
 }
 
-export function useDrafts<T>(blockId: string): ReadonlyMap<string, T> {
-  return useSyncExternalStore(draftStore.subscribe, () => draftStore.all<T>(blockId));
+export function useDrafts<T>(blockId: string, group: string): ReadonlyMap<string, T> {
+  return useSyncExternalStore(draftStore.subscribe, () => draftStore.entries<T>(blockId, group));
 }

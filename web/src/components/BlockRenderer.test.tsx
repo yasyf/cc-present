@@ -7,10 +7,12 @@ import { PresentContext } from '../present';
 import type { PresentApi } from '../present';
 import { KeyboardProvider } from '../keyboard';
 import { BlockRenderer } from './BlockRenderer';
+import { ThreadHostContext } from './threadHost';
+import type { ThreadHost } from './threadHost';
 import { emptyState } from '../reduce';
 import { markPacksLoaded, registerPack, resetPacksForTest } from '../packs/registry';
 import type { Interactions, Reply } from '../events';
-import type { Approval, Block, Input, Markdown, PackBlock } from '../schema';
+import type { Approval, Block, Card, ChildBlock, Input, Markdown, PackBlock } from '../schema';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -26,6 +28,7 @@ class ResizeObserverStub {
 const markdownBlock = (id: string, md: string): Markdown => ({ id, type: 'markdown', md });
 const approvalBlock = (id: string): Approval => ({ id, type: 'approval' });
 const inputBlock = (id: string, label: string): Input => ({ id, type: 'input', label });
+const cardBlock = (id: string, children: ChildBlock[]): Card => ({ id, type: 'card', children });
 
 function withReplies(replies: Record<string, Reply[]>): Interactions {
   return { ...emptyState().interactions, replies };
@@ -35,15 +38,25 @@ function api(over: Partial<PresentApi> = {}): PresentApi {
   return { post: async () => true, closed: false, currentRound: 1, ...over };
 }
 
-function Board({ blocks, interactions, note }: { blocks: Block[]; interactions: Interactions; note?: boolean }) {
-  const present = api();
+interface BoardProps {
+  blocks: Block[];
+  interactions: Interactions;
+  note?: boolean;
+  host?: ThreadHost;
+  closed?: boolean;
+}
+
+function Board({ blocks, interactions, note, host = 'inline', closed = false }: BoardProps) {
+  const present = api({ closed });
   return (
     <PresentContext.Provider value={present}>
-      <KeyboardProvider blocks={blocks} interactions={interactions} closed={present.closed} round={present.currentRound}>
-        {blocks.map((b) => (
-          <BlockRenderer key={b.id} block={b} interactions={interactions} note={note} />
-        ))}
-      </KeyboardProvider>
+      <ThreadHostContext.Provider value={host}>
+        <KeyboardProvider blocks={blocks} interactions={interactions} closed={present.closed} round={present.currentRound}>
+          {blocks.map((b) => (
+            <BlockRenderer key={b.id} block={b} interactions={interactions} note={note} />
+          ))}
+        </KeyboardProvider>
+      </ThreadHostContext.Provider>
     </PresentContext.Provider>
   );
 }
@@ -63,8 +76,8 @@ afterEach(() => {
   resetPacksForTest();
 });
 
-function render(blocks: Block[], interactions: Interactions, note?: boolean): void {
-  act(() => root.render(<Board blocks={blocks} interactions={interactions} note={note} />));
+function render(blocks: Block[], interactions: Interactions, note?: boolean, over: Partial<BoardProps> = {}): void {
+  act(() => root.render(<Board blocks={blocks} interactions={interactions} note={note} {...over} />));
 }
 
 describe('BlockRenderer reply threading', () => {
@@ -152,5 +165,29 @@ describe('BlockRenderer note channel', () => {
   it('adds no second note control to a block that owns its thread', () => {
     render([approvalBlock('a1')], emptyState().interactions, true);
     expect(container.querySelectorAll('.feedback-affordance')).toHaveLength(1);
+  });
+
+  it('renders each reply once beside the inline note control', () => {
+    render([markdownBlock('m1', 'hi')], withReplies({ m1: [{ id: 'r1', md: 'agent reply' }] }), true);
+    expect(container.querySelectorAll('.reply-item')).toHaveLength(1);
+  });
+
+  it('counts a lone agent reply on the rail chip, and keeps the chip once the board closes', () => {
+    const replied = withReplies({ m1: [{ id: 'r1', md: 'agent reply' }] });
+    render([markdownBlock('m1', 'hi')], replied, true, { host: 'rail' });
+    expect(container.querySelector('.comment-chip')?.textContent).toBe('1 comment');
+    expect(container.querySelectorAll('.reply-item')).toHaveLength(1);
+
+    render([markdownBlock('m1', 'hi')], replied, true, { host: 'rail', closed: true });
+    expect(container.querySelector('.comment-chip')?.textContent).toBe('1 comment');
+  });
+
+  it('counts the notes and replies on a card child that owns no thread on the card chip', () => {
+    const interactions: Interactions = {
+      ...withReplies({ m1: [{ id: 'r1', md: 'agent reply' }] }),
+      feedback: { m1: [{ id: 'f1', text: 'on the child' }] },
+    };
+    render([cardBlock('k1', [markdownBlock('m1', 'hi')])], interactions, true, { host: 'rail' });
+    expect(container.querySelector('.comment-chip')?.textContent).toBe('2 comments');
   });
 });

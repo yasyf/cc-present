@@ -144,6 +144,40 @@ describe('threadFeed ownership', () => {
     expect(threadFeed(s, 'i2', NO_PACKS).pinned?.blockId).toBe('i2');
   });
 
+  it('folds the notes and replies on a card child that owns no thread into the card, in document order', () => {
+    const s = state({
+      blocks,
+      feedback: noted,
+      replies: { i1: [reply('r3', 'on the input')], k1: [reply('r1', 'on the card')], m1: [reply('r2', 'on the prose')] },
+    });
+    const { pinned, feed } = threadFeed(s, 'k1', NO_PACKS);
+    expect(pinned?.feedback).toEqual([fb('f-k1', 'k1'), fb('f-m1', 'm1'), fb('f-i1', 'i1')]);
+    expect(pinned?.replies).toEqual([reply('r1', 'on the card'), reply('r2', 'on the prose'), reply('r3', 'on the input')]);
+    expect(pinned?.lastComment).toBe('on the input');
+    expect(feed.find((e) => e.blockId === 'a1')?.feedback).toEqual([fb('f-a1', 'a1')]);
+  });
+
+  it('lists a card whose only conversation sits on a child that owns no thread', () => {
+    const s = state({ blocks, replies: { m1: [reply('r1', 'about the prose')] } });
+    expect(threadFeed(s, null, NO_PACKS).feed.map((e) => [e.blockId, e.lastComment])).toEqual([['k1', 'about the prose']]);
+  });
+
+  it('folds a frozen card child the same way, reading notes from the round and replies live', () => {
+    const s = state({
+      replies: { hm1: [reply('r1', 'a late reply')] },
+      history: [round(1, [card('h1', [markdown('hm1')], 'Past')], { h1: [fb('f1', 'on the card')], hm1: [fb('f2', 'on the child')] })],
+    });
+    expect(threadFeed(s, null, NO_PACKS).feed).toMatchObject([
+      {
+        blockId: 'h1',
+        feedback: [fb('f1', 'on the card'), fb('f2', 'on the child')],
+        replies: [reply('r1', 'a late reply')],
+        locked: true,
+        live: false,
+      },
+    ]);
+  });
+
   it('pins the frozen card for a history child that owns no thread', () => {
     const s = state({ history: [round(1, [card('h1', [markdown('hm1')])], { h1: [fb('f1', 'past')] })] });
     expect(threadFeed(s, 'hm1', NO_PACKS).pinned).toMatchObject({ blockId: 'h1', locked: true, live: false });
@@ -172,6 +206,21 @@ describe('threadFeed order', () => {
     expect(feed.map((e) => [e.blockId, e.live])).toEqual([
       ['a1', true],
       ['h1', false],
+    ]);
+  });
+
+  it('marks a doc block whose round has closed not live, so a jump reveals its round', () => {
+    const s = state({
+      blocks: [card('k1', [approval('a1', 'Old call')]), approval('a2', 'New call')],
+      feedback: { k1: [fb('f1', 'x')], a1: [fb('f2', 'y')], a2: [fb('f3', 'z')] },
+      current: 2,
+      blockRounds: { k1: 1, a2: 2 },
+      history: [round(1, [card('k1', [approval('a1', 'Old call')])], { k1: [fb('f1', 'x')], a1: [fb('f2', 'y')] })],
+    });
+    expect(threadFeed(s, null, NO_PACKS).feed.map((e) => [e.blockId, e.live])).toEqual([
+      ['k1', false],
+      ['a1', false],
+      ['a2', true],
     ]);
   });
 
@@ -245,8 +294,8 @@ describe('threadFeed pack blocks', () => {
       blocks: [card('c1', [pack('k1', 'dd.fork'), pack('k2', 'dd.callout')])],
       feedback: { k1: [fb('f1', 'neither')], k2: [fb('f2', 'stray')] },
     });
-    expect(threadFeed(s, null, interactive).feed.map((e) => e.blockId)).toEqual(['k1']);
-    expect(threadFeed(s, 'k2', interactive).pinned?.blockId).toBe('c1');
+    expect(threadFeed(s, null, interactive).feed.map((e) => e.blockId)).toEqual(['c1', 'k1']);
+    expect(threadFeed(s, 'k2', interactive).pinned).toMatchObject({ blockId: 'c1', feedback: [fb('f2', 'stray')] });
   });
 
   it('labels a pack block with no heading field by its dotted type', () => {

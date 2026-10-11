@@ -145,6 +145,23 @@ describe('FeedbackThread unsent note', () => {
     expect(container.querySelector('textarea')?.value).toBe('first\nsecond');
   });
 
+  it('drops a failed note whose round ended before the post came back', async () => {
+    let fail = (): void => {};
+    const post: PresentApi['post'] = () => new Promise((resolve) => (fail = () => resolve(false)));
+    act(() => draftStore.scope('s1', 1));
+    const feedbackRef = render('inline', undefined, post);
+    act(() => feedbackRef.current?.open());
+    type('about round one');
+    act(() => action('Send').click());
+
+    act(() => draftStore.scope('s1', 2));
+    await settle(fail);
+
+    expect(draftStore.get('a1', 'note')).toBeUndefined();
+    expect(container.querySelector('textarea')).toBeNull();
+    expect(container.querySelector('.feedback-item.pending')).toBeNull();
+  });
+
   it('keeps the text across a remount without taking focus', () => {
     const feedbackRef = render('rail');
     act(() => feedbackRef.current?.open());

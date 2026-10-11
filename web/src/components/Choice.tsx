@@ -3,6 +3,7 @@ import { useGroupReadOnly } from '@cc-interact/react';
 import type { Choice as ChoiceBlock } from '../schema';
 import type { Interactions } from '../events';
 import { usePresent } from '../present';
+import { draftStore } from '../drafts';
 import { choiceToggle } from '../decide';
 import { factAxes } from '../focus';
 import { useDecidable } from '../keyboard';
@@ -40,8 +41,16 @@ export function Choice({ block, interactions }: { block: ChoiceBlock; interactio
   const optionsRef = useRef<HTMLDivElement>(null);
   const [noteComposing, setNoteComposing] = useState(false);
   const [otherComposing, setOtherComposing] = useState(false);
-  const [draft, setDraft] = useState(committed);
+  const [draft, setDraft] = useState(
+    () => committed || (readOnly ? undefined : draftStore.get<string>(block.id, 'other')) || '',
+  );
+  useEffect(() => {
+    if (readOnly) return;
+    if (draft) draftStore.set(block.id, 'other', draft);
+    else draftStore.clear(block.id, 'other');
+  }, [readOnly, block.id, draft]);
   const [dirty, setDirty] = useState(false);
+  const lastAction = useRef(0);
   const [synced, setSynced] = useState(committed);
   if (synced !== committed) {
     setSynced(committed);
@@ -53,6 +62,7 @@ export function Choice({ block, interactions }: { block: ChoiceBlock; interactio
   const picks = !multi && dirty && text !== '' ? [] : selected;
 
   function toggle(optionId: string) {
+    lastAction.current += 1;
     const optionIds = choiceToggle(picks, optionId, multi);
     // A single-select answer is exclusive: an authored pick drops any write-in.
     if (!multi) setDirty(false);
@@ -62,6 +72,7 @@ export function Choice({ block, interactions }: { block: ChoiceBlock; interactio
   function postOther(other: string | undefined) {
     // A single-select write-in is the sole answer, so it clears authored picks;
     // multi keeps them alongside the write-in.
+    lastAction.current += 1;
     return post({ type: 'choice.selected', blockId: block.id, optionIds: multi ? selected : [], other });
   }
 
@@ -71,7 +82,9 @@ export function Choice({ block, interactions }: { block: ChoiceBlock; interactio
       setDirty(false);
       return;
     }
-    if (await postOther(text || undefined)) return;
+    const sent = postOther(text || undefined);
+    const action = lastAction.current;
+    if ((await sent) || lastAction.current !== action) return;
     setDraft((current) => (current === committed ? draft : current));
     setDirty(true);
   }
