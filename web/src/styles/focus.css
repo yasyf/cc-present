@@ -255,22 +255,38 @@
 /* Fade only the edge content has actually scrolled under — a parked edge stays
    crisp, so a heading at the resting top is never half-dissolved (FocusCard sets
    the data-edge attrs; both parked means nothing scrolls at all). */
-.focus-card-body[data-edge-start]:not([data-edge-end]) {
+.focus-card-body[data-edge-start]:not([data-edge-end]),
+.focus-main[data-edge-start]:not([data-edge-end]) {
   mask-image: linear-gradient(to bottom, #000 calc(100% - var(--focus-fade)), transparent 100%);
 }
-.focus-card-body[data-edge-end]:not([data-edge-start]) {
+.focus-card-body[data-edge-end]:not([data-edge-start]),
+.focus-main[data-edge-end]:not([data-edge-start]) {
   mask-image: linear-gradient(to bottom, transparent 0, #000 var(--focus-fade));
 }
 .focus-card-body[data-edge-start][data-edge-end] {
   mask-image: none;
 }
+.focus-main:not([data-edge-start], [data-edge-end]) {
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    #000 var(--focus-fade),
+    #000 calc(100% - var(--focus-fade)),
+    transparent 100%
+  );
+}
+.focus-main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
 /* The focus frame already borders and insets the step, so a nested card's state
    rail reads as a stray rule and its side padding as a double margin. */
-.focus-card-body > .card {
+.focus-main > .card {
   border-left: none;
   padding-inline: 0;
 }
-.focus-card-body > .comment-chip-row {
+.focus-main > .comment-chip-row {
   display: flex;
   justify-content: flex-end;
   margin-top: 0;
@@ -397,20 +413,42 @@
 .focus-context .clamp-toggle {
   margin-top: var(--space-2);
 }
-/* The option visual stage: the active option's demonstration, above the controls.
-   Collapses until an option visual mounts. */
 .focus-media {
   margin: 0;
-  max-height: 42vh;
   overflow: auto;
 }
 .focus-media:empty {
   display: none;
 }
+.focus-card-body[data-stage] {
+  --stage-h: max(22rem, 100dvh - 21rem);
+  max-height: var(--stage-h);
+}
+.focus-card-body[data-stage] > .focus-main {
+  display: contents;
+}
+.focus-card-body[data-stage] > .focus-main > .focus-context {
+  order: -2;
+}
+.focus-card-body[data-stage] > .focus-media {
+  order: -1;
+  flex: none;
+  height: calc(var(--stage-h) / 2);
+}
+.focus-media-empty {
+  display: grid;
+  place-items: center;
+  height: 100%;
+  margin: 0;
+  border: 1px dashed var(--line);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-stamp);
+  font-size: var(--text-sm);
+  color: var(--muted);
+}
 /* At --bp-compact FocusCard mounts the stage as a <details> so the demonstration
    collapses to a titled row and expands inline; the height cap moves to the body. */
 .focus-media-disclosure {
-  max-height: none;
   overflow: visible;
 }
 .focus-media-summary {
@@ -588,5 +626,46 @@
   }
   .focus-dot.tick {
     padding: 13px;
+  }
+  .focus-card-body[data-stage] > .focus-media {
+    height: auto;
+  }
+  .focus-media-empty {
+    display: block;
+    padding: var(--space-2) 0;
+    border: none;
+    font-weight: 700;
+    letter-spacing: var(--track-caps);
+  }
+}
+@media (min-width: 1280px) {
+  .focus-stage {
+    --stage-w: min(84rem, 100vw - 2 * (var(--rail-strip-w) + var(--page-pad)));
+  }
+  .focus-stage:has(> .focus-card:not([data-exiting]) > .focus-card-body[data-stage]) {
+    margin-inline: calc((100% - var(--stage-w)) / 2);
+  }
+  .focus-stage > [data-exiting] {
+    right: 0;
+    margin-inline: auto;
+  }
+  .focus-stage > [data-exiting]:has(> .focus-card-body[data-stage]) {
+    margin-inline-start: calc((100% - var(--stage-w)) / 2);
+  }
+  .focus-card-body[data-stage] {
+    display: grid;
+    grid-template: minmax(0, 1fr) / minmax(0, 11fr) minmax(0, 9fr);
+    column-gap: var(--space-5);
+    height: var(--stage-h);
+    overflow: visible;
+  }
+  .focus-card-body[data-stage] > .focus-main {
+    display: flex;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+  .focus-card-body[data-stage] > .focus-media {
+    order: 0;
+    height: auto;
   }
 }
