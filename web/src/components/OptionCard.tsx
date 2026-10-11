@@ -1,3 +1,4 @@
+import type { MouseEvent } from 'react';
 import type { ChoiceOption } from '../schema';
 import type { Interactions } from '../events';
 import { renderInlineMarkdown } from '../markdown';
@@ -34,8 +35,8 @@ export function OptionCard({
   interactions: Interactions;
   axes: string[] | null;
   onToggle: () => void;
-  onHoverEnter: () => void;
-  onHoverLeave: () => void;
+  onHoverEnter: (pointer?: MouseEvent) => void;
+  onHoverLeave: (pointer?: MouseEvent) => void;
 }) {
   const facts = option.facts && option.facts.length > 0 ? option.facts : null;
   const factLabels = axes ?? facts?.map((f) => f.label ?? '') ?? [];
@@ -46,10 +47,10 @@ export function OptionCard({
       aria-disabled={locked}
       tabIndex={locked ? -1 : 0}
       className={`option${selected ? ' selected' : ''}${option.recommended ? ' recommended' : ''}`}
-      onMouseEnter={onHoverEnter}
+      onMouseMove={onHoverEnter}
       onMouseLeave={onHoverLeave}
-      onFocus={onHoverEnter}
-      onBlur={onHoverLeave}
+      onFocus={() => onHoverEnter()}
+      onBlur={() => onHoverLeave()}
       onClick={() => {
         if (!locked) onToggle();
       }}

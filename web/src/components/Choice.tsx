@@ -1,4 +1,5 @@
 import { useContext, useEffect, useRef, useState } from 'react';
+import type { MouseEvent } from 'react';
 import { useGroupReadOnly } from '@cc-interact/react';
 import type { Choice as ChoiceBlock } from '../schema';
 import type { Interactions } from '../events';
@@ -121,6 +122,14 @@ export function Choice({ block, interactions }: { block: ChoiceBlock; interactio
 
   const [pointed, setPointed] = useState<string | null>(null);
   const [lastPointed, setLastPointed] = useState<string | null>(null);
+  const pointerAt = useRef('');
+
+  function pointerMoved({ clientX, clientY }: MouseEvent) {
+    const at = `${clientX},${clientY}`;
+    const moved = at !== pointerAt.current;
+    pointerAt.current = at;
+    return moved;
+  }
 
   const { ref, cursor } = useDecidable(block.id, {
     kind: 'choice',
@@ -191,11 +200,15 @@ export function Choice({ block, interactions }: { block: ChoiceBlock; interactio
             interactions={interactions}
             axes={axes}
             onToggle={() => pick(i)}
-            onHoverEnter={() => {
+            onHoverEnter={(pointer) => {
+              if (pointer && !pointerMoved(pointer)) return;
               setPointed(option.id);
               setLastPointed(option.id);
             }}
-            onHoverLeave={() => setPointed((p) => (p === option.id ? null : p))}
+            onHoverLeave={(pointer) => {
+              if (pointer) pointerMoved(pointer);
+              setPointed((p) => (p === option.id ? null : p));
+            }}
           />
         ))}
         <div

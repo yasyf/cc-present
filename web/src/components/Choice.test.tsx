@@ -822,15 +822,17 @@ describe('Choice stage preview', () => {
   });
   const card = (i: number) => container.querySelectorAll<HTMLElement>('.option')[i]!;
   const fire = (i: number, event: Event) => act(() => void card(i).dispatchEvent(event));
+  const pointer = (type: string, i: number, clientX: number) =>
+    fire(i, new MouseEvent(type, { bubbles: true, clientX, clientY: 10 }));
 
   it('stages the first option before any hover, then holds the last hovered card after the pointer leaves', () => {
     const setVisual = vi.fn<FocusStageValue['setVisual']>();
     renderWithStage(withVisuals(), empty(), setVisual);
     expect(setVisual).toHaveBeenLastCalledWith(visuals[0]);
 
-    fire(1, new MouseEvent('mouseover', { bubbles: true }));
+    pointer('mousemove', 1, 50);
     expect(setVisual).toHaveBeenLastCalledWith(visuals[1]);
-    fire(1, new MouseEvent('mouseout', { bubbles: true }));
+    pointer('mouseout', 1, 400);
     expect(setVisual).toHaveBeenLastCalledWith(visuals[1]);
   });
 
@@ -839,15 +841,33 @@ describe('Choice stage preview', () => {
     renderWithStage(withVisuals(), { ...empty(), choices: { c1: { optionIds: ['o2'] } } }, setVisual);
     expect(setVisual).toHaveBeenLastCalledWith(visuals[2]);
 
-    fire(0, new MouseEvent('mouseover', { bubbles: true }));
+    pointer('mousemove', 0, 50);
     expect(setVisual).toHaveBeenLastCalledWith(visuals[0]);
-    fire(0, new MouseEvent('mouseout', { bubbles: true }));
+    pointer('mouseout', 0, 400);
     expect(setVisual).toHaveBeenLastCalledWith(visuals[2]);
+    pointer('mousemove', 0, 50);
+    expect(setVisual).toHaveBeenLastCalledWith(visuals[0]);
+    pointer('mouseout', 0, 400);
 
     fire(1, new FocusEvent('focusin', { bubbles: true }));
     expect(setVisual).toHaveBeenLastCalledWith(visuals[1]);
     fire(1, new FocusEvent('focusout', { bubbles: true }));
     expect(setVisual).toHaveBeenLastCalledWith(visuals[2]);
+  });
+
+  it('keeps the picked card staged when a scroll slides a neighbour under a still pointer', () => {
+    const setVisual = vi.fn<FocusStageValue['setVisual']>();
+    renderWithStage(withVisuals(), { ...empty(), choices: { c1: { optionIds: ['o1'] } } }, setVisual);
+    pointer('mousemove', 1, 50);
+    expect(setVisual).toHaveBeenLastCalledWith(visuals[1]);
+
+    pointer('mouseout', 1, 50);
+    pointer('mouseover', 0, 50);
+    pointer('mousemove', 0, 50);
+    expect(setVisual).toHaveBeenLastCalledWith(visuals[1]);
+
+    pointer('mousemove', 0, 51);
+    expect(setVisual).toHaveBeenLastCalledWith(visuals[0]);
   });
 
   it('moves to the option a digit key picks', () => {
