@@ -11,8 +11,6 @@ export interface FocusStepContextValue {
 // board mode, where card heads and prompts render as authored.
 export const FocusStepContext = createContext<FocusStepContextValue | null>(null);
 
-// FocusStageValue lets a choice publish the visual its active option carries so the
-// card mounts it in the shared visual stage above the controls.
 export interface FocusStageValue {
   setVisual: (visual: OptionVisual | null) => void;
 }

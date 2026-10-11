@@ -291,10 +291,6 @@
   justify-content: flex-end;
   margin-top: 0;
 }
-.focus-main > [data-kbd-cursor] {
-  box-shadow: none;
-  animation: none;
-}
 /* Rotated swipe affordances — the stamp aesthetic, revealed as the card is dragged
    (opacity is driven inline by the drag position). */
 .swipe-label {
@@ -643,10 +639,10 @@
   }
 }
 @media (min-width: 1280px) {
-  .focus-deck {
+  .focus-stage {
     --stage-w: min(84rem, 100vw - 2 * (var(--rail-strip-w) + var(--page-pad)));
   }
-  .focus-deck:has(.focus-card:not([data-exiting]) > .focus-card-body[data-stage]) {
+  .focus-stage:has(> .focus-card:not([data-exiting]) > .focus-card-body[data-stage]) {
     margin-inline: calc((100% - var(--stage-w)) / 2);
   }
   .focus-stage > [data-exiting] {
@@ -667,8 +663,6 @@
     display: flex;
     overflow-y: auto;
     overscroll-behavior: contain;
-    scrollbar-width: thin;
-    scrollbar-color: var(--border-strong) transparent;
   }
   .focus-card-body[data-stage] > .focus-media {
     order: 0;
