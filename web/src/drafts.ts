@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from 'react';
 
-const NO_DRAFTS: ReadonlyMap<string, never> = new Map();
+const NO_DRAFTS: ReadonlyMap<string, never> = new Map<string, never>();
 
 class DraftStore {
   private subject: string | null = null;
