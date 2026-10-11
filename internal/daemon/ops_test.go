@@ -95,6 +95,8 @@ const twoApprovalDoc = `{"version":1,"title":"Board","blocks":[{"id":"a1","type"
 
 const triageVisualDoc = `{"version":1,"title":"Board","blocks":[{"id":"t1","type":"triage","items":[{"id":"i1","label":"One","visual":{"id":"tv1","type":"code","lang":"go","code":"x"}}]}]}`
 
+const storedLegacyDoc = `{"version":1,"title":"Legacy","legacy":true,"blocks":[{"id":"c1","type":"card","children":[{"id":"a1","type":"approval","allowFeedback":false}]},{"id":"a2","type":"approval","allowFeedback":true}]}`
+
 // nilDisplay is the no-trust display func the handler tests pass by default: a
 // start or push then carries no tailnet URLs.
 func nilDisplay(context.Context, string, int) []string { return nil }
@@ -1318,6 +1320,118 @@ func TestOutcomes(t *testing.T) {
 	}
 	if st.Doc.Title != "Board" {
 		t.Fatalf("reduced doc title = %q, want Board", st.Doc.Title)
+	}
+}
+
+func appendStored(t *testing.T, h *harness, subjectID, eventType string, payload json.RawMessage) {
+	t.Helper()
+	if _, err := h.cc.AppendEvent(context.Background(), &ccevent.Event{
+		SubjectID: subjectID, Origin: ccevent.OriginAgent, Type: eventType,
+		Payload: injectIdentity(eventType, payload),
+	}); err != nil {
+		t.Fatalf("append %s: %v", eventType, err)
+	}
+}
+
+func TestStoredUnknownKeysLoadWhileWritesRejectThem(t *testing.T) {
+	docs := []struct {
+		name    string
+		doc     string
+		wantErr string
+	}{
+		{
+			name:    "doc key",
+			doc:     `{"version":1,"title":"Legacy","legacy":true,"blocks":[{"id":"a1","type":"approval"}]}`,
+			wantErr: `unknown field "legacy"`,
+		},
+		{
+			name:    "top-level block key",
+			doc:     `{"version":1,"title":"Legacy","blocks":[{"id":"a1","type":"approval","allowFeedback":false}]}`,
+			wantErr: `block "a1": decode approval block: json: unknown field "allowFeedback"`,
+		},
+		{
+			name:    "card child key",
+			doc:     `{"version":1,"title":"Legacy","blocks":[{"id":"c1","type":"card","children":[{"id":"a1","type":"approval","allowFeedback":false}]}]}`,
+			wantErr: `block "c1": decode card block: block "a1": decode approval block: json: unknown field "allowFeedback"`,
+		},
+		{
+			name:    "every level",
+			doc:     storedLegacyDoc,
+			wantErr: `unknown field "legacy"`,
+		},
+	}
+	for _, tt := range docs {
+		t.Run(tt.name, func(t *testing.T) {
+			h := newHarness(t)
+			if reply := handleStart(h.hc(body{Doc: json.RawMessage(tt.doc)}), doc.NoPacks, nilDisplay); reply.OK || !strings.Contains(reply.Error, tt.wantErr) {
+				t.Fatalf("start --doc: ok=%v err=%q, want %q", reply.OK, reply.Error, tt.wantErr)
+			}
+			start := handleStart(h.hc(body{Title: "T"}), doc.NoPacks, nilDisplay)
+			appendStored(t, h, start.SubjectID, EventDocReplaced, docReplacedPayload(json.RawMessage(tt.doc), 1, nil))
+			if st := reduceSubject(t, h, start.SubjectID); st.Doc.Title != "Legacy" {
+				t.Fatalf("reduced doc title = %q, want Legacy", st.Doc.Title)
+			}
+			if reply := handlePush(h.hc(body{Doc: json.RawMessage(tt.doc)}), doc.NoPacks, nilDisplay); reply.OK || !strings.Contains(reply.Error, tt.wantErr) {
+				t.Fatalf("push: ok=%v err=%q, want %q", reply.OK, reply.Error, tt.wantErr)
+			}
+			if got := h.eventsOfType(t, start.SubjectID, EventDocReplaced); len(got) != 1 {
+				t.Fatalf("got %d doc.replaced, want only the stored one", len(got))
+			}
+			reply := handleOutcomes(h.hc(body{}))
+			if !reply.OK {
+				t.Fatalf("outcomes not ok: %s", reply.Error)
+			}
+			var res result
+			if err := json.Unmarshal(reply.Body, &res); err != nil {
+				t.Fatalf("decode result: %v", err)
+			}
+			var st state.State
+			if err := json.Unmarshal(res.State, &st); err != nil {
+				t.Fatalf("decode state: %v", err)
+			}
+			if rev := pushRev(t, h, approvalDoc); rev != 2 {
+				t.Fatalf("push over stored history revision = %d, want 2", rev)
+			}
+		})
+	}
+
+	blocks := []struct {
+		name    string
+		block   string
+		wantErr string
+	}{
+		{
+			name:    "top-level block key",
+			block:   `{"id":"a9","type":"approval","allowFeedback":false}`,
+			wantErr: `block "a9": decode approval block: json: unknown field "allowFeedback"`,
+		},
+		{
+			name:    "card child key",
+			block:   `{"id":"c9","type":"card","children":[{"id":"a9","type":"approval","allowFeedback":false}]}`,
+			wantErr: `block "c9": decode card block: block "a9": decode approval block: json: unknown field "allowFeedback"`,
+		},
+	}
+	for _, tt := range blocks {
+		t.Run("update-block "+tt.name, func(t *testing.T) {
+			h := newHarness(t)
+			start := handleStart(h.hc(body{Title: "T"}), doc.NoPacks, nilDisplay)
+			appendStored(t, h, start.SubjectID, EventDocReplaced, docReplacedPayload(json.RawMessage(storedLegacyDoc), 1, nil))
+			appendStored(t, h, start.SubjectID, EventBlockUpserted, blockUpsertedPayload(json.RawMessage(tt.block), ""))
+			st := reduceSubject(t, h, start.SubjectID)
+			if _, ok := doc.Locate(st.Doc, "a9"); !ok {
+				t.Fatal("stored block a9 missing from the reduced document")
+			}
+			reply := handleUpsertBlock(h.hc(body{Block: json.RawMessage(tt.block)}), doc.NoPacks)
+			if reply.OK || reply.Error != tt.wantErr {
+				t.Fatalf("update-block: ok=%v err=%q, want %q", reply.OK, reply.Error, tt.wantErr)
+			}
+			if got := h.eventsOfType(t, start.SubjectID, EventBlockUpserted); len(got) != 1 {
+				t.Fatalf("got %d block.upserted, want only the stored one", len(got))
+			}
+			if reply := handleUpsertBlock(h.hc(body{Block: json.RawMessage(`{"id":"m9","type":"markdown","md":"hi"}`)}), doc.NoPacks); !reply.OK {
+				t.Fatalf("update-block over stored history not ok: %s", reply.Error)
+			}
+		})
 	}
 }
 

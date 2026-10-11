@@ -476,12 +476,142 @@ func TestDecodeRejectsUnknownFields(t *testing.T) {
 			doc:  docWith(card("c1", `{"id":"ch1","type":"choice","options":[{"id":"o1","label":"L","why":"x"}]}`)),
 			want: `block "ch1": decode choice block: unmarshal option: json: unknown field "why"`,
 		},
+		{
+			name: "earlier occurrence of a repeated options key",
+			doc:  docWith(`{"id":"ch1","type":"choice","options":[{"id":"o1","label":"L","legacy":true}],"options":[{"id":"o1","label":"L"}]}`),
+			want: `block "ch1": decode choice block: unmarshal option: json: unknown field "legacy"`,
+		},
+		{
+			name: "earlier occurrence of a repeated items key",
+			doc:  docWith(`{"id":"t1","type":"triage","items":[{"id":"i1","label":"L","legacy":true}],"items":[{"id":"i1","label":"L"}]}`),
+			want: `block "t1": decode triage block: unmarshal item: json: unknown field "legacy"`,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			_, err := parse(tt.doc)
 			if err == nil || !strings.Contains(err.Error(), tt.want) {
 				t.Fatalf("parse() error = %v, want it to contain %q", err, tt.want)
+			}
+		})
+	}
+}
+
+func TestDecodeStoredIgnoresUnknownFields(t *testing.T) {
+	tests := []struct {
+		name string
+		doc  string
+		want string
+	}{
+		{
+			name: "doc key",
+			doc:  `{"version":1,"title":"T","legacy":true,"blocks":[]}`,
+			want: docWith(``),
+		},
+		{
+			name: "top-level block key",
+			doc:  docWith(`{"id":"a1","type":"approval","allowFeedback":false}`),
+			want: docWith(`{"id":"a1","type":"approval"}`),
+		},
+		{
+			name: "card key",
+			doc:  docWith(`{"id":"c1","type":"card","legacy":true,"children":[]}`),
+			want: docWith(card("c1", ``)),
+		},
+		{
+			name: "card child key",
+			doc:  docWith(card("c1", `{"id":"a1","type":"approval","allowFeedback":false}`)),
+			want: docWith(card("c1", `{"id":"a1","type":"approval"}`)),
+		},
+		{
+			name: "nested detail key",
+			doc:  docWith(`{"id":"a1","type":"approval","detail":{"md":"m","legacy":true}}`),
+			want: docWith(`{"id":"a1","type":"approval","detail":{"md":"m"}}`),
+		},
+		{
+			name: "choice and option keys",
+			doc:  docWith(`{"id":"ch1","type":"choice","legacy":true,"options":[{"id":"o1","label":"L","why":"x"}]}`),
+			want: docWith(`{"id":"ch1","type":"choice","options":[{"id":"o1","label":"L"}]}`),
+		},
+		{
+			name: "option visual key",
+			doc:  docWith(`{"id":"ch1","type":"choice","options":[{"id":"o1","label":"L","visual":{"id":"v1","type":"code","lang":"go","code":"x","legacy":true}}]}`),
+			want: docWith(`{"id":"ch1","type":"choice","options":[{"id":"o1","label":"L","visual":{"id":"v1","type":"code","lang":"go","code":"x"}}]}`),
+		},
+		{
+			name: "triage and item keys",
+			doc:  docWith(`{"id":"t1","type":"triage","legacy":true,"items":[{"id":"i1","label":"L","why":"x"}]}`),
+			want: docWith(`{"id":"t1","type":"triage","items":[{"id":"i1","label":"L"}]}`),
+		},
+		{
+			name: "repeated options key keeps the last occurrence",
+			doc:  docWith(`{"id":"ch1","type":"choice","options":[{"id":"o1","label":"First","legacy":true}],"options":[{"id":"o2","label":"Last"}]}`),
+			want: docWith(`{"id":"ch1","type":"choice","options":[{"id":"o2","label":"Last"}]}`),
+		},
+		{
+			name: "repeated items key keeps the last occurrence",
+			doc:  docWith(`{"id":"t1","type":"triage","items":[{"id":"i1","label":"First","legacy":true}],"items":[{"id":"i2","label":"Last"}]}`),
+			want: docWith(`{"id":"t1","type":"triage","items":[{"id":"i2","label":"Last"}]}`),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if _, err := parse(tt.doc); err == nil || !strings.Contains(err.Error(), "unknown field") {
+				t.Fatalf("parse() error = %v, want the strict decoder to reject an unknown field", err)
+			}
+			d, err := doc.DecodeStored([]byte(tt.doc))
+			if err != nil {
+				t.Fatalf("DecodeStored() error = %v", err)
+			}
+			got, err := json.Marshal(d)
+			if err != nil {
+				t.Fatalf("marshal: %v", err)
+			}
+			if string(got) != tt.want {
+				t.Fatalf("DecodeStored() = %s, want %s", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestDecodeStoredBlock(t *testing.T) {
+	tests := []struct {
+		name       string
+		block      string
+		want       string
+		wantStrict string
+	}{
+		{
+			name:       "built-in block drops an unknown key",
+			block:      `{"id":"a1","type":"approval","allowFeedback":false}`,
+			want:       `{"id":"a1","type":"approval"}`,
+			wantStrict: `block "a1": decode approval block: json: unknown field "allowFeedback"`,
+		},
+		{
+			name:  "pack block keeps every key",
+			block: `{"id":"p1","type":"example.rating","legacy":true,"value":3}`,
+			want:  `{"id":"p1","legacy":true,"type":"example.rating","value":3}`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, strictErr := doc.DecodeBlock(json.RawMessage(tt.block))
+			if tt.wantStrict == "" && strictErr != nil {
+				t.Fatalf("DecodeBlock() error = %v, want nil", strictErr)
+			}
+			if tt.wantStrict != "" && (strictErr == nil || strictErr.Error() != tt.wantStrict) {
+				t.Fatalf("DecodeBlock() error = %v, want %q", strictErr, tt.wantStrict)
+			}
+			b, err := doc.DecodeStoredBlock(json.RawMessage(tt.block))
+			if err != nil {
+				t.Fatalf("DecodeStoredBlock() error = %v", err)
+			}
+			got, err := json.Marshal(b)
+			if err != nil {
+				t.Fatalf("marshal: %v", err)
+			}
+			if string(got) != tt.want {
+				t.Fatalf("DecodeStoredBlock() = %s, want %s", got, tt.want)
 			}
 		})
 	}

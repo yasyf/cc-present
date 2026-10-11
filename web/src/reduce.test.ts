@@ -9,7 +9,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { applyEvent, applyInteraction, reduce } from './reduce';
-import type { Doc } from './schema';
+import type { Card, Doc } from './schema';
 import type { Interactions, PresentEvent, PresentState, Revising, Rounds } from './events';
 
 const testdataDir = fileURLToPath(new URL('../../internal/state/testdata/', import.meta.url));
@@ -118,6 +118,49 @@ describe('applyInteraction optimistic path', () => {
     const echoed = applyEvent(base, { origin: 'human', type: 'submit', seq: 2, payload: { schemaVersion: 1, type: 'submit', revision: 3 } });
     expect(echoed.rounds.current).toBe(2);
     expect(echoed.rounds.history.map((r) => r.submittedRevision)).toEqual([3]);
+  });
+});
+
+describe('stored history tolerance', () => {
+  it('reduces a stored document and upsert carrying keys the schema no longer defines', () => {
+    const events = [
+      {
+        origin: 'agent',
+        type: 'doc.replaced',
+        seq: 1,
+        payload: {
+          schemaVersion: 1,
+          type: 'doc.replaced',
+          revision: 1,
+          doc: {
+            version: 1,
+            title: 'T',
+            legacy: true,
+            blocks: [
+              { id: 'c1', type: 'card', legacy: true, children: [{ id: 'a1', type: 'approval', allowFeedback: false }] },
+              { id: 'a2', type: 'approval', allowFeedback: true },
+            ],
+          },
+        },
+      },
+      {
+        origin: 'agent',
+        type: 'block.upserted',
+        seq: 2,
+        payload: { schemaVersion: 1, type: 'block.upserted', block: { id: 'a3', type: 'approval', allowFeedback: false } },
+      },
+      {
+        origin: 'agent',
+        type: 'block.upserted',
+        seq: 3,
+        payload: { schemaVersion: 1, type: 'block.upserted', after: 'a1', block: { id: 'a4', type: 'approval', allowFeedback: false } },
+      },
+    ] as unknown as PresentEvent[];
+    const state = reduce(events);
+    expect(state.doc.title).toBe('T');
+    expect(state.doc.blocks.map((b) => b.id)).toEqual(['c1', 'a2', 'a3']);
+    expect((state.doc.blocks[0] as Card).children.map((b) => b.id)).toEqual(['a1', 'a4']);
+    expect(state.rounds.blockRounds).toEqual({ c1: 1, a2: 1, a3: 1 });
   });
 });
 

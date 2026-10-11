@@ -82,6 +82,11 @@ func TestReduceErrors(t *testing.T) {
 			wantErr: "unknown type",
 		},
 		{
+			name:    "earlier occurrence of a repeated doc key",
+			events:  []state.Event{{Origin: "agent", Type: "doc.replaced", Seq: 1, Payload: []byte(`{"schemaVersion":1,"type":"doc.replaced","revision":1,"doc":{"version":1,"title":"T","blocks":[{"id":"x","type":"bogus"}]},"doc":{"version":1,"title":"T","blocks":[]}}`)}},
+			wantErr: "unknown type",
+		},
+		{
 			name:    "missing event schema",
 			events:  []state.Event{{Origin: "human", Type: "submit", Seq: 1, Payload: []byte(`{"type":"submit","revision":1}`)}},
 			wantErr: "schema version 0",
@@ -92,19 +97,9 @@ func TestReduceErrors(t *testing.T) {
 			wantErr: "schema version 0",
 		},
 		{
-			name:    "unknown event field",
-			events:  []state.Event{{Origin: "human", Type: "submit", Seq: 1, Payload: []byte(`{"schemaVersion":1,"type":"submit","revision":1,"legacy":true}`)}},
-			wantErr: "unknown field",
-		},
-		{
 			name:    "mismatched event type",
 			events:  []state.Event{{Origin: "human", Type: "submit", Seq: 1, Payload: []byte(`{"schemaVersion":1,"type":"decision.created","revision":1}`)}},
 			wantErr: "does not match",
-		},
-		{
-			name:    "round carry is not v1",
-			events:  []state.Event{{Origin: "agent", Type: "round.started", Seq: 1, Payload: []byte(`{"schemaVersion":1,"type":"round.started","carry":["a1"]}`)}},
-			wantErr: "unknown field",
 		},
 	}
 	for _, tt := range tests {
@@ -118,6 +113,91 @@ func TestReduceErrors(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestReduceIgnoresUnknownKeysInStoredHistory(t *testing.T) {
+	const expected = `{
+		"schemaVersion": 1,
+		"doc": {
+			"version": 1,
+			"title": "T",
+			"blocks": [
+				{"id": "c1", "type": "card", "children": [
+					{"id": "a1", "type": "approval", "prompt": "Ship?"},
+					{"id": "ch1", "type": "choice", "options": [{"id": "o1", "label": "One", "detail": {"md": "why"}}]},
+					{"id": "a3", "type": "approval"}
+				]},
+				{"id": "a2", "type": "approval"},
+				{"id": "t1", "type": "triage", "items": [{"id": "i1", "label": "Item", "visual": {"id": "v1", "type": "code", "lang": "go", "code": "x"}}]},
+				{"id": "c2", "type": "card", "children": [{"id": "m1", "type": "markdown", "md": "child"}]}
+			]
+		},
+		"interactions": {"submitted": {"value": true, "revision": 1}},
+		"rounds": {
+			"current": 2,
+			"currentTitle": "Next",
+			"blockRounds": {"c1": 1, "a2": 1, "t1": 1, "c2": 1},
+			"history": [{
+				"number": 1,
+				"blocks": [
+					{"id": "c1", "type": "card", "children": [
+						{"id": "a1", "type": "approval", "prompt": "Ship?"},
+						{"id": "ch1", "type": "choice", "options": [{"id": "o1", "label": "One", "detail": {"md": "why"}}]},
+						{"id": "a3", "type": "approval"}
+					]},
+					{"id": "a2", "type": "approval"},
+					{"id": "t1", "type": "triage", "items": [{"id": "i1", "label": "Item", "visual": {"id": "v1", "type": "code", "lang": "go", "code": "x"}}]},
+					{"id": "c2", "type": "card", "children": [{"id": "m1", "type": "markdown", "md": "child"}]}
+				],
+				"decisions": {},
+				"choices": {},
+				"inputs": {},
+				"feedback": {},
+				"submittedRevision": 1
+			}]
+		},
+		"revising": {"blockIds": []}
+	}`
+	got, err := state.Reduce([]state.Event{
+		{Origin: "agent", Type: "doc.replaced", Seq: 1, Payload: eventPayload(t, "doc.replaced", `{
+			"legacy": true,
+			"revision": 1,
+			"doc": {
+				"version": 1,
+				"title": "T",
+				"legacy": true,
+				"blocks": [
+					{"id": "c1", "type": "card", "legacy": true, "children": [
+						{"id": "a1", "type": "approval", "prompt": "Ship?", "allowFeedback": false},
+						{"id": "ch1", "type": "choice", "legacy": true, "options": [{"id": "o1", "label": "One", "legacy": true, "detail": {"md": "why", "legacy": true}}]}
+					]},
+					{"id": "a2", "type": "approval", "allowFeedback": true}
+				]
+			}
+		}`)},
+		{Origin: "agent", Type: "block.upserted", Seq: 2, Payload: eventPayload(t, "block.upserted", `{
+			"legacy": true,
+			"block": {"id": "t1", "type": "triage", "legacy": true, "items": [{"id": "i1", "label": "Item", "legacy": true, "visual": {"id": "v1", "type": "code", "lang": "go", "code": "x", "legacy": true}}]}
+		}`)},
+		{Origin: "agent", Type: "block.upserted", Seq: 3, Payload: eventPayload(t, "block.upserted", `{
+			"block": {"id": "c2", "type": "card", "legacy": true, "children": [{"id": "m1", "type": "markdown", "md": "child", "legacy": true}]}
+		}`)},
+		{Origin: "agent", Type: "block.upserted", Seq: 4, Payload: eventPayload(t, "block.upserted", `{
+			"after": "ch1",
+			"block": {"id": "a3", "type": "approval", "allowFeedback": false}
+		}`)},
+		{Origin: "human", Type: "submit", Seq: 5, Payload: eventPayload(t, "submit", `{"revision": 1, "legacy": true}`)},
+		{Origin: "agent", Type: "round.started", Seq: 6, Payload: eventPayload(t, "round.started", `{"title": "Next", "carry": ["a1"]}`)},
+	})
+	if err != nil {
+		t.Fatalf("Reduce() error = %v", err)
+	}
+	var want state.State
+	if err := json.Unmarshal([]byte(expected), &want); err != nil {
+		t.Fatalf("unmarshal expected: %v", err)
+	}
+	initMaps(&want)
+	assertStateEqual(t, got, want)
 }
 
 // TestReducePackInteraction covers the pack.interaction reducer case with inline

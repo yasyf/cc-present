@@ -163,6 +163,15 @@ Type dispatch at decode is lenient about packs and strict about everything else:
   in the reducers — so replay stays total after a pack is uninstalled, and an
   old log renders instead of poisoning every future reduction.
 
+Unknown keys are rejected where the agent writes and ignored where the log is
+read. `start --doc`, `push`, `push --dry-run`, and `update-block` refuse a
+document or block carrying a key its type does not define, with an error that
+names the key and the block id. The reducers ignore such a key in a stored
+event payload, a document, a block, or anything nested in one. Each event was
+checked when it was appended, so a board written before a field was removed
+keeps loading. The daemon and the iOS app drop the key from the reduced state;
+the web board leaves it on the block object, where no renderer reads it.
+
 ## Line anchors
 
 A `draft` annotation addresses lines of the block's `text` with a content anchor.
@@ -408,6 +417,8 @@ the reduction of these events. The append chokepoint also injects a top-level
 tag, an SSE `data:` field — is self-describing without the envelope. The payload
 columns below elide the mandatory injected `schemaVersion: 1` and matching `type`
 fields. Persisted domain payloads without that exact identity are invalid.
+
+A key a stored payload carries beyond its row below is ignored.
 
 | Origin | Type | Payload | Reduction |
 |---|---|---|---|

@@ -161,11 +161,7 @@ type Option struct {
 	Visual      Block   `json:"visual,omitempty"`
 }
 
-// UnmarshalJSON decodes an option, dispatching its optional visual through the
-// shared decodeVisual helper so a type outside the visual allowlist fails loudly
-// at decode. Marshaling needs no custom path: the concrete visual block marshals
-// naturally and a nil interface omits.
-func (o *Option) UnmarshalJSON(data []byte) error {
+func decodeOption(data json.RawMessage, unmarshal unmarshalFunc) (Option, error) {
 	var raw struct {
 		ID          string          `json:"id"`
 		Label       string          `json:"label"`
@@ -176,33 +172,34 @@ func (o *Option) UnmarshalJSON(data []byte) error {
 		Recommended bool            `json:"recommended"`
 		Visual      json.RawMessage `json:"visual"`
 	}
-	if err := decodeStrict(data, &raw); err != nil {
-		return fmt.Errorf("unmarshal option: %w", err)
+	if err := unmarshal(data, &raw); err != nil {
+		return Option{}, fmt.Errorf("unmarshal option: %w", err)
 	}
-	o.ID = raw.ID
-	o.Label = raw.Label
-	o.Hint = raw.Hint
-	o.Md = raw.Md
-	o.Facts = raw.Facts
-	o.Detail = raw.Detail
-	o.Recommended = raw.Recommended
-	v, err := decodeVisual(raw.Visual, fmt.Sprintf("option %q", raw.ID))
+	v, err := decodeVisual(raw.Visual, fmt.Sprintf("option %q", raw.ID), unmarshal)
 	if err != nil {
-		return err
+		return Option{}, err
 	}
-	o.Visual = v
-	return nil
+	return Option{
+		ID:          raw.ID,
+		Label:       raw.Label,
+		Hint:        raw.Hint,
+		Md:          raw.Md,
+		Facts:       raw.Facts,
+		Detail:      raw.Detail,
+		Recommended: raw.Recommended,
+		Visual:      v,
+	}, nil
 }
 
 // decodeVisual decodes an optional option- or item-visual from raw, enforcing the
 // {code, diagram, image, diff, chart, term, filetree, record} allowlist so a
 // disallowed type fails loudly at decode. It returns a nil block for an absent or
 // JSON-null visual; owner labels the enclosing element in any error.
-func decodeVisual(raw json.RawMessage, owner string) (Block, error) {
+func decodeVisual(raw json.RawMessage, owner string, unmarshal unmarshalFunc) (Block, error) {
 	if len(raw) == 0 || string(raw) == "null" {
 		return nil, nil
 	}
-	v, err := DecodeBlock(raw)
+	v, err := decodeBlock(raw, unmarshal)
 	if err != nil {
 		return nil, fmt.Errorf("%s visual: %w", owner, err)
 	}
@@ -242,9 +239,7 @@ type Item struct {
 	Visual Block   `json:"visual,omitempty"`
 }
 
-// UnmarshalJSON decodes an item, dispatching its optional visual through the
-// shared decodeVisual helper so a disallowed visual type fails loudly at decode.
-func (it *Item) UnmarshalJSON(data []byte) error {
+func decodeItem(data json.RawMessage, unmarshal unmarshalFunc) (Item, error) {
 	var raw struct {
 		ID     string          `json:"id"`
 		Label  string          `json:"label"`
@@ -254,21 +249,22 @@ func (it *Item) UnmarshalJSON(data []byte) error {
 		Detail *Detail         `json:"detail"`
 		Visual json.RawMessage `json:"visual"`
 	}
-	if err := decodeStrict(data, &raw); err != nil {
-		return fmt.Errorf("unmarshal item: %w", err)
+	if err := unmarshal(data, &raw); err != nil {
+		return Item{}, fmt.Errorf("unmarshal item: %w", err)
 	}
-	it.ID = raw.ID
-	it.Label = raw.Label
-	it.Hint = raw.Hint
-	it.Md = raw.Md
-	it.Facts = raw.Facts
-	it.Detail = raw.Detail
-	v, err := decodeVisual(raw.Visual, fmt.Sprintf("item %q", raw.ID))
+	v, err := decodeVisual(raw.Visual, fmt.Sprintf("item %q", raw.ID), unmarshal)
 	if err != nil {
-		return err
+		return Item{}, err
 	}
-	it.Visual = v
-	return nil
+	return Item{
+		ID:     raw.ID,
+		Label:  raw.Label,
+		Hint:   raw.Hint,
+		Md:     raw.Md,
+		Facts:  raw.Facts,
+		Detail: raw.Detail,
+		Visual: v,
+	}, nil
 }
 
 // Triage is a multi-item accept/reject control; each item carries its own verdict,
@@ -426,6 +422,21 @@ type Record struct {
 
 // UnmarshalJSON decodes the envelope and dispatches each block by its type tag.
 func (d *Doc) UnmarshalJSON(data []byte) error {
+	decoded, err := decodeDoc(data, decodeStrict)
+	if err != nil {
+		return err
+	}
+	*d = *decoded
+	return nil
+}
+
+// DecodeStored decodes a document read back from the event log, ignoring any
+// key the current schema does not define.
+func DecodeStored(data []byte) (*Doc, error) {
+	return decodeDoc(data, json.Unmarshal)
+}
+
+func decodeDoc(data []byte, unmarshal unmarshalFunc) (*Doc, error) {
 	var raw struct {
 		Version      int               `json:"version"`
 		Title        string            `json:"title"`
@@ -435,25 +446,25 @@ func (d *Doc) UnmarshalJSON(data []byte) error {
 		Presentation *string           `json:"presentation"`
 		Blocks       []json.RawMessage `json:"blocks"`
 	}
-	if err := decodeStrict(data, &raw); err != nil {
-		return fmt.Errorf("unmarshal doc: %w (a doc's keys are version, title, intro, stats, submit, presentation, and blocks; sections and cards are siblings in blocks)", err)
+	if err := unmarshal(data, &raw); err != nil {
+		return nil, fmt.Errorf("unmarshal doc: %w (a doc's keys are version, title, intro, stats, submit, presentation, and blocks; sections and cards are siblings in blocks)", err)
 	}
-	d.Version = raw.Version
-	d.Title = raw.Title
-	d.Intro = raw.Intro
-	d.Stats = raw.Stats
-	d.Submit = raw.Submit
-	d.Presentation = raw.Presentation
-	blocks, err := decodeBlocks(raw.Blocks)
+	blocks, err := decodeBlocks(raw.Blocks, unmarshal)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	d.Blocks = blocks
-	return nil
+	return &Doc{
+		Version:      raw.Version,
+		Title:        raw.Title,
+		Intro:        raw.Intro,
+		Stats:        raw.Stats,
+		Submit:       raw.Submit,
+		Presentation: raw.Presentation,
+		Blocks:       blocks,
+	}, nil
 }
 
-// UnmarshalJSON decodes a card and dispatches its children by type tag.
-func (c *Card) UnmarshalJSON(data []byte) error {
+func decodeCard(data json.RawMessage, unmarshal unmarshalFunc) (Block, error) {
 	var raw struct {
 		base
 		Title    string            `json:"title"`
@@ -463,27 +474,83 @@ func (c *Card) UnmarshalJSON(data []byte) error {
 		Status   string            `json:"status"`
 		Children []json.RawMessage `json:"children"`
 	}
-	if err := decodeStrict(data, &raw); err != nil {
-		return fmt.Errorf("unmarshal card: %w", err)
+	if err := unmarshal(data, &raw); err != nil {
+		return nil, fmt.Errorf("unmarshal card: %w", err)
 	}
-	c.base = raw.base
-	c.Title = raw.Title
-	c.Summary = raw.Summary
-	c.Chips = raw.Chips
-	c.Flagged = raw.Flagged
-	c.Status = raw.Status
-	children, err := decodeBlocks(raw.Children)
+	children, err := decodeBlocks(raw.Children, unmarshal)
 	if err != nil {
+		return nil, err
+	}
+	return &Card{
+		base:     raw.base,
+		Title:    raw.Title,
+		Summary:  raw.Summary,
+		Chips:    raw.Chips,
+		Flagged:  raw.Flagged,
+		Status:   raw.Status,
+		Children: children,
+	}, nil
+}
+
+func decodeChoice(data json.RawMessage, unmarshal unmarshalFunc) (Block, error) {
+	var raw struct {
+		base
+		Prompt  string            `json:"prompt"`
+		Multi   bool              `json:"multi"`
+		Options listField[Option] `json:"options"`
+	}
+	raw.Options = listField[Option]{unmarshal: unmarshal, decode: decodeOption}
+	if err := unmarshal(data, &raw); err != nil {
+		return nil, err
+	}
+	return &Choice{base: raw.base, Prompt: raw.Prompt, Multi: raw.Multi, Options: raw.Options.values}, nil
+}
+
+func decodeTriage(data json.RawMessage, unmarshal unmarshalFunc) (Block, error) {
+	var raw struct {
+		base
+		Prompt     string          `json:"prompt"`
+		AllowNotes *bool           `json:"allowNotes"`
+		Items      listField[Item] `json:"items"`
+	}
+	raw.Items = listField[Item]{unmarshal: unmarshal, decode: decodeItem}
+	if err := unmarshal(data, &raw); err != nil {
+		return nil, err
+	}
+	return &Triage{base: raw.base, Prompt: raw.Prompt, AllowNotes: raw.AllowNotes, Items: raw.Items.values}, nil
+}
+
+type listField[T any] struct {
+	unmarshal unmarshalFunc
+	decode    func(json.RawMessage, unmarshalFunc) (T, error)
+	values    []T
+}
+
+func (l *listField[T]) UnmarshalJSON(data []byte) error {
+	var raw []json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
 		return err
 	}
-	c.Children = children
+	if raw == nil {
+		l.values = nil
+		return nil
+	}
+	values := make([]T, 0, len(raw))
+	for _, r := range raw {
+		v, err := l.decode(r, l.unmarshal)
+		if err != nil {
+			return err
+		}
+		values = append(values, v)
+	}
+	l.values = values
 	return nil
 }
 
-func decodeBlocks(raw []json.RawMessage) ([]Block, error) {
+func decodeBlocks(raw []json.RawMessage, unmarshal unmarshalFunc) ([]Block, error) {
 	blocks := make([]Block, 0, len(raw))
 	for _, rb := range raw {
-		b, err := DecodeBlock(rb)
+		b, err := decodeBlock(rb, unmarshal)
 		if err != nil {
 			return nil, err
 		}
@@ -503,7 +570,7 @@ func (bl *BlockList) UnmarshalJSON(data []byte) error {
 	if err := json.Unmarshal(data, &raw); err != nil {
 		return fmt.Errorf("unmarshal block list: %w", err)
 	}
-	blocks, err := decodeBlocks(raw)
+	blocks, err := decodeBlocks(raw, decodeStrict)
 	if err != nil {
 		return err
 	}
@@ -516,6 +583,16 @@ func (bl *BlockList) UnmarshalJSON(data []byte) error {
 // dotted type, an unknown dot-free type, and a field the type does not define are
 // each an error naming the block id.
 func DecodeBlock(data json.RawMessage) (Block, error) {
+	return decodeBlock(data, decodeStrict)
+}
+
+// DecodeStoredBlock decodes a single block read back from the event log,
+// ignoring any key its type does not define.
+func DecodeStoredBlock(data json.RawMessage) (Block, error) {
+	return decodeBlock(data, json.Unmarshal)
+}
+
+func decodeBlock(data json.RawMessage, unmarshal unmarshalFunc) (Block, error) {
 	var head base
 	if err := json.Unmarshal(data, &head); err != nil {
 		return nil, fmt.Errorf("read block type: %w", err)
@@ -534,19 +611,25 @@ func DecodeBlock(data json.RawMessage) (Block, error) {
 	if !ok {
 		return nil, fmt.Errorf("block %q: unknown type %q", head.ID, head.Type)
 	}
-	b, err := sp.decode(data)
+	b, err := sp.decode(data, unmarshal)
 	if err != nil {
-		return nil, fmt.Errorf("block %q: %w", head.ID, err)
+		return nil, fmt.Errorf("block %q: decode %s block: %w", head.ID, head.Type, err)
 	}
 	return b, nil
 }
 
-func decodeInto[T Block](data json.RawMessage, dst T) (Block, error) {
-	if err := decodeStrict(data, dst); err != nil {
-		return nil, fmt.Errorf("decode %s block: %w", dst.BlockType(), err)
+func decodeLeaf[T any, B interface {
+	*T
+	Block
+}](data json.RawMessage, unmarshal unmarshalFunc) (Block, error) {
+	b := B(new(T))
+	if err := unmarshal(data, b); err != nil {
+		return nil, err
 	}
-	return dst, nil
+	return b, nil
 }
+
+type unmarshalFunc func(data []byte, dst any) error
 
 func decodeStrict(data []byte, dst any) error {
 	decoder := json.NewDecoder(bytes.NewReader(data))

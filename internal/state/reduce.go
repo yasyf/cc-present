@@ -237,15 +237,15 @@ func (s *State) apply(ev Event) error {
 	case "doc.replaced":
 		var p struct {
 			payloadIdentity
-			Doc      *doc.Doc `json:"doc"`
-			Revision int      `json:"revision"`
-			Retained []string `json:"retained"`
+			Doc      storedDoc `json:"doc"`
+			Revision int       `json:"revision"`
+			Retained []string  `json:"retained"`
 		}
 		if err := decodeEventPayload(ev, &p); err != nil {
 			return err
 		}
 		prior := s.Rounds.BlockRounds
-		s.Doc = p.Doc
+		s.Doc = p.Doc.doc
 		s.Rounds.BlockRounds = map[string]int{}
 		for _, b := range s.Doc.Blocks {
 			s.Rounds.BlockRounds[b.BlockID()] = s.Rounds.Current
@@ -267,7 +267,7 @@ func (s *State) apply(ev Event) error {
 		if err := decodeEventPayload(ev, &p); err != nil {
 			return err
 		}
-		b, err := doc.DecodeBlock(p.Block)
+		b, err := doc.DecodeStoredBlock(p.Block)
 		if err != nil {
 			return err
 		}
@@ -531,8 +531,21 @@ func (s *State) apply(ev Event) error {
 	}
 }
 
+type storedDoc struct {
+	doc *doc.Doc
+}
+
+func (s *storedDoc) UnmarshalJSON(data []byte) error {
+	d, err := doc.DecodeStored(data)
+	if err != nil {
+		return err
+	}
+	s.doc = d
+	return nil
+}
+
 func decodeEventPayload(ev Event, dst identifiedPayload) error {
-	if err := decodeExact(ev.Payload, dst); err != nil {
+	if err := json.Unmarshal(ev.Payload, dst); err != nil {
 		return err
 	}
 	identity := dst.identity()

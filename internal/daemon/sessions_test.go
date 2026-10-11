@@ -35,13 +35,21 @@ func newSessionsHarness(t *testing.T) *sessionsHarness {
 // doc.replaced per title so the latest title and the revision count are testable.
 func (h *sessionsHarness) seed(t *testing.T, id, slug, status string, updated time.Time, titles ...string) {
 	t.Helper()
+	docs := make([]json.RawMessage, len(titles))
+	for i, title := range titles {
+		docs[i] = json.RawMessage(fmt.Sprintf(`{"version":1,"title":%q,"blocks":[]}`, title))
+	}
+	h.seedDocs(t, id, slug, status, updated, docs...)
+}
+
+func (h *sessionsHarness) seedDocs(t *testing.T, id, slug, status string, updated time.Time, docs ...json.RawMessage) {
+	t.Helper()
 	ctx := context.Background()
 	subs := ccstore.NewSubjectStore(h.cc.DB())
 	if _, err := subs.Create(ctx, id, slug, "s-"+id, "/repo/"+id, 100, status); err != nil {
 		t.Fatalf("create subject %s: %v", id, err)
 	}
-	for i, title := range titles {
-		raw := json.RawMessage(fmt.Sprintf(`{"version":1,"title":%q,"blocks":[]}`, title))
+	for i, raw := range docs {
 		if _, err := h.cc.AppendEvent(ctx, &ccevent.Event{
 			SubjectID: id, Origin: ccevent.OriginAgent, Type: EventDocReplaced,
 			Payload: injectIdentity(EventDocReplaced, docReplacedPayload(raw, i+1, nil)),
@@ -145,6 +153,27 @@ func TestSessionsAllIncludesClosed(t *testing.T) {
 	}
 	if got[1].Subject != "open1" || got[1].Status != statusOpen {
 		t.Fatalf("second = %s/%s, want open1/open", got[1].Subject, got[1].Status)
+	}
+}
+
+func TestSessionsListsBoardWithUnknownStoredKeys(t *testing.T) {
+	h := newSessionsHarness(t)
+	base := time.Unix(1_700_000_000, 0)
+	h.seedDocs(t, "old", "old--0001", statusClosed, base.Add(time.Minute), json.RawMessage(storedLegacyDoc))
+	h.seed(t, "new", "new--0002", statusOpen, base, "Current")
+
+	var got []sessionSummary
+	if err := json.Unmarshal(h.getURL(t, "/api/sessions?all=true").Body.Bytes(), &got); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("got %d sessions, want 2: %+v", len(got), got)
+	}
+	if got[0].Subject != "old" || got[0].Title != "Legacy" || got[0].Revision != 1 {
+		t.Fatalf("first = %+v, want subject old titled Legacy at revision 1", got[0])
+	}
+	if got[1].Subject != "new" || got[1].Title != "Current" {
+		t.Fatalf("second = %+v, want subject new titled Current", got[1])
 	}
 }
 
