@@ -3,6 +3,7 @@ package daemon
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"time"
@@ -28,7 +29,7 @@ type sessionSummary struct {
 // can pick one to open. It lists only open artifacts by default; ?all=true
 // includes closed ones, the view the sessions CLI command wants. The subjects
 // table is drained fully before the per-subject event reads, so the single-writer
-// connection is never held across the reduction (mirrors gcAssets).
+// connection is never held across them.
 func (rs *restServer) handleSessions(w http.ResponseWriter, r *http.Request) {
 	db := rs.db()
 	summaries, err := listSessions(r.Context(), db, r.URL.Query().Get("all") == "true")
@@ -42,12 +43,12 @@ func (rs *restServer) handleSessions(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		st, err := state.Reduce(events)
+		title, err := docTitle(events)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			http.Error(w, fmt.Sprintf("subject %s: %v", summaries[i].Subject, err), http.StatusInternalServerError)
 			return
 		}
-		summaries[i].Title = st.Doc.Title
+		summaries[i].Title = title
 		summaries[i].Revision = docRevision(events)
 		summaries[i].EventCount = len(events)
 	}
@@ -89,6 +90,24 @@ func listSessions(ctx context.Context, db *sql.DB, includeClosed bool) ([]sessio
 		return nil, fmt.Errorf("iterate subjects: %w", err)
 	}
 	return out, nil
+}
+
+func docTitle(events []state.Event) (string, error) {
+	for i := len(events) - 1; i >= 0; i-- {
+		if events[i].Type != EventDocReplaced {
+			continue
+		}
+		var p struct {
+			Doc struct {
+				Title string `json:"title"`
+			} `json:"doc"`
+		}
+		if err := json.Unmarshal(events[i].Payload, &p); err != nil {
+			return "", fmt.Errorf("read title at seq %d: %w", events[i].Seq, err)
+		}
+		return p.Doc.Title, nil
+	}
+	return "", nil
 }
 
 // docRevision is the artifact's current revision: the count of doc.replaced
