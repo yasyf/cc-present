@@ -2,12 +2,20 @@ import { useCallback, useEffect, useState } from 'react';
 import type { ReactNode, RefObject } from 'react';
 import { useScrollEdges } from '../useScrollEdges';
 
-// activeCard maps a scroller's scrollLeft to the nearest card index given the
-// card stride (card width plus gap). Pure so jsdom can test the paging math the
-// layout-less DOM can't drive; the caller clamps to the card count.
-export function activeCard(scrollLeft: number, cardWidth: number): number {
-  if (cardWidth <= 0) return 0;
-  return Math.max(0, Math.round(scrollLeft / cardWidth));
+interface CardRange {
+  first: number;
+  last: number;
+}
+
+export function inView(left: number, width: number, scrollLeft: number, clientWidth: number): boolean {
+  return (Math.min(left + width, scrollLeft + clientWidth) - Math.max(left, scrollLeft)) * 2 >= width;
+}
+
+function cardsInView(el: HTMLElement): CardRange {
+  const shown = Array.from(el.children as HTMLCollectionOf<HTMLElement>, (kid) =>
+    inView(kid.offsetLeft - el.offsetLeft, kid.offsetWidth, el.scrollLeft, el.clientWidth),
+  );
+  return { first: shown.indexOf(true), last: shown.lastIndexOf(true) };
 }
 
 function cardStride(el: HTMLElement): number {
@@ -18,7 +26,7 @@ function cardStride(el: HTMLElement): number {
   return (kids[0] as HTMLElement | undefined)?.offsetWidth ?? 0;
 }
 
-function scrollBehavior(): ScrollBehavior {
+export function scrollBehavior(): ScrollBehavior {
   return window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth';
 }
 
@@ -32,6 +40,7 @@ export function OptionStrip({
   role,
   ariaLabel,
   cardCount,
+  picked,
   containerRef,
   navActions,
   children,
@@ -40,12 +49,13 @@ export function OptionStrip({
   role: 'radiogroup' | 'group';
   ariaLabel?: string;
   cardCount: number;
+  picked: ReadonlySet<number>;
   containerRef: RefObject<HTMLDivElement | null>;
   navActions?: ReactNode;
   children: ReactNode;
 }) {
   const { ref: edgesRef, edges } = useScrollEdges<HTMLDivElement>('x');
-  const [active, setActive] = useState(0);
+  const [shown, setShown] = useState<CardRange>({ first: 0, last: 0 });
 
   const setContainer = useCallback(
     (el: HTMLDivElement | null) => {
@@ -57,8 +67,9 @@ export function OptionStrip({
 
   const onScroll = useCallback(() => {
     const el = edgesRef.current;
-    if (!el || el.children.length === 0) return;
-    setActive(Math.min(activeCard(el.scrollLeft, cardStride(el)), el.children.length - 1));
+    if (!el) return;
+    const next = cardsInView(el);
+    setShown((prev) => (prev.first === next.first && prev.last === next.last ? prev : next));
   }, [edgesRef]);
 
   useEffect(() => {
@@ -102,16 +113,19 @@ export function OptionStrip({
       {strip && (
         <div className="strip-nav">
           <div className="strip-dots">
-            {Array.from({ length: cardCount }, (_, i) => (
-              <button
-                key={i}
-                type="button"
-                className={`strip-dot${i === active ? ' on' : ''}`}
-                aria-label={`Go to option ${i + 1}`}
-                aria-current={i === active || undefined}
-                onClick={() => scrollToCard(i)}
-              />
-            ))}
+            {Array.from({ length: cardCount }, (_, i) => {
+              const on = i >= shown.first && i <= shown.last;
+              const isPicked = picked.has(i);
+              return (
+                <button
+                  key={i}
+                  type="button"
+                  className={`strip-dot${on ? ' on' : ''}${isPicked ? ' picked' : ''}`}
+                  aria-label={`Go to option ${i + 1}${isPicked ? ', selected' : ''}`}
+                  onClick={() => scrollToCard(i)}
+                />
+              );
+            })}
           </div>
           {navActions}
           <button

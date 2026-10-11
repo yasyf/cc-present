@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import type { Root } from 'react-dom/client';
@@ -8,6 +8,7 @@ import type { PresentApi } from '../present';
 import { KeyboardProvider } from '../keyboard';
 import { Choice } from './Choice';
 import { FocusStageContext } from './focusStep';
+import type { FocusStageValue } from './focusStep';
 import { ThreadHostContext } from './threadHost';
 import { emptyState } from '../reduce';
 import type { Interactions } from '../events';
@@ -55,6 +56,7 @@ beforeEach(() => {
 afterEach(() => {
   act(() => root.unmount());
   container.remove();
+  vi.restoreAllMocks();
 });
 
 function render(block: ChoiceBlock, interactions: Interactions): void {
@@ -111,12 +113,16 @@ function renderCapturing(block: ChoiceBlock, interactions: Interactions): unknow
 
 // renderWithStage mounts the choice under a FocusStageContext, so `stage` is
 // non-null and the component is in focus mode — the stage owns option visuals.
-function renderWithStage(block: ChoiceBlock, interactions: Interactions): void {
+function renderWithStage(
+  block: ChoiceBlock,
+  interactions: Interactions,
+  setVisual: FocusStageValue['setVisual'] = () => {},
+): void {
   const present: PresentApi = { post: async () => true, closed: false, currentRound: 1 };
   act(() =>
     root.render(
       <PresentContext.Provider value={present}>
-        <FocusStageContext.Provider value={{ setVisual: () => {} }}>
+        <FocusStageContext.Provider value={{ setVisual }}>
           <KeyboardProvider blocks={[block]} interactions={interactions} closed={false} round={1}>
             <Choice block={block} interactions={interactions} />
           </KeyboardProvider>
@@ -131,6 +137,39 @@ function renderWithStage(block: ChoiceBlock, interactions: Interactions): void {
 function cursorOntoChoice(): void {
   const opt = container.querySelector('.option') as HTMLElement;
   act(() => opt.dispatchEvent(new FocusEvent('focusin', { bubbles: true })));
+}
+
+function press(key: string): void {
+  act(() => document.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true })));
+}
+
+function otherCard(): HTMLElement {
+  return container.querySelector('.option-other') as HTMLElement;
+}
+
+function otherField(): HTMLTextAreaElement {
+  return container.querySelector('.option-other textarea') as HTMLTextAreaElement;
+}
+
+function typeOther(value: string): void {
+  const field = otherField();
+  const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!;
+  act(() => {
+    setter.call(field, value);
+    field.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+}
+
+function blurOther(): void {
+  act(() => otherField().dispatchEvent(new FocusEvent('focusout', { bubbles: true })));
+}
+
+function modEnter(target: HTMLElement, mod: KeyboardEventInit): KeyboardEvent {
+  const ev = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true, ...mod });
+  act(() => {
+    target.dispatchEvent(ev);
+  });
+  return ev;
 }
 
 describe('Choice keyboard index tags', () => {
@@ -387,6 +426,34 @@ describe('Choice card strip', () => {
     expect(cards.length).toBe(4);
     expect(cards[3]!.classList.contains('option-other')).toBe(true);
   });
+
+  it('reveals a clicked card, the Other card included', () => {
+    render(choice('c1', ['A', 'B', 'C']), empty());
+    const reveal = vi.spyOn(Element.prototype, 'scrollIntoView');
+    const cards = container.querySelectorAll<HTMLElement>('.options > .option');
+
+    act(() => cards[1]!.click());
+    expect(reveal).toHaveBeenCalledTimes(1);
+    expect(reveal.mock.contexts[0]).toBe(cards[1]);
+    expect(reveal).toHaveBeenLastCalledWith({ inline: 'nearest', block: 'nearest', behavior: 'smooth' });
+
+    act(() => cards[3]!.click());
+    expect(reveal).toHaveBeenCalledTimes(2);
+    expect(reveal.mock.contexts[1]).toBe(cards[3]);
+  });
+
+  it('marks the dot of each selected card, following an uncommitted write-in', () => {
+    render(choice('c1', ['A', 'B', 'C']), { ...empty(), choices: { c1: { optionIds: ['o1'] } } });
+    const pickedDots = () => [...container.querySelectorAll('.strip-dot')].map((dot) => dot.classList.contains('picked'));
+    expect(pickedDots()).toEqual([false, true, false, false]);
+    const dots = container.querySelectorAll('.strip-dot');
+    expect(dots[0]!.getAttribute('aria-label')).toBe('Go to option 1');
+    expect(dots[1]!.getAttribute('aria-label')).toBe('Go to option 2, selected');
+    expect(container.querySelector('.strip-dot[aria-current]')).toBeNull();
+
+    typeOther('roll our own');
+    expect(pickedDots()).toEqual([false, false, false, true]);
+  });
 });
 
 describe('Choice universal escape hatch', () => {
@@ -403,11 +470,9 @@ describe('Choice universal escape hatch', () => {
       ...empty(),
       choices: { c1: { optionIds: ['o0'] } },
     });
-    // The field reads its value off the commit event, so seed it and blur (mirrors Input).
-    const field = container.querySelector('.option-other textarea') as HTMLTextAreaElement;
-    field.value = 'roll our own';
-    act(() => field.dispatchEvent(new FocusEvent('focusout', { bubbles: true })));
-    expect(posted).toContainEqual({ type: 'choice.selected', blockId: 'c1', optionIds: [], other: 'roll our own' });
+    typeOther('roll our own');
+    blurOther();
+    expect(posted).toEqual([{ type: 'choice.selected', blockId: 'c1', optionIds: [], other: 'roll our own' }]);
   });
 
   it('renders an Add-note affordance whose feedback posts against the choice', () => {
@@ -456,6 +521,191 @@ describe('Choice write-in selection semantics', () => {
     const other = container.querySelector('.option-other') as HTMLElement;
     expect(other.getAttribute('aria-disabled')).toBe('true');
     expect(other.getAttribute('tabindex')).toBe('-1');
+  });
+
+  it('checks Other and unchecks the authored pick as soon as the user types, posting nothing', () => {
+    const posted = renderCapturing(choice('c1', ['A', 'B']), { ...empty(), choices: { c1: { optionIds: ['o0'] } } });
+    typeOther('roll our own');
+    expect(otherCard().getAttribute('aria-checked')).toBe('true');
+    expect(otherCard().querySelector('.option-indicator .mark-ring')).not.toBeNull();
+    expect(container.querySelector('.option')?.getAttribute('aria-checked')).toBe('false');
+    expect(posted).toEqual([]);
+  });
+
+  it('posts a typed write-in once on Enter', () => {
+    const posted = renderCapturing(choice('c1', ['A', 'B']), empty());
+    typeOther('roll our own');
+    const field = otherField();
+    act(() => field.focus());
+    const enter = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true });
+    act(() => {
+      field.dispatchEvent(enter);
+    });
+    expect(enter.defaultPrevented).toBe(true);
+    expect(posted).toEqual([{ type: 'choice.selected', blockId: 'c1', optionIds: [], other: 'roll our own' }]);
+  });
+
+  it('keeps the text when an authored pick takes the answer, and re-posts it when Other is clicked', () => {
+    const block = choice('c1', ['A', 'B']);
+    const posted = renderCapturing(block, empty());
+    typeOther('roll our own');
+    blurOther();
+    act(() => (container.querySelector('.option') as HTMLElement).click());
+    expect(posted[1]).toEqual({ type: 'choice.selected', blockId: 'c1', optionIds: ['o0'] });
+    expect(otherField().value).toBe('roll our own');
+    expect(otherCard().getAttribute('aria-checked')).toBe('false');
+
+    act(() => otherCard().click());
+    expect(posted[2]).toEqual({ type: 'choice.selected', blockId: 'c1', optionIds: [], other: 'roll our own' });
+    expect(posted.length).toBe(3);
+    expect(otherCard().getAttribute('aria-checked')).toBe('true');
+    expect(document.activeElement).toBe(otherField());
+  });
+
+  it('keeps the draft through a blur while the interactions still carry the old answer', () => {
+    const block = choice('c1', ['A', 'B']);
+    const posted = renderCapturing(block, empty());
+    typeOther('keep me');
+    blurOther();
+    expect(otherField().value).toBe('keep me');
+
+    act(() => (otherCard().querySelector('.option-label') as HTMLElement).click());
+    expect(otherField().value).toBe('keep me');
+    expect(otherCard().getAttribute('aria-checked')).toBe('true');
+    expect(posted.length).toBe(1);
+
+    render(block, empty());
+    expect(otherField().value).toBe('keep me');
+  });
+
+  it('re-selects the kept write-in on its digit key', () => {
+    const posted = renderCapturing(choice('c1', ['A', 'B']), empty());
+    typeOther('roll our own');
+    blurOther();
+    act(() => (container.querySelector('.option') as HTMLElement).click());
+    cursorOntoChoice();
+    press('3');
+    expect(posted[2]).toEqual({ type: 'choice.selected', blockId: 'c1', optionIds: [], other: 'roll our own' });
+    expect(posted.length).toBe(3);
+    expect(otherCard().getAttribute('aria-checked')).toBe('true');
+  });
+
+  it('unchecks a multi-select Other on a chrome click, keeping the text unselected', () => {
+    const block = choice('c1', ['A', 'B'], true);
+    const posted = renderCapturing(block, { ...empty(), choices: { c1: { optionIds: ['o0'], other: 'mine' } } });
+    act(() => otherField().click());
+    expect(posted).toEqual([]);
+
+    act(() => otherCard().click());
+    expect(posted).toEqual([{ type: 'choice.selected', blockId: 'c1', optionIds: ['o0'] }]);
+
+    const later = renderCapturing(block, { ...empty(), choices: { c1: { optionIds: ['o0'] } } });
+    expect(otherField().value).toBe('mine');
+    expect(otherCard().getAttribute('aria-checked')).toBe('false');
+    blurOther();
+    expect(later).toEqual([]);
+    expect(otherCard().getAttribute('aria-checked')).toBe('false');
+  });
+
+  it('deselects Other when the box is emptied, posting the empty answer on blur', () => {
+    const posted = renderCapturing(choice('c1', ['A', 'B']), { ...empty(), choices: { c1: { optionIds: [], other: 'mine' } } });
+    typeOther('');
+    expect(otherCard().getAttribute('aria-checked')).toBe('false');
+    expect(posted).toEqual([]);
+    blurOther();
+    expect(posted).toEqual([{ type: 'choice.selected', blockId: 'c1', optionIds: [] }]);
+  });
+
+  it('adopts a newly committed write-in into an idle clean box, but never a cleared one', () => {
+    const block = choice('c1', ['A', 'B']);
+    render(block, { ...empty(), choices: { c1: { optionIds: [], other: 'first' } } });
+    expect(otherField().value).toBe('first');
+
+    render(block, { ...empty(), choices: { c1: { optionIds: [], other: 'second' } } });
+    expect(otherField().value).toBe('second');
+
+    render(block, { ...empty(), choices: { c1: { optionIds: ['o0'] } } });
+    expect(otherField().value).toBe('second');
+    expect(otherCard().getAttribute('aria-checked')).toBe('false');
+  });
+});
+
+describe('Choice submit chord', () => {
+  it('leaves mod+Enter in the write-in to the global submit path', () => {
+    const posted = renderCapturing(choice('c1', ['A', 'B']), empty());
+    typeOther('roll our own');
+    expect(modEnter(otherField(), { metaKey: true }).defaultPrevented).toBe(false);
+    expect(modEnter(otherField(), { ctrlKey: true }).defaultPrevented).toBe(false);
+    expect(posted).toEqual([]);
+  });
+
+  it('leaves mod+Enter on a focused card to the global submit path', () => {
+    const posted = renderCapturing(choice('c1', ['A', 'B']), empty());
+    expect(modEnter(container.querySelector('.option') as HTMLElement, { metaKey: true }).defaultPrevented).toBe(false);
+    expect(modEnter(otherCard(), { ctrlKey: true }).defaultPrevented).toBe(false);
+    expect(posted).toEqual([]);
+  });
+});
+
+describe('Choice stage preview', () => {
+  const visual = (n: number): OptionVisual => ({ id: `v${n}`, type: 'image', src: 'data:,x', alt: `chart-${n}` });
+  const visuals = [visual(0), visual(1), visual(2)];
+  const withVisuals = (multi = false): ChoiceBlock => ({
+    id: 'c1',
+    type: 'choice',
+    multi,
+    options: visuals.map((v, i) => ({ id: `o${i}`, label: `Option ${i}`, visual: v })),
+  });
+  const card = (i: number) => container.querySelectorAll<HTMLElement>('.option')[i]!;
+  const fire = (i: number, event: Event) => act(() => void card(i).dispatchEvent(event));
+
+  it('stages the first option before any hover, then holds the last hovered card after the pointer leaves', () => {
+    const setVisual = vi.fn<FocusStageValue['setVisual']>();
+    renderWithStage(withVisuals(), empty(), setVisual);
+    expect(setVisual).toHaveBeenLastCalledWith(visuals[0]);
+
+    fire(1, new MouseEvent('mouseover', { bubbles: true }));
+    expect(setVisual).toHaveBeenLastCalledWith(visuals[1]);
+    fire(1, new MouseEvent('mouseout', { bubbles: true }));
+    expect(setVisual).toHaveBeenLastCalledWith(visuals[1]);
+  });
+
+  it('returns to the selected option once the pointer or focus rests', () => {
+    const setVisual = vi.fn<FocusStageValue['setVisual']>();
+    renderWithStage(withVisuals(), { ...empty(), choices: { c1: { optionIds: ['o2'] } } }, setVisual);
+    expect(setVisual).toHaveBeenLastCalledWith(visuals[2]);
+
+    fire(0, new MouseEvent('mouseover', { bubbles: true }));
+    expect(setVisual).toHaveBeenLastCalledWith(visuals[0]);
+    fire(0, new MouseEvent('mouseout', { bubbles: true }));
+    expect(setVisual).toHaveBeenLastCalledWith(visuals[2]);
+
+    fire(1, new FocusEvent('focusin', { bubbles: true }));
+    expect(setVisual).toHaveBeenLastCalledWith(visuals[1]);
+    fire(1, new FocusEvent('focusout', { bubbles: true }));
+    expect(setVisual).toHaveBeenLastCalledWith(visuals[2]);
+  });
+
+  it('moves to the option a digit key picks', () => {
+    const setVisual = vi.fn<FocusStageValue['setVisual']>();
+    renderWithStage(withVisuals(), empty(), setVisual);
+    cursorOntoChoice();
+    expect(setVisual).toHaveBeenLastCalledWith(visuals[0]);
+    press('2');
+    expect(setVisual).toHaveBeenLastCalledWith(visuals[1]);
+  });
+
+  it('follows the most recently checked option still checked on a multi-select', () => {
+    const setVisual = vi.fn<FocusStageValue['setVisual']>();
+    const block = withVisuals(true);
+    renderWithStage(block, { ...empty(), choices: { c1: { optionIds: ['o0', 'o2'] } } }, setVisual);
+    expect(setVisual).toHaveBeenLastCalledWith(visuals[2]);
+
+    renderWithStage(block, { ...empty(), choices: { c1: { optionIds: ['o0', 'o2', 'o1'] } } }, setVisual);
+    expect(setVisual).toHaveBeenLastCalledWith(visuals[1]);
+
+    renderWithStage(block, { ...empty(), choices: { c1: { optionIds: ['o0', 'o2'] } } }, setVisual);
+    expect(setVisual).toHaveBeenLastCalledWith(visuals[2]);
   });
 });
 

@@ -404,7 +404,7 @@
   color: var(--accent-fg);
 }
 .option[role='radio'] .option-indicator {
-  border-radius: var(--radius-pill);
+  border-radius: 50%;
 }
 .option[role='checkbox'] .option-indicator {
   border-radius: var(--radius-sm);
@@ -416,7 +416,7 @@
   content: '';
   width: 40%;
   height: 40%;
-  border-radius: var(--radius-pill);
+  border-radius: 50%;
   background: var(--accent-fill);
 }
 .option[role='checkbox'].selected .option-indicator {
@@ -535,6 +535,7 @@
   gap: var(--space-3);
   overflow-x: auto;
   scroll-snap-type: x mandatory;
+  scroll-padding-inline: var(--strip-fade);
   overscroll-behavior-x: contain;
   padding-block: var(--space-1) var(--space-2);
   scrollbar-width: none;
@@ -599,12 +600,12 @@
   .options[data-strip] {
     margin-inline: calc(-1 * var(--page-pad));
     padding-inline: var(--page-pad);
-    scroll-padding-inline: var(--page-pad);
   }
 }
 
-/* Dots + edge arrows, rendered after the scroller; JS toggles .on and disables the
-   edge arrow. Explicit hover keeps base.css's button:hover off the domain dots. */
+/* Dots + edge arrows, rendered after the scroller; JS toggles .on and .picked and
+   disables the edge arrow. Explicit hover keeps base.css's button:hover off the
+   domain dots. */
 .strip-nav {
   display: flex;
   align-items: center;
@@ -638,8 +639,11 @@
 .strip-dot:hover:not(:disabled) {
   background: var(--border-strong);
 }
-.strip-dot.on,
-.strip-dot.on:hover:not(:disabled) {
+.strip-dot.on {
+  background: var(--border-strong);
+}
+.strip-dot.picked,
+.strip-dot.picked:hover:not(:disabled) {
   background: var(--accent-fill);
 }
 
@@ -1446,6 +1450,7 @@
      dots stay for position. */
   .options[data-strip] {
     --option-card-w: min(17.5rem, 82%);
+    --strip-fade: var(--page-pad);
   }
   .strip-nav > .btn {
     display: none;
@@ -1563,6 +1568,19 @@
   color: var(--text);
   font: inherit;
   resize: vertical;
+}
+@supports (field-sizing: content) {
+  .option-other-input {
+    field-sizing: content;
+    max-height: 6lh;
+    resize: none;
+  }
+}
+.option-other:has(.option-index) .option-body {
+  padding-right: 0;
+}
+.option-other:has(.option-index) .option-label {
+  padding-right: var(--chip-clear);
 }
 .option-other-input:focus-visible {
   outline: 2px solid var(--focus-ring);
