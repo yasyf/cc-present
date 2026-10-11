@@ -93,11 +93,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - The `allowFeedback` key on an `approval`. A verdict takes a note on every
   approval, and a document that still sends the key fails with `unknown field
-  "allowFeedback"`. An open board whose stored document carries the key no
-  longer loads; restart it with `start --replace`.
+  "allowFeedback"`. A board whose stored document carries the key keeps
+  loading.
 
 ### Fixed
 
+- A board whose stored history carries a key the schema no longer defines
+  loads again. Replay ignores an unknown key in a stored event payload,
+  document, or block, where it used to fail the whole reduction: one such
+  board made `sessions` answer `500` for every board, and the board itself
+  failed to open. `start --doc`, `push`, `push --dry-run`, and `update-block`
+  still refuse the key in what the agent writes.
 - `start --new` under another session id no longer closes the Claude window's
   open artifact. A subagent's fresh start had fallen back to the window pid,
   closed and detached the parent's board, and left the parent's session

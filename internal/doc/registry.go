@@ -10,7 +10,7 @@ import (
 // options, triage items), pointers to its asset srcs (image only), and whether it
 // is confined to the top level (section, card).
 type spec struct {
-	decode    func(json.RawMessage) (Block, error)
+	decode    func(json.RawMessage, unmarshalFunc) (Block, error)
 	validate  func(Block) error
 	children  func(Block) []Block
 	visuals   func(Block) []Block
@@ -18,85 +18,89 @@ type spec struct {
 	topOnly   bool
 }
 
-var registry = map[string]spec{
-	"section": {
-		decode:   func(data json.RawMessage) (Block, error) { return decodeInto(data, &Section{}) },
-		validate: func(b Block) error { return validateSection(b.(*Section)) },
-		topOnly:  true,
-	},
-	"card": {
-		decode:   func(data json.RawMessage) (Block, error) { return decodeInto(data, &Card{}) },
-		validate: func(b Block) error { return validateCard(b.(*Card)) },
-		children: func(b Block) []Block { return b.(*Card).Children },
-		topOnly:  true,
-	},
-	"approval": {
-		decode:   func(data json.RawMessage) (Block, error) { return decodeInto(data, &Approval{}) },
-		validate: func(b Block) error { return validateApproval(b.(*Approval)) },
-	},
-	"choice": {
-		decode:   func(data json.RawMessage) (Block, error) { return decodeInto(data, &Choice{}) },
-		validate: func(b Block) error { return validateChoice(b.(*Choice)) },
-		visuals:  func(b Block) []Block { return choiceVisuals(b.(*Choice)) },
-	},
-	"draft": {
-		decode:   func(data json.RawMessage) (Block, error) { return decodeInto(data, &Draft{}) },
-		validate: func(b Block) error { return validateDraft(b.(*Draft)) },
-	},
-	"triage": {
-		decode:   func(data json.RawMessage) (Block, error) { return decodeInto(data, &Triage{}) },
-		validate: func(b Block) error { return validateTriage(b.(*Triage)) },
-		visuals:  func(b Block) []Block { return triageVisuals(b.(*Triage)) },
-	},
-	"input": {
-		decode:   func(data json.RawMessage) (Block, error) { return decodeInto(data, &Input{}) },
-		validate: func(b Block) error { return validateInput(b.(*Input)) },
-	},
-	"markdown": {
-		decode:   func(data json.RawMessage) (Block, error) { return decodeInto(data, &Markdown{}) },
-		validate: func(b Block) error { return validateMarkdown(b.(*Markdown)) },
-	},
-	"code": {
-		decode:   func(data json.RawMessage) (Block, error) { return decodeInto(data, &Code{}) },
-		validate: func(b Block) error { return validateCode(b.(*Code)) },
-	},
-	"diff": {
-		decode:   func(data json.RawMessage) (Block, error) { return decodeInto(data, &Diff{}) },
-		validate: func(b Block) error { return validateDiff(b.(*Diff)) },
-	},
-	"diagram": {
-		decode:   func(data json.RawMessage) (Block, error) { return decodeInto(data, &Diagram{}) },
-		validate: func(b Block) error { return validateDiagram(b.(*Diagram)) },
-	},
-	"image": {
-		decode:    func(data json.RawMessage) (Block, error) { return decodeInto(data, &Image{}) },
-		validate:  func(b Block) error { return validateImage(b.(*Image)) },
-		assetSrcs: func(b Block) []*string { return []*string{&b.(*Image).Src} },
-	},
-	"table": {
-		decode:   func(data json.RawMessage) (Block, error) { return decodeInto(data, &Table{}) },
-		validate: func(b Block) error { return validateTable(b.(*Table)) },
-	},
-	"progress": {
-		decode:   func(data json.RawMessage) (Block, error) { return decodeInto(data, &Progress{}) },
-		validate: func(b Block) error { return validateProgress(b.(*Progress)) },
-	},
-	"chart": {
-		decode:   func(data json.RawMessage) (Block, error) { return decodeInto(data, &Chart{}) },
-		validate: func(b Block) error { return validateChart(b.(*Chart)) },
-	},
-	"term": {
-		decode:   func(data json.RawMessage) (Block, error) { return decodeInto(data, &Term{}) },
-		validate: func(b Block) error { return validateTerm(b.(*Term)) },
-	},
-	"filetree": {
-		decode:   func(data json.RawMessage) (Block, error) { return decodeInto(data, &FileTree{}) },
-		validate: func(b Block) error { return validateFileTree(b.(*FileTree)) },
-	},
-	"record": {
-		decode:   func(data json.RawMessage) (Block, error) { return decodeInto(data, &Record{}) },
-		validate: func(b Block) error { return validateRecord(b.(*Record)) },
-	},
+var registry map[string]spec
+
+func init() {
+	registry = map[string]spec{
+		"section": {
+			decode:   decodeLeaf[Section],
+			validate: func(b Block) error { return validateSection(b.(*Section)) },
+			topOnly:  true,
+		},
+		"card": {
+			decode:   decodeCard,
+			validate: func(b Block) error { return validateCard(b.(*Card)) },
+			children: func(b Block) []Block { return b.(*Card).Children },
+			topOnly:  true,
+		},
+		"approval": {
+			decode:   decodeLeaf[Approval],
+			validate: func(b Block) error { return validateApproval(b.(*Approval)) },
+		},
+		"choice": {
+			decode:   decodeChoice,
+			validate: func(b Block) error { return validateChoice(b.(*Choice)) },
+			visuals:  func(b Block) []Block { return choiceVisuals(b.(*Choice)) },
+		},
+		"draft": {
+			decode:   decodeLeaf[Draft],
+			validate: func(b Block) error { return validateDraft(b.(*Draft)) },
+		},
+		"triage": {
+			decode:   decodeTriage,
+			validate: func(b Block) error { return validateTriage(b.(*Triage)) },
+			visuals:  func(b Block) []Block { return triageVisuals(b.(*Triage)) },
+		},
+		"input": {
+			decode:   decodeLeaf[Input],
+			validate: func(b Block) error { return validateInput(b.(*Input)) },
+		},
+		"markdown": {
+			decode:   decodeLeaf[Markdown],
+			validate: func(b Block) error { return validateMarkdown(b.(*Markdown)) },
+		},
+		"code": {
+			decode:   decodeLeaf[Code],
+			validate: func(b Block) error { return validateCode(b.(*Code)) },
+		},
+		"diff": {
+			decode:   decodeLeaf[Diff],
+			validate: func(b Block) error { return validateDiff(b.(*Diff)) },
+		},
+		"diagram": {
+			decode:   decodeLeaf[Diagram],
+			validate: func(b Block) error { return validateDiagram(b.(*Diagram)) },
+		},
+		"image": {
+			decode:    decodeLeaf[Image],
+			validate:  func(b Block) error { return validateImage(b.(*Image)) },
+			assetSrcs: func(b Block) []*string { return []*string{&b.(*Image).Src} },
+		},
+		"table": {
+			decode:   decodeLeaf[Table],
+			validate: func(b Block) error { return validateTable(b.(*Table)) },
+		},
+		"progress": {
+			decode:   decodeLeaf[Progress],
+			validate: func(b Block) error { return validateProgress(b.(*Progress)) },
+		},
+		"chart": {
+			decode:   decodeLeaf[Chart],
+			validate: func(b Block) error { return validateChart(b.(*Chart)) },
+		},
+		"term": {
+			decode:   decodeLeaf[Term],
+			validate: func(b Block) error { return validateTerm(b.(*Term)) },
+		},
+		"filetree": {
+			decode:   decodeLeaf[FileTree],
+			validate: func(b Block) error { return validateFileTree(b.(*FileTree)) },
+		},
+		"record": {
+			decode:   decodeLeaf[Record],
+			validate: func(b Block) error { return validateRecord(b.(*Record)) },
+		},
+	}
 }
 
 // Children returns the blocks nested one level inside b — a card's children, and

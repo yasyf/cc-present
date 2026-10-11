@@ -1,0 +1,74 @@
+{
+  "name": "unknown-payload-keys-ignored",
+  "events": [
+    {
+      "origin": "agent",
+      "type": "doc.replaced",
+      "seq": 1,
+      "payload": {
+        "schemaVersion": 1,
+        "type": "doc.replaced",
+        "revision": 1,
+        "legacy": true,
+        "doc": {
+          "version": 1,
+          "title": "T",
+          "blocks": [
+            { "id": "c1", "type": "card", "children": [{ "id": "a1", "type": "approval" }] },
+            { "id": "m1", "type": "markdown", "md": "top" }
+          ]
+        }
+      }
+    },
+    {
+      "origin": "agent",
+      "type": "block.upserted",
+      "seq": 2,
+      "payload": {
+        "schemaVersion": 1,
+        "type": "block.upserted",
+        "legacy": { "nested": [1, 2] },
+        "block": { "id": "m2", "type": "markdown", "md": "added" }
+      }
+    },
+    { "origin": "human", "type": "decision.created", "seq": 3, "payload": { "schemaVersion": 1, "type": "decision.created", "blockId": "a1", "verdict": "approved", "legacy": "x" } },
+    { "origin": "human", "type": "submit", "seq": 4, "payload": { "schemaVersion": 1, "type": "submit", "revision": 1, "legacy": true } },
+    { "origin": "agent", "type": "round.started", "seq": 5, "payload": { "schemaVersion": 1, "type": "round.started", "title": "Round two", "carry": ["a1"] } }
+  ],
+  "expected": {
+    "schemaVersion": 1,
+    "doc": {
+      "version": 1,
+      "title": "T",
+      "blocks": [
+        { "id": "c1", "type": "card", "children": [{ "id": "a1", "type": "approval" }] },
+        { "id": "m1", "type": "markdown", "md": "top" },
+        { "id": "m2", "type": "markdown", "md": "added" }
+      ]
+    },
+    "interactions": {
+      "decisions": { "a1": { "verdict": "approved" } },
+      "submitted": { "value": true, "revision": 1 }
+    },
+    "rounds": {
+      "current": 2,
+      "currentTitle": "Round two",
+      "blockRounds": { "c1": 1, "m1": 1, "m2": 1 },
+      "history": [
+        {
+          "number": 1,
+          "blocks": [
+            { "id": "c1", "type": "card", "children": [{ "id": "a1", "type": "approval" }] },
+            { "id": "m1", "type": "markdown", "md": "top" },
+            { "id": "m2", "type": "markdown", "md": "added" }
+          ],
+          "decisions": { "a1": { "verdict": "approved" } },
+          "choices": {},
+          "inputs": {},
+          "feedback": {},
+          "submittedRevision": 1
+        }
+      ]
+    }
+  }
+}

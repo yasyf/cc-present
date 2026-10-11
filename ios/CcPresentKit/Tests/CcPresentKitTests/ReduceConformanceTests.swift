@@ -60,6 +60,39 @@ struct ReduceConformanceTests {
         ]))
     }
 
+    @Test("stored blocks carrying keys the schema no longer defines reduce as if the keys were absent")
+    func ignoresUnknownKeysInStoredBlocks() throws {
+        let stored = """
+        [
+          {"origin": "agent", "type": "doc.replaced", "seq": 1, "payload": {"schemaVersion": 1, "type": "doc.replaced", "revision": 1, "doc": {
+            "version": 1, "title": "T", "legacy": true, "blocks": [
+              {"id": "c1", "type": "card", "legacy": true, "children": [{"id": "a1", "type": "approval", "allowFeedback": false}]},
+              {"id": "a2", "type": "approval", "allowFeedback": true}
+            ]
+          }}},
+          {"origin": "agent", "type": "block.upserted", "seq": 2, "payload": {"schemaVersion": 1, "type": "block.upserted", "block": {"id": "a3", "type": "approval", "allowFeedback": false}}},
+          {"origin": "agent", "type": "block.upserted", "seq": 3, "payload": {"schemaVersion": 1, "type": "block.upserted", "after": "a1", "block": {"id": "a4", "type": "approval", "allowFeedback": false}}}
+        ]
+        """
+        let current = """
+        [
+          {"origin": "agent", "type": "doc.replaced", "seq": 1, "payload": {"schemaVersion": 1, "type": "doc.replaced", "revision": 1, "doc": {
+            "version": 1, "title": "T", "blocks": [
+              {"id": "c1", "type": "card", "children": [{"id": "a1", "type": "approval"}]},
+              {"id": "a2", "type": "approval"}
+            ]
+          }}},
+          {"origin": "agent", "type": "block.upserted", "seq": 2, "payload": {"schemaVersion": 1, "type": "block.upserted", "block": {"id": "a3", "type": "approval"}}},
+          {"origin": "agent", "type": "block.upserted", "seq": 3, "payload": {"schemaVersion": 1, "type": "block.upserted", "after": "a1", "block": {"id": "a4", "type": "approval"}}}
+        ]
+        """
+        let decoder = JSONDecoder()
+        let got = try reduce(events: decoder.decode([Event].self, from: Data(stored.utf8)))
+        let want = try reduce(events: decoder.decode([Event].self, from: Data(current.utf8)))
+        #expect(got == want)
+        #expect(got.doc.blocks.count == 3)
+    }
+
     @Test("reduce matches every Go state fixture", arguments: fixtureURLs)
     func matchesFixture(_ url: URL) throws {
         let data = try Data(contentsOf: url)
