@@ -1,6 +1,10 @@
 import type { ComponentType } from 'react';
+import { useGroupReadOnly } from '@cc-interact/react';
 import { isPackBlock, type Block, type BuiltinBlockType } from '../schema';
 import type { Interactions } from '../events';
+import { usePresent } from '../present';
+import { useInteractivePackTypes } from '../packs/registry';
+import { ownsThread } from '../threadFeed';
 import { Section } from './Section';
 import { Card } from './Card';
 import { Approval } from './Approval';
@@ -20,6 +24,7 @@ import { TermView } from './TermView';
 import { FileTreeView } from './FileTreeView';
 import { RecordView } from './RecordView';
 import { PackBlockView } from './PackBlockView';
+import { BlockThread } from './BlockThread';
 import { ReplyThread } from './ReplyThread';
 
 export interface BlockProps {
@@ -57,17 +62,34 @@ const BUILTIN: { [T in BuiltinBlockType]: BuiltinRenderer<T> } = {
 };
 
 // BlockRenderer dispatches on the block's type, then threads the agent's replies
-// beneath it. Approvals and choices thread their own replies inline (beside the
-// note channel), so they are returned bare; every other block gets the shared
-// ReplyThread.
-export function BlockRenderer({ block, interactions }: BlockProps) {
+// beneath it. A block that owns its thread renders its own replies beside the
+// note channel, so it is returned bare; every other block gets the shared
+// ReplyThread, after the note channel when `note` asks for one.
+export function BlockRenderer({ block, interactions, note }: BlockProps & { note?: boolean }) {
+  const packInteractive = useInteractivePackTypes();
   const inner = <BlockBody block={block} interactions={interactions} />;
-  if (block.type === 'approval' || block.type === 'choice') return inner;
+  if (ownsThread(block, packInteractive)) return inner;
   return (
     <>
       {inner}
+      {note && <BlockNote block={block} interactions={interactions} />}
       <ReplyThread replies={interactions.replies[block.id] ?? []} />
     </>
+  );
+}
+
+function BlockNote({ block, interactions }: BlockProps) {
+  const { closed } = usePresent();
+  const readOnly = useGroupReadOnly();
+  if (block.type === 'section') return null;
+  return (
+    <BlockThread
+      blockId={block.id}
+      type={block.type}
+      feedback={interactions.feedback[block.id] ?? []}
+      replies={[]}
+      locked={closed || readOnly}
+    />
   );
 }
 

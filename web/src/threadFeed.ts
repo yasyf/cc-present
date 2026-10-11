@@ -2,17 +2,16 @@
 // the other conversation-bearing blocks — live doc order, then recorded rounds.
 
 import { flatten } from './decide';
+import { topLevelRound } from './reduce';
 import { isPackBlock } from './schema';
 import type { Block } from './schema';
 import type { Feedback, PresentState, Reply } from './events';
 
-export type ThreadKind = 'approval' | 'choice' | 'pack';
-
 // A ThreadEntry is one block's conversation: its feedback (the human's notes) and
-// the agent's replies. locked marks a frozen history block whose composer is gone.
+// the agent's replies. locked marks a thread with no composer: closed, stale, or history.
 export interface ThreadEntry {
   blockId: string;
-  kind: ThreadKind;
+  type: string;
   label: string;
   feedback: Feedback[];
   replies: Reply[];
@@ -28,19 +27,41 @@ export interface ThreadProjection {
   feed: ThreadEntry[];
 }
 
-function threadKind(block: Block, packInteractive: ReadonlySet<string>): ThreadKind | null {
-  if (isPackBlock(block)) return packInteractive.has(block.type) ? 'pack' : null;
-  return block.type === 'approval' || block.type === 'choice' ? block.type : null;
+export interface NoteCopy {
+  add: string;
+  placeholder: string;
 }
 
-const FALLBACK_LABEL: Record<Exclude<ThreadKind, 'pack'>, string> = { approval: 'Approval', choice: 'Choice' };
+const FEEDBACK_COPY: NoteCopy = { add: 'Add feedback', placeholder: 'Add feedback for the agent…' };
+const NOTE_COPY: NoteCopy = { add: 'Add note', placeholder: 'Add a note for the agent…' };
 
-function label(block: Block, kind: ThreadKind): string {
-  const fields = block as { prompt?: unknown; question?: unknown; title?: unknown };
-  const heading = [fields.prompt, fields.question, fields.title].find(
+export function noteCopy(type: string): NoteCopy {
+  return type === 'approval' ? FEEDBACK_COPY : NOTE_COPY;
+}
+
+export function ownsThread(block: Block, packInteractive: ReadonlySet<string>): boolean {
+  if (isPackBlock(block)) return packInteractive.has(block.type);
+  return block.type === 'approval' || block.type === 'choice';
+}
+
+interface Member {
+  block: Block;
+  top: Block;
+  owns: boolean;
+}
+
+function members(blocks: Block[], packInteractive: ReadonlySet<string>): Member[] {
+  return blocks.flatMap((top) =>
+    flatten([top]).map((block) => ({ block, top, owns: ownsThread(block, packInteractive) })),
+  );
+}
+
+function label(block: Block): string {
+  const fields = block as { prompt?: unknown; question?: unknown; title?: unknown; label?: unknown };
+  const heading = [fields.prompt, fields.question, fields.title, fields.label].find(
     (v): v is string => typeof v === 'string' && v.trim() !== '',
   );
-  return heading ?? (kind === 'pack' ? block.type : FALLBACK_LABEL[kind]);
+  return heading ?? (isPackBlock(block) ? block.type : block.type.charAt(0).toUpperCase() + block.type.slice(1));
 }
 
 function hasConversation(entry: ThreadEntry): boolean {
@@ -66,50 +87,38 @@ export function threadFeed(
   packInteractive: ReadonlySet<string>,
 ): ThreadProjection {
   const replies = state.interactions.replies;
-  const live: ThreadEntry[] = [];
-  for (const block of flatten(state.doc.blocks)) {
-    const kind = threadKind(block, packInteractive);
-    if (!kind) continue;
-    const feedback = state.interactions.feedback[block.id] ?? [];
+  const closed = state.interactions.closed.value;
+  const live = members(state.doc.blocks, packInteractive);
+  const past = state.rounds.history.map((round) => ({ round, members: members(round.blocks, packInteractive) }));
+
+  const all: ThreadEntry[] = [];
+  const seen = new Set<string>();
+  const admit = ({ block, top, owns }: Member, feedback: Feedback[], locked: boolean, isLive: boolean) => {
+    if ((!owns && block !== top) || seen.has(block.id)) return;
+    seen.add(block.id);
     const blockReplies = replies[block.id] ?? [];
-    live.push({
+    all.push({
       blockId: block.id,
-      kind,
-      label: label(block, kind),
+      type: block.type,
+      label: label(block),
       feedback,
       replies: blockReplies,
-      // An approval that forbids feedback keeps its thread visible but shows no
-      // composer, mirroring the inline FeedbackThread's locked composer.
-      locked: block.type === 'approval' && block.allowFeedback === false,
-      live: true,
+      locked,
+      live: isLive,
       lastComment: lastComment(feedback, blockReplies),
     });
+  };
+  for (const member of live) {
+    const stale = topLevelRound(state, member.top.id) !== state.rounds.current;
+    admit(member, state.interactions.feedback[member.block.id] ?? [], closed || stale, true);
+  }
+  for (const { round, members: frozen } of past) {
+    for (const member of frozen) admit(member, round.feedback[member.block.id] ?? [], true, false);
   }
 
-  const seen = new Set(live.map((e) => e.blockId));
-  const history: ThreadEntry[] = [];
-  for (const round of state.rounds.history) {
-    for (const block of flatten(round.blocks)) {
-      const kind = threadKind(block, packInteractive);
-      if (!kind || seen.has(block.id)) continue;
-      seen.add(block.id);
-      const feedback = round.feedback[block.id] ?? [];
-      const blockReplies = replies[block.id] ?? [];
-      history.push({
-        blockId: block.id,
-        kind,
-        label: label(block, kind),
-        feedback,
-        replies: blockReplies,
-        locked: true,
-        live: false,
-        lastComment: lastComment(feedback, blockReplies),
-      });
-    }
-  }
-
-  const all = [...live, ...history];
-  const pinned = activeId === null ? null : all.find((e) => e.blockId === activeId) ?? null;
+  const holder = [...live, ...past.flatMap((p) => p.members)].find((m) => m.block.id === activeId);
+  const owner = holder && (holder.owns ? holder.block.id : holder.top.id);
+  const pinned = all.find((e) => e.blockId === owner) ?? null;
   const feed = all.filter((e) => e !== pinned && hasConversation(e));
   return { pinned, feed };
 }

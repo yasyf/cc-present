@@ -6,13 +6,11 @@ import { usePresent } from '../present';
 import { choiceToggle } from '../decide';
 import { factAxes } from '../focus';
 import { useDecidable } from '../keyboard';
-import { useActiveBlock } from '../activeBlock';
 import { Mark } from './Mark';
 import { OptionCard } from './OptionCard';
 import { OptionStrip, scrollBehavior } from './OptionStrip';
-import { FeedbackThread } from './FeedbackThread';
+import { BlockThread } from './BlockThread';
 import type { FeedbackHandle } from './FeedbackThread';
-import { CommentChip } from './CommentChip';
 import { FocusStageContext, FocusStepContext } from './focusStep';
 import { useThreadHost } from './threadHost';
 
@@ -26,7 +24,6 @@ export function Choice({ block, interactions }: { block: ChoiceBlock; interactio
   const focus = useContext(FocusStepContext);
   const stage = useContext(FocusStageContext);
   const rail = useThreadHost() === 'rail';
-  const { requestCompose } = useActiveBlock();
   const suppressPrompt = focus?.headlineId === block.id;
   const locked = closed || readOnly;
   const selection = interactions.choices[block.id];
@@ -113,7 +110,7 @@ export function Choice({ block, interactions }: { block: ChoiceBlock; interactio
   const { ref, cursor } = useDecidable(block.id, {
     kind: 'choice',
     disabled: locked,
-    engage: rail ? requestCompose : () => feedbackRef.current?.open(),
+    engage: () => feedbackRef.current?.open(),
     choose: (n) => {
       if (n === otherIndex) {
         pickOther();
@@ -142,9 +139,17 @@ export function Choice({ block, interactions }: { block: ChoiceBlock; interactio
   if (otherOn) picked.add(block.options.length);
   const feedback = interactions.feedback[block.id] ?? [];
   const replies = interactions.replies[block.id] ?? [];
-  const commentChip = rail ? (
-    <CommentChip blockId={block.id} count={feedback.length + replies.length} addLabel="Add note" />
-  ) : null;
+  const thread = (
+    <BlockThread
+      ref={feedbackRef}
+      blockId={block.id}
+      type={block.type}
+      feedback={feedback}
+      replies={replies}
+      locked={locked}
+      onComposingChange={setNoteComposing}
+    />
+  );
 
   return (
     <div className="choice" ref={ref} data-kbd-cursor={cursor || undefined} data-composing={noteComposing || undefined}>
@@ -156,7 +161,7 @@ export function Choice({ block, interactions }: { block: ChoiceBlock; interactio
         cardCount={block.options.length + 1}
         picked={picked}
         containerRef={optionsRef}
-        navActions={strip ? commentChip : undefined}
+        navActions={strip && rail ? thread : undefined}
       >
         {block.options.map((option, i) => (
           <OptionCard
@@ -240,20 +245,7 @@ export function Choice({ block, interactions }: { block: ChoiceBlock; interactio
           </span>
         </div>
       </OptionStrip>
-      {rail ? (
-        !strip && commentChip
-      ) : (
-        <FeedbackThread
-          ref={feedbackRef}
-          blockId={block.id}
-          feedback={feedback}
-          replies={replies}
-          locked={locked}
-          addLabel="Add note"
-          placeholder="Add a note for the agent…"
-          onComposingChange={setNoteComposing}
-        />
-      )}
+      {!(strip && rail) && thread}
     </div>
   );
 }

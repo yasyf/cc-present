@@ -5,6 +5,7 @@ import { submitItems } from '../decide';
 import { autoAdvances, stepTitle } from '../focus';
 import type { FocusStep } from '../focus';
 import { useKeyboardApi } from '../keyboard';
+import { useActiveBlock } from '../activeBlock';
 import { revisionStore } from '../revision';
 import { useInteractivePackTypes } from '../packs/registry';
 import type { Block } from '../schema';
@@ -65,6 +66,7 @@ function decisionSignature(primary: Block, interactions: Interactions): string |
 // a lone approval or single-select choice 450ms after its decision.
 export function FocusDeck({ steps, interactions, round, closed, onEndChange }: FocusDeckProps) {
   const api = useKeyboardApi();
+  const { pin, requestCompose } = useActiveBlock();
   const packInteractive = useInteractivePackTypes();
   const deckRef = useRef<HTMLDivElement>(null);
   const pendingCursorRef = useRef<string | null>(null);
@@ -107,17 +109,15 @@ export function FocusDeck({ steps, interactions, round, closed, onEndChange }: F
   const jump = useCallback(
     (id: string) => {
       const list = stepsRef.current;
-      const i = list.findIndex((s) => s.id === id || s.decidables.includes(id));
+      const i = list.findIndex(
+        (s) => s.id === id || s.decidables.includes(id) || s.context.some((block) => block.id === id),
+      );
       if (i < 0) return;
       // A jump to a nested decidable lands the cursor on that id; a jump to the
       // anchor (or a non-decidable target) falls back to the step's primary.
       const target = list[i]!.decidables.includes(id) ? id : list[i]!.primary?.id ?? null;
-      if (i === indexRef.current) {
-        // Same-step jump: go bails on an unchanged anchor, so the cursor effect
-        // never fires — set the cursor here instead.
-        api.setCursor(target);
-        return;
-      }
+      api.setCursor(target);
+      if (i === indexRef.current) return;
       setExitCustom({ dir: i > indexRef.current ? 1 : -1, kind: 'nav' });
       pendingCursorRef.current = target;
       go(i);
@@ -188,6 +188,16 @@ export function FocusDeck({ steps, interactions, round, closed, onEndChange }: F
     pendingCursorRef.current = null;
     api.setCursor(pending ?? primaryId);
   }, [api, primaryId]);
+
+  const noteId = closed ? undefined : currentStep?.block.id;
+  useEffect(() => {
+    if (noteId === undefined) return;
+    api.registerNote(() => {
+      pin(noteId);
+      requestCompose();
+    });
+    return () => api.registerNote(null);
+  }, [api, noteId, pin, requestCompose]);
 
   useEffect(() => {
     const advancer = !closed && currentStep && autoAdvances(currentStep) ? currentStep.primary : undefined;

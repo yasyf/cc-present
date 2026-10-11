@@ -324,7 +324,7 @@ export const FocusCard = forwardRef<HTMLDivElement, { step: FocusStep; interacti
             </div>
           )}
           <StageMedia visual={activeVisual} interactions={interactions} />
-          <BlockRenderer key={step.block.id} block={step.block} interactions={interactions} />
+          <BlockRenderer key={step.block.id} block={step.block} interactions={interactions} note />
         </div>
       </m.div>
       </FocusStageContext.Provider>

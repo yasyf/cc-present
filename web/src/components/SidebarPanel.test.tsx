@@ -31,13 +31,19 @@ function setViewport(desktop: boolean): void {
 }
 
 const projection: ThreadProjection = {
-  pinned: { blockId: 'a1', kind: 'approval', label: 'Ship one', feedback: [{ id: 'f1', text: 'go' }], replies: [], locked: false, live: true, lastComment: 'go' },
+  pinned: { blockId: 'a1', type: 'approval', label: 'Ship one', feedback: [{ id: 'f1', text: 'go' }], replies: [], locked: false, live: true, lastComment: 'go' },
   feed: [
-    { blockId: 'a2', kind: 'choice', label: 'Pick a plan', feedback: [{ id: 'f2', text: 'hmm' }], replies: [], locked: false, live: true, lastComment: 'hmm' },
-    { blockId: 'h1', kind: 'approval', label: 'Old ship', feedback: [{ id: 'f3', text: 'past' }], replies: [], locked: true, live: false, lastComment: 'past' },
+    { blockId: 'a2', type: 'choice', label: 'Pick a plan', feedback: [{ id: 'f2', text: 'hmm' }], replies: [], locked: false, live: true, lastComment: 'hmm' },
+    { blockId: 'h1', type: 'approval', label: 'Old ship', feedback: [{ id: 'f3', text: 'past' }], replies: [], locked: true, live: false, lastComment: 'past' },
   ],
 };
 const empty: ThreadProjection = { pinned: null, feed: [] };
+const cardFeed: ThreadProjection = {
+  pinned: null,
+  feed: [
+    { blockId: 'k1', type: 'card', label: 'Rollout', feedback: [{ id: 'f4', text: 'tighten' }], replies: [], locked: false, live: true, lastComment: 'tighten' },
+  ],
+};
 
 // a2 sits in the live ring so a live jump routes through the keyboard and announces.
 const ringBlocks: Approval[] = [{ id: 'a2', type: 'approval' }];
@@ -58,11 +64,17 @@ afterEach(() => {
 });
 
 function Revealed() {
-  const { reveal } = useActiveBlock();
-  return <div data-testid="revealed">{reveal?.blockId ?? 'none'}</div>;
+  const { reveal, activeId } = useActiveBlock();
+  return (
+    <>
+      <div data-testid="revealed">{reveal?.blockId ?? 'none'}</div>
+      <div data-testid="active">{activeId ?? 'none'}</div>
+    </>
+  );
 }
 
 const revealed = (): string | null => container.querySelector('[data-testid="revealed"]')!.textContent;
+const active = (): string | null => container.querySelector('[data-testid="active"]')!.textContent;
 
 function render(proj: ThreadProjection = projection, onJumped?: () => void): void {
   const present: PresentApi = { post: async () => true, closed: false, currentRound: 1 };
@@ -116,11 +128,25 @@ describe('SidebarPanel jump', () => {
     expect(onJumped).toHaveBeenCalledTimes(1);
   });
 
+  it('pins a card entry and scrolls to its row, off the keyboard ring', () => {
+    const row = document.createElement('div');
+    row.dataset.blockId = 'k1';
+    document.body.appendChild(row);
+    render(cardFeed);
+    expect(active()).toBe('none');
+    act(() => (container.querySelector('.rail-feed-row') as HTMLButtonElement).click());
+    expect(active()).toBe('k1');
+    expect(row.scrollIntoView).toHaveBeenCalledTimes(1);
+    expect(document.querySelector('.sr-only')!.textContent).toBe('');
+    row.remove();
+  });
+
   it('reveals a history jump inside its frozen round', () => {
     const onJumped = vi.fn();
     render(projection, onJumped);
     act(() => (container.querySelectorAll('.rail-feed-row')[1] as HTMLButtonElement).click());
     expect(revealed()).toBe('h1');
+    expect(active()).toBe('h1');
     expect(document.querySelector('.sr-only')!.textContent).not.toBe('Item 1 of 1');
     expect(onJumped).toHaveBeenCalledTimes(1);
   });

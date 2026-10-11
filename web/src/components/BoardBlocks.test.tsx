@@ -7,6 +7,8 @@ import { PresentContext } from '../present';
 import type { PresentApi } from '../present';
 import { KeyboardProvider } from '../keyboard';
 import { BoardBlocks } from './BoardBlocks';
+import { ThreadHostContext } from './threadHost';
+import type { ThreadHost } from './threadHost';
 import { emptyState } from '../reduce';
 import { BOARD_DWELL_MS, viewedStore } from '../viewed';
 import type { Interactions, Verdict } from '../events';
@@ -77,14 +79,16 @@ afterEach(() => {
   container.remove();
 });
 
-function render(blocks: Block[], interactions: Interactions): void {
+function render(blocks: Block[], interactions: Interactions, host: ThreadHost = 'inline'): void {
   const present: PresentApi = { post: async () => true, closed: false, currentRound: 1 };
   act(() =>
     root.render(
       <PresentContext.Provider value={present}>
-        <KeyboardProvider blocks={blocks} interactions={interactions} closed={present.closed} round={present.currentRound}>
-          <BoardBlocks blocks={blocks} interactions={interactions} packInteractive={new Set()} />
-        </KeyboardProvider>
+        <ThreadHostContext.Provider value={host}>
+          <KeyboardProvider blocks={blocks} interactions={interactions} closed={present.closed} round={present.currentRound}>
+            <BoardBlocks blocks={blocks} interactions={interactions} packInteractive={new Set()} />
+          </KeyboardProvider>
+        </ThreadHostContext.Provider>
       </PresentContext.Provider>,
     ),
   );
@@ -137,6 +141,38 @@ describe('BoardBlocks section hoisting', () => {
     expect(container.querySelector('.block-row[data-flip-key="s1"]')).toBeNull();
     // a non-section block still gets its flip-tracked row
     expect(container.querySelector('.block-row[data-flip-key="a1"]')).not.toBeNull();
+  });
+});
+
+describe('BoardBlocks note affordance', () => {
+  const blocks: Block[] = [section('s1', 'Intro'), card('c1', [approval('a1')]), markdown('m1'), approval('a2')];
+  const texts = (els: NodeListOf<Element>): (string | null)[] => [...els].map((el) => el.textContent);
+
+  it('gives a card row and a markdown row one Add note control in the inline host', () => {
+    render(blocks, empty());
+    expect(texts(row('c1').querySelectorAll(':scope > .feedback-affordance .link-btn'))).toEqual(['Add note']);
+    expect(texts(row('m1').querySelectorAll('.feedback-affordance .link-btn'))).toEqual(['Add note']);
+    expect(texts(row('c1').querySelectorAll('.approval .feedback-affordance .link-btn'))).toEqual(['Add feedback']);
+  });
+
+  it('adds no second control to an approval row or a section in the inline host', () => {
+    render(blocks, empty());
+    expect(texts(row('a2').querySelectorAll('.feedback-affordance .link-btn'))).toEqual(['Add feedback']);
+    expect(row('a2').querySelector(':scope > .feedback-affordance')).toBeNull();
+    expect(container.querySelectorAll('.feedback-affordance')).toHaveLength(4);
+  });
+
+  it('gives a card row and a markdown row one chip in the rail host', () => {
+    render(blocks, empty(), 'rail');
+    expect(texts(row('c1').querySelectorAll(':scope > .comment-chip-row .comment-chip'))).toEqual(['Add note']);
+    expect(texts(row('m1').querySelectorAll('.comment-chip'))).toEqual(['Add note']);
+  });
+
+  it('adds no second chip to an approval row or a section in the rail host', () => {
+    render(blocks, empty(), 'rail');
+    expect(texts(row('a2').querySelectorAll('.comment-chip'))).toEqual(['Add feedback']);
+    expect(row('a2').querySelector(':scope > .comment-chip-row')).toBeNull();
+    expect(container.querySelectorAll('.comment-chip')).toHaveLength(4);
   });
 });
 

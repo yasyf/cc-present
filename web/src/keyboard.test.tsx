@@ -1,11 +1,11 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { act } from 'react';
+import { act, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
 import type { Root } from 'react-dom/client';
 import { PresentContext } from './present';
 import type { PresentApi } from './present';
-import { KeyboardProvider, nearestInViewport } from './keyboard';
+import { KeyboardProvider, nearestInViewport, useDecidable, useKeyboardApi } from './keyboard';
 import { Lightbox } from './components/Lightbox';
 import { emptyState } from './reduce';
 import type { Interactions } from './events';
@@ -127,6 +127,80 @@ describe('keyboard next-unanswered jump', () => {
     render(() => {}, false, () => {}, { ...empty(), decisions: { a1: { verdict: 'approved' } } });
     press('n');
     expect(container.querySelector('[role="status"]')?.textContent).toBe('All answered');
+  });
+});
+
+function NoteProbe({ note, engage }: { note: () => void; engage?: () => void }) {
+  const api = useKeyboardApi();
+  useEffect(() => {
+    api.registerNote(note);
+    return () => api.registerNote(null);
+  }, [api, note]);
+  return (
+    <>
+      {engage && <Engaging engage={engage} />}
+      <div data-block-id="k1" />
+      <button data-testid="jump-card" onClick={() => api.jumpTo('k1')} />
+      <button data-testid="jump-ring" onClick={() => api.jumpTo('a1')} />
+    </>
+  );
+}
+
+function Engaging({ engage }: { engage: () => void }) {
+  const { ref } = useDecidable('a1', { kind: 'approval', disabled: false, engage });
+  return <div ref={ref} />;
+}
+
+function renderProbe(note: () => void, engage?: () => void): void {
+  const present: PresentApi = { post: async () => true, closed: false, currentRound: 1 };
+  act(() =>
+    root.render(
+      <PresentContext.Provider value={present}>
+        <KeyboardProvider blocks={blocks} interactions={empty()} closed={false} round={1}>
+          <NoteProbe note={note} engage={engage} />
+        </KeyboardProvider>
+      </PresentContext.Provider>,
+    ),
+  );
+}
+
+describe('keyboard engage fallthrough', () => {
+  it('runs the registered note when no cursored block engages', () => {
+    const note = vi.fn();
+    renderProbe(note);
+    press('f');
+    expect(note).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps f on the cursored block that has its own engage', () => {
+    const note = vi.fn();
+    const engage = vi.fn();
+    renderProbe(note, engage);
+    press('j');
+    press('f');
+    expect(engage).toHaveBeenCalledTimes(1);
+    expect(note).not.toHaveBeenCalled();
+  });
+});
+
+describe('keyboard jumpTo', () => {
+  const status = (): string | null | undefined => container.querySelector('[role="status"]')?.textContent;
+  const click = (id: string): void =>
+    act(() => (container.querySelector(`[data-testid="${id}"]`) as HTMLButtonElement).click());
+
+  it('scrolls the row of an id outside the ring without announcing a ring position', () => {
+    renderProbe(() => {});
+    const row = container.querySelector<HTMLElement>('[data-block-id="k1"]')!;
+    row.scrollIntoView = vi.fn();
+    click('jump-card');
+    expect(row.scrollIntoView).toHaveBeenCalledTimes(1);
+    expect(status()).toBe('');
+  });
+
+  it('announces the ring position of a ring member', () => {
+    renderProbe(() => {});
+    click('jump-ring');
+    expect(status()).toBe('Item 1 of 1');
   });
 });
 
