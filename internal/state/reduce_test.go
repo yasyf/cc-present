@@ -82,6 +82,11 @@ func TestReduceErrors(t *testing.T) {
 			wantErr: "unknown type",
 		},
 		{
+			name:    "earlier occurrence of a repeated doc key",
+			events:  []state.Event{{Origin: "agent", Type: "doc.replaced", Seq: 1, Payload: []byte(`{"schemaVersion":1,"type":"doc.replaced","revision":1,"doc":{"version":1,"title":"T","blocks":[{"id":"x","type":"bogus"}]},"doc":{"version":1,"title":"T","blocks":[]}}`)}},
+			wantErr: "unknown type",
+		},
+		{
 			name:    "missing event schema",
 			events:  []state.Event{{Origin: "human", Type: "submit", Seq: 1, Payload: []byte(`{"type":"submit","revision":1}`)}},
 			wantErr: "schema version 0",

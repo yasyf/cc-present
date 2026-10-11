@@ -476,6 +476,16 @@ func TestDecodeRejectsUnknownFields(t *testing.T) {
 			doc:  docWith(card("c1", `{"id":"ch1","type":"choice","options":[{"id":"o1","label":"L","why":"x"}]}`)),
 			want: `block "ch1": decode choice block: unmarshal option: json: unknown field "why"`,
 		},
+		{
+			name: "earlier occurrence of a repeated options key",
+			doc:  docWith(`{"id":"ch1","type":"choice","options":[{"id":"o1","label":"L","legacy":true}],"options":[{"id":"o1","label":"L"}]}`),
+			want: `block "ch1": decode choice block: unmarshal option: json: unknown field "legacy"`,
+		},
+		{
+			name: "earlier occurrence of a repeated items key",
+			doc:  docWith(`{"id":"t1","type":"triage","items":[{"id":"i1","label":"L","legacy":true}],"items":[{"id":"i1","label":"L"}]}`),
+			want: `block "t1": decode triage block: unmarshal item: json: unknown field "legacy"`,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -532,6 +542,16 @@ func TestDecodeStoredIgnoresUnknownFields(t *testing.T) {
 			name: "triage and item keys",
 			doc:  docWith(`{"id":"t1","type":"triage","legacy":true,"items":[{"id":"i1","label":"L","why":"x"}]}`),
 			want: docWith(`{"id":"t1","type":"triage","items":[{"id":"i1","label":"L"}]}`),
+		},
+		{
+			name: "repeated options key keeps the last occurrence",
+			doc:  docWith(`{"id":"ch1","type":"choice","options":[{"id":"o1","label":"First","legacy":true}],"options":[{"id":"o2","label":"Last"}]}`),
+			want: docWith(`{"id":"ch1","type":"choice","options":[{"id":"o2","label":"Last"}]}`),
+		},
+		{
+			name: "repeated items key keeps the last occurrence",
+			doc:  docWith(`{"id":"t1","type":"triage","items":[{"id":"i1","label":"First","legacy":true}],"items":[{"id":"i2","label":"Last"}]}`),
+			want: docWith(`{"id":"t1","type":"triage","items":[{"id":"i2","label":"Last"}]}`),
 		},
 	}
 	for _, tt := range tests {

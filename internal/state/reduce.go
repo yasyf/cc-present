@@ -237,19 +237,15 @@ func (s *State) apply(ev Event) error {
 	case "doc.replaced":
 		var p struct {
 			payloadIdentity
-			Doc      json.RawMessage `json:"doc"`
-			Revision int             `json:"revision"`
-			Retained []string        `json:"retained"`
+			Doc      storedDoc `json:"doc"`
+			Revision int       `json:"revision"`
+			Retained []string  `json:"retained"`
 		}
 		if err := decodeEventPayload(ev, &p); err != nil {
 			return err
 		}
-		d, err := doc.DecodeStored(p.Doc)
-		if err != nil {
-			return err
-		}
 		prior := s.Rounds.BlockRounds
-		s.Doc = d
+		s.Doc = p.Doc.doc
 		s.Rounds.BlockRounds = map[string]int{}
 		for _, b := range s.Doc.Blocks {
 			s.Rounds.BlockRounds[b.BlockID()] = s.Rounds.Current
@@ -533,6 +529,19 @@ func (s *State) apply(ev Event) error {
 	default:
 		return fmt.Errorf("unknown event type %q", ev.Type)
 	}
+}
+
+type storedDoc struct {
+	doc *doc.Doc
+}
+
+func (s *storedDoc) UnmarshalJSON(data []byte) error {
+	d, err := doc.DecodeStored(data)
+	if err != nil {
+		return err
+	}
+	s.doc = d
+	return nil
 }
 
 func decodeEventPayload(ev Event, dst identifiedPayload) error {

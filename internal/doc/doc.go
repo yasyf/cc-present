@@ -497,48 +497,54 @@ func decodeChoice(data json.RawMessage, unmarshal unmarshalFunc) (Block, error) 
 		base
 		Prompt  string            `json:"prompt"`
 		Multi   bool              `json:"multi"`
-		Options []json.RawMessage `json:"options"`
+		Options listField[Option] `json:"options"`
 	}
+	raw.Options = listField[Option]{unmarshal: unmarshal, decode: decodeOption}
 	if err := unmarshal(data, &raw); err != nil {
 		return nil, err
 	}
-	options, err := decodeEach(raw.Options, unmarshal, decodeOption)
-	if err != nil {
-		return nil, err
-	}
-	return &Choice{base: raw.base, Prompt: raw.Prompt, Multi: raw.Multi, Options: options}, nil
+	return &Choice{base: raw.base, Prompt: raw.Prompt, Multi: raw.Multi, Options: raw.Options.values}, nil
 }
 
 func decodeTriage(data json.RawMessage, unmarshal unmarshalFunc) (Block, error) {
 	var raw struct {
 		base
-		Prompt     string            `json:"prompt"`
-		AllowNotes *bool             `json:"allowNotes"`
-		Items      []json.RawMessage `json:"items"`
+		Prompt     string          `json:"prompt"`
+		AllowNotes *bool           `json:"allowNotes"`
+		Items      listField[Item] `json:"items"`
 	}
+	raw.Items = listField[Item]{unmarshal: unmarshal, decode: decodeItem}
 	if err := unmarshal(data, &raw); err != nil {
 		return nil, err
 	}
-	items, err := decodeEach(raw.Items, unmarshal, decodeItem)
-	if err != nil {
-		return nil, err
-	}
-	return &Triage{base: raw.base, Prompt: raw.Prompt, AllowNotes: raw.AllowNotes, Items: items}, nil
+	return &Triage{base: raw.base, Prompt: raw.Prompt, AllowNotes: raw.AllowNotes, Items: raw.Items.values}, nil
 }
 
-func decodeEach[T any](raw []json.RawMessage, unmarshal unmarshalFunc, decode func(json.RawMessage, unmarshalFunc) (T, error)) ([]T, error) {
+type listField[T any] struct {
+	unmarshal unmarshalFunc
+	decode    func(json.RawMessage, unmarshalFunc) (T, error)
+	values    []T
+}
+
+func (l *listField[T]) UnmarshalJSON(data []byte) error {
+	var raw []json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
 	if raw == nil {
-		return nil, nil
+		l.values = nil
+		return nil
 	}
-	out := make([]T, 0, len(raw))
+	values := make([]T, 0, len(raw))
 	for _, r := range raw {
-		v, err := decode(r, unmarshal)
+		v, err := l.decode(r, l.unmarshal)
 		if err != nil {
-			return nil, err
+			return err
 		}
-		out = append(out, v)
+		values = append(values, v)
 	}
-	return out, nil
+	l.values = values
+	return nil
 }
 
 func decodeBlocks(raw []json.RawMessage, unmarshal unmarshalFunc) ([]Block, error) {
