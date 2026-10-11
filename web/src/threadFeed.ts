@@ -2,6 +2,7 @@
 // the other conversation-bearing blocks — live doc order, then recorded rounds.
 
 import { flatten } from './decide';
+import { markdownText } from './markdown';
 import { topLevelRound } from './reduce';
 import { isPackBlock } from './schema';
 import type { Block } from './schema';
@@ -82,7 +83,7 @@ function hasConversation(entry: ThreadEntry): boolean {
 // streams, so append order stands in: a reply answers the notes filed before it.
 function lastComment(feedback: Feedback[], replies: Reply[]): string | null {
   const reply = replies[replies.length - 1];
-  if (reply) return reply.md;
+  if (reply) return markdownText(reply.md);
   const note = feedback[feedback.length - 1];
   return note ? note.text : null;
 }

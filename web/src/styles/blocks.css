@@ -1867,6 +1867,9 @@
   font-size: var(--text-xs);
   overflow-x: auto;
 }
+.draft-lines.is-clamped {
+  max-height: calc(var(--clamp-lines) * 1lh);
+}
 .draft-row {
   display: grid;
   grid-template-columns: 3ch 1fr auto;
