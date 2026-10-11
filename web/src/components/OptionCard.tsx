@@ -48,11 +48,13 @@ export function OptionCard({
       className={`option${selected ? ' selected' : ''}${option.recommended ? ' recommended' : ''}`}
       onMouseEnter={onHoverEnter}
       onMouseLeave={onHoverLeave}
+      onFocus={onHoverEnter}
+      onBlur={onHoverLeave}
       onClick={() => {
         if (!locked) onToggle();
       }}
       onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
+        if ((e.key === 'Enter' || e.key === ' ') && !e.metaKey && !e.ctrlKey) {
           e.preventDefault();
           if (!locked) onToggle();
         }
