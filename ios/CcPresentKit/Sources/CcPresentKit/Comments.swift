@@ -59,13 +59,12 @@ public func commentBlockTitle(_ block: Block) -> String {
 }
 
 /// commentAcceptsFeedback reports whether the sheet shows a composer for a block: an
-/// approval honoring its `allowFeedback` flag, or a choice. Every other block is
-/// reply-only in the sheet — feedback is authored only on those two decidables.
+/// approval or a choice. Every other block is reply-only in the sheet — feedback is
+/// authored only on those two decidables.
 public func commentAcceptsFeedback(_ doc: Doc, _ blockId: String) -> Bool {
     for block in commentDocBlocks(doc) where block.id == blockId {
         switch block {
-        case let .approval(approval): return approval.allowFeedback ?? true
-        case .choice: return true
+        case .approval, .choice: return true
         default: return false
         }
     }

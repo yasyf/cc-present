@@ -144,19 +144,16 @@ public enum Block: Codable, Equatable, Sendable {
         }
     }
 
-    /// Approval is an approve/reject control with optional free-text feedback;
-    /// allowFeedback defaults to true at render time when omitted. Detail is an
-    /// optional Tier-2 drill-down shown under the prompt.
+    /// Approval is an approve/reject control that always takes free-text feedback.
+    /// Detail is an optional Tier-2 drill-down shown under the prompt.
     public struct Approval: Codable, Equatable, Sendable {
         public var id: String
         public var prompt: String?
-        public var allowFeedback: Bool?
         public var detail: Detail?
 
-        public init(id: String, prompt: String? = nil, allowFeedback: Bool? = nil, detail: Detail? = nil) {
+        public init(id: String, prompt: String? = nil, detail: Detail? = nil) {
             self.id = id
             self.prompt = prompt
-            self.allowFeedback = allowFeedback
             self.detail = detail
         }
     }

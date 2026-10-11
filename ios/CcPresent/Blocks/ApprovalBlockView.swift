@@ -35,10 +35,6 @@ struct ApprovalBlockView: View {
         blockReplies[block.id] ?? []
     }
 
-    private var allowFeedback: Bool {
-        block.allowFeedback ?? true
-    }
-
     private var isClosed: Bool {
         store.isClosed
     }
@@ -64,7 +60,7 @@ struct ApprovalBlockView: View {
                     commentsHost.present(pin: block.id)
                 }
             } else {
-                if allowFeedback, !isClosed {
+                if !isClosed {
                     feedbackAffordance
                 }
 
@@ -189,7 +185,6 @@ private func previewStore() -> BoardStore {
             block: Block.Approval(
                 id: "ap1",
                 prompt: "Approve the reduce-order refactor?",
-                allowFeedback: true,
                 detail: Block.Detail(
                     pros: ["Deterministic replay", "Smaller event log"],
                     cons: ["Touches every reducer call site"],
@@ -203,10 +198,10 @@ private func previewStore() -> BoardStore {
     }
 }
 
-#Preview("Approval — no feedback, undecided") {
+#Preview("Approval — undecided") {
     ScrollView {
         ApprovalBlockView(
-            block: Block.Approval(id: "ap2", prompt: "Ship it?", allowFeedback: false),
+            block: Block.Approval(id: "ap2", prompt: "Ship it?"),
             store: BoardStore(subject: "preview", transport: PreviewPoster())
         )
         .padding()

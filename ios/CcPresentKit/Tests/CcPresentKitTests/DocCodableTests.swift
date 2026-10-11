@@ -86,7 +86,6 @@ struct DocCodableTests {
 
     @Test("every block type round-trips exactly at the top level")
     func everyBlockTypeRoundTrips() throws {
-        let allowFeedback = true
         let blocks: [Block] = [
             .section(Block.Section(id: "s", title: "Section", md: "prose")),
             .card(Block.Card(
@@ -98,10 +97,10 @@ struct DocCodableTests {
                 status: "redrafted",
                 children: [
                     .markdown(Block.Markdown(id: "c-md", md: "body", struck: true)),
-                    .approval(Block.Approval(id: "c-ap", prompt: "ok?", allowFeedback: allowFeedback)),
+                    .approval(Block.Approval(id: "c-ap", prompt: "ok?")),
                 ]
             )),
-            .approval(Block.Approval(id: "ap", prompt: "Approve?", allowFeedback: false)),
+            .approval(Block.Approval(id: "ap", prompt: "Approve?")),
             .choice(Block.Choice(
                 id: "ch",
                 prompt: "Pick",
@@ -183,7 +182,7 @@ struct DocCodableTests {
         )))
 
         #expect(try block(#"{"id":"a","type":"approval","allowFeedback":false}"#)
-            == .approval(Block.Approval(id: "a", allowFeedback: false)))
+            == .approval(Block.Approval(id: "a")))
 
         #expect(try block(#"""
         {"id":"ch","type":"choice","multi":true,"options":[{"id":"o","label":"O","hint":"h"}]}
