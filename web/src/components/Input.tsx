@@ -3,6 +3,7 @@ import { useGroupReadOnly } from '@cc-interact/react';
 import type { Input as InputBlock } from '../schema';
 import type { Interactions } from '../events';
 import { usePresent } from '../present';
+import { draftStore, useDraft } from '../drafts';
 import { useDecidable } from '../keyboard';
 import { Mark } from './Mark';
 
@@ -27,21 +28,31 @@ export function Input({ block, interactions }: { block: InputBlock; interactions
     engage: () => fieldRef.current?.focus(),
   });
   // The committed value is the source of truth; the field is uncontrolled and
-  // keyed on it so an echoed change re-seeds defaultValue without mirroring the
-  // committed text into component state. Only blur (or plain Enter) commits, never
-  // a keystroke. In a live round the base value clears once the round advances past
-  // the entry, so each round starts fresh; a read-only group always shows its
-  // frozen text.
+  // keyed on the text it shows (the committed value, or a rejected save's draft) so
+  // an echoed change re-seeds defaultValue without mirroring the committed text
+  // into component state. Only blur (or plain Enter) commits, never a keystroke.
+  // In a live round the base value clears once the round advances past the entry,
+  // so each round starts fresh; a read-only group always shows its frozen text.
   const v = interactions.inputs[block.id];
   const committed = v && (readOnly || v.round === currentRound) ? v.text : '';
+  const failed = useDraft<string>(block.id, 'input');
+  const shown = readOnly ? committed : (failed ?? committed);
 
   async function save(value: string) {
-    if (value === committed) return;
+    if (value === committed) {
+      draftStore.clear(block.id, 'input');
+      return;
+    }
     // Stamp optimistically, then retract the tick if the post is rejected so the
-    // value rollback and the mark agree.
+    // rolled-back value and the mark agree; the draft keeps the rejected text.
     setCommittedAt(Date.now());
     const ok = await post({ type: 'input.submitted', blockId: block.id, text: value });
-    if (!ok) setCommittedAt(0);
+    if (ok) {
+      draftStore.clear(block.id, 'input');
+    } else {
+      setCommittedAt(0);
+      draftStore.set(block.id, 'input', value);
+    }
   }
 
   const committing = committedAt !== 0;
@@ -62,9 +73,9 @@ export function Input({ block, interactions }: { block: InputBlock; interactions
       )}
       {block.multiline ? (
         <textarea
-          key={committed}
+          key={shown}
           ref={attachField}
-          defaultValue={committed}
+          defaultValue={shown}
           placeholder={block.placeholder}
           rows={3}
           disabled={closed || readOnly}
@@ -72,10 +83,10 @@ export function Input({ block, interactions }: { block: InputBlock; interactions
         />
       ) : (
         <input
-          key={committed}
+          key={shown}
           ref={attachField}
           type="text"
-          defaultValue={committed}
+          defaultValue={shown}
           placeholder={block.placeholder}
           disabled={closed || readOnly}
           onBlur={(e) => save(e.currentTarget.value)}

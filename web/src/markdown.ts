@@ -12,3 +12,9 @@ export function renderMarkdown(md: string): string {
 export function renderInlineMarkdown(md: string): string {
   return DOMPurify.sanitize(marked.parseInline(md, { async: false }));
 }
+
+export function markdownText(md: string): string {
+  const el = document.createElement('div');
+  el.innerHTML = renderMarkdown(md);
+  return el.textContent!.replace(/\s+/g, ' ').trim();
+}

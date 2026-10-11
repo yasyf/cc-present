@@ -62,16 +62,18 @@ export function Choice({ block, interactions }: { block: ChoiceBlock; interactio
   function postOther(other: string | undefined) {
     // A single-select write-in is the sole answer, so it clears authored picks;
     // multi keeps them alongside the write-in.
-    post({ type: 'choice.selected', blockId: block.id, optionIds: multi ? selected : [], other });
+    return post({ type: 'choice.selected', blockId: block.id, optionIds: multi ? selected : [], other });
   }
 
-  function commitOther() {
+  async function commitOther() {
     if (!dirty) return;
     if (text === committed) {
       setDirty(false);
       return;
     }
-    postOther(text || undefined);
+    if (await postOther(text || undefined)) return;
+    setDraft((current) => (current === committed ? draft : current));
+    setDirty(true);
   }
 
   function pickOther() {
@@ -233,7 +235,7 @@ export function Choice({ block, interactions }: { block: ChoiceBlock; interactio
               }}
               onBlur={() => {
                 setOtherComposing(false);
-                commitOther();
+                void commitOther();
               }}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !e.shiftKey && !e.metaKey && !e.ctrlKey) {

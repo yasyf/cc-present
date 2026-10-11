@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
-import { renderInlineMarkdown, renderMarkdown } from './markdown';
+import { markdownText, renderInlineMarkdown, renderMarkdown } from './markdown';
 
 describe('markdown sanitization', () => {
   it('strips <script> tags', () => {
@@ -22,5 +22,19 @@ describe('markdown sanitization', () => {
 
   it('keeps benign inline formatting', () => {
     expect(renderInlineMarkdown('**bold** and `code`')).toContain('<strong>');
+  });
+});
+
+describe('markdownText', () => {
+  it('strips emphasis and links down to their text', () => {
+    expect(markdownText('**Bold** and _soft_ with [a link](https://example.com)')).toBe('Bold and soft with a link');
+  });
+
+  it('keeps a code fence’s source without the fence', () => {
+    expect(markdownText('Run this:\n\n```ts\nconst a = 1;\n```')).toBe('Run this: const a = 1;');
+  });
+
+  it('collapses whitespace across paragraphs and lists', () => {
+    expect(markdownText('one\n\n\ntwo   three\n\n- a\n- b\n')).toBe('one two three a b');
   });
 });

@@ -8,14 +8,20 @@
 // highWaterSeq fallback below treats every frame as replay history and stays silent.
 
 import { createEventStream } from '@cc-interact/react';
+import type { StreamToast } from '@cc-interact/react';
 import { applyEvent } from './reduce';
 import { presentKey, revisionKey } from './api';
+import { markdownText } from './markdown';
+import { getInteractivePackTypes } from './packs/registry';
 import { revisionStore } from './revision';
+import { threadFeed } from './threadFeed';
+import { hasThreadOpener, openThread } from './threadOpen';
 import { withToken } from './token';
 import type { PresentEvent, PresentState, WireFrame } from './events';
 
 // TOAST_TEXT is the toast copy per wire type; null for frames that never toast
-// (human echoes, channel presence). `satisfies` keeps it exhaustive.
+// (human echoes, channel presence). `satisfies` keeps it exhaustive. A reply
+// shows this copy only when no thread owns its block.
 export const TOAST_TEXT = {
   'doc.replaced': 'The board was redrafted',
   'block.upserted': 'A block was updated',
@@ -45,11 +51,21 @@ export function inFocusMode(): boolean {
 
 // toastFor is the per-frame toast, or null. Focus mode drops the generic
 // block.upserted toast — the per-step revision callout replaces it; board keeps it.
-export function toastFor(frame: WireFrame): { kind: 'info'; text: string } | null {
+export function toastFor(frame: WireFrame, state: PresentState): StreamToast | null {
   const text = TOAST_TEXT[frame.type];
   if (text === null) return null;
   if (frame.type === 'block.upserted' && inFocusMode()) return null;
-  return { kind: 'info', text };
+  if (frame.type !== 'reply.created') return { kind: 'info', text };
+  const entry = threadFeed(state, frame.blockId, getInteractivePackTypes()).pinned;
+  if (!entry) return { kind: 'info', text };
+  const note = entry.feedback.at(-1)?.text;
+  return {
+    kind: 'info',
+    title: entry.label,
+    durationMs: 12_000,
+    text: `${note ? `You: ${note}\n` : ''}Agent: ${markdownText(frame.md)}`,
+    onClick: hasThreadOpener() ? () => openThread(entry) : undefined,
+  };
 }
 
 // frameToEvent lifts a flat self-describing wire frame into the reducer's
@@ -71,7 +87,7 @@ export const { EventStreamProvider, useEventStream } = createEventStream<WireFra
     return withToken(`/events?session=${encodeURIComponent(subject)}`);
   },
   reduce: (cache, frame) => applyEvent(cache, frameToEvent(frame)),
-  toast: (frame) => toastFor(frame),
+  toast: (frame, ctx) => toastFor(frame, ctx.queryClient.getQueryData<PresentState>(presentKey(ctx.subject))!),
   // The pre-marker fallback: a threshold above every seq means no replayed frame
   // clears it, so the whole from-zero replay (and any Last-Event-ID resume) stays
   // silent. Once the caught-up marker arrives the library ignores this and gates
