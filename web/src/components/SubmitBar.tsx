@@ -5,7 +5,7 @@ import type { Block, Doc } from '../schema';
 import type { Interactions } from '../events';
 import { usePresent } from '../present';
 import { revisionKey } from '../api';
-import { undecidedKey } from '../submit';
+import { unansweredSummary, undecidedKey } from '../submit';
 import { submitItems } from '../decide';
 import type { SubmitItem } from '../decide';
 import { useKeyboardApi } from '../keyboard';
@@ -62,9 +62,8 @@ export function SubmitBar({ blocks, showTally, doc, interactions, subject, hasHi
     tallyGapWidth + tallyColumns,
   );
   const tallySegmentWidth = Math.min(18, (tallyWidth - tallyGapWidth) / tallyColumns);
-  const undecidedApprovalIds = items.filter((i) => i.kind === 'approval' && !i.decided).map((i) => i.id);
-  const undecidedApprovals = undecidedApprovalIds.length;
-  const armedKey = undecidedKey(undecidedApprovalIds);
+  const unanswered = items.filter((i) => !i.decided);
+  const armedKey = undecidedKey(unanswered.map((i) => i.id));
 
   // The agent's declared revising set surfaces here as a warning: submit stays
   // enabled (human sovereignty), but the reviewer is told work is still in flight.
@@ -78,8 +77,7 @@ export function SubmitBar({ blocks, showTally, doc, interactions, subject, hasHi
 
   const label = doc.submit?.label ?? 'Submit';
   // The confirm is derived, never synced: it keys on the exact set of undecided
-  // approvals (not just their count) and the round, so a same-round block swap
-  // that preserves the count still derives it false — no stale "Submit anyway?".
+  // items and the round, so a same-count block swap still derives it false.
   const confirming = armed !== null && armed.ids === armedKey && armed.round === currentRound;
 
   const hidden = total === 0 && !doc.submit;
@@ -89,7 +87,7 @@ export function SubmitBar({ blocks, showTally, doc, interactions, subject, hasHi
     // in the commit-to-cleanup window after the bar hides — the stale handle
     // must no-op.
     if (hidden || inFlight) return;
-    if (undecidedApprovals > 0 && !confirming) {
+    if (unanswered.length > 0 && !confirming) {
       setArmed({ ids: armedKey, round: currentRound });
       return;
     }
@@ -167,7 +165,7 @@ export function SubmitBar({ blocks, showTally, doc, interactions, subject, hasHi
         </button>
         {confirming && (
           <span className="submit-warn" role="status">
-            {undecidedApprovals} {undecidedApprovals === 1 ? 'approval' : 'approvals'} still undecided
+            {unansweredSummary(items)}
           </span>
         )}
         {revisingLine && (
@@ -179,9 +177,21 @@ export function SubmitBar({ blocks, showTally, doc, interactions, subject, hasHi
       {doc.submit?.note && <span className="submit-note">{doc.submit.note}</span>}
       <div className="submit-actions">
         {confirming && (
-          <Button variant="ghost" size="sm" onClick={() => setArmed(null)}>
-            Cancel
-          </Button>
+          <>
+            <Button variant="ghost" size="sm" onClick={() => setArmed(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setArmed(null);
+                kbd.jumpTo(unanswered[0]!.id);
+              }}
+            >
+              Go to first
+            </Button>
+          </>
         )}
         <Button
           variant="primary"
@@ -190,7 +200,7 @@ export function SubmitBar({ blocks, showTally, doc, interactions, subject, hasHi
           disabled={inFlight}
           onClick={submit}
         >
-          {confirming ? 'Submit anyway?' : label}
+          {inFlight ? 'Submitting…' : confirming ? 'Submit anyway?' : label}
         </Button>
       </div>
     </div>
