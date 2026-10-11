@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import type { ReactNode } from 'react';
+import { useUnreadReplies } from '../revision';
 import type { ThreadProjection } from '../threadFeed';
 
 // MarginRail is the desktop margin overlay. At rest it is a slim strip fixed to the
@@ -44,6 +45,7 @@ export function MarginRail({
   }, []);
 
   const entries = projection.pinned ? [projection.pinned, ...projection.feed] : projection.feed;
+  const unread = useUnreadReplies();
 
   return (
     <aside className="margin-rail" ref={railRef} data-open={open || undefined}>
@@ -54,7 +56,11 @@ export function MarginRail({
         aria-expanded={open}
         onClick={onToggle}
       >
-        <span className="rail-strip-count" data-count={total > 0 || undefined}>
+        <span
+          className="rail-strip-count"
+          data-count={total > 0 || undefined}
+          data-unread={entries.some((entry) => unread.has(entry.blockId)) || undefined}
+        >
           <svg viewBox="0 0 24 24" width="15" height="15" fill="none" aria-hidden focusable="false">
             <path d="M4 5h16v11H8l-4 4V5z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
           </svg>
@@ -62,7 +68,12 @@ export function MarginRail({
         </span>
         <span className="rail-strip-ticks" aria-hidden>
           {entries.map((entry) => (
-            <span key={entry.blockId} className="rail-tick" data-active={entry.blockId === activeId || undefined} />
+            <span
+              key={entry.blockId}
+              className="rail-tick"
+              data-active={entry.blockId === activeId || undefined}
+              data-unread={unread.has(entry.blockId) || undefined}
+            />
           ))}
         </span>
       </button>

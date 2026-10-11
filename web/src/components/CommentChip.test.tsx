@@ -9,6 +9,7 @@ import { KeyboardProvider } from '../keyboard';
 import { ActiveBlockProvider, useActiveBlock } from '../activeBlock';
 import { CommentChip } from './CommentChip';
 import { emptyState } from '../reduce';
+import { revisionStore } from '../revision';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 window.matchMedia = ((query: string) => ({
@@ -26,6 +27,7 @@ let container: HTMLDivElement;
 let root: Root;
 
 beforeEach(() => {
+  revisionStore.reset();
   container = document.createElement('div');
   document.body.appendChild(container);
   root = createRoot(container);
@@ -33,6 +35,7 @@ beforeEach(() => {
 afterEach(() => {
   act(() => root.unmount());
   container.remove();
+  revisionStore.reset();
 });
 
 function Active() {
@@ -82,6 +85,22 @@ describe('CommentChip', () => {
   it('carries the rail-anchor marker so an outside-dismiss skips it', () => {
     render(2, 'Add note');
     expect(chip().hasAttribute('data-rail-anchor')).toBe(true);
+  });
+
+  it('flags an unread reply and clears it once the replies are read', () => {
+    render(2, 'Add note');
+    expect(chip().hasAttribute('data-unread')).toBe(false);
+    act(() => {
+      revisionStore.markLive();
+      revisionStore.ingest({ schemaVersion: 1, type: 'reply.created', id: 'r1', blockId: 'a1', md: 'ok' }, undefined, {
+        blockIds: [],
+      });
+    });
+    expect(chip().hasAttribute('data-unread')).toBe(true);
+    expect(chip().getAttribute('aria-label')).toBe('2 comments, new reply — open in margin');
+    act(() => revisionStore.markRepliesRead('a1'));
+    expect(chip().hasAttribute('data-unread')).toBe(false);
+    expect(chip().getAttribute('aria-label')).toBe('2 comments — open in margin');
   });
 
   it('pins its block, requests a composer, and opens the rail when unlocked', () => {

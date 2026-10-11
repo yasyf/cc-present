@@ -1,6 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { useActiveBlock } from '../activeBlock';
-import { useKeyboardApi } from '../keyboard';
+import { useActiveBlock, useJump } from '../activeBlock';
 import { useMediaQuery } from '../useMediaQuery';
 import { FeedbackThread } from './FeedbackThread';
 import type { FeedbackHandle } from './FeedbackThread';
@@ -11,10 +10,6 @@ const LABELS: Record<ThreadKind, { add: string; placeholder: string }> = {
   choice: { add: 'Add note', placeholder: 'Add a note for the agent…' },
   pack: { add: 'Add note', placeholder: 'Add a note for the agent…' },
 };
-
-function scrollBehavior(): ScrollBehavior {
-  return window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth';
-}
 
 function commentCount(entry: ThreadEntry): number {
   return entry.feedback.length + entry.replies.length;
@@ -33,7 +28,7 @@ function totalComments(projection: ThreadProjection): number {
 // reads the rail breakpoint itself — the sheet (below it) carries a close control and
 // drops the keyboard hint; the desktop overlay closes on Esc / blur, so it keeps
 // neither. A live jump routes through the keyboard (StepNav-aware in focus mode); a
-// history jump scrolls the frozen round into view by its data-block-id.
+// history jump reveals the block inside its frozen round.
 export function SidebarPanel({
   projection,
   composeEpoch,
@@ -45,7 +40,7 @@ export function SidebarPanel({
   openComposerOnMount: boolean;
   onJumped?: () => void;
 }) {
-  const kbd = useKeyboardApi();
+  const jumpToBlock = useJump();
   const { setComposing, closePanel } = useActiveBlock();
   const isSheet = !useMediaQuery('(min-width: 1100px)');
   const feedbackRef = useRef<FeedbackHandle>(null);
@@ -65,14 +60,7 @@ export function SidebarPanel({
   }, [composeEpoch]);
 
   function jump(entry: ThreadEntry) {
-    if (entry.locked) {
-      const target = [...document.querySelectorAll<HTMLElement>('[data-block-id]')].find(
-        (el) => el.dataset.blockId === entry.blockId,
-      );
-      target?.scrollIntoView({ block: 'center', behavior: scrollBehavior() });
-    } else {
-      kbd.jumpTo(entry.blockId);
-    }
+    jumpToBlock(entry);
     onJumped?.();
   }
 

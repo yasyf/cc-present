@@ -1,4 +1,5 @@
 import { useActiveBlock } from '../activeBlock';
+import { useUnreadReply } from '../revision';
 import { Button } from './Button';
 
 // CommentChip is the inline stand-in for a block's feedback thread once it moves
@@ -19,6 +20,7 @@ export function CommentChip({
   locked?: boolean;
 }) {
   const { pin, openPanel, requestCompose, setPinnedOpen } = useActiveBlock();
+  const unread = useUnreadReply(blockId);
   const label = count > 0 ? `${count} ${count === 1 ? 'comment' : 'comments'}` : addLabel;
   return (
     <div className="comment-chip-row">
@@ -27,8 +29,9 @@ export function CommentChip({
         size="sm"
         className="comment-chip"
         data-count={count > 0 || undefined}
+        data-unread={unread || undefined}
         data-rail-anchor=""
-        aria-label={count > 0 ? `${label} — open in margin` : addLabel}
+        aria-label={count > 0 ? `${label}${unread ? ', new reply' : ''} — open in margin` : addLabel}
         onClick={() => {
           pin(blockId);
           if (locked) {

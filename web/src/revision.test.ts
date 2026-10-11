@@ -20,6 +20,13 @@ const revisingFrame = (blockIds: string[], note?: string): WireFrame => ({
   blockIds,
   ...(note !== undefined ? { note } : {}),
 });
+const replyFrame = (blockId: string): WireFrame => ({
+  schemaVersion: 1,
+  type: 'reply.created',
+  id: `r-${blockId}`,
+  blockId,
+  md: 'ok',
+});
 
 beforeEach(() => {
   revisionStore.reset();
@@ -88,6 +95,49 @@ describe('revisionStore changed marks', () => {
     revisionStore.ingest(upsert('b1'), state(['b1']), { blockIds: [] });
     revisionStore.ingest(replaced(), state([]), { blockIds: [] });
     expect(revisionStore.unseenChange('b1')).toBeNull();
+  });
+});
+
+describe('revisionStore unread replies', () => {
+  it('marks nothing unread from a replayed reply — the live gate is closed', () => {
+    revisionStore.ingest(replyFrame('b1'), state(['b1']), { blockIds: [] });
+    expect(revisionStore.hasUnreadReply('b1')).toBe(false);
+  });
+
+  it('marks only a live reply.created unread', () => {
+    revisionStore.markLive();
+    revisionStore.ingest(upsert('b2'), state(['b1', 'b2']), { blockIds: [] });
+    revisionStore.ingest(replyFrame('b1'), state(['b1', 'b2']), { blockIds: [] });
+    expect([...revisionStore.unreadReplies()]).toEqual(['b1']);
+  });
+
+  it('keeps the unread snapshot identity until the set changes', () => {
+    revisionStore.markLive();
+    const before = revisionStore.unreadReplies();
+    revisionStore.ingest(replyFrame('b1'), state(['b1']), { blockIds: [] });
+    const marked = revisionStore.unreadReplies();
+    expect(marked).not.toBe(before);
+    revisionStore.ingest(replyFrame('b1'), state(['b1']), { blockIds: [] });
+    expect(revisionStore.unreadReplies()).toBe(marked);
+  });
+
+  it('clears a block once its replies are read', () => {
+    revisionStore.markLive();
+    revisionStore.ingest(replyFrame('b1'), state(['b1', 'b2']), { blockIds: [] });
+    revisionStore.ingest(replyFrame('b2'), state(['b1', 'b2']), { blockIds: [] });
+    revisionStore.markRepliesRead('b1');
+    expect(revisionStore.hasUnreadReply('b1')).toBe(false);
+    expect(revisionStore.hasUnreadReply('b2')).toBe(true);
+  });
+
+  it('drops a removed block and clears everything on reset', () => {
+    revisionStore.markLive();
+    revisionStore.ingest(replyFrame('b1'), state(['b1', 'b2']), { blockIds: [] });
+    revisionStore.ingest(replyFrame('b2'), state(['b1', 'b2']), { blockIds: [] });
+    revisionStore.ingest(removed('b1'), state(['b1', 'b2']), { blockIds: [] });
+    expect([...revisionStore.unreadReplies()]).toEqual(['b2']);
+    revisionStore.reset();
+    expect(revisionStore.unreadReplies().size).toBe(0);
   });
 });
 

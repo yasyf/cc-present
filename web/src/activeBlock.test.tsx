@@ -6,9 +6,10 @@ import type { Root } from 'react-dom/client';
 import { PresentContext, usePresent } from './present';
 import type { PresentApi } from './present';
 import { KeyboardProvider, useKeyboardApi } from './keyboard';
-import { ActiveBlockProvider, useActiveBlock } from './activeBlock';
+import { ActiveBlockProvider, useActiveBlock, useJump } from './activeBlock';
 import { emptyState } from './reduce';
 import type { Approval } from './schema';
+import type { ThreadEntry } from './threadFeed';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 window.matchMedia = ((query: string) => ({
@@ -29,13 +30,28 @@ const blocks: Approval[] = [
   { id: 'a3', type: 'approval' },
 ];
 
+const entry = (blockId: string, live: boolean): ThreadEntry => ({
+  blockId,
+  kind: 'approval',
+  label: blockId,
+  feedback: [],
+  replies: [],
+  locked: !live,
+  live,
+  lastComment: null,
+});
+
 function Probe() {
   const { post } = usePresent();
   const kbd = useKeyboardApi();
-  const { activeId, panelOpen, pinnedOpen, pin, closePanel, requestCompose, setComposing } = useActiveBlock();
+  const jump = useJump();
+  const { activeId, panelOpen, pinnedOpen, reveal, pin, closePanel, requestCompose, setComposing } = useActiveBlock();
   return (
     <div>
       <div data-testid="active">{activeId ?? 'none'}</div>
+      <div data-testid="reveal">{reveal ? `${reveal.blockId}@${reveal.epoch}` : 'none'}</div>
+      <button data-testid="jump-live" onClick={() => jump(entry('a2', true))} />
+      <button data-testid="jump-history" onClick={() => jump(entry('h1', false))} />
       <div data-testid="panel-open">{String(panelOpen)}</div>
       <div data-testid="pinned-open">{String(pinnedOpen)}</div>
       <button data-testid="post-a1" onClick={() => void post({ type: 'decision.created', blockId: 'a1', verdict: 'approved' })} />
@@ -136,5 +152,25 @@ describe('ActiveBlockProvider panel state', () => {
     click('close-panel');
     expect(container.querySelector('[data-testid="panel-open"]')!.textContent).toBe('false');
     expect(container.querySelector('[data-testid="pinned-open"]')!.textContent).toBe('false');
+  });
+});
+
+describe('ActiveBlockProvider jump', () => {
+  const reveal = (): string | null => container.querySelector('[data-testid="reveal"]')!.textContent;
+
+  it('moves the cursor to a live entry without revealing anything', () => {
+    render();
+    click('jump-live');
+    expect(active()).toBe('a2');
+    expect(reveal()).toBe('none');
+  });
+
+  it('reveals a history entry under a fresh epoch each time', () => {
+    render();
+    click('jump-history');
+    expect(reveal()).toBe('h1@1');
+    click('jump-history');
+    expect(reveal()).toBe('h1@2');
+    expect(active()).toBe('none');
   });
 });

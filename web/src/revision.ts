@@ -64,6 +64,8 @@ class RevisionStore {
   private draftPassive = false;
   private draftTimer: ReturnType<typeof setTimeout> | null = null;
 
+  private unread: ReadonlySet<string> = new Set();
+
   // beginConnection marks the store non-live for a fresh EventSource so its from-zero
   // replay records no badges; the stream's url builder calls it per connection.
   beginConnection(): void {
@@ -85,6 +87,8 @@ class RevisionStore {
       dirty = this.dropId(frame.id) || dirty;
     } else if (frame.type === 'doc.replaced') {
       dirty = this.clearChangedMarks() || dirty;
+    } else if (frame.type === 'reply.created') {
+      if (this.live) dirty = this.markUnread(frame.blockId) || dirty;
     }
     dirty = this.syncRevising(postRevising) || dirty;
     if (dirty) this.emit();
@@ -104,7 +108,20 @@ class RevisionStore {
   private dropId(id: string): boolean {
     const removed = this.changed.delete(id);
     const unseen = this.seen.delete(id);
-    return removed || unseen;
+    const read = this.clearUnread(id);
+    return removed || unseen || read;
+  }
+
+  private markUnread(id: string): boolean {
+    if (this.unread.has(id)) return false;
+    this.unread = new Set([...this.unread, id]);
+    return true;
+  }
+
+  private clearUnread(id: string): boolean {
+    if (!this.unread.has(id)) return false;
+    this.unread = new Set([...this.unread].filter((unreadId) => unreadId !== id));
+    return true;
   }
 
   private clearChangedMarks(): boolean {
@@ -214,6 +231,18 @@ class RevisionStore {
     this.emit();
   }
 
+  markRepliesRead(id: string): void {
+    if (this.clearUnread(id)) this.emit();
+  }
+
+  hasUnreadReply(id: string): boolean {
+    return this.unread.has(id);
+  }
+
+  unreadReplies(): ReadonlySet<string> {
+    return this.unread;
+  }
+
   unseenChange(id: string): ChangedView | null {
     const mark = this.changed.get(id);
     if (!mark || mark.seq <= (this.seen.get(id) ?? 0)) return null;
@@ -280,6 +309,7 @@ class RevisionStore {
       clearTimeout(this.draftTimer);
       this.draftTimer = null;
     }
+    this.unread = new Set();
   }
 }
 
@@ -329,4 +359,14 @@ export function useDrafting(): DraftingView | null {
 export function useRevisionSummary(): RevisionSummary {
   useRevisionVersion();
   return revisionStore.summary();
+}
+
+export function useUnreadReply(blockId: string): boolean {
+  useRevisionVersion();
+  return revisionStore.hasUnreadReply(blockId);
+}
+
+export function useUnreadReplies(): ReadonlySet<string> {
+  useRevisionVersion();
+  return revisionStore.unreadReplies();
 }
