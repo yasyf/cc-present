@@ -98,6 +98,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- A command no longer fails with `daemon: probe incumbent: wire: session
+  capacity exhausted` when another command is probing the daemon at the same
+  moment. The daemon's control lane has one slot, and the incumbent probe at
+  the top of `watch`, `outcomes`, `push`, and most other commands gave up on
+  the first refusal. It now waits for the slot. Builds on cc-interact v0.37.1
+  and daemonkit v0.33.1.
 - A board whose stored history carries a key the schema no longer defines
   loads again. Replay ignores an unknown key in a stored event payload,
   document, or block, where it used to fail the whole reduction: one such
