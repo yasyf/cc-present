@@ -259,3 +259,69 @@ describe('nearestInViewport — null-cursor ring entry', () => {
     expect(id).toBe('spanning');
   });
 });
+
+describe('keyboard off-screen cursor', () => {
+  const choiceBlocks: Block[] = [{ id: 'c1', type: 'choice', prompt: 'Pick', options: [{ id: 'o1', label: 'one' }] }];
+
+  function Choosing({ choose }: { choose: (option: number) => void }) {
+    const { ref } = useDecidable('c1', { kind: 'choice', disabled: false, choose });
+    return <div ref={ref} data-testid="c1" />;
+  }
+
+  function renderChoice(choose: (option: number) => void, top: number): HTMLElement {
+    const present: PresentApi = { post: async () => true, closed: false, currentRound: 1 };
+    act(() =>
+      root.render(
+        <PresentContext.Provider value={present}>
+          <KeyboardProvider blocks={choiceBlocks} interactions={empty()} closed={false} round={1}>
+            <Choosing choose={choose} />
+          </KeyboardProvider>
+        </PresentContext.Provider>,
+      ),
+    );
+    const el = container.querySelector<HTMLElement>('[data-testid="c1"]')!;
+    el.getBoundingClientRect = () => ({ top, bottom: top + 100 }) as DOMRect;
+    el.scrollIntoView = vi.fn();
+    return el;
+  }
+
+  it('scrolls an off-screen cursor into view and swallows the pick', () => {
+    const choose = vi.fn();
+    const el = renderChoice(choose, 4000);
+    press('j');
+    press('1');
+    expect(choose).not.toHaveBeenCalled();
+    expect(el.scrollIntoView).toHaveBeenLastCalledWith({ block: 'center', behavior: 'smooth' });
+  });
+
+  it('picks when the cursor is on screen', () => {
+    const choose = vi.fn();
+    renderChoice(choose, 100);
+    press('j');
+    press('1');
+    expect(choose).toHaveBeenCalledWith(1);
+  });
+});
+
+describe('keyboard on a closed board', () => {
+  function Locked() {
+    const { ref, cursor } = useDecidable('a1', { kind: 'approval', disabled: true });
+    return <div ref={ref} data-testid="a1" data-cursor={cursor || undefined} />;
+  }
+
+  it('moves the read-only cursor on j', () => {
+    const present: PresentApi = { post: async () => true, closed: true, currentRound: 1 };
+    act(() =>
+      root.render(
+        <PresentContext.Provider value={present}>
+          <KeyboardProvider blocks={blocks} interactions={empty()} closed round={1}>
+            <Locked />
+          </KeyboardProvider>
+        </PresentContext.Provider>,
+      ),
+    );
+    expect(container.querySelector('[data-testid="a1"][data-cursor]')).toBeNull();
+    press('j');
+    expect(container.querySelector('[data-testid="a1"][data-cursor]')).not.toBeNull();
+  });
+});

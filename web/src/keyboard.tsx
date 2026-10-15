@@ -8,6 +8,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode, RefObject } from 'react';
+import { useGroupReadOnly } from '@cc-interact/react';
 import { decidableIds, nextUndecided, step, submitItems } from './decide';
 import { interpretKey } from './keymap';
 import type { KeyDescriptor } from './keymap';
@@ -51,6 +52,7 @@ export interface KeyboardApi {
   registerEscape: (fn: (() => boolean) | null) => void;
   registerStepNav: (nav: StepNav | null) => void;
   setCursor: (id: string | null) => void;
+  reveal: (id: string) => void;
   jumpTo: (id: string) => void;
   jumpNextUndecided: () => void;
   announce: (msg: string) => void;
@@ -58,6 +60,7 @@ export interface KeyboardApi {
 
 const ApiContext = createContext<KeyboardApi | null>(null);
 const CursorContext = createContext<string | null>(null);
+const ClosedContext = createContext(false);
 
 export function useKeyboardApi(): KeyboardApi {
   const api = useContext(ApiContext);
@@ -71,32 +74,34 @@ export function useCursor(): string | null {
   return useContext(CursorContext);
 }
 
-// useDecidable joins the ring for `id` while enabled and reports whether the
-// cursor rests on it. Registration is gated on !disabled so a frozen history
-// round — which re-renders the same block ids read-only — never registers, and
-// the cursor flag folds in !disabled so only the live instance draws the ring.
+// useDecidable joins the ring for `id` while it is live or the board is closed,
+// and reports whether the cursor rests on it. A frozen history round re-renders the
+// same block ids read-only, so it never registers and never draws the ring.
 export function useDecidable(id: string, spec: DecidableSpec): {
   ref: (el: HTMLElement | null) => void;
   cursor: boolean;
 } {
   const api = useKeyboardApi();
   const cursorId = useContext(CursorContext);
+  const closed = useContext(ClosedContext);
+  const readOnly = useGroupReadOnly();
   const elRef = useRef<HTMLElement | null>(null);
   const specRef = useRef(spec);
   specRef.current = spec;
+  const navigable = !readOnly && (closed || !spec.disabled);
 
   useEffect(() => {
-    if (spec.disabled) return;
+    if (!navigable) return;
     const handle: DecidableHandle = { id, kind: spec.kind, elRef, specRef };
     api.register(handle);
     return () => api.unregister(handle);
-  }, [api, id, spec.kind, spec.disabled]);
+  }, [api, id, spec.kind, navigable]);
 
   const ref = useCallback((el: HTMLElement | null) => {
     elRef.current = el;
   }, []);
 
-  return { ref, cursor: !spec.disabled && cursorId === id };
+  return { ref, cursor: navigable && cursorId === id };
 }
 
 function isTypingTarget(target: EventTarget | null): boolean {
@@ -120,6 +125,16 @@ function scrollBehavior(): ScrollBehavior {
   return window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth';
 }
 
+function viewportDistance(top: number, bottom: number, viewportHeight: number): number {
+  return bottom < 0 ? -bottom : top > viewportHeight ? top - viewportHeight : 0;
+}
+
+function offscreen(el: HTMLElement | null): boolean {
+  if (!el) return false;
+  const { top, bottom } = el.getBoundingClientRect();
+  return viewportDistance(top, bottom, window.innerHeight) > 0;
+}
+
 // nearestInViewport picks the id whose rect is closest to the viewport band
 // [0, viewportHeight] (an intersecting one scores 0), ties resolving to the
 // topmost. It resolves where a null cursor enters the ring, so j/k lands on the
@@ -131,7 +146,7 @@ export function nearestInViewport(
   let best: string | null = null;
   let bestDist = Infinity;
   for (const c of candidates) {
-    const dist = c.bottom < 0 ? -c.bottom : c.top > viewportHeight ? c.top - viewportHeight : 0;
+    const dist = viewportDistance(c.top, c.bottom, viewportHeight);
     if (dist < bestDist) {
       bestDist = dist;
       best = c.id;
@@ -215,6 +230,7 @@ export function KeyboardProvider({ blocks, interactions, closed, round, onViewTo
     },
     [registry],
   );
+  const reveal = useCallback((id: string) => scrollToId(id, 'nearest'), [scrollToId]);
   // Focus mode registers a StepNav: a jump then targets the step owning the id
   // (its anchor or any nested decidable) via setStep, never a scroll or a registry
   // lookup against the unmounted off-step blocks.
@@ -286,7 +302,7 @@ export function KeyboardProvider({ blocks, interactions, closed, round, onViewTo
     function onKeyDown(e: KeyboardEvent) {
       if (e.defaultPrevented) return;
       const typing = isTypingTarget(e.target);
-      const action = interpretKey(descriptorOf(e), typing, closedRef.current);
+      const action = interpretKey(descriptorOf(e), typing, closedRef.current, stepNavRef.current !== null);
       if (!action) return;
       // An open modal dialog (help, an image lightbox) owns the page: shortcuts stay
       // suppressed behind it, Esc rides its native cancel, and `?` closes help.
@@ -295,6 +311,11 @@ export function KeyboardProvider({ blocks, interactions, closed, round, onViewTo
       if (dialog && action.kind !== 'escape' && !closingHelp) return;
 
       const handle = cursorRef.current ? registry.get(cursorRef.current) : undefined;
+      const revealIfOffscreen = (h: DecidableHandle): boolean => {
+        if (!offscreen(h.elRef.current)) return false;
+        scrollToId(h.id, 'center');
+        return true;
+      };
       switch (action.kind) {
         case 'move':
           e.preventDefault();
@@ -308,19 +329,19 @@ export function KeyboardProvider({ blocks, interactions, closed, round, onViewTo
         case 'verdict':
           if (handle?.kind === 'approval' || handle?.kind === 'triage') {
             e.preventDefault();
-            handle.specRef.current.verdict?.(action.verdict);
+            if (!revealIfOffscreen(handle)) handle.specRef.current.verdict?.(action.verdict);
           }
           break;
         case 'clear':
           if (handle?.kind === 'approval' || handle?.kind === 'triage') {
             e.preventDefault();
-            handle.specRef.current.clear?.();
+            if (!revealIfOffscreen(handle)) handle.specRef.current.clear?.();
           }
           break;
         case 'choose':
           if (handle?.kind === 'choice' || handle?.kind === 'triage') {
             e.preventDefault();
-            handle.specRef.current.choose?.(action.option);
+            if (!revealIfOffscreen(handle)) handle.specRef.current.choose?.(action.option);
           }
           break;
         case 'engage': {
@@ -388,7 +409,7 @@ export function KeyboardProvider({ blocks, interactions, closed, round, onViewTo
       document.removeEventListener('keydown', onKeyDown);
       document.removeEventListener('focusin', onFocusIn);
     };
-  }, [registry, moveCursor, jumpNextUndecided]);
+  }, [registry, moveCursor, jumpNextUndecided, scrollToId]);
 
   const api = useMemo<KeyboardApi>(
     () => ({
@@ -399,6 +420,7 @@ export function KeyboardProvider({ blocks, interactions, closed, round, onViewTo
       registerEscape,
       registerStepNav,
       setCursor,
+      reveal,
       jumpTo,
       jumpNextUndecided,
       announce,
@@ -411,6 +433,7 @@ export function KeyboardProvider({ blocks, interactions, closed, round, onViewTo
       registerEscape,
       registerStepNav,
       setCursor,
+      reveal,
       jumpTo,
       jumpNextUndecided,
       announce,
@@ -420,7 +443,7 @@ export function KeyboardProvider({ blocks, interactions, closed, round, onViewTo
   return (
     <ApiContext.Provider value={api}>
       <CursorContext.Provider value={effectiveCursor}>
-        {children}
+        <ClosedContext.Provider value={closed}>{children}</ClosedContext.Provider>
         <div className="sr-only" role="status" aria-live="polite" aria-atomic="true">
           {liveMsg}
         </div>
