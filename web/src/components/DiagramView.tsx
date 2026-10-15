@@ -12,8 +12,14 @@ interface DiagramSize {
   fit: number;
 }
 
-function naturalWidth(svg: SVGSVGElement): number {
-  return Number(svg.getAttribute('viewBox')!.trim().split(/[\s,]+/)[2]);
+function naturalWidth(svg: SVGSVGElement): number | null {
+  const viewBox = svg.getAttribute('viewBox');
+  try {
+    const width = viewBox ? Number(viewBox.trim().split(/[\s,]+/)[2]) : svg.getBBox().width;
+    return width > 0 ? width : null;
+  } catch {
+    return null;
+  }
 }
 
 function fitWidth(natural: number, available: number): number {
@@ -54,6 +60,10 @@ export function DiagramView({ block }: { block: Diagram }) {
     const el = frame.current;
     if (!el) return;
     const natural = naturalWidth(el.querySelector('svg')!);
+    if (natural === null) {
+      setSize(null);
+      return;
+    }
     const measure = () => setSize({ natural, fit: fitWidth(natural, el.clientWidth) });
     measure();
     const observer = new ResizeObserver(measure);

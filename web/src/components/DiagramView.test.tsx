@@ -241,6 +241,36 @@ describe('DiagramView', () => {
     expect(fitVar()).toBe('300px');
   });
 
+  it('renders an SVG without a viewBox unsized when it cannot be measured', async () => {
+    frameWidth = 400;
+    mockRender.mockResolvedValue('<svg width="100%"><g></g></svg>');
+    await act(async () => {
+      root.render(<DiagramView block={diagram('info')} />);
+    });
+    await flush();
+    expect(container.querySelector('.diagram-svg svg')).not.toBeNull();
+    expect(container.querySelector('.diagram-error')).toBeNull();
+    expect(fitVar()).toBe('');
+  });
+
+  it('sizes an SVG without a viewBox from its bounding box', async () => {
+    frameWidth = 400;
+    Object.defineProperty(SVGElement.prototype, 'getBBox', {
+      configurable: true,
+      value: () => ({ x: 0, y: 0, width: 300, height: 100 }),
+    });
+    try {
+      mockRender.mockResolvedValue('<svg width="100%"><g></g></svg>');
+      await act(async () => {
+        root.render(<DiagramView block={diagram('info')} />);
+      });
+      await flush();
+      expect(fitVar()).toBe('300px');
+    } finally {
+      delete (SVGElement.prototype as { getBBox?: unknown }).getBBox;
+    }
+  });
+
   it('opens the SVG at natural size in a dialog from the Expand button', async () => {
     frameWidth = 400;
     await renderSvg(1000, 'Flow');
