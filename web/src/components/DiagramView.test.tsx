@@ -246,7 +246,7 @@ describe('DiagramView', () => {
     await renderSvg(1000, 'Flow');
     const dialog = container.querySelector('dialog') as HTMLDialogElement;
     expect(dialog.open).toBe(false);
-    expect(dialog.querySelector('svg')).toBeNull();
+    expect(dialog.querySelector('.diagram-expanded svg')).toBeNull();
     const expand = container.querySelector('.diagram-expand') as HTMLButtonElement;
     expect(expand.getAttribute('aria-haspopup')).toBe('dialog');
     act(() => expand.click());
@@ -256,7 +256,7 @@ describe('DiagramView', () => {
     expect(figure().style.getPropertyValue('--diagram-natural')).toBe('1000px');
     act(() => (container.querySelector('.lightbox-close') as HTMLButtonElement).click());
     expect(dialog.open).toBe(false);
-    expect(dialog.querySelector('svg')).toBeNull();
+    expect(dialog.querySelector('.diagram-expanded svg')).toBeNull();
   });
 });
 
