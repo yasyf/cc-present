@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -18,7 +19,7 @@ type prFetcher func(ctx context.Context, b *doc.PR) (*prs.PR, error)
 func ghPRFetcher(ctx context.Context, b *doc.PR) (*prs.PR, error) {
 	gh, err := toolpath.Find("gh")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("pr block needs gh: %w", err)
 	}
 	ctx, cancel := context.WithTimeout(ctx, prFetchTimeout)
 	defer cancel()

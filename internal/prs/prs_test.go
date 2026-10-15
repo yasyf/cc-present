@@ -5,6 +5,7 @@ import (
 	"errors"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -40,11 +41,14 @@ const filePages = `[{"filename":"web/src/a.ts","status":"modified","additions":5
 type fakeGH struct {
 	pr     string
 	search string
+	mu     sync.Mutex
 	calls  [][]string
 }
 
 func (f *fakeGH) run(_ context.Context, args ...string) ([]byte, error) {
+	f.mu.Lock()
 	f.calls = append(f.calls, args)
+	f.mu.Unlock()
 	switch {
 	case slices.Contains(args, "graphql"):
 		return []byte(f.pr), nil

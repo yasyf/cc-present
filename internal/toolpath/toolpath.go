@@ -24,7 +24,7 @@ func Find(name string) (string, error) {
 			return p, nil
 		}
 	}
-	return "", fmt.Errorf("%s not found on PATH or in mise shims (%s)", name, strings.Join(dirs, ", "))
+	return "", fmt.Errorf("not found on PATH or in mise shims (%s)", strings.Join(dirs, ", "))
 }
 
 func miseShimDirs() []string {
