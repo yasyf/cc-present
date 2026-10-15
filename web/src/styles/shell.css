@@ -1376,7 +1376,6 @@ body[data-single] .toast-stack {
 }
 
 @media (max-width: 440px) {
-  /* On a phone the connection cluster fills its own row and wraps within it. */
   .doc-conn {
     flex-basis: 100%;
   }
