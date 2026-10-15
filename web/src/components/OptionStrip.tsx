@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import type { ReactNode, RefObject } from 'react';
+import type { CSSProperties, ReactNode, RefObject } from 'react';
 import { useScrollEdges } from '../useScrollEdges';
 
 interface CardRange {
@@ -30,11 +30,6 @@ export function scrollBehavior(): ScrollBehavior {
   return window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth';
 }
 
-// OptionStrip is the option carousel shell: the .options scroller (a scroll-snap
-// grid when `strip`, else the vertical stack) plus, when strip, a .strip-nav with
-// position dots and edge-gated prev/next arrows. The option and Other cards are
-// passed as children so their handlers stay in Choice. containerRef exposes the
-// scroller so Choice's 1-9 keymap can reveal the chosen card.
 export function OptionStrip({
   strip,
   role,
@@ -43,6 +38,7 @@ export function OptionStrip({
   picked,
   containerRef,
   navActions,
+  other,
   children,
 }: {
   strip: boolean;
@@ -52,6 +48,7 @@ export function OptionStrip({
   picked: ReadonlySet<number>;
   containerRef: RefObject<HTMLDivElement | null>;
   navActions?: ReactNode;
+  other: ReactNode;
   children: ReactNode;
 }) {
   const { ref: edgesRef, edges } = useScrollEdges<HTMLDivElement>('x');
@@ -59,21 +56,21 @@ export function OptionStrip({
 
   const setContainer = useCallback(
     (el: HTMLDivElement | null) => {
-      edgesRef.current = el;
+      edgesRef(el);
       containerRef.current = el;
     },
     [edgesRef, containerRef],
   );
 
   const measure = useCallback(() => {
-    const el = edgesRef.current;
+    const el = containerRef.current;
     if (!el) return;
     const next = cardsInView(el);
     setShown((prev) => (prev.first === next.first && prev.last === next.last ? prev : next));
-  }, [edgesRef]);
+  }, [containerRef]);
 
   useEffect(() => {
-    const el = edgesRef.current;
+    const el = containerRef.current;
     if (!el) return;
     measure();
     el.addEventListener('scroll', measure, { passive: true });
@@ -84,80 +81,104 @@ export function OptionStrip({
       el.removeEventListener('scroll', measure);
       ro.disconnect();
     };
-  }, [edgesRef, measure, cardCount]);
+  }, [containerRef, measure, cardCount]);
 
   const scrollToCard = useCallback(
     (i: number) => {
-      const card = edgesRef.current?.children[i] as HTMLElement | undefined;
+      const card = containerRef.current?.children[i] as HTMLElement | undefined;
       card?.scrollIntoView({ inline: 'nearest', block: 'nearest', behavior: scrollBehavior() });
     },
-    [edgesRef],
+    [containerRef],
   );
 
   const nudge = useCallback(
     (dir: 1 | -1) => {
-      const el = edgesRef.current;
+      const el = containerRef.current;
       if (!el) return;
       el.scrollBy({ left: dir * cardStride(el), behavior: scrollBehavior() });
     },
-    [edgesRef],
+    [containerRef],
   );
+
+  const scroller = (
+    <div
+      ref={setContainer}
+      className="options"
+      style={strip ? ({ '--strip-n': cardCount } as CSSProperties) : undefined}
+      data-strip={strip || undefined}
+      data-edge-start={(strip && edges.atStart) || undefined}
+      data-edge-end={(strip && edges.atEnd) || undefined}
+      role={strip ? undefined : role}
+      aria-label={strip ? undefined : ariaLabel}
+    >
+      {children}
+      {!strip && other}
+    </div>
+  );
+  if (!strip) return scroller;
 
   return (
     <>
-      <div
-        ref={setContainer}
-        className="options"
-        data-strip={strip || undefined}
-        data-edge-start={(strip && edges.atStart) || undefined}
-        data-edge-end={(strip && edges.atEnd) || undefined}
-        role={role}
-        aria-label={ariaLabel}
-      >
-        {children}
-      </div>
-      {strip && (
-        <div className="strip-nav">
-          <div className="strip-dots">
-            {Array.from({ length: cardCount }, (_, i) => {
-              const on = i >= shown.first && i <= shown.last;
-              const isPicked = picked.has(i);
-              return (
-                <button
-                  key={i}
-                  type="button"
-                  className={`strip-dot${on ? ' on' : ''}${isPicked ? ' picked' : ''}`}
-                  aria-label={`Go to option ${i + 1}${isPicked ? ', selected' : ''}`}
-                  onClick={() => scrollToCard(i)}
+      <div className="strip-group" role={role} aria-label={ariaLabel}>
+        <div className="strip-frame">
+          {scroller}
+          {!edges.atStart && (
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm btn-icon strip-arrow strip-arrow-prev"
+              aria-label="Previous options"
+              onClick={() => nudge(-1)}
+            >
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" aria-hidden focusable="false">
+                <path
+                  d="M15 5L8 12L15 19"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
                 />
-              );
-            })}
-          </div>
-          {navActions}
-          <button
-            type="button"
-            className="btn btn-ghost btn-sm btn-icon"
-            aria-label="Previous options"
-            disabled={edges.atStart}
-            onClick={() => nudge(-1)}
-          >
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" aria-hidden focusable="false">
-              <path d="M15 5L8 12L15 19" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </button>
-          <button
-            type="button"
-            className="btn btn-ghost btn-sm btn-icon"
-            aria-label="Next options"
-            disabled={edges.atEnd}
-            onClick={() => nudge(1)}
-          >
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" aria-hidden focusable="false">
-              <path d="M9 5L16 12L9 19" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </button>
+              </svg>
+            </button>
+          )}
+          {!edges.atEnd && (
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm btn-icon strip-arrow strip-arrow-next"
+              aria-label="Next options"
+              onClick={() => nudge(1)}
+            >
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" aria-hidden focusable="false">
+                <path
+                  d="M9 5L16 12L9 19"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </button>
+          )}
         </div>
-      )}
+        {other}
+      </div>
+      <div className="strip-nav">
+        <div className="strip-dots">
+          {Array.from({ length: cardCount }, (_, i) => {
+            const on = i >= shown.first && i <= shown.last;
+            const isPicked = picked.has(i);
+            return (
+              <button
+                key={i}
+                type="button"
+                className={`strip-dot${on ? ' on' : ''}${isPicked ? ' picked' : ''}`}
+                aria-label={`Go to option ${i + 1}${isPicked ? ', selected' : ''}`}
+                onClick={() => scrollToCard(i)}
+              />
+            );
+          })}
+        </div>
+        {navActions}
+      </div>
     </>
   );
 }

@@ -90,10 +90,10 @@ export function SidebarPanel({
           <p className="rail-empty-lead">No notes yet.</p>
           <p className="rail-empty-how">
             {isSheet ? (
-              'Tap the Add note chip on any block to start one here.'
+              'Tap the note chip on any block to start one here.'
             ) : (
               <>
-                Use the Add note chip on any block, or press <kbd>f</kbd> on the focused one.
+                Use the note chip on any block, or press <kbd>f</kbd> on the focused one.
               </>
             )}
           </p>

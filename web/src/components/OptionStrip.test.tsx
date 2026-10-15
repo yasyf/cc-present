@@ -71,7 +71,14 @@ describe('OptionStrip position dots', () => {
   function mount(): { scroller: HTMLElement; cards: HTMLElement[] } {
     act(() =>
       root.render(
-        <OptionStrip strip role="radiogroup" cardCount={3} picked={new Set()} containerRef={createRef<HTMLDivElement>()}>
+        <OptionStrip
+          strip
+          role="radiogroup"
+          cardCount={3}
+          picked={new Set()}
+          containerRef={createRef<HTMLDivElement>()}
+          other={<div className="option option-other" />}
+        >
           <div className="option" />
           <div className="option" />
           <div className="option" />

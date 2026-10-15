@@ -179,8 +179,7 @@
 .chip,
 .round-chip,
 .closed-badge,
-.stat,
-.option-hint {
+.stat {
   font-family: var(--font-stamp);
   text-transform: uppercase;
   letter-spacing: var(--track-caps);

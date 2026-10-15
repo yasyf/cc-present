@@ -1,3 +1,4 @@
+import { useContext } from 'react';
 import type { ComponentType } from 'react';
 import { useGroupReadOnly } from '@cc-interact/react';
 import { isPackBlock, type Block, type BuiltinBlockType } from '../schema';
@@ -27,6 +28,7 @@ import { PRView } from './PRView';
 import { PackBlockView } from './PackBlockView';
 import { BlockThread } from './BlockThread';
 import { ReplyThread } from './ReplyThread';
+import { FocusStepContext } from './focusStep';
 import { useThreadHost } from './threadHost';
 
 export interface BlockProps {
@@ -85,6 +87,7 @@ function BlockNote({ block, interactions, packInteractive }: BlockProps & { pack
   const { closed } = usePresent();
   const readOnly = useGroupReadOnly();
   const rail = useThreadHost() === 'rail';
+  const step = useContext(FocusStepContext) !== null;
   if (block.type === 'section') return null;
   const turns = threadTurns(block, interactions.feedback, interactions.replies, packInteractive);
   return (
@@ -94,6 +97,7 @@ function BlockNote({ block, interactions, packInteractive }: BlockProps & { pack
       feedback={turns.feedback}
       replies={rail ? turns.replies : []}
       locked={closed || readOnly}
+      step={step}
     />
   );
 }

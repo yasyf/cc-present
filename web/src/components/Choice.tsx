@@ -40,6 +40,7 @@ export function Choice({ block, interactions }: { block: ChoiceBlock; interactio
   const feedbackRef = useRef<FeedbackHandle>(null);
   const otherRef = useRef<HTMLTextAreaElement>(null);
   const optionsRef = useRef<HTMLDivElement>(null);
+  const otherCard = useRef<HTMLDivElement>(null);
   const [noteComposing, setNoteComposing] = useState(false);
   const [otherComposing, setOtherComposing] = useState(false);
   const [draft, setDraft] = useState(
@@ -115,6 +116,10 @@ export function Choice({ block, interactions }: { block: ChoiceBlock; interactio
     card?.scrollIntoView({ inline: 'nearest', block: 'nearest', behavior: scrollBehavior() });
   }
 
+  function revealOther() {
+    otherCard.current?.scrollIntoView({ inline: 'nearest', block: 'nearest', behavior: scrollBehavior() });
+  }
+
   function pick(i: number) {
     toggle(block.options[i]!.id);
     revealCard(i);
@@ -138,7 +143,7 @@ export function Choice({ block, interactions }: { block: ChoiceBlock; interactio
     choose: (n) => {
       if (n === otherIndex) {
         pickOther();
-        revealCard(otherIndex - 1);
+        revealOther();
         return;
       }
       const option = block.options[n - 1];
@@ -160,7 +165,6 @@ export function Choice({ block, interactions }: { block: ChoiceBlock; interactio
   }, [stage, activeVisual]);
 
   const picked = new Set(block.options.flatMap((option, i) => (picks.includes(option.id) ? [i] : [])));
-  if (otherOn) picked.add(block.options.length);
   const feedback = interactions.feedback[block.id] ?? [];
   const replies = interactions.replies[block.id] ?? [];
   const thread = (
@@ -175,17 +179,89 @@ export function Choice({ block, interactions }: { block: ChoiceBlock; interactio
     />
   );
 
+  const other = (
+    <div
+      ref={otherCard}
+      role={multi ? 'checkbox' : 'radio'}
+      aria-checked={otherOn}
+      aria-disabled={locked}
+      tabIndex={locked ? -1 : 0}
+      className={`option option-other${otherOn ? ' selected' : ''}`}
+      data-composing={otherComposing || undefined}
+      onClick={(e) => {
+        if (locked) return;
+        revealOther();
+        // Activating the card chrome (label, indicator, padding) lands the
+        // cursor in the write-in; a click on the textarea keeps its native focus.
+        if (e.target === otherRef.current) return;
+        if (multi && otherOn) uncheckOther();
+        else pickOther();
+      }}
+      onKeyDown={(e) => {
+        // Only when the card itself holds focus — a keydown bubbling from the
+        // textarea reports the textarea as target, so literal Space/Enter type
+        // and commit as usual.
+        if ((e.key === 'Enter' || e.key === ' ') && !e.metaKey && !e.ctrlKey && e.target === e.currentTarget) {
+          e.preventDefault();
+          if (!locked) pickOther();
+        }
+      }}
+    >
+      {cursor && otherIndex <= 9 && (
+        <kbd className="option-index" aria-hidden>
+          {otherIndex}
+        </kbd>
+      )}
+      <span className="option-indicator" aria-hidden>
+        {otherOn && <Mark kind={multi ? 'check' : 'ring'} />}
+      </span>
+      <span className="option-body">
+        <span className="option-label">Other</span>
+        <textarea
+          ref={otherRef}
+          className="option-other-input"
+          rows={1}
+          value={draft}
+          placeholder="Write in your own answer…"
+          disabled={locked}
+          onFocus={() => setOtherComposing(true)}
+          onChange={(e) => {
+            setDraft(e.target.value);
+            setDirty(true);
+          }}
+          onBlur={() => {
+            setOtherComposing(false);
+            void commitOther();
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey && !e.metaKey && !e.ctrlKey) {
+              e.preventDefault();
+              e.currentTarget.blur();
+            }
+          }}
+        />
+      </span>
+    </div>
+  );
+
   return (
-    <div className="choice" ref={ref} data-kbd-cursor={cursor || undefined} data-composing={noteComposing || undefined}>
+    <div
+      className="choice"
+      ref={ref}
+      data-kbd-cursor={cursor || undefined}
+      data-composing={noteComposing || undefined}
+      data-closed={closed || undefined}
+    >
       {!suppressPrompt && block.prompt && <p className="choice-prompt">{block.prompt}</p>}
       <OptionStrip
         strip={strip}
         role={multi ? 'group' : 'radiogroup'}
         ariaLabel={suppressPrompt ? block.prompt : undefined}
-        cardCount={block.options.length + 1}
+        cardCount={block.options.length}
         picked={picked}
         containerRef={optionsRef}
         navActions={strip && rail ? thread : undefined}
+        other={other}
       >
         {block.options.map((option, i) => (
           <OptionCard
@@ -211,67 +287,6 @@ export function Choice({ block, interactions }: { block: ChoiceBlock; interactio
             }}
           />
         ))}
-        <div
-          role={multi ? 'checkbox' : 'radio'}
-          aria-checked={otherOn}
-          aria-disabled={locked}
-          tabIndex={locked ? -1 : 0}
-          className={`option option-other${otherOn ? ' selected' : ''}`}
-          data-composing={otherComposing || undefined}
-          onClick={(e) => {
-            if (locked) return;
-            revealCard(otherIndex - 1);
-            // Activating the card chrome (label, indicator, padding) lands the
-            // cursor in the write-in; a click on the textarea keeps its native focus.
-            if (e.target === otherRef.current) return;
-            if (multi && otherOn) uncheckOther();
-            else pickOther();
-          }}
-          onKeyDown={(e) => {
-            // Only when the card itself holds focus — a keydown bubbling from the
-            // textarea reports the textarea as target, so literal Space/Enter type
-            // and commit as usual.
-            if ((e.key === 'Enter' || e.key === ' ') && !e.metaKey && !e.ctrlKey && e.target === e.currentTarget) {
-              e.preventDefault();
-              if (!locked) pickOther();
-            }
-          }}
-        >
-          {cursor && otherIndex <= 9 && (
-            <kbd className="option-index" aria-hidden>
-              {otherIndex}
-            </kbd>
-          )}
-          <span className="option-indicator" aria-hidden>
-            {otherOn && <Mark kind={multi ? 'check' : 'ring'} />}
-          </span>
-          <span className="option-body">
-            <span className="option-label">Other</span>
-            <textarea
-              ref={otherRef}
-              className="option-other-input"
-              rows={1}
-              value={draft}
-              placeholder="Write in your own answer…"
-              disabled={locked}
-              onFocus={() => setOtherComposing(true)}
-              onChange={(e) => {
-                setDraft(e.target.value);
-                setDirty(true);
-              }}
-              onBlur={() => {
-                setOtherComposing(false);
-                void commitOther();
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey && !e.metaKey && !e.ctrlKey) {
-                  e.preventDefault();
-                  e.currentTarget.blur();
-                }
-              }}
-            />
-          </span>
-        </div>
       </OptionStrip>
       {!(strip && rail) && thread}
     </div>
