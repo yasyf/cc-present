@@ -105,6 +105,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   of widening the page, and an Expand button opens it full size in a dialog.
   Node outlines use the strong border color. A diagram whose SVG has no
   `viewBox` now renders instead of blanking the board.
+- Choice cards share the row at one column per option, and once they no longer
+  fit they scroll behind an edge fade with arrows that track the strip as its
+  options change. Other becomes a write-in row under the strip. Option text
+  clamps at eight lines behind Show more, content text is at least 12 px, and
+  note chips name the block they belong to.
 
 ### Removed
 
