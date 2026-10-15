@@ -37,6 +37,110 @@
   color: var(--accent-fg);
 }
 
+/* base.css pins .app to the viewport height, which would release the sticky
+   masthead after one screen. */
+.app:has(> .doc-header[data-compact]) {
+  height: auto;
+  min-height: 100%;
+}
+html:has(.doc-header[data-compact]) {
+  scroll-padding-top: var(--doc-header-h, 0px);
+}
+.doc-header[data-compact] {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-bar);
+  padding-block: var(--space-2);
+  background: var(--paper);
+}
+.doc-header[data-compact] .doc-header-top {
+  align-items: center;
+}
+.doc-header[data-compact] .doc-title {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--text-md);
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.step-jump {
+  flex: none;
+  font-family: var(--font-stamp);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent-ink);
+  padding: 2px var(--space-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: none;
+}
+.step-jump::after {
+  content: ' ▾';
+  color: var(--muted);
+}
+.step-jump:hover {
+  background: var(--mono-bg);
+  border-color: var(--border-strong);
+}
+.step-jump-dialog {
+  margin: calc(var(--doc-header-h, 0px) + var(--space-2)) auto auto;
+  padding: 0;
+  width: min(36rem, calc(100vw - var(--space-6)));
+  max-height: calc(100dvh - var(--doc-header-h, 0px) - var(--space-6));
+  overflow-y: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+  color: var(--ink);
+  box-shadow: var(--shadow-3);
+}
+.step-jump-dialog::backdrop {
+  background: rgb(0 0 0 / 25%);
+}
+.step-jump-dialog .focus-receipts {
+  padding: var(--space-2) var(--space-4);
+}
+.focus-receipt[aria-current] {
+  background: var(--mono-bg);
+}
+.focus-receipt-jump {
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+.focus-receipt-jump:hover {
+  color: var(--accent-ink);
+  text-decoration: underline;
+}
+.help-toggle kbd {
+  margin: 0;
+  padding: 1px var(--space-1);
+}
+.wire-closed {
+  color: var(--muted);
+}
+.focus-deck {
+  scroll-margin-top: calc(var(--doc-header-h, 0px) + var(--space-3));
+}
+.focus-lead {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.focus-lead .doc-intro,
+.focus-lead .stats {
+  margin: 0;
+}
+.choice-visual > .focus-media-empty {
+  min-height: 8rem;
+}
+
 .focus-history {
   display: flex;
   flex-direction: column;
@@ -50,23 +154,11 @@
   gap: var(--space-4);
 }
 
-/* Progress header: stamp counter + tier, then a tap-to-jump dot rail. */
+/* Progress header: the step tier and the drafting line. */
 .focus-progress {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
-}
-.focus-progress-head {
-  display: flex;
-  align-items: baseline;
-  gap: var(--space-3);
-}
-.focus-step-count {
-  font-family: var(--font-stamp);
-  font-size: var(--text-sm);
-  font-weight: 700;
-  color: var(--accent-ink);
-  font-variant-numeric: tabular-nums;
 }
 .focus-step-tier {
   font-family: var(--font-stamp);
@@ -150,8 +242,8 @@
     opacity: 0.4;
   }
 }
-/* Past the dot rail's cap the steps collapse to a segmented tap-to-jump strip:
-   the same status + revision grammar as the dots, degraded to thin inset rules. */
+/* Past the dot rail's cap the steps collapse to a progress bar; the header's step
+   counter is the jump menu. Same status + revision grammar as the dots. */
 .focus-strip {
   display: flex;
   gap: 3px;
@@ -160,9 +252,6 @@
   flex: 1;
   min-width: 0;
   padding: 5px 0;
-  border: none;
-  background: transparent;
-  cursor: pointer;
 }
 .focus-strip-seg::before {
   content: '';
@@ -237,43 +326,6 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
-  /* Cap tall cards and scroll internally so the peek behind stays visible. */
-  max-height: 62vh;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  /* Soft edges so content scrolling under the top/bottom reads as intentional
-     rather than clipped; the question is already hoisted clear of this box. */
-  --focus-fade: var(--space-3);
-  mask-image: linear-gradient(
-    to bottom,
-    transparent 0,
-    #000 var(--focus-fade),
-    #000 calc(100% - var(--focus-fade)),
-    transparent 100%
-  );
-}
-/* Fade only the edge content has actually scrolled under — a parked edge stays
-   crisp, so a heading at the resting top is never half-dissolved (FocusCard sets
-   the data-edge attrs; both parked means nothing scrolls at all). */
-.focus-card-body[data-edge-start]:not([data-edge-end]),
-.focus-main[data-edge-start]:not([data-edge-end]) {
-  mask-image: linear-gradient(to bottom, #000 calc(100% - var(--focus-fade)), transparent 100%);
-}
-.focus-card-body[data-edge-end]:not([data-edge-start]),
-.focus-main[data-edge-end]:not([data-edge-start]) {
-  mask-image: linear-gradient(to bottom, transparent 0, #000 var(--focus-fade));
-}
-.focus-card-body[data-edge-start][data-edge-end] {
-  mask-image: none;
-}
-.focus-main:not([data-edge-start], [data-edge-end]) {
-  mask-image: linear-gradient(
-    to bottom,
-    transparent 0,
-    #000 var(--focus-fade),
-    #000 calc(100% - var(--focus-fade)),
-    transparent 100%
-  );
 }
 .focus-main {
   display: flex;
@@ -421,11 +473,13 @@
   display: none;
 }
 .focus-card-body[data-stage] {
-  --stage-h: max(22rem, 100dvh - 21rem);
-  max-height: var(--stage-h);
+  --stage-h: max(22rem, 100dvh - var(--doc-header-h, 0px) - 2 * var(--space-5));
 }
 .focus-card-body[data-stage] > .focus-main {
   display: contents;
+}
+.focus-card-body[data-stage] > .focus-main > .focus-lead {
+  order: -3;
 }
 .focus-card-body[data-stage] > .focus-main > .focus-context {
   order: -2;
@@ -434,6 +488,9 @@
   order: -1;
   flex: none;
   height: calc(var(--stage-h) / 2);
+}
+.focus-card-body[data-wide] > .focus-media {
+  height: auto;
 }
 .focus-media-empty {
   display: grid;
@@ -589,9 +646,8 @@
   overflow-wrap: anywhere;
 }
 
-/* --- Responsive: --bp-rail gives each jump dot a 44px tap target and each strip seg
-   a 44px-tall band (width kept, so which-seg-you-hit holds); --bp-compact grows the
-   dot glyph padding. --- */
+/* --- Responsive: --bp-rail gives each jump dot a 44px tap target; --bp-compact
+   grows the dot glyph padding. --- */
 @media (max-width: 720px) {
   .focus-dot {
     position: relative;
@@ -605,19 +661,6 @@
     width: 44px;
     height: 44px;
     transform: translate(-50%, -50%);
-  }
-  .focus-strip-seg {
-    position: relative;
-  }
-  /* Vertical-only band: the seg's width stays (segment identity holds), height to 44px. */
-  .focus-strip-seg::after {
-    content: '';
-    position: absolute;
-    left: 0;
-    right: 0;
-    top: 50%;
-    height: 44px;
-    transform: translateY(-50%);
   }
 }
 @media (max-width: 440px) {
@@ -639,33 +682,20 @@
   }
 }
 @media (min-width: 1280px) {
-  .focus-stage {
-    --stage-w: min(84rem, 100vw - 2 * (var(--rail-strip-w) + var(--page-pad)));
-  }
-  .focus-stage:has(> .focus-card:not([data-exiting]) > .focus-card-body[data-stage]) {
-    margin-inline: calc((100% - var(--stage-w)) / 2);
-  }
-  .focus-stage > [data-exiting] {
-    right: 0;
-    margin-inline: auto;
-  }
-  .focus-stage > [data-exiting]:has(> .focus-card-body[data-stage]) {
-    margin-inline-start: calc((100% - var(--stage-w)) / 2);
-  }
-  .focus-card-body[data-stage] {
+  .focus-card-body[data-stage]:not([data-wide]) {
     display: grid;
-    grid-template: minmax(0, 1fr) / minmax(0, 11fr) minmax(0, 9fr);
+    grid-template-columns: minmax(0, 11fr) minmax(0, 9fr);
+    align-items: start;
     column-gap: var(--space-5);
-    height: var(--stage-h);
-    overflow: visible;
   }
-  .focus-card-body[data-stage] > .focus-main {
+  .focus-card-body[data-stage]:not([data-wide]) > .focus-main {
     display: flex;
-    overflow-y: auto;
-    overscroll-behavior: contain;
   }
-  .focus-card-body[data-stage] > .focus-media {
+  .focus-card-body[data-stage]:not([data-wide]) > .focus-media {
     order: 0;
+    position: sticky;
+    top: calc(var(--doc-header-h, 0px) + var(--space-3));
     height: auto;
+    max-height: var(--stage-h);
   }
 }

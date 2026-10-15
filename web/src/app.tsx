@@ -13,9 +13,10 @@ import { SubjectProvider, presentKey, queryClient, usePostInteraction } from './
 import { emptyState } from './reduce';
 import { boardPhase } from './lifecycle';
 import { focusSteps } from './focus';
+import type { FocusStep } from './focus';
 import { loadView, resolveMode, saveView } from './viewmode';
 import type { ViewMode } from './viewmode';
-import { KeyboardProvider } from './keyboard';
+import { KeyboardProvider, useKeyboardApi } from './keyboard';
 import { ExpandAllProvider, useExpandAll } from './expand';
 import { useInteractivePackTypes } from './packs/registry';
 import { PresentContext } from './present';
@@ -46,6 +47,8 @@ import { CommentsSheet } from './components/CommentsSheet';
 import { MarginRail } from './components/MarginRail';
 import { useRailOpen } from './railOpen';
 import { ThreadHostContext } from './components/threadHost';
+import { FocusLeadContext } from './components/focusStep';
+import type { FocusLeadValue } from './components/focusStep';
 
 // A dead EventSource never retries and never flips connected/caughtUp, so a
 // stuck connect gets a visible error after this long.
@@ -147,6 +150,22 @@ function PresentView({ subject }: { subject: string }) {
   const toggleView = useCallback(() => setView(mode === 'focus' ? 'board' : 'focus'), [mode, setView]);
   const expandAll = useExpandAll();
 
+  const [deckAt, setDeckAt] = useState<{ round: number; id: string } | null>(null);
+  const deckId = deckAt?.round === currentRound ? deckAt.id : undefined;
+  const onDeckChange = useCallback((id: string) => setDeckAt({ round: currentRound, id }), [currentRound]);
+  const shownDeckRef = useRef(deckId);
+  useEffect(() => {
+    const shown = shownDeckRef.current;
+    shownDeckRef.current = deckId;
+    if (shown !== undefined && shown !== deckId) revealDeck();
+  }, [deckId]);
+  const deckIndex = deckId === undefined ? 0 : steps.findIndex((s) => s.id === deckId);
+  const lead = useMemo<FocusLeadValue | null>(() => {
+    const first = steps[0];
+    const { intro, stats } = state.doc;
+    return first && (intro || stats?.length) ? { stepId: first.id, intro, stats } : null;
+  }, [steps, state.doc]);
+
   // In focus mode the SubmitBar mounts only at the Review summary the deck reports;
   // reset outside focus-live so a new round never flashes it mid-deck.
   const [focusAtEnd, setFocusAtEnd] = useState(false);
@@ -159,6 +178,7 @@ function PresentView({ subject }: { subject: string }) {
 
   const board = (
     <>
+      <ViewEntry mode={mode} steps={steps} deckId={deckId} />
       {closed && <ClosedBanner summary={state.interactions.closed.summary} />}
       {mode === 'focus' ? (
         <>
@@ -172,14 +192,18 @@ function PresentView({ subject }: { subject: string }) {
           {phase.kind === 'waiting' ? (
             <WaitingPanel round={currentRound} lastRound={phase.lastRound} />
           ) : (
-            <FocusDeck
-              key={currentRound}
-              steps={steps}
-              interactions={state.interactions}
-              round={currentRound}
-              closed={closed}
-              onEndChange={setFocusAtEnd}
-            />
+            <FocusLeadContext.Provider value={lead}>
+              <FocusDeck
+                key={currentRound}
+                steps={steps}
+                interactions={state.interactions}
+                round={currentRound}
+                closed={closed}
+                onEndChange={setFocusAtEnd}
+                initialId={deckId}
+                onCurrentChange={onDeckChange}
+              />
+            </FocusLeadContext.Provider>
           )}
         </>
       ) : (
@@ -243,8 +267,18 @@ function PresentView({ subject }: { subject: string }) {
                 round: currentRound,
                 connected: stream.connected,
                 peerPresent: stream.peerPresent,
+                closed,
                 mode,
                 onSetView: setView,
+                step:
+                  phase.kind === 'live' && steps.length > 0
+                    ? {
+                        steps,
+                        index: deckIndex < 0 ? steps.length : deckIndex,
+                        interactions: state.interactions,
+                        packInteractive,
+                      }
+                    : undefined,
               }}
               notifications={stream.notifications}
               onDismiss={stream.dismiss}
@@ -254,6 +288,36 @@ function PresentView({ subject }: { subject: string }) {
       </KeyboardProvider>
     </PresentContext.Provider>
   );
+}
+
+function revealDeck() {
+  const deck = document.querySelector('.focus-deck');
+  if (!deck) return;
+  const headerBottom = document.querySelector('.doc-header')!.getBoundingClientRect().bottom;
+  if (deck.getBoundingClientRect().top < headerBottom) deck.scrollIntoView({ block: 'start' });
+}
+
+function ViewEntry({ mode, steps, deckId }: { mode: ViewMode; steps: FocusStep[]; deckId: string | undefined }) {
+  const api = useKeyboardApi();
+  const enteredRef = useRef(mode);
+  useEffect(() => {
+    if (enteredRef.current === mode) return;
+    enteredRef.current = mode;
+    if (mode === 'focus') {
+      revealDeck();
+      document
+        .querySelector<HTMLElement>('.focus-card:not([data-exiting]), .focus-summary:not([data-exiting])')
+        ?.focus({ preventScroll: true });
+      return;
+    }
+    const step = steps.find((s) => s.id === deckId);
+    api.setCursor(step?.primary?.id ?? null);
+    if (!step) return;
+    const row = document.querySelector<HTMLElement>(`.block-row[data-block-id="${CSS.escape(step.id)}"]`);
+    row?.scrollIntoView({ block: 'start' });
+    row?.focus({ preventScroll: true });
+  }, [api, mode, steps, deckId]);
+  return null;
 }
 
 function totalComments(projection: ThreadProjection): number {

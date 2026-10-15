@@ -81,18 +81,18 @@ describe('StepDots', () => {
     expect(container.querySelectorAll('.focus-strip-seg').length).toBe(11);
   });
 
-  it('carries step state and the jump target through a segment past the rail cap', () => {
-    const onJump = vi.fn();
+  it('renders past the rail cap as a progress bar with no jump targets', () => {
     const blocks = Array.from({ length: 12 }, (_, i) => approval(`a${i}`, `Ship ${i}`));
-    const { steps } = render(blocks, withVerdict('a0', 'approved'), 0, onJump);
+    const { steps } = render(blocks, withVerdict('a0', 'approved'), 2);
     expect(steps.length).toBe(12);
     expect(container.querySelectorAll('.focus-dot').length).toBe(0);
-    const segs = container.querySelectorAll('.focus-strip-seg');
+    const strip = container.querySelector('.focus-strip')!;
+    expect(strip.getAttribute('aria-label')).toBe('Step 3 of 12, 1 decided');
+    const segs = strip.querySelectorAll('.focus-strip-seg');
     expect(segs.length).toBe(12);
     expect(segs[0]!.classList.contains('approved')).toBe(true);
-    expect(segs[0]!.classList.contains('current')).toBe(true);
-    act(() => (segs[3] as HTMLButtonElement).click());
-    expect(onJump).toHaveBeenCalledWith('a3');
+    expect(segs[2]!.classList.contains('current')).toBe(true);
+    expect(strip.querySelectorAll('button').length).toBe(0);
   });
 
   it('layers the dot states with priority revising > added > changed', () => {

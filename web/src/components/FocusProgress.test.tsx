@@ -50,9 +50,10 @@ const revisingFrame = (ids: string[], note?: string): WireFrame => ({
 });
 
 describe('FocusProgress header', () => {
-  it('renders the step counter in the header', () => {
-    render([approval('a1', 'One'), approval('a2', 'Two')]);
-    expect(container.querySelector('.focus-step-count')?.textContent).toBe('Step 1 / 2');
+  it('renders the current step tier and leaves the counter to the masthead', () => {
+    render([{ id: 's1', type: 'section', title: 'Enforcement' } as Block, approval('a1', 'One'), approval('a2', 'Two')]);
+    expect(container.querySelector('.focus-step-tier')?.textContent).toBe('Enforcement');
+    expect(container.querySelector('.focus-step-count')).toBeNull();
   });
 
   it('renders the doc-level drafting one-liner in the header', () => {

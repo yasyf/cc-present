@@ -634,6 +634,17 @@
 .section-md p {
   margin: 0;
 }
+.section-group {
+  display: flex;
+  flex-direction: column;
+}
+.section-group > .section-md {
+  margin-top: var(--space-2);
+}
+.section-group > .block-row {
+  margin-top: var(--space-7);
+  scroll-margin-top: 5rem;
+}
 
 /* --- Submit bar (solid, 2px accent top rule, stamp readout) --- */
 

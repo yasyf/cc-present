@@ -922,27 +922,27 @@ describe('Choice board-mode option visual', () => {
     options: [{ id: 'o0', label: 'A', visual: imageVisual, detail }],
   });
 
-  it('mounts a visual-only option visual in its detail drill-down in board mode', () => {
+  it('renders the active option visual full-width above the options in board mode', () => {
     render(withVisual(), empty());
-    const detail = container.querySelector('.option-detail') as HTMLElement;
-    // The disclosure exists purely because the option carries a visual.
-    expect(detail).not.toBeNull();
-    act(() => (detail.querySelector('.cc-group-header') as HTMLElement).click());
-    expect(detail.querySelector('.detail-visual .image-block img')).not.toBeNull();
-    expect(detail.querySelector<HTMLImageElement>('.detail-visual img')?.alt).toBe('chart-a');
+    expect(container.querySelector('.option-detail')).toBeNull();
+    const visual = container.querySelector('.choice > .choice-visual') as HTMLElement;
+    expect(visual.nextElementSibling?.classList.contains('options')).toBe(true);
+    expect(visual.querySelector<HTMLImageElement>('.image-block img')?.alt).toBe('chart-a');
   });
 
-  it('renders the visual alongside detail content in the same drill-down', () => {
+  it('keeps detail content in the drill-down and the visual above the options', () => {
     render(withVisual({ pros: ['fast'] }), empty());
     const detail = container.querySelector('.option-detail') as HTMLElement;
     act(() => (detail.querySelector('.cc-group-header') as HTMLElement).click());
-    expect(detail.querySelector('.detail-visual .image-block')).not.toBeNull();
     expect(detail.querySelector('.detail-pros')?.textContent).toContain('fast');
+    expect(detail.querySelector('.detail-visual')).toBeNull();
+    expect(container.querySelector('.choice-visual .image-block')).not.toBeNull();
   });
 
   it('leaves a visual-only option to the stage in focus mode — no disclosure', () => {
     renderWithStage(withVisual(), empty());
     expect(container.querySelector('.option-detail')).toBeNull();
+    expect(container.querySelector('.choice-visual')).toBeNull();
   });
 
   it('shows only detail in the focus-mode disclosure, never double-rendering the visual', () => {

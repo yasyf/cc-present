@@ -309,9 +309,19 @@ describe('stepHeadline', () => {
     });
   });
 
-  it('heads a single-decidable card with the child prompt, not the title', () => {
+  it('heads a titled single-decidable card with its title, keeping the prompt inline', () => {
     const s = step([{ id: 'k1', type: 'card', title: 'Transport', children: [choiceB('c1', 'Which?')] as never }]);
+    expect(stepHeadline(s)).toEqual({ text: 'Transport', suppressId: null, fromCard: true });
+  });
+
+  it('heads an untitled single-decidable card with the child prompt', () => {
+    const s = step([{ id: 'k1', type: 'card', children: [choiceB('c1', 'Which?')] as never }]);
     expect(stepHeadline(s)).toEqual({ text: 'Which?', suppressId: 'c1', fromCard: false });
+  });
+
+  it('heads an untitled multi-decidable card with nothing', () => {
+    const s = step([{ id: 'k1', type: 'card', children: [choiceB('c1', 'First?'), choiceB('c2', 'Second?')] as never }]);
+    expect(stepHeadline(s)).toEqual({ text: null, suppressId: null, fromCard: true });
   });
 
   it('heads a multi-decidable card with its title and suppresses nothing', () => {

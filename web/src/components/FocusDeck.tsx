@@ -31,6 +31,8 @@ export interface FocusDeckProps {
   // Reports whether the deck rests on the Review summary, so the app mounts the
   // SubmitBar there and nowhere else in focus mode.
   onEndChange?: (atEnd: boolean) => void;
+  initialId?: string;
+  onCurrentChange?: (id: string) => void;
 }
 
 function stepUndecided(step: FocusStep, interactions: Interactions, packInteractive: ReadonlySet<string>): boolean {
@@ -64,7 +66,15 @@ function decisionSignature(primary: Block, interactions: Interactions): string |
 // keyboard, sets the cursor to the step's primary decidable (or the jumped-to
 // nested one), moves DOM focus and announces on each step change, and auto-advances
 // a lone approval or single-select choice 450ms after its decision.
-export function FocusDeck({ steps, interactions, round, closed, onEndChange }: FocusDeckProps) {
+export function FocusDeck({
+  steps,
+  interactions,
+  round,
+  closed,
+  onEndChange,
+  initialId,
+  onCurrentChange,
+}: FocusDeckProps) {
   const api = useKeyboardApi();
   const cursor = useCursor();
   const { pin, requestCompose } = useActiveBlock();
@@ -73,7 +83,7 @@ export function FocusDeck({ steps, interactions, round, closed, onEndChange }: F
   const pendingCursorRef = useRef<string | null>(null);
   const prevDecidedRef = useRef<{ id: string; sig: string | null } | null>(null);
   const timerRef = useRef<{ id: ReturnType<typeof setTimeout>; stepId: string } | null>(null);
-  const [currentId, setCurrentId] = useState<string>(() => steps[0]?.id ?? DECK_END);
+  const [currentId, setCurrentId] = useState<string>(() => initialId ?? steps[0]?.id ?? DECK_END);
   // The direction AnimatePresence flies the outgoing card: a verdict sends it fully
   // off toward its sign, plain navigation slides it toward the move.
   const [exitCustom, setExitCustom] = useState<ExitCustom>({ dir: 1, kind: 'nav' });
@@ -197,6 +207,10 @@ export function FocusDeck({ steps, interactions, round, closed, onEndChange }: F
     if (wantId !== currentId) setCurrentId(wantId);
     lastIndexRef.current = index;
   }, [wantId, currentId, index]);
+
+  useEffect(() => {
+    onCurrentChange?.(currentId);
+  }, [currentId, onCurrentChange]);
 
   useEffect(() => {
     api.registerStepNav({ move: walk, next, jump, end });

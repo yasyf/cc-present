@@ -5,6 +5,7 @@ import { createRoot } from 'react-dom/client';
 import type { Root } from 'react-dom/client';
 import { LazyMotion, MotionConfig, domMax } from 'motion/react';
 import { FocusSummary } from './FocusSummary';
+import { PresentContext } from '../present';
 import { focusSteps } from '../focus';
 import { emptyState } from '../reduce';
 import type { Interactions } from '../events';
@@ -43,13 +44,15 @@ const choice = (id: string, prompt: string, labels: string[]): Block => ({
   options: labels.map((label, i) => ({ id: `${id}o${i}`, label })),
 });
 
-function renderSummary(blocks: Block[], interactions: Interactions): void {
+function renderSummary(blocks: Block[], interactions: Interactions, closed = false, onJump = (_id: string) => {}): void {
   const steps = focusSteps(blocks, new Set());
   act(() =>
     root.render(
       <LazyMotion features={domMax} strict>
         <MotionConfig reducedMotion="user">
-          <FocusSummary steps={steps} interactions={interactions} packInteractive={new Set()} onJump={() => {}} />
+          <PresentContext.Provider value={{ post: async () => true, closed, currentRound: 1 }}>
+            <FocusSummary steps={steps} interactions={interactions} packInteractive={new Set()} onJump={onJump} />
+          </PresentContext.Provider>
         </MotionConfig>
       </LazyMotion>,
     ),
@@ -79,5 +82,24 @@ describe('FocusSummary receipt answer', () => {
       withChoices({ c1: { optionIds: ['c1o0'], other: 'Cassandra' } }),
     );
     expect(container.querySelector('.focus-receipt-answer')?.textContent).toBe('Redis, "Cassandra"');
+  });
+});
+
+describe('FocusSummary undecided steps', () => {
+  const blocks = [choice('c1', 'Which transport?', ['HTTP', 'gRPC'])];
+
+  it('links an undecided step back to its card while the round is open', () => {
+    const jumped: string[] = [];
+    renderSummary(blocks, emptyState().interactions, false, (id) => jumped.push(id));
+    const link = container.querySelector<HTMLButtonElement>('.focus-receipt .link-btn')!;
+    expect(link.textContent).toBe('decide');
+    act(() => link.click());
+    expect(jumped).toEqual(['c1']);
+  });
+
+  it('shows the plain state instead of a decide link on a closed board', () => {
+    renderSummary(blocks, emptyState().interactions, true);
+    expect(container.querySelector('.focus-receipt .link-btn')).toBeNull();
+    expect(container.querySelector('.focus-receipt-state')?.textContent).toBe('undecided');
   });
 });

@@ -133,10 +133,11 @@ export interface FocusHeadline {
   fromCard: boolean;
 }
 
-// stepHeadline resolves the question a step leads with: a lone decidable's own
-// prompt (hoisted, its inline copy suppressed), else a card's title (multi-decidable
-// prompts stay inline as sub-headings), else null for a bare content leaf.
+// stepHeadline resolves the question a step leads with: a titled card's title (its
+// prompts stay inline as sub-questions), else a lone decidable's hoisted prompt,
+// else null.
 export function stepHeadline(step: FocusStep): FocusHeadline {
+  if (step.block.type === 'card' && step.block.title) return { text: step.block.title, suppressId: null, fromCard: true };
   const p = step.primary;
   if (step.decidables.length === 1 && p) {
     const text = p.type === 'input' ? p.label : p.type === 'choice' || p.type === 'approval' ? p.prompt ?? null : null;

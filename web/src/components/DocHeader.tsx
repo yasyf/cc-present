@@ -1,7 +1,11 @@
+import { useEffect, useRef } from 'react';
 import type { Doc } from '../schema';
 import type { ViewMode } from '../viewmode';
+import { useKeyboardApi } from '../keyboard';
 import { Button } from './Button';
 import { StatsBar } from './StatsBar';
+import { StepJump } from './StepJump';
+import type { StepJumpProps } from './StepJump';
 import { ThemeToggle } from './ThemeToggle';
 
 export interface DocHeaderProps {
@@ -9,8 +13,10 @@ export interface DocHeaderProps {
   round: number;
   connected: boolean;
   peerPresent: boolean | null;
+  closed: boolean;
   mode: ViewMode;
   onSetView: (mode: ViewMode) => void;
+  step?: StepJumpProps;
   // The margin-rail comments trigger, shown only below the rail breakpoint where
   // the rail becomes a sheet; both are provided together or not at all.
   commentCount?: number;
@@ -22,23 +28,42 @@ export function DocHeader({
   round,
   connected,
   peerPresent,
+  closed,
   mode,
   onSetView,
+  step,
   commentCount,
   onOpenComments,
 }: DocHeaderProps) {
+  const { openHelp } = useKeyboardApi();
+  const compact = mode === 'focus';
+  const ref = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    if (!compact) return;
+    const header = ref.current!;
+    const root = document.documentElement;
+    const observer = new ResizeObserver(() => root.style.setProperty('--doc-header-h', `${header.offsetHeight}px`));
+    observer.observe(header);
+    return () => {
+      observer.disconnect();
+      root.style.removeProperty('--doc-header-h');
+    };
+  }, [compact]);
+
   return (
-    <header className="doc-header">
-      <p className="doc-eyebrow">CC-PRESENT · ROUND {round}</p>
+    <header className="doc-header" ref={ref} data-compact={compact || undefined}>
+      {!compact && <p className="doc-eyebrow">CC-PRESENT · ROUND {round}</p>}
       <div className="doc-header-top">
         <h1 className="doc-title">{doc.title}</h1>
+        {compact && step && <StepJump {...step} />}
         <span className="doc-conn">
           {peerPresent !== null && (
             <span className={`peer peer-${peerPresent ? 'on' : 'off'}`}>
               {peerPresent ? 'agent on the line' : 'agent away'}
             </span>
           )}
-          <WireLamp connected={connected} />
+          <WireLamp state={closed ? 'closed' : connected ? 'live' : 'down'} />
           {onOpenComments && (
             <Button
               variant="ghost"
@@ -54,21 +79,31 @@ export function DocHeader({
             </Button>
           )}
           <ViewToggle mode={mode} onSetView={onSetView} />
+          <Button variant="ghost" size="sm" className="help-toggle" aria-keyshortcuts="?" onClick={openHelp}>
+            Shortcuts <kbd aria-hidden>?</kbd>
+          </Button>
           <ThemeToggle />
         </span>
       </div>
-      {doc.intro && <p className="doc-intro">{doc.intro}</p>}
-      {doc.stats && doc.stats.length > 0 && <StatsBar stats={doc.stats} />}
+      {!compact && doc.intro && <p className="doc-intro">{doc.intro}</p>}
+      {!compact && doc.stats && doc.stats.length > 0 && <StatsBar stats={doc.stats} />}
     </header>
   );
 }
 
-function WireLamp({ connected }: { connected: boolean }) {
-  const label = connected ? 'Connected to the session' : 'Reconnecting to the session';
+type WireState = 'live' | 'down' | 'closed';
+
+const WIRE: Record<WireState, { text: string; label: string }> = {
+  live: { text: 'LIVE', label: 'Connected to the session' },
+  down: { text: 'RECONNECTING', label: 'Reconnecting to the session' },
+  closed: { text: 'CLOSED', label: 'This board is closed' },
+};
+
+function WireLamp({ state }: { state: WireState }) {
   return (
-    <span className={`wire-lamp wire-${connected ? 'live' : 'down'}`} role="status" aria-label={label}>
+    <span className={`wire-lamp wire-${state}`} role="status" aria-label={WIRE[state].label}>
       <span className="wire-dot" aria-hidden />
-      {connected ? 'LIVE' : 'RECONNECTING'}
+      {WIRE[state].text}
     </span>
   );
 }

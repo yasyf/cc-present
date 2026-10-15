@@ -1,16 +1,26 @@
-import { useRef } from 'react';
-import type { Block } from '../schema';
+import { Fragment, useRef } from 'react';
+import type { Block, Section as SectionBlock } from '../schema';
 import type { Interactions } from '../events';
 import { blockDecided } from '../decide';
 import { useViewedOnScreen } from '../viewed';
 import { BlockRenderer } from './BlockRenderer';
 
-// BoardBlocks renders the current round's live blocks. A section renders as a
-// bare flex child of .blocks (no .block-row/data-flip-key) so the stylesheet can
-// pin it as a sticky tier header, outside the FLIP set. Every other block is a
-// flip-tracked row: one whose every decidable is decided carries data-decided so
-// the stylesheet can recede it to a receipt; a row with nothing to decide never
-// gets the attribute. A row on screen long enough marks its block viewed.
+export interface SectionGroup {
+  section: SectionBlock | null;
+  blocks: Block[];
+}
+
+export function sectionGroups(blocks: Block[]): SectionGroup[] {
+  const groups: SectionGroup[] = [{ section: null, blocks: [] }];
+  for (const block of blocks) {
+    if (block.type === 'section') groups.push({ section: block, blocks: [] });
+    else groups.at(-1)!.blocks.push(block);
+  }
+  return groups;
+}
+
+// BoardBlocks renders the live blocks; a section and its rows share one .section-group
+// so the sticky head releases at the group's end.
 export function BoardBlocks({
   blocks,
   interactions,
@@ -20,18 +30,24 @@ export function BoardBlocks({
   interactions: Interactions;
   packInteractive: ReadonlySet<string>;
 }) {
+  const row = (block: Block) => (
+    <BoardRow
+      key={block.id}
+      block={block}
+      interactions={interactions}
+      decided={blockDecided(block, interactions, packInteractive)}
+    />
+  );
   return (
     <>
-      {blocks.map((block) =>
-        block.type === 'section' ? (
-          <BlockRenderer key={block.id} block={block} interactions={interactions} />
+      {sectionGroups(blocks).map(({ section, blocks: rows }) =>
+        section ? (
+          <section key={section.id} className="section-group">
+            <BlockRenderer block={section} interactions={interactions} />
+            {rows.map(row)}
+          </section>
         ) : (
-          <BoardRow
-            key={block.id}
-            block={block}
-            interactions={interactions}
-            decided={blockDecided(block, interactions, packInteractive)}
-          />
+          <Fragment key="">{rows.map(row)}</Fragment>
         ),
       )}
     </>
@@ -45,6 +61,7 @@ function BoardRow({ block, interactions, decided }: { block: Block; interactions
     <div
       ref={ref}
       className="block-row"
+      tabIndex={-1}
       data-block-id={block.id}
       data-flip-key={block.id}
       data-decided={decided || undefined}

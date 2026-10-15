@@ -131,8 +131,8 @@
   color: var(--accent-ink);
 }
 /* Top-level prose keeps a comfortable reading measure. */
-.blocks > .block-row > .clamped .markdown-block,
-.blocks > .block-row > .markdown-block {
+.blocks .block-row > .clamped .markdown-block,
+.blocks .block-row > .markdown-block {
   max-width: 72ch;
 }
 /* Agent markdown inside a card must never shout over the card title. */
