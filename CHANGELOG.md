@@ -110,6 +110,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   options change. Other becomes a write-in row under the strip. Option text
   clamps at eight lines behind Show more, content text is at least 12 px, and
   note chips name the block they belong to.
+- Focus mode shrinks the header to one sticky row with a Step N / M jump menu,
+  kept on a closed board, and moves the intro and stats into the first step.
+  Steps scroll with the page instead of an inner scroller, and the header
+  controls wrap on a narrow screen instead of widening the page. Screen
+  readers name a choice's options after its prompt wherever the prompt shows.
 
 ### Removed
 
