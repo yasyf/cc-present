@@ -583,7 +583,7 @@ a pointing error; an empty set skips id validation. The agent sends it with
 | `POST` | `/api/assets` | image bytes | Store an image content-addressed; returns its `asset:<sha256>`. Requires `Content-Type: application/octet-stream` or `image/*` (neither is CORS-simple — same CSRF hardening); a body that does not sniff as an image is rejected with 415. |
 | `GET` | `/assets/{sha}` | none | Fetch a stored asset by its sha256. |
 | `GET` | `/api/sessions` | none | List the open artifacts, most-recently-updated first (see Session listing). |
-| `GET` | `/api/pr?subject=…&block=…` | none | Read a `pr` block's live GitHub state through the daemon's `gh` (see Pull requests). |
+| `GET` | `/api/pr?subject=…&block=…&repo=…&number=…` | none | Read a `pr` block's live GitHub state through the daemon's `gh` (see Pull requests). |
 | `GET` | `/api/packs` | none | List the installed block packs with inlined schemas, plus the dropped candidates (see Block packs). |
 | `GET` | `/packs/{pack}/{file}` | none | Fetch a pack's bundle asset from its `dist/` subtree (see Block packs). |
 
@@ -738,13 +738,16 @@ Unknown `/api/*` paths return 404, never the shell.
 
 ## Pull requests
 
-`GET /api/pr?subject=<subject>&block=<id>` reads the `pr` block `id` from the
-subject's reduced document, the live one or a closed round's, and fetches that
-PR with the `gh` CLI on the daemon's host under the user's existing `gh auth`.
-The daemon takes the repo and number only from the document, never from the
-request, so a client cannot aim the user's credentials at a PR of its choosing,
-and no token reaches the document or the client. An unknown subject, or an id
-that names no `pr` block, returns 404; a `gh` failure returns 502 with its stderr.
+`GET /api/pr?subject=<subject>&block=<id>&repo=<owner/name>&number=<n>` finds
+the `pr` block `id` carrying that repo and number in the subject's reduced
+document, the live one first and then each closed round, newest first. It
+fetches that PR with the `gh` CLI on the daemon's host under the user's existing
+`gh auth`, applying the block's own `files` filter. A request must match a block
+the agent wrote, so a client cannot aim the user's credentials at a PR of its
+choosing, and no token reaches the document or the client. A redrafted block
+whose id carries a new PR still serves its frozen version in a closed round. An
+unknown subject, or no matching `pr` block, returns 404; a `gh` failure returns
+502 with its stderr.
 Every request fetches fresh; the client caches a response for a minute and
 refetches on its refresh control.
 

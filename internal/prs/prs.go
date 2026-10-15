@@ -381,7 +381,7 @@ func tally(c *Checks, counts []stateCount, outcomes map[string]string) error {
 }
 
 func landedSHA(ctx context.Context, run Runner, repo string, number int) (string, error) {
-	out, err := run(ctx, "api", "-X", "GET", "search/commits", "-f", fmt.Sprintf(`q=repo:%s "(#%d)"`, repo, number), "-f", "per_page=20")
+	out, err := run(ctx, "api", "-X", "GET", "search/commits", "-f", fmt.Sprintf(`q=repo:%s "(#%d)"`, repo, number), "-f", "per_page=100")
 	if err != nil {
 		return "", err
 	}

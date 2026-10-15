@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/yasyf/cc-present/internal/doc"
@@ -26,9 +27,9 @@ func ghPRFetcher(ctx context.Context, b *doc.PR) (*prs.PR, error) {
 	return prs.Fetch(ctx, prs.GH(gh), b.Repo, b.Number, b.Files, time.Now())
 }
 
-// handlePR serves a pr block's live GitHub state. It reads only the repo and
-// number the agent wrote into the subject's document, so a client can never
-// point the user's gh credentials at a PR of its choosing.
+// handlePR serves a pr block's live GitHub state. The requested repo and number
+// must match a pr block the agent wrote into the subject's document, so a client
+// can never point the user's gh credentials at a PR of its choosing.
 func (rs *restServer) handlePR(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	id, ok, err := rs.resolve(r.Context(), q.Get("subject"))
@@ -50,9 +51,10 @@ func (rs *restServer) handlePR(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	block := findPRBlock(&st, q.Get("block"))
+	number, _ := strconv.Atoi(q.Get("number"))
+	block := findPRBlock(&st, q.Get("block"), q.Get("repo"), number)
 	if block == nil {
-		http.Error(w, "no pr block "+q.Get("block"), http.StatusNotFound)
+		http.Error(w, fmt.Sprintf("no pr block %s for %s#%s", q.Get("block"), q.Get("repo"), q.Get("number")), http.StatusNotFound)
 		return
 	}
 	pr, err := rs.fetchPR(r.Context(), block)
@@ -63,15 +65,16 @@ func (rs *restServer) handlePR(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, pr)
 }
 
-func findPRBlock(st *state.State, id string) *doc.PR {
+func findPRBlock(st *state.State, id, repo string, number int) *doc.PR {
 	docs := []*doc.Doc{st.Doc}
 	for i := len(st.Rounds.History) - 1; i >= 0; i-- {
 		docs = append(docs, &doc.Doc{Blocks: st.Rounds.History[i].Blocks})
 	}
 	for _, d := range docs {
 		if loc, ok := doc.Locate(d, id); ok {
-			pr, _ := loc.Block.(*doc.PR)
-			return pr
+			if pr, ok := loc.Block.(*doc.PR); ok && pr.Repo == repo && pr.Number == number {
+				return pr
+			}
 		}
 	}
 	return nil

@@ -34,7 +34,7 @@ export function PRView({ block }: { block: PRBlock }) {
   const { subject } = useSubject();
   const query = useQuery<PRLive, Error>({
     queryKey: prQueryKey(subject, block),
-    queryFn: () => fetchPR(subject, block.id),
+    queryFn: () => fetchPR(subject, block),
     staleTime: 60_000,
     retry: false,
   });

@@ -52,10 +52,9 @@ export function commitUrl(repo: string, sha: string): string {
 
 // fetchPR throws the daemon's own error text rather than the request URL, which
 // carries the page token off loopback.
-export async function fetchPR(subject: string, blockId: string): Promise<PRLive> {
-  const res = await fetch(
-    withToken(`/api/pr?subject=${encodeURIComponent(subject)}&block=${encodeURIComponent(blockId)}`),
-  );
+export async function fetchPR(subject: string, block: { id: string; repo: string; number: number }): Promise<PRLive> {
+  const query = new URLSearchParams({ subject, block: block.id, repo: block.repo, number: String(block.number) });
+  const res = await fetch(withToken(`/api/pr?${query.toString()}`));
   if (!res.ok) throw new Error((await res.text()).trim() || `GitHub fetch failed (${res.status})`);
   return (await res.json()) as PRLive;
 }

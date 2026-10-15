@@ -84,7 +84,7 @@ describe('PRView', () => {
     vi.stubGlobal('fetch', fetchMock);
     await renderPR(block);
 
-    expect(fetchMock).toHaveBeenCalledWith('/api/pr?subject=board--abcd&block=pr1');
+    expect(fetchMock).toHaveBeenCalledWith('/api/pr?subject=board--abcd&block=pr1&repo=yasyf%2Fcc-present&number=47');
     expect(container.querySelector('.pr-block')?.classList.contains('pr-open')).toBe(true);
     expect(container.querySelector('.pr-title')?.textContent).toBe('web: add the pr block');
     expect(container.querySelector('.pr-ref')?.getAttribute('href')).toBe(live.url);

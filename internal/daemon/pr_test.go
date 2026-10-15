@@ -28,11 +28,13 @@ func TestHandlePR(t *testing.T) {
 		wantCode int
 		wantBody string
 	}{
-		{"card child pr", "subject=board--abcd0000&block=pr1", nil, http.StatusOK, `"title":"Bump"`},
-		{"unknown subject", "subject=nope&block=pr1", nil, http.StatusNotFound, "unknown subject"},
-		{"unknown block", "subject=board--abcd0000&block=zz", nil, http.StatusNotFound, "no pr block zz"},
-		{"non-pr block", "subject=board--abcd0000&block=m1", nil, http.StatusNotFound, "no pr block m1"},
-		{"gh failure", "subject=board--abcd0000&block=pr1", errors.New("gh api graphql: exit status 1: HTTP 401"), http.StatusBadGateway, "HTTP 401"},
+		{"card child pr", "subject=board--abcd0000&block=pr1&repo=yasyf/cc-present&number=8", nil, http.StatusOK, `"title":"Bump"`},
+		{"unknown subject", "subject=nope&block=pr1&repo=yasyf/cc-present&number=8", nil, http.StatusNotFound, "unknown subject"},
+		{"unknown block", "subject=board--abcd0000&block=zz&repo=yasyf/cc-present&number=8", nil, http.StatusNotFound, "no pr block zz"},
+		{"non-pr block", "subject=board--abcd0000&block=m1&repo=yasyf/cc-present&number=8", nil, http.StatusNotFound, "no pr block m1"},
+		{"another repo", "subject=board--abcd0000&block=pr1&repo=evil/repo&number=8", nil, http.StatusNotFound, "no pr block pr1 for evil/repo#8"},
+		{"another number", "subject=board--abcd0000&block=pr1&repo=yasyf/cc-present&number=9", nil, http.StatusNotFound, "no pr block pr1"},
+		{"gh failure", "subject=board--abcd0000&block=pr1&repo=yasyf/cc-present&number=8", errors.New("gh api graphql: exit status 1: HTTP 401"), http.StatusBadGateway, "HTTP 401"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -69,15 +71,22 @@ func TestFindPRBlockReadsFrozenRounds(t *testing.T) {
 		t.Fatal(err)
 	}
 	st := state.State{Doc: &d}
-	if b := findPRBlock(&st, "pr1"); b == nil || b.Number != 8 {
+	if b := findPRBlock(&st, "pr1", "yasyf/cc-present", 8); b == nil || b.Number != 8 {
 		t.Fatalf("live pr block = %+v", b)
 	}
+	var redrafted doc.Doc
+	if err := json.Unmarshal([]byte(strings.Replace(prDoc, `"number":8`, `"number":9`, 1)), &redrafted); err != nil {
+		t.Fatal(err)
+	}
 	st = state.State{
-		Doc:    &doc.Doc{Version: 1, Blocks: []doc.Block{}},
+		Doc:    &redrafted,
 		Rounds: state.Rounds{History: []state.RoundRecord{{Number: 1, Blocks: d.Blocks}}},
 	}
-	if b := findPRBlock(&st, "pr1"); b == nil || b.Number != 8 {
+	if b := findPRBlock(&st, "pr1", "yasyf/cc-present", 8); b == nil || b.Number != 8 {
 		t.Fatalf("frozen pr block = %+v", b)
+	}
+	if b := findPRBlock(&st, "pr1", "yasyf/cc-present", 9); b == nil || b.Number != 9 {
+		t.Fatalf("redrafted pr block = %+v", b)
 	}
 }
 
@@ -89,7 +98,7 @@ func TestPRRoute(t *testing.T) {
 	mux := http.NewServeMux()
 	h.rs.routes(mux)
 	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/pr?subject=board--abcd0000&block=pr1", nil))
+	mux.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/pr?subject=board--abcd0000&block=pr1&repo=yasyf/cc-present&number=8", nil))
 	var body prs.PR
 	if err := json.Unmarshal(w.Body.Bytes(), &body); w.Code != http.StatusOK || err != nil || body.Number != 8 {
 		t.Fatalf("code = %d body = %q err = %v", w.Code, w.Body.String(), err)
