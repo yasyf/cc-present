@@ -34,6 +34,36 @@ function flipSystemDark(next: boolean): void {
   for (const l of mqlListeners) l({ matches: next });
 }
 
+// jsdom lays nothing out and ships no ResizeObserver or native <dialog>: the frame
+// reports `frameWidth`, `resize` replays the observer, and the dialog emulates
+// showModal/close as the Lightbox suite does.
+let frameWidth = 0;
+Object.defineProperty(HTMLElement.prototype, 'clientWidth', {
+  configurable: true,
+  get() {
+    return frameWidth;
+  },
+});
+let resize: ResizeObserverCallback | null = null;
+class ResizeObserverStub {
+  constructor(callback: ResizeObserverCallback) {
+    resize = callback;
+  }
+
+  observe(): void {}
+  unobserve(): void {}
+  disconnect(): void {}
+}
+(globalThis as { ResizeObserver?: unknown }).ResizeObserver = ResizeObserverStub;
+HTMLDialogElement.prototype.showModal = function showModal(this: HTMLDialogElement) {
+  this.setAttribute('open', '');
+};
+HTMLDialogElement.prototype.close = function close(this: HTMLDialogElement) {
+  if (!this.open) return;
+  this.removeAttribute('open');
+  this.dispatchEvent(new Event('close'));
+};
+
 const mockRender = vi.mocked(renderDiagram);
 const diagram = (source: string, title?: string): Diagram => ({ id: 'd1', type: 'diagram', kind: 'mermaid', source, title });
 
@@ -42,6 +72,8 @@ let root: Root;
 
 beforeEach(() => {
   mockRender.mockReset();
+  frameWidth = 0;
+  resize = null;
   darkMatches = false;
   mqlListeners.clear();
   document.documentElement.removeAttribute('data-theme');
@@ -64,7 +96,7 @@ async function flush(): Promise<void> {
 
 describe('DiagramView', () => {
   it('injects the sanitized SVG on a successful render, dropping the source', async () => {
-    mockRender.mockResolvedValue('<svg data-mmd="1"><g></g></svg>');
+    mockRender.mockResolvedValue('<svg data-mmd="1" viewBox="0 0 200 100"><g></g></svg>');
     await act(async () => {
       root.render(<DiagramView block={diagram('graph LR\n  A --> B', 'Flow')} />);
     });
@@ -88,7 +120,7 @@ describe('DiagramView', () => {
 
   it('preserves SVG <text> labels and the label-color <style> through the sanitize pass', async () => {
     mockRender.mockResolvedValue(
-      '<svg id="mmd-1"><style>.label text{fill:rgb(31, 36, 48);}</style>' +
+      '<svg id="mmd-1" viewBox="0 0 200 100"><style>.label text{fill:rgb(31, 36, 48);}</style>' +
         '<g class="node"><rect class="basic label-container"></rect>' +
         '<g class="label"><text class="nodeLabel"><tspan class="text-inner-tspan">Client</tspan></text></g>' +
         '</g></svg>',
@@ -105,7 +137,7 @@ describe('DiagramView', () => {
 
   it('strips <foreignObject> HTML labels — why node labels must render as SVG text', async () => {
     mockRender.mockResolvedValue(
-      '<svg id="mmd-1"><g class="node"><g class="label">' +
+      '<svg id="mmd-1" viewBox="0 0 200 100"><g class="node"><g class="label">' +
         '<foreignObject><div xmlns="http://www.w3.org/1999/xhtml"><span class="nodeLabel"><p>Client</p></span></div></foreignObject>' +
         '</g></g></svg>',
     );
@@ -126,7 +158,7 @@ describe('DiagramView', () => {
     });
     expect(container.querySelector('.diagram-skeleton')).not.toBeNull();
     await act(async () => {
-      resolve('<svg></svg>');
+      resolve('<svg viewBox="0 0 200 100"></svg>');
       await Promise.resolve();
     });
     await flush();
@@ -135,7 +167,7 @@ describe('DiagramView', () => {
   });
 
   it('re-renders a mounted diagram when the data-theme attribute flips', async () => {
-    mockRender.mockResolvedValue('<svg data-mmd="1"></svg>');
+    mockRender.mockResolvedValue('<svg data-mmd="1" viewBox="0 0 200 100"></svg>');
     await act(async () => {
       root.render(<DiagramView block={diagram('graph LR\n  A --> B')} />);
     });
@@ -152,7 +184,7 @@ describe('DiagramView', () => {
   });
 
   it('re-renders on an OS dark-mode flip while in system mode', async () => {
-    mockRender.mockResolvedValue('<svg></svg>');
+    mockRender.mockResolvedValue('<svg viewBox="0 0 200 100"></svg>');
     await act(async () => {
       root.render(<DiagramView block={diagram('graph TD\n  A')} />);
     });
@@ -166,4 +198,109 @@ describe('DiagramView', () => {
     await flush();
     expect(mockRender).toHaveBeenCalledTimes(2);
   });
+
+  it('renders a narrow diagram at its natural width', async () => {
+    frameWidth = 400;
+    await renderSvg(300);
+    expect(fitVar()).toBe('300px');
+  });
+
+  it('shrinks a slightly wide diagram to the frame', async () => {
+    frameWidth = 400;
+    await renderSvg(450);
+    expect(fitVar()).toBe('400px');
+  });
+
+  it('holds a wide diagram at 0.8 scale so the frame scrolls', async () => {
+    frameWidth = 400;
+    await renderSvg(1000);
+    expect(fitVar()).toBe('800px');
+  });
+
+  it('re-fits when the frame resizes', async () => {
+    frameWidth = 400;
+    await renderSvg(1000);
+    frameWidth = 900;
+    act(() => resize?.([], {} as ResizeObserver));
+    expect(fitVar()).toBe('900px');
+  });
+
+  it('re-fits when a theme flip swaps in a new SVG', async () => {
+    frameWidth = 400;
+    mockRender.mockResolvedValueOnce(svgOf(1000)).mockResolvedValueOnce(svgOf(300));
+    await act(async () => {
+      root.render(<DiagramView block={diagram('graph LR\n  A --> B')} />);
+    });
+    await flush();
+    expect(fitVar()).toBe('800px');
+    await act(async () => {
+      document.documentElement.dataset.theme = 'dark';
+      await Promise.resolve();
+    });
+    await flush();
+    expect(fitVar()).toBe('300px');
+  });
+
+  it('renders an SVG without a viewBox unsized when it cannot be measured', async () => {
+    frameWidth = 400;
+    mockRender.mockResolvedValue('<svg width="100%"><g></g></svg>');
+    await act(async () => {
+      root.render(<DiagramView block={diagram('info')} />);
+    });
+    await flush();
+    expect(container.querySelector('.diagram-svg svg')).not.toBeNull();
+    expect(container.querySelector('.diagram-error')).toBeNull();
+    expect(fitVar()).toBe('');
+  });
+
+  it('sizes an SVG without a viewBox from its bounding box', async () => {
+    frameWidth = 400;
+    Object.defineProperty(SVGElement.prototype, 'getBBox', {
+      configurable: true,
+      value: () => ({ x: 0, y: 0, width: 300, height: 100 }),
+    });
+    try {
+      mockRender.mockResolvedValue('<svg width="100%"><g></g></svg>');
+      await act(async () => {
+        root.render(<DiagramView block={diagram('info')} />);
+      });
+      await flush();
+      expect(fitVar()).toBe('300px');
+    } finally {
+      delete (SVGElement.prototype as { getBBox?: unknown }).getBBox;
+    }
+  });
+
+  it('opens the SVG at natural size in a dialog from the Expand button', async () => {
+    frameWidth = 400;
+    await renderSvg(1000, 'Flow');
+    const dialog = container.querySelector('dialog') as HTMLDialogElement;
+    expect(dialog.open).toBe(false);
+    expect(dialog.querySelector('.diagram-expanded svg')).toBeNull();
+    const expand = container.querySelector('.diagram-expand') as HTMLButtonElement;
+    expect(expand.getAttribute('aria-haspopup')).toBe('dialog');
+    act(() => expand.click());
+    expect(dialog.open).toBe(true);
+    expect(dialog.querySelector('.diagram-expanded svg')?.getAttribute('viewBox')).toBe('0 0 1000 100');
+    expect(dialog.querySelector('.lightbox-caption')?.textContent).toBe('Flow');
+    expect(figure().style.getPropertyValue('--diagram-natural')).toBe('1000px');
+    act(() => (container.querySelector('.lightbox-close') as HTMLButtonElement).click());
+    expect(dialog.open).toBe(false);
+    expect(dialog.querySelector('.diagram-expanded svg')).toBeNull();
+  });
 });
+
+function svgOf(width: number): string {
+  return `<svg viewBox="0 0 ${width} 100"><g></g></svg>`;
+}
+
+async function renderSvg(width: number, title?: string): Promise<void> {
+  mockRender.mockResolvedValue(svgOf(width));
+  await act(async () => {
+    root.render(<DiagramView block={diagram('graph LR\n  A --> B', title)} />);
+  });
+  await flush();
+}
+
+const figure = (): HTMLElement => container.querySelector('.diagram-block') as HTMLElement;
+const fitVar = (): string => figure().style.getPropertyValue('--diagram-fit');

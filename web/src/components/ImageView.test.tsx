@@ -94,6 +94,7 @@ describe('ImageView lightbox trigger', () => {
     renderView(imageBlock('https://example.com/x.png'));
     act(() => trigger().click());
     expect(dialog().open).toBe(true);
+    expect(dialog().querySelector('.lightbox-img')?.getAttribute('src')).toBe('https://example.com/x.png');
   });
 
   it('opens the lightbox on Enter', () => {

@@ -100,6 +100,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   decision in a card. DOM focus follows the cursor for Space and Enter. On a
   closed board, `j`, `k`, and `n` still move a read-only cursor. A verdict aimed
   at an off-screen decision scrolls it into view instead.
+- Mermaid diagrams render at natural size and shrink to fit their frame only
+  down to 0.8 of that width. A wider diagram scrolls inside its frame instead
+  of widening the page, and an Expand button opens it full size in a dialog.
+  Node outlines use the strong border color. A diagram whose SVG has no
+  `viewBox` now renders instead of blanking the board.
 
 ### Removed
 

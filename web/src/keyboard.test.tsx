@@ -72,7 +72,9 @@ function render(
           round={1}
           onViewToggle={onViewToggle}
         >
-          <Lightbox open={lightboxOpen} onClose={onClose} src="/x.png" alt="pic" />
+          <Lightbox open={lightboxOpen} onClose={onClose} label="pic">
+            <img src="/x.png" alt="pic" />
+          </Lightbox>
         </KeyboardProvider>
       </PresentContext.Provider>,
     ),
