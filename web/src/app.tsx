@@ -271,7 +271,7 @@ function PresentView({ subject }: { subject: string }) {
                 mode,
                 onSetView: setView,
                 step:
-                  phase.kind === 'live' && steps.length > 0
+                  phase.kind !== 'waiting' && steps.length > 0
                     ? {
                         steps,
                         index: deckIndex < 0 ? steps.length : deckIndex,

@@ -514,6 +514,14 @@ describe('Choice card strip', () => {
     expect(options.lastElementChild?.classList.contains('option-other')).toBe(true);
   });
 
+  it('names the options group after an inline prompt in both layouts', () => {
+    render({ ...choice('c1', ['A', 'B']), prompt: 'Pick a plan' }, empty());
+    expect(container.querySelector('.choice-prompt')?.textContent).toBe('Pick a plan');
+    expect(container.querySelector('[role="radiogroup"]')?.getAttribute('aria-label')).toBe('Pick a plan');
+    render({ ...choice('c1', ['A', 'B', 'C', 'D']), prompt: 'Pick a plan' }, empty());
+    expect(container.querySelector('.strip-group')?.getAttribute('aria-label')).toBe('Pick a plan');
+  });
+
   it('reveals a clicked card, the Other card included', () => {
     render(choice('c1', ['A', 'B', 'C']), empty());
     const reveal = vi.spyOn(Element.prototype, 'scrollIntoView');

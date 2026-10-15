@@ -265,7 +265,7 @@ export function Choice({ block, interactions }: { block: ChoiceBlock; interactio
       <OptionStrip
         strip={strip}
         role={multi ? 'group' : 'radiogroup'}
-        ariaLabel={suppressPrompt ? block.prompt : undefined}
+        ariaLabel={block.prompt}
         cardCount={block.options.length}
         picked={picked}
         containerRef={optionsRef}
