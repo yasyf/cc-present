@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 
 export interface ScrollEdges {
   atStart: boolean;
@@ -10,32 +10,28 @@ export interface ScrollEdges {
  * edge-fade overflow cues; updates on scroll and resize.
  */
 export function useScrollEdges<T extends HTMLElement>(axis: 'x' | 'y' = 'x') {
-  const ref = useRef<T | null>(null);
+  const [node, setNode] = useState<T | null>(null);
   const [edges, setEdges] = useState<ScrollEdges>({ atStart: true, atEnd: true });
 
-  const measure = useCallback(() => {
-    const el = ref.current;
-    if (!el) return;
-    const pos = axis === 'x' ? el.scrollLeft : el.scrollTop;
-    const max = axis === 'x' ? el.scrollWidth - el.clientWidth : el.scrollHeight - el.clientHeight;
-    const next = { atStart: pos <= 1, atEnd: pos >= max - 1 };
-    setEdges((prev) => (prev.atStart === next.atStart && prev.atEnd === next.atEnd ? prev : next));
-  }, [axis]);
-
   useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
+    if (!node) return;
+    const measure = () => {
+      const pos = axis === 'x' ? node.scrollLeft : node.scrollTop;
+      const max = axis === 'x' ? node.scrollWidth - node.clientWidth : node.scrollHeight - node.clientHeight;
+      const next = { atStart: pos <= 1, atEnd: pos >= max - 1 };
+      setEdges((prev) => (prev.atStart === next.atStart && prev.atEnd === next.atEnd ? prev : next));
+    };
     measure();
-    el.addEventListener('scroll', measure, { passive: true });
+    node.addEventListener('scroll', measure, { passive: true });
     const ro = new ResizeObserver(measure);
-    ro.observe(el);
+    ro.observe(node);
     // A same-id content swap can change scrollWidth without resizing the box.
-    if (el.firstElementChild) ro.observe(el.firstElementChild);
+    if (node.firstElementChild) ro.observe(node.firstElementChild);
     return () => {
-      el.removeEventListener('scroll', measure);
+      node.removeEventListener('scroll', measure);
       ro.disconnect();
     };
-  }, [measure]);
+  }, [node, axis]);
 
-  return { ref, edges };
+  return { ref: setNode, edges };
 }

@@ -56,21 +56,21 @@ export function OptionStrip({
 
   const setContainer = useCallback(
     (el: HTMLDivElement | null) => {
-      edgesRef.current = el;
+      edgesRef(el);
       containerRef.current = el;
     },
     [edgesRef, containerRef],
   );
 
   const measure = useCallback(() => {
-    const el = edgesRef.current;
+    const el = containerRef.current;
     if (!el) return;
     const next = cardsInView(el);
     setShown((prev) => (prev.first === next.first && prev.last === next.last ? prev : next));
-  }, [edgesRef]);
+  }, [containerRef]);
 
   useEffect(() => {
-    const el = edgesRef.current;
+    const el = containerRef.current;
     if (!el) return;
     measure();
     el.addEventListener('scroll', measure, { passive: true });
@@ -81,23 +81,23 @@ export function OptionStrip({
       el.removeEventListener('scroll', measure);
       ro.disconnect();
     };
-  }, [edgesRef, measure, cardCount]);
+  }, [containerRef, measure, cardCount]);
 
   const scrollToCard = useCallback(
     (i: number) => {
-      const card = edgesRef.current?.children[i] as HTMLElement | undefined;
+      const card = containerRef.current?.children[i] as HTMLElement | undefined;
       card?.scrollIntoView({ inline: 'nearest', block: 'nearest', behavior: scrollBehavior() });
     },
-    [edgesRef],
+    [containerRef],
   );
 
   const nudge = useCallback(
     (dir: 1 | -1) => {
-      const el = edgesRef.current;
+      const el = containerRef.current;
       if (!el) return;
       el.scrollBy({ left: dir * cardStride(el), behavior: scrollBehavior() });
     },
-    [edgesRef],
+    [containerRef],
   );
 
   const scroller = (
