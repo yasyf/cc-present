@@ -1,7 +1,6 @@
-// The keyboard grammar as a pure function: a KeyDescriptor (a plain snapshot of a
-// keydown, DOM-free) plus whether the target is a text field and whether the
-// board is closed, folded into a KbdAction the provider dispatches. KEYMAP is the
-// same grammar in prose, driving the help overlay so the two never drift.
+// The keyboard grammar as a pure function: a DOM-free keydown snapshot and its
+// context fold into a KbdAction. KEYMAP is the same grammar in prose for the help
+// overlay, so the two never drift.
 
 export interface KeyDescriptor {
   key: string;
@@ -36,6 +35,7 @@ export interface KeymapRow {
 
 export const KEYMAP: KeymapRow[] = [
   { section: 'Navigate', keys: ['j', '↓', 'k', '↑'], context: 'Browsing', action: 'Move to the next / previous item' },
+  { section: 'Navigate', keys: ['→', '←'], context: 'In focus view', action: 'Move to the next / previous decision or step' },
   { section: 'Navigate', keys: ['n'], context: 'Browsing', action: 'Jump to the next unanswered item' },
   { section: 'Decide', keys: ['a', 'r'], context: 'On an approval or triage item', action: 'Approve / reject (press again to clear)' },
   { section: 'Decide', keys: ['c'], context: 'On an approval or triage item', action: 'Clear the verdict' },
@@ -61,26 +61,42 @@ const TOGGLE_SUPPRESSED = new Set<KbdAction['kind']>([
   'help-toggle',
 ]);
 
+function navigationKey(key: string, closed: boolean, deck: boolean): KbdAction | null {
+  const arrows = deck || !closed;
+  switch (key) {
+    case 'j':
+      return { kind: 'move', delta: 1 };
+    case 'k':
+      return { kind: 'move', delta: -1 };
+    case 'n':
+      return { kind: 'next-undecided' };
+    case 'ArrowDown':
+      return arrows ? { kind: 'move', delta: 1 } : null;
+    case 'ArrowUp':
+      return arrows ? { kind: 'move', delta: -1 } : null;
+    case 'ArrowRight':
+      return deck ? { kind: 'move', delta: 1 } : null;
+    case 'ArrowLeft':
+      return deck ? { kind: 'move', delta: -1 } : null;
+  }
+  return null;
+}
+
 // resolveKey is the raw grammar (auto-repeat ignored): Esc survives a text field,
-// `?`/`v`/`e` survive a closed board, and a field swallows the rest.
-function resolveKey(d: KeyDescriptor, typing: boolean, closed: boolean): KbdAction | null {
+// `?`/`v`/`e` and navigation survive a closed board (↓/↑ scroll it outside the
+// deck), and a field swallows the rest.
+function resolveKey(d: KeyDescriptor, typing: boolean, closed: boolean, deck: boolean): KbdAction | null {
   if (d.key === 'Escape') return { kind: 'escape' };
   if (typing) return null;
 
   if (d.key === '?') return { kind: 'help-toggle' };
   if (d.key === 'v') return { kind: 'view-toggle' };
   if (d.key === 'e') return { kind: 'expand-all' };
+  const nav = navigationKey(d.key, closed, deck);
+  if (nav) return nav;
   if (closed) return null;
 
   switch (d.key) {
-    case 'j':
-    case 'ArrowDown':
-      return { kind: 'move', delta: 1 };
-    case 'k':
-    case 'ArrowUp':
-      return { kind: 'move', delta: -1 };
-    case 'n':
-      return { kind: 'next-undecided' };
     case 'a':
       return { kind: 'verdict', verdict: 'approved' };
     case 'r':
@@ -98,12 +114,12 @@ function resolveKey(d: KeyDescriptor, typing: boolean, closed: boolean): KbdActi
 // held chord can't blow through an armed confirm), a modifier otherwise bails, and
 // one guard drops the repeat of every toggle-semantics action so a held key can't
 // oscillate a decision or overlay; movement and Esc stay repeatable.
-export function interpretKey(d: KeyDescriptor, typing: boolean, closed: boolean): KbdAction | null {
+export function interpretKey(d: KeyDescriptor, typing: boolean, closed: boolean, deck: boolean): KbdAction | null {
   if ((d.meta || d.ctrl) && d.key === 'Enter') {
     return d.repeat ? null : { kind: 'submit' };
   }
   if (d.meta || d.ctrl || d.alt) return null;
 
-  const action = resolveKey(d, typing, closed);
+  const action = resolveKey(d, typing, closed, deck);
   return action && d.repeat && TOGGLE_SUPPRESSED.has(action.kind) ? null : action;
 }

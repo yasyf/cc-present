@@ -131,6 +131,17 @@
   border-color: var(--border-strong);
   color: var(--ink);
 }
+.wizard-hint {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--graphite);
+  text-align: center;
+}
+@media (hover: none) {
+  .wizard-hint {
+    display: none;
+  }
+}
 
 /* One shared field skin — feedback textarea, input block, write-in. */
 .field {

@@ -58,6 +58,9 @@ describe('WizardFooter', () => {
     expect(dots.length).toBe(2);
     expect(container.querySelector('.focus-dot.current')).toBe(dots[0]);
     expect(buttons[1]!.textContent).toBe('Next ›');
+    expect(container.querySelector('.wizard-progress .wizard-hint')?.textContent).toBe(
+      'j/k or ←/→ move · 1–9 pick · ? shortcuts',
+    );
   });
 
   it('renders the review label and auto-advance cue on the final step', () => {

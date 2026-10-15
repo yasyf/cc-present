@@ -91,10 +91,17 @@
   box-shadow: 0 0 0 2px var(--accent-fill);
   animation: kbd-arrive var(--dur-3) var(--ease-out);
 }
-/* In focus mode the deck already frames the one live decision, so the ring is redundant there. */
-.focus-main > [data-kbd-cursor] {
+/* In focus mode the deck already frames the step, so the ring gives way to a
+   left-edge bar on the decision a card's keys target, drawn in a reserved gutter. */
+.focus-main [data-kbd-cursor] {
   box-shadow: none;
   animation: none;
+}
+.focus-main .card-body:has(> [data-kbd-cursor]) {
+  padding-left: var(--space-3);
+}
+.focus-main .card-body > [data-kbd-cursor] {
+  box-shadow: calc(-1 * var(--space-3)) 0 0 calc(3px - var(--space-3)) var(--accent-fill);
 }
 @keyframes kbd-arrive {
   0% {

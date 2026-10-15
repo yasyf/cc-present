@@ -17,6 +17,7 @@ interface Case {
   key: KeyDescriptor;
   typing: boolean;
   closed: boolean;
+  deck?: boolean;
   expected: KbdAction | null;
 }
 
@@ -62,7 +63,25 @@ const cases: Case[] = [
   { name: 'typing swallows a letter', key: key({ key: 'a' }), typing: true, closed: false, expected: null },
   { name: 'typing swallows ? as a literal', key: key({ key: '?', shift: true }), typing: true, closed: false, expected: null },
   { name: 'Escape survives typing to blur the field', key: key({ key: 'Escape' }), typing: true, closed: false, expected: { kind: 'escape' } },
-  { name: 'closed swallows navigation', key: key({ key: 'j' }), typing: false, closed: true, expected: null },
+  { name: 'closed board keeps j outside the deck', key: key({ key: 'j' }), typing: false, closed: true, expected: { kind: 'move', delta: 1 } },
+  { name: 'closed board keeps k outside the deck', key: key({ key: 'k' }), typing: false, closed: true, expected: { kind: 'move', delta: -1 } },
+  { name: 'closed board keeps next-undecided outside the deck', key: key({ key: 'n' }), typing: false, closed: true, expected: { kind: 'next-undecided' } },
+  { name: 'closed board leaves ArrowDown to scroll outside the deck', key: key({ key: 'ArrowDown' }), typing: false, closed: true, expected: null },
+  { name: 'closed board leaves ArrowUp to scroll outside the deck', key: key({ key: 'ArrowUp' }), typing: false, closed: true, expected: null },
+  { name: 'closed deck keeps ArrowDown', key: key({ key: 'ArrowDown' }), typing: false, closed: true, deck: true, expected: { kind: 'move', delta: 1 } },
+  { name: 'closed deck keeps j', key: key({ key: 'j' }), typing: false, closed: true, deck: true, expected: { kind: 'move', delta: 1 } },
+  { name: 'closed deck keeps k', key: key({ key: 'k' }), typing: false, closed: true, deck: true, expected: { kind: 'move', delta: -1 } },
+  { name: 'closed deck keeps ArrowRight', key: key({ key: 'ArrowRight' }), typing: false, closed: true, deck: true, expected: { kind: 'move', delta: 1 } },
+  { name: 'closed deck keeps next-undecided', key: key({ key: 'n' }), typing: false, closed: true, deck: true, expected: { kind: 'next-undecided' } },
+  { name: 'closed deck swallows a verdict', key: key({ key: 'a' }), typing: false, closed: true, deck: true, expected: null },
+  { name: 'closed deck swallows an option pick', key: key({ key: '2' }), typing: false, closed: true, deck: true, expected: null },
+  { name: 'closed deck swallows engage', key: key({ key: 'f' }), typing: false, closed: true, deck: true, expected: null },
+  { name: 'ArrowRight moves forward in the deck', key: key({ key: 'ArrowRight' }), typing: false, closed: false, deck: true, expected: { kind: 'move', delta: 1 } },
+  { name: 'ArrowLeft moves back in the deck', key: key({ key: 'ArrowLeft' }), typing: false, closed: false, deck: true, expected: { kind: 'move', delta: -1 } },
+  { name: 'ArrowRight is unbound outside the deck', key: key({ key: 'ArrowRight' }), typing: false, closed: false, expected: null },
+  { name: 'ArrowLeft is unbound outside the deck', key: key({ key: 'ArrowLeft' }), typing: false, closed: false, expected: null },
+  { name: 'typing swallows ArrowRight in the deck', key: key({ key: 'ArrowRight' }), typing: true, closed: false, deck: true, expected: null },
+  { name: 'held ArrowRight (repeat) still moves', key: key({ key: 'ArrowRight', repeat: true }), typing: false, closed: false, deck: true, expected: { kind: 'move', delta: 1 } },
   { name: 'closed swallows a verdict', key: key({ key: 'a' }), typing: false, closed: true, expected: null },
   { name: '? survives a closed board', key: key({ key: '?', shift: true }), typing: false, closed: true, expected: { kind: 'help-toggle' } },
   { name: 'Escape survives a closed board', key: key({ key: 'Escape' }), typing: false, closed: true, expected: { kind: 'escape' } },
@@ -73,7 +92,7 @@ const cases: Case[] = [
 describe('interpretKey', () => {
   for (const c of cases) {
     it(c.name, () => {
-      expect(interpretKey(c.key, c.typing, c.closed)).toEqual(c.expected);
+      expect(interpretKey(c.key, c.typing, c.closed, c.deck ?? false)).toEqual(c.expected);
     });
   }
 });
@@ -91,6 +110,12 @@ describe('KEYMAP', () => {
   it('documents the view toggle so the help overlay renders it', () => {
     const row = KEYMAP.find((r) => r.keys.includes('v'));
     expect(row?.action).toMatch(/view/i);
+  });
+
+  it('documents the deck arrows so the help overlay renders them', () => {
+    const row = KEYMAP.find((r) => r.keys.includes('→'));
+    expect(row?.keys).toContain('←');
+    expect(row?.context).toMatch(/focus/i);
   });
 
   it('documents the expand-all toggle so the help overlay renders it', () => {

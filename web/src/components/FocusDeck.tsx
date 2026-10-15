@@ -4,7 +4,7 @@ import { AnimatePresence, LazyMotion, MotionConfig, domMax } from 'motion/react'
 import { submitItems } from '../decide';
 import { autoAdvances, stepTitle } from '../focus';
 import type { FocusStep } from '../focus';
-import { useKeyboardApi } from '../keyboard';
+import { useCursor, useKeyboardApi } from '../keyboard';
 import { useActiveBlock } from '../activeBlock';
 import { revisionStore } from '../revision';
 import { useInteractivePackTypes } from '../packs/registry';
@@ -66,6 +66,7 @@ function decisionSignature(primary: Block, interactions: Interactions): string |
 // a lone approval or single-select choice 450ms after its decision.
 export function FocusDeck({ steps, interactions, round, closed, onEndChange }: FocusDeckProps) {
   const api = useKeyboardApi();
+  const cursor = useCursor();
   const { pin, requestCompose } = useActiveBlock();
   const packInteractive = useInteractivePackTypes();
   const deckRef = useRef<HTMLDivElement>(null);
@@ -89,10 +90,12 @@ export function FocusDeck({ steps, interactions, round, closed, onEndChange }: F
   const indexRef = useRef(index);
   const interactionsRef = useRef(interactions);
   const packRef = useRef(packInteractive);
+  const cursorRef = useRef(cursor);
   stepsRef.current = steps;
   indexRef.current = index;
   interactionsRef.current = interactions;
   packRef.current = packInteractive;
+  cursorRef.current = cursor;
 
   const go = useCallback((i: number) => {
     const list = stepsRef.current;
@@ -105,6 +108,24 @@ export function FocusDeck({ steps, interactions, round, closed, onEndChange }: F
       go(indexRef.current + delta);
     },
     [go],
+  );
+  const walk = useCallback(
+    (delta: 1 | -1) => {
+      const list = stepsRef.current;
+      const within = closed ? [] : (list[indexRef.current]?.decidables ?? []);
+      const at = cursorRef.current === null ? -1 : within.indexOf(cursorRef.current);
+      const target = at >= 0 ? within[at + delta] : undefined;
+      if (target !== undefined) {
+        api.setCursor(target);
+        api.focusDecision(target);
+        return;
+      }
+      if (delta === -1 && !closed) {
+        pendingCursorRef.current = list[indexRef.current - 1]?.decidables.at(-1) ?? null;
+      }
+      move(delta);
+    },
+    [api, closed, move],
   );
   const jump = useCallback(
     (id: string) => {
@@ -178,9 +199,9 @@ export function FocusDeck({ steps, interactions, round, closed, onEndChange }: F
   }, [wantId, currentId, index]);
 
   useEffect(() => {
-    api.registerStepNav({ move, next, jump, end });
+    api.registerStepNav({ move: walk, next, jump, end });
     return () => api.registerStepNav(null);
-  }, [api, move, next, jump, end]);
+  }, [api, walk, next, jump, end]);
 
   const primaryId = currentStep?.primary?.id ?? null;
   useEffect(() => {

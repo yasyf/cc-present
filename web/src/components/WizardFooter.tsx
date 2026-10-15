@@ -40,6 +40,7 @@ export function WizardFooter({
           packInteractive={packInteractive}
           onJump={onJump}
         />
+        <p className="wizard-hint">j/k or ←/→ move · 1–9 pick · ? shortcuts</p>
       </div>
       <Button
         variant="primary"

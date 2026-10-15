@@ -768,6 +768,64 @@ describe('FocusDeck step-change focus and announce', () => {
   });
 });
 
+describe('FocusDeck keyboard walk', () => {
+  const rollout: Card = {
+    id: 'k1',
+    type: 'card',
+    title: 'Rollout',
+    children: [approval('k1a', 'First call'), approval('k1b', 'Second call')],
+  };
+  const walkBlocks: Block[] = [approval('a0', 'Ship zero'), rollout, approval('a2', 'Ship two')];
+  const cursorText = (): string | undefined =>
+    container.querySelector('.focus-card:not([data-exiting]) [data-kbd-cursor]')?.textContent ?? undefined;
+
+  it('walks the decisions inside a step before leaving it, in both directions', () => {
+    render({ blocks: walkBlocks, interactions: empty() });
+    pressKey('j');
+    expect(cursorText()).toContain('First call');
+    pressKey('j');
+    expect(cursorText()).toContain('Second call');
+    pressKey('j');
+    expect(currentPrompt()).toBe('Ship two');
+    pressKey('k');
+    expect(cursorText()).toContain('Second call');
+    pressKey('k');
+    expect(cursorText()).toContain('First call');
+    pressKey('k');
+    expect(currentPrompt()).toBe('Ship zero');
+  });
+
+  it('moves DOM focus with the cursor inside a step so Space acts on the targeted decision', () => {
+    render({ blocks: walkBlocks, interactions: empty() });
+    pressKey('j');
+    const liveApprovals = (): HTMLElement[] => [
+      ...container.querySelectorAll<HTMLElement>('.focus-card:not([data-exiting]) .approval'),
+    ];
+    act(() => liveApprovals()[0]!.querySelector<HTMLButtonElement>('.verdict-approve')!.focus());
+    pressKey('ArrowRight');
+    expect(cursorText()).toContain('Second call');
+    expect(liveApprovals()[1]!.contains(document.activeElement)).toBe(true);
+  });
+
+  it('moves between steps on the arrow keys', () => {
+    render({ blocks: three, interactions: empty() });
+    pressKey('ArrowRight');
+    expect(currentPrompt()).toBe('Ship two');
+    pressKey('ArrowLeft');
+    expect(currentPrompt()).toBe('Ship one');
+  });
+
+  it('keeps step navigation on a closed board, skipping the decisions inside a step', () => {
+    render({ blocks: walkBlocks, interactions: empty(), closed: true });
+    pressKey('j');
+    pressKey('j');
+    expect(currentPrompt()).toBe('Ship two');
+    pressKey('k');
+    pressKey('k');
+    expect(currentPrompt()).toBe('Ship zero');
+  });
+});
+
 describe('FocusDeck closed', () => {
   it('disables the verdict controls', () => {
     render({ blocks: three, interactions: empty(), closed: true });
