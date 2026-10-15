@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- A `pr` block puts a GitHub pull request on a board. The agent writes `repo`
+  and `number`, plus an optional `title`, `summary`, and `files` globs. The
+  daemon reads the PR live through the user's `gh` at `GET /api/pr`, taking the
+  repo and number only from the document. The card shows state, including
+  `landed` for a merge queue's squash, along with CI, reviews, and labels. Each
+  changed file expands to its diff, and a refresh control refetches. A block
+  without `number` fails `push --dry-run` naming its id.
 - The human can leave a note on any block. `POST /api/interactions` accepts a
   `feedback.created` on every block in the current round, top-level or a
   card's child, where it used to take only approvals, choices, and interactive

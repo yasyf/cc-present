@@ -483,6 +483,11 @@ func TestVisualNudge(t *testing.T) {
 			want: "",
 		},
 		{
+			name: "a pr sibling satisfies a choice inside a card",
+			raw:  `{"version":1,"title":"T","blocks":[{"id":"c1","type":"card","children":[{"id":"pr1","type":"pr","repo":"a/b","number":1},{"id":"ch1","type":"choice","options":[{"id":"o1","label":"A"}]}]}]}`,
+			want: "",
+		},
+		{
 			name: "a pack block sibling satisfies a choice inside a card",
 			raw:  `{"version":1,"title":"T","blocks":[{"id":"c1","type":"card","children":[{"id":"p1","type":"plan.calls","calls":[]},{"id":"ch1","type":"choice","options":[{"id":"o1","label":"A"}]}]}]}`,
 			want: "",

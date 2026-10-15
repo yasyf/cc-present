@@ -69,6 +69,8 @@ struct BlockView: View {
             FileTreeBlockView(block: filetree, context: packContext)
         case let .record(record):
             RecordBlockView(block: record, context: packContext)
+        case let .pr(pr):
+            PRBlockView(block: pr, context: packContext)
         case let .pack(pack):
             if let packContext {
                 PackBlockWebView(block: pack, context: packContext, viewed: store.viewed)

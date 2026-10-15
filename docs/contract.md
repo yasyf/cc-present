@@ -47,6 +47,7 @@ toggle overrides it.
 | `term` | top or child | `id`, `type`, `command?`, `output`, `title?` | Terminal output panel; `output` keeps its ANSI colors. `command`, when set, renders as a prompt row above it. Also usable as an `option.visual`. |
 | `filetree` | top or child | `id`, `type`, `title?`, `entries` | Collapsible file tree. `entries[]` is `{path, badge?, note?}`; directories are implicit from path segments. Also usable as an `option.visual`. |
 | `record` | top or child | `id`, `type`, `title?`, `chips?`, `facts`, `links?` | One entity's labeled profile. `facts` is `Fact[]` (see Validation; label required here), `chips` as on `card`, `links[]` is `{label, url}`. Also usable as an `option.visual`. |
+| `pr` | top or child | `id`, `type`, `repo`, `number`, `title?`, `summary?`, `files?` | A GitHub pull request the client reads live from `GET /api/pr` (see Pull requests). `repo` is `owner/name`; `number` is a positive integer; `title` overrides the PR's own; `summary` is markdown under the heading; `files[]` holds up to **50** `path.Match` globs or directory prefixes that narrow the changed-file list. |
 | `image` | top or child | `id`, `type`, `src`, `alt`, `caption?` | `src` is `https://…`, `asset:<sha256>`, or `data:…`. |
 | `table` | top or child | `id`, `type`, `columns`, `rows` | `columns[]` is `{key, label, align?}` where `align` is `left` or `right`; `rows[]` is a `Record<string,string>` of inline-markdown cells. |
 | `progress` | top or child | `id`, `type`, `label`, `value`, `max`, `state?` | `state` is one of `active`, `done`, `error` and is agent-owned. |
@@ -582,6 +583,7 @@ a pointing error; an empty set skips id validation. The agent sends it with
 | `POST` | `/api/assets` | image bytes | Store an image content-addressed; returns its `asset:<sha256>`. Requires `Content-Type: application/octet-stream` or `image/*` (neither is CORS-simple — same CSRF hardening); a body that does not sniff as an image is rejected with 415. |
 | `GET` | `/assets/{sha}` | none | Fetch a stored asset by its sha256. |
 | `GET` | `/api/sessions` | none | List the open artifacts, most-recently-updated first (see Session listing). |
+| `GET` | `/api/pr?subject=…&block=…` | none | Read a `pr` block's live GitHub state through the daemon's `gh` (see Pull requests). |
 | `GET` | `/api/packs` | none | List the installed block packs with inlined schemas, plus the dropped candidates (see Block packs). |
 | `GET` | `/packs/{pack}/{file}` | none | Fetch a pack's bundle asset from its `dist/` subtree (see Block packs). |
 
@@ -733,6 +735,33 @@ loopback path and defeats both the token and the trust check.
 non-vacuous liveness probe: the SPA fallback answers unmatched paths with a 200
 HTML shell, so a bare status-code check proves nothing — expect the JSON body.
 Unknown `/api/*` paths return 404, never the shell.
+
+## Pull requests
+
+`GET /api/pr?subject=<subject>&block=<id>` reads the `pr` block `id` from the
+subject's reduced document, the live one or a closed round's, and fetches that
+PR with the `gh` CLI on the daemon's host under the user's existing `gh auth`.
+The daemon takes the repo and number only from the document, never from the
+request, so a client cannot aim the user's credentials at a PR of its choosing,
+and no token reaches the document or the client. An unknown subject, or an id
+that names no `pr` block, returns 404; a `gh` failure returns 502 with its stderr.
+Every request fetches fresh; the client caches a response for a minute and
+refetches on its refresh control.
+
+```ts
+PRLive = { repo, number, title, url, author,
+  state: 'open' | 'draft' | 'merged' | 'landed' | 'closed',
+  base, head, mergedSha?, additions, deletions, changedFiles,
+  checks: { state, total, passed, failed, pending, skipped, failing? },
+  reviewDecision, reviews: { author, state }[], labels: string[],
+  files: { path, previousPath?, status, additions, deletions, patch? }[],
+  fetchedAt }
+```
+
+`landed` is a closed, unmerged PR whose `(#N)` squash commit is on the default
+branch, the shape a merge queue leaves; `mergedSha` then names that commit.
+`files` holds only the paths the block's `files` globs select, and `patch` is
+absent when GitHub omits it for a binary or oversized file.
 
 ## Session listing
 

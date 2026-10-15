@@ -157,14 +157,14 @@ func visualNudge(dd *doc.Doc) string {
 }
 
 // isVisualLeadIn reports whether b is an exhibit — diagram, image, chart,
-// filetree, code, or any pack block — the block types that satisfy a choice by
-// leading it in.
+// filetree, code, pr, or any pack block — the block types that satisfy a choice
+// by leading it in.
 func isVisualLeadIn(b doc.Block) bool {
 	if _, ok := b.(*doc.PackBlock); ok {
 		return true
 	}
 	switch b.BlockType() {
-	case "diagram", "image", "chart", "filetree", "code":
+	case "diagram", "image", "chart", "filetree", "code", "pr":
 		return true
 	default:
 		return false

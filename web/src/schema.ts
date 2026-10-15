@@ -21,7 +21,8 @@ export type BuiltinBlockType =
   | 'chart'
   | 'term'
   | 'filetree'
-  | 'record';
+  | 'record'
+  | 'pr';
 
 export interface Stat {
   label: string;
@@ -315,6 +316,18 @@ export interface Record {
   links?: RecordLink[];
 }
 
+// A GitHub pull request the daemon reads live through gh: repo is owner/name,
+// title overrides the PR's own, files narrows the changed files to matching paths.
+export interface PR {
+  id: string;
+  type: 'pr';
+  repo: string;
+  number: number;
+  title?: string;
+  summary?: string;
+  files?: string[];
+}
+
 // --- Pack blocks (plugin-supplied leaves) ---
 
 // A pack block's wire type is two dot-separated segments, `<pack>.<name>`.
@@ -346,7 +359,8 @@ export type ContentBlock =
   | Chart
   | Term
   | FileTree
-  | Record;
+  | Record
+  | PR;
 
 // A card nests exactly one level of these leaf blocks; it cannot nest a section
 // or another card. Pack blocks are leaves and join the child set.

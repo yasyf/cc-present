@@ -146,6 +146,7 @@ struct DocCodableTests {
                 facts: [Block.Fact(label: "Cabin", value: "Business", tone: "good"), Block.Fact(label: "Miles", value: "70k")],
                 links: [Block.Link(label: "Book", url: "https://example.com/book")]
             )),
+            .pr(Block.PR(id: "pr", repo: "yasyf/cc-present", number: 47, title: "Builtin pr", summary: "Why.", files: ["web/src"])),
         ]
 
         for block in blocks {
@@ -233,6 +234,9 @@ struct DocCodableTests {
                 facts: [Block.Fact(label: "L", value: "v")],
                 links: [Block.Link(label: "Go", url: "https://x/y")]
             )))
+
+        #expect(try block(#"{"id":"pr","type":"pr","repo":"yasyf/cc-present","number":47}"#)
+            == .pr(Block.PR(id: "pr", repo: "yasyf/cc-present", number: 47)))
     }
 
     @Test("a grounded code block decodes its source, slice, highlight, pins, and stamp, and round-trips")

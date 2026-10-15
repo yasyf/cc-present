@@ -242,6 +242,24 @@ The block renders a `path:lines @ sha` header and a numbered gutter, tints the `
 { "id": "readme-diff", "type": "diff", "title": "README.md", "diff": "--- a/README.md\n+++ b/README.md\n@@ -1 +1 @@\n-old opener\n+new opener" }
 ```
 
+### `pr` — a GitHub pull request
+
+```json
+{ "id": "pr-46", "type": "pr", "repo": "yasyf/cc-present", "number": 46, "summary": "Bumps the interaction library this release depends on." }
+```
+
+Write only `repo` and `number`; the board reads everything else live from GitHub through the daemon's `gh`, under your existing `gh auth`. The card shows the state, title, author, base and head, line counts, the CI rollup with failing check names, review verdicts, and labels. The state is `open`, `draft`, `merged`, `closed`, or `landed`, which marks a merge queue's squash on the base branch. Each changed file expands to its syntax-highlighted diff. A refresh control refetches, and the title links to the PR.
+
+| Field | Required | Notes |
+|-------|----------|-------|
+| `repo` | yes | `owner/name`. |
+| `number` | yes | The PR number. A block without one fails `push --dry-run` with `pr "<id>": number must be a positive integer`. |
+| `title` | no | Heading text, single line; defaults to the PR's own title. |
+| `summary` | no | Markdown under the heading that says why this PR is on the board. |
+| `files` | no | Up to 50 globs or directory prefixes, such as `["internal/doc", "*.md"]`, that narrow the file list to the part worth reading. |
+
+A PR mentioned on a board is a `pr` block, never a bare number or link. It works at the top level or inside a card, so a card that decides a merge leads with its PR.
+
 ### `diagram` — text-to-diagram
 
 ```json
