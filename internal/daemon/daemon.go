@@ -111,6 +111,7 @@ func BuildServer(ctx context.Context, p paths.Paths, spec daemonkit.Daemon, runt
 	s.Register(OpRevising, handleRevising)
 	s.Register(OpClose, func(hc ccd.HandlerCtx) ccd.Reply { return handleClose(hc, ast) })
 	s.Register(OpOutcomes, handleOutcomes)
+	s.Register(OpSession, handleSession)
 	mountREST(s, ast, loader, runtimeBuild)
 	return s, nil
 }
@@ -568,6 +569,17 @@ func handleOutcomes(hc ccd.HandlerCtx) ccd.Reply {
 		return errReply(err.Error())
 	}
 	return okReply(result{State: raw})
+}
+
+func handleSession(hc ccd.HandlerCtx) ccd.Reply {
+	sub, ok, err := hc.Subjects.Store.FindBySessionScope(hc.Ctx, hc.Window.Session, hc.Scope)
+	if err != nil {
+		return errReply(err.Error())
+	}
+	if !ok {
+		return errReply(fmt.Sprintf("no cc-present artifact for session %q", hc.Window.Session))
+	}
+	return ccd.Reply{OK: true, SubjectID: sub.ID}
 }
 
 // resolveOpen finds the window's artifact and rejects a closed one, so a

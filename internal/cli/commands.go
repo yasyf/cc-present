@@ -40,6 +40,28 @@ func sessionOr(s string) string {
 	return os.Getenv("CLAUDE_CODE_SESSION_ID")
 }
 
+func requireSession(d cmd.Deps, c *cobra.Command) *cobra.Command {
+	c.PreRunE = func(c *cobra.Command, _ []string) error {
+		session, _ := c.Flags().GetString("session")
+		dryRun, _ := c.Flags().GetBool("dry-run")
+		if session == "" || dryRun {
+			return nil
+		}
+		ctx := c.Context()
+		if err := d.EnsureCurrent(ctx); err != nil {
+			return err
+		}
+		cl, err := client(ctx, d)
+		if err != nil {
+			return err
+		}
+		defer func() { _ = cl.CloseSession() }()
+		cwd, _ := c.Flags().GetString("cwd")
+		return cl.Session(ctx, session, mustCwd(cwd))
+	}
+	return c
+}
+
 // readInput reads a document/block argument from a file, or from in for "-".
 func readInput(arg string, in io.Reader) ([]byte, error) {
 	if arg == "-" {

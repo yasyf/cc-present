@@ -28,7 +28,7 @@ func NewRootCmd() *cobra.Command {
 	root.AddCommand(
 		// Substrate commands from cc-interact.
 		cmd.DaemonCmd(d),
-		cmd.WatchCmd(d),
+		requireSession(d, cmd.WatchCmd(d)),
 		cmd.StatusCmd(d),
 		cmd.StopCmd(d),
 		cmd.SessionRecordCmd(d),
@@ -42,14 +42,14 @@ func NewRootCmd() *cobra.Command {
 		// cc-present artifact commands.
 		newStartCmd(d),
 		newShowCmd(d),
-		newPushCmd(d),
-		newUpdateBlockCmd(d),
-		newRemoveBlockCmd(d),
-		newReplyCmd(d),
-		newRoundCmd(d),
-		newRevisingCmd(d),
-		newOutcomesCmd(d),
-		newCloseCmd(d),
+		requireSession(d, newPushCmd(d)),
+		requireSession(d, newUpdateBlockCmd(d)),
+		requireSession(d, newRemoveBlockCmd(d)),
+		requireSession(d, newReplyCmd(d)),
+		requireSession(d, newRoundCmd(d)),
+		requireSession(d, newRevisingCmd(d)),
+		requireSession(d, newOutcomesCmd(d)),
+		requireSession(d, newCloseCmd(d)),
 		newSessionsCmd(d),
 		newVersionCmd(),
 		// Host network access: LAN pairing and synckit mesh trust.

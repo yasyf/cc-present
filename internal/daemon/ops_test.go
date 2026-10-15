@@ -1323,6 +1323,24 @@ func TestOutcomes(t *testing.T) {
 	}
 }
 
+func TestSessionRefusesAnUnboundSessionOnTheSameWindow(t *testing.T) {
+	h := newHarness(t)
+	start := handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks, nilDisplay)
+	if !start.OK {
+		t.Fatalf("start not ok: %s", start.Error)
+	}
+	if reply := handleSession(h.hc(body{})); !reply.OK || reply.SubjectID != start.SubjectID {
+		t.Fatalf("bound session = %+v, want subject %s", reply, start.SubjectID)
+	}
+
+	unknown := h.hc(body{})
+	unknown.Env.Session, unknown.Window.Session = "s-unknown", "s-unknown"
+	reply := handleSession(unknown)
+	if reply.OK || !strings.Contains(reply.Error, `"s-unknown"`) {
+		t.Fatalf("unbound session = %+v, want an error naming s-unknown", reply)
+	}
+}
+
 func appendStored(t *testing.T, h *harness, subjectID, eventType string, payload json.RawMessage) {
 	t.Helper()
 	if _, err := h.cc.AppendEvent(context.Background(), &ccevent.Event{

@@ -105,6 +105,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- A command given `--session <id>` fails with `no cc-present artifact for
+  session "<id>"` when no artifact is bound to that id. `outcomes`, `watch`,
+  `push`, `update-block`, `remove-block`, `reply`, `round`, `revising`, and
+  `close` used to fall back to the calling window's latest artifact, so a
+  wrong or stale id silently read or wrote another board. A `--dry-run`, and
+  a command that defaults `--session` from the environment, skip the check.
 - A command no longer fails with `daemon: probe incumbent: wire: session
   capacity exhausted` when another command is probing the daemon at the same
   moment. The daemon's control lane has one slot, and the incumbent probe at
