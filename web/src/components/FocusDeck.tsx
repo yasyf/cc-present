@@ -347,6 +347,7 @@ export function FocusDeck({
             index={index}
             total={total}
             advancing={advancing}
+            closed={closed}
             onPrev={() => move(-1)}
             onNext={() => move(1)}
             steps={steps}

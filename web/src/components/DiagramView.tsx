@@ -1,8 +1,9 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
 import DOMPurify from 'dompurify';
 import type { Diagram } from '../schema';
 import { useResolvedTheme } from '../theme';
+import { useScrollEdges } from '../useScrollEdges';
 import { Lightbox } from './Lightbox';
 
 const MIN_SCALE = 0.8;
@@ -34,8 +35,18 @@ export function DiagramView({ block }: { block: Diagram }) {
   const [failed, setFailed] = useState(false);
   const [size, setSize] = useState<DiagramSize | null>(null);
   const [expanded, setExpanded] = useState(false);
-  const frame = useRef<HTMLDivElement>(null);
+  const frame = useRef<HTMLDivElement | null>(null);
+  const inline = useScrollEdges<HTMLDivElement>('x');
+  const dialog = useScrollEdges<HTMLDivElement>('x');
   const theme = useResolvedTheme();
+  const { ref: inlineEdgesRef } = inline;
+  const setFrame = useCallback(
+    (el: HTMLDivElement | null) => {
+      frame.current = el;
+      inlineEdgesRef(el);
+    },
+    [inlineEdgesRef],
+  );
 
   useEffect(() => {
     let alive = true;
@@ -80,7 +91,13 @@ export function DiagramView({ block }: { block: Diagram }) {
       {block.title ? <figcaption className="diagram-title">{block.title}</figcaption> : null}
       {svg ? (
         <>
-          <div ref={frame} className="diagram-svg" dangerouslySetInnerHTML={{ __html: svg }} />
+          <div
+            ref={setFrame}
+            className="diagram-svg"
+            data-edge-start={inline.edges.atStart || undefined}
+            data-edge-end={inline.edges.atEnd || undefined}
+            dangerouslySetInnerHTML={{ __html: svg }}
+          />
           <button
             type="button"
             className="link-btn diagram-expand"
@@ -95,7 +112,15 @@ export function DiagramView({ block }: { block: Diagram }) {
             label={block.title || 'Diagram'}
             caption={block.title}
           >
-            {expanded ? <div className="diagram-expanded" dangerouslySetInnerHTML={{ __html: svg }} /> : null}
+            {expanded ? (
+              <div
+                ref={dialog.ref}
+                className="diagram-expanded"
+                data-edge-start={dialog.edges.atStart || undefined}
+                data-edge-end={dialog.edges.atEnd || undefined}
+                dangerouslySetInnerHTML={{ __html: svg }}
+              />
+            ) : null}
           </Lightbox>
         </>
       ) : failed ? (

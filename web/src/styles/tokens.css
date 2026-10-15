@@ -91,6 +91,7 @@
   --rail-top: 0px;
   --shell-max: var(--content-width);
 
+  --section-clear: 5rem;
   --z-sticky: 1;
   --z-bar: 2;
   --z-scrim: 39;

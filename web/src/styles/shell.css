@@ -643,7 +643,10 @@
 }
 .section-group > .block-row {
   margin-top: var(--space-7);
-  scroll-margin-top: 5rem;
+  scroll-margin-top: var(--section-clear);
+}
+.section-group :is(.choice, .approval, .triage, .input-block, .draft-block, .pack-block) {
+  scroll-margin-top: var(--section-clear);
 }
 
 /* --- Submit bar (solid, 2px accent top rule, stamp readout) --- */

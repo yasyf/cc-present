@@ -15,6 +15,7 @@ import { useExpandAll } from '../expand';
 import { renderMarkdown } from '../markdown';
 import { BlockBody, BlockRenderer } from './BlockRenderer';
 import { Clamped } from './Clamped';
+import { StatusPill } from './Card';
 import { StatsBar } from './StatsBar';
 import { FocusLeadContext, FocusStageContext, FocusStepContext } from './focusStep';
 import type { FocusStageValue } from './focusStep';
@@ -347,7 +348,7 @@ export const FocusCard = forwardRef<HTMLDivElement, { step: FocusStep; interacti
         {hasMeta && (
           <div className="focus-meta">
             {eyebrow !== undefined && <span className="focus-meta-eyebrow">{eyebrow}</span>}
-            {status && <span className={`status status-${status}`}>{status}</span>}
+            {status && <StatusPill status={status} />}
             {chips && chips.length > 0 && (
               <span className="chips">
                 {chips.map((chip, i) => (

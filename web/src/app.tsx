@@ -46,6 +46,7 @@ import { SidebarPanel } from './components/SidebarPanel';
 import { CommentsSheet } from './components/CommentsSheet';
 import { MarginRail } from './components/MarginRail';
 import { useRailOpen } from './railOpen';
+import { anchorScroll } from './scrollAnchor';
 import { ThreadHostContext } from './components/threadHost';
 import { FocusLeadContext } from './components/focusStep';
 import type { FocusLeadValue } from './components/focusStep';
@@ -53,6 +54,7 @@ import type { FocusLeadValue } from './components/focusStep';
 // A dead EventSource never retries and never flips connected/caughtUp, so a
 // stuck connect gets a visible error after this long.
 const CONNECT_TIMEOUT_MS = 8000;
+const ANCHOR_MS = 3000;
 
 function subjectFromPath(): string | null {
   const match = /^\/p\/(.+)$/.exec(window.location.pathname);
@@ -314,8 +316,10 @@ function ViewEntry({ mode, steps, deckId }: { mode: ViewMode; steps: FocusStep[]
     api.setCursor(step?.primary?.id ?? null);
     if (!step) return;
     const row = document.querySelector<HTMLElement>(`.block-row[data-block-id="${CSS.escape(step.id)}"]`);
-    row?.scrollIntoView({ block: 'start' });
-    row?.focus({ preventScroll: true });
+    if (!row) return;
+    const stop = anchorScroll(row, row.closest<HTMLElement>('.board-stage')!, ANCHOR_MS);
+    row.focus({ preventScroll: true });
+    return stop;
   }, [api, mode, steps, deckId]);
   return null;
 }
