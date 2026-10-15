@@ -19,7 +19,9 @@ export function ImageView({ block }: { block: ImageBlock }) {
         <img src={src} alt={block.alt} loading="lazy" />
       </button>
       {block.caption && <figcaption className="image-caption">{block.caption}</figcaption>}
-      <Lightbox open={open} onClose={() => setOpen(false)} src={src} alt={block.alt} caption={block.caption} />
+      <Lightbox open={open} onClose={() => setOpen(false)} label={block.alt} caption={block.caption}>
+        <img className="lightbox-img" src={src} alt={block.alt} />
+      </Lightbox>
     </figure>
   );
 }

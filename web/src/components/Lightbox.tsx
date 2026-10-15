@@ -1,20 +1,21 @@
 import { useEffect, useId, useRef } from 'react';
+import type { ReactNode } from 'react';
 import { Mark } from './Mark';
 
-// Lightbox shows an image in a native modal <dialog>; the browser owns Escape,
-// the backdrop, and focus restoration. `onClose` fires via the native `close`.
+// Lightbox shows its children enlarged in a native modal <dialog>; the browser owns
+// Escape, the backdrop, and focus restoration. `onClose` fires via the native `close`.
 export function Lightbox({
   open,
   onClose,
-  src,
-  alt,
+  label,
   caption,
+  children,
 }: {
   open: boolean;
   onClose: () => void;
-  src: string;
-  alt: string;
+  label: string;
   caption?: string;
+  children: ReactNode;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   const captionId = useId();
@@ -37,7 +38,7 @@ export function Lightbox({
     <dialog
       ref={ref}
       className="lightbox"
-      aria-label={caption ? undefined : alt}
+      aria-label={caption ? undefined : label}
       aria-labelledby={caption ? captionId : undefined}
       onClick={(e) => {
         if (e.target === ref.current) ref.current.close();
@@ -47,7 +48,7 @@ export function Lightbox({
         <Mark kind="cross" />
       </button>
       <figure className="lightbox-figure">
-        <img className="lightbox-img" src={src} alt={alt} />
+        {children}
         {caption && (
           <figcaption id={captionId} className="lightbox-caption">
             {caption}

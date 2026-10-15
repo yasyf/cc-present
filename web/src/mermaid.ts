@@ -25,7 +25,7 @@ function themeVariables(): Record<string, string> {
   const color = (token: string, fallback: string) => resolveColor(probe, token, fallback);
   const surface = color('--surface', '#ffffff');
   const text = color('--text', '#1a1a1a');
-  const border = color('--border', '#cccccc');
+  const border = color('--border-strong', '#999999');
   const dim = color('--dim', '#666666');
   const accent = color('--accent', '#3b5bdb');
   const font =
@@ -63,7 +63,7 @@ function configure(mermaid: Mermaid): void {
     // Top-level, not flowchart.htmlLabels (which mermaid ignores): HTML labels emit
     // <foreignObject> that DiagramView's SVG-profile sanitize strips to empty boxes.
     htmlLabels: false,
-    flowchart: { useMaxWidth: true, padding: 12, nodeSpacing: 40, rankSpacing: 44 },
+    flowchart: { useMaxWidth: false, padding: 12, nodeSpacing: 40, rankSpacing: 44 },
   });
   themeKey = currentThemeKey();
 }

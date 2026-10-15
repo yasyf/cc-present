@@ -42,7 +42,11 @@ afterEach(() => {
 
 function render(open: boolean, onClose: () => void, caption?: string): void {
   act(() =>
-    root.render(<Lightbox open={open} onClose={onClose} src="/img.png" alt="pic" caption={caption} />),
+    root.render(
+      <Lightbox open={open} onClose={onClose} label="pic" caption={caption}>
+        <img className="lightbox-img" src="/img.png" alt="pic" />
+      </Lightbox>,
+    ),
   );
 }
 
@@ -79,7 +83,12 @@ describe('Lightbox', () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
-  it('stays open when the image itself is clicked', () => {
+  it('renders its children inside the dialog figure', () => {
+    render(true, () => {});
+    expect(dialog().querySelector('.lightbox-figure .lightbox-img')?.getAttribute('src')).toBe('/img.png');
+  });
+
+  it('stays open when the content itself is clicked', () => {
     const onClose = vi.fn();
     render(true, onClose);
     const img = container.querySelector('.lightbox-img') as HTMLElement;
@@ -88,7 +97,7 @@ describe('Lightbox', () => {
     expect(onClose).not.toHaveBeenCalled();
   });
 
-  it('names the dialog by its alt when there is no caption', () => {
+  it('names the dialog by its label when there is no caption', () => {
     render(true, () => {});
     expect(dialog().getAttribute('aria-label')).toBe('pic');
     expect(dialog().getAttribute('aria-labelledby')).toBeNull();
