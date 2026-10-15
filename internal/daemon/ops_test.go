@@ -1323,6 +1323,33 @@ func TestOutcomes(t *testing.T) {
 	}
 }
 
+func TestNamedSessionNeverFallsBackToTheWindow(t *testing.T) {
+	h := newHarness(t)
+	start := handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks, nilDisplay)
+	if !start.OK {
+		t.Fatalf("start not ok: %s", start.Error)
+	}
+	named := func(session string, b body) ccd.HandlerCtx {
+		hc := h.hc(b)
+		hc.Env.Session, hc.Env.ClaudePID = session, 0
+		hc.Window = subject.Window{Session: session}
+		return hc
+	}
+
+	if reply := handleOutcomes(named("s1", body{})); !reply.OK {
+		t.Fatalf("outcomes for the bound session: %s", reply.Error)
+	}
+	for name, reply := range map[string]ccd.Reply{
+		"outcomes": handleOutcomes(named("s-unknown", body{})),
+		"reply":    handleReply(named("s-unknown", body{BlockID: "a1", Md: "hi"})),
+		"close":    handleClose(named("s-unknown", body{}), h.assets),
+	} {
+		if reply.OK || !strings.Contains(reply.Error, `session "s-unknown"`) {
+			t.Fatalf("%s for an unbound session = %+v, want an error naming s-unknown", name, reply)
+		}
+	}
+}
+
 func appendStored(t *testing.T, h *harness, subjectID, eventType string, payload json.RawMessage) {
 	t.Helper()
 	if _, err := h.cc.AppendEvent(context.Background(), &ccevent.Event{

@@ -21,8 +21,6 @@ import (
 	"github.com/yasyf/cc-present/internal/version"
 )
 
-const noArtifact = "no cc-present artifact for this window; run `cc-present start` first"
-
 func mustCwd(cwd string) string {
 	if cwd != "" {
 		return cwd
@@ -38,6 +36,41 @@ func sessionOr(s string) string {
 		return s
 	}
 	return os.Getenv("CLAUDE_CODE_SESSION_ID")
+}
+
+func artifactWindow(d cmd.Deps, session string) (string, int) {
+	if session != "" {
+		return session, 0
+	}
+	return sessionOr(""), d.ClaudePID()
+}
+
+func requireSession(d cmd.Deps, c *cobra.Command) *cobra.Command {
+	c.PreRunE = func(c *cobra.Command, _ []string) error {
+		session, _ := c.Flags().GetString("session")
+		if session == "" {
+			return nil
+		}
+		ctx := c.Context()
+		if err := d.EnsureCurrent(ctx); err != nil {
+			return err
+		}
+		cl, err := client(ctx, d)
+		if err != nil {
+			return err
+		}
+		defer func() { _ = cl.CloseSession() }()
+		cwd, _ := c.Flags().GetString("cwd")
+		subjectID, _, err := cl.Resolve(ctx, session, mustCwd(cwd), 0)
+		if err != nil {
+			return err
+		}
+		if subjectID == "" {
+			return ccdaemon.NoArtifact(session)
+		}
+		return nil
+	}
+	return c
 }
 
 // readInput reads a document/block argument from a file, or from in for "-".
@@ -397,13 +430,14 @@ func newPushCmd(d cmd.Deps) *cobra.Command {
 				return err
 			}
 			defer func() { _ = cl.CloseSession() }()
-			sess, scope, pid := sessionOr(session), mustCwd(cwd), d.ClaudePID()
+			sess, pid := artifactWindow(d, session)
+			scope := mustCwd(cwd)
 			subjectID, port, err := cl.Resolve(ctx, sess, scope, pid)
 			if err != nil {
 				return err
 			}
 			if subjectID == "" {
-				return errors.New(noArtifact)
+				return ccdaemon.NoArtifact(sess)
 			}
 			if err := inlineImages(dd.Blocks, httpUploader(port)); err != nil {
 				return err
@@ -493,13 +527,14 @@ func newUpdateBlockCmd(d cmd.Deps) *cobra.Command {
 				return err
 			}
 			defer func() { _ = cl.CloseSession() }()
-			sess, scope, pid := sessionOr(session), mustCwd(cwd), d.ClaudePID()
+			sess, pid := artifactWindow(d, session)
+			scope := mustCwd(cwd)
 			subjectID, port, err := cl.Resolve(ctx, sess, scope, pid)
 			if err != nil {
 				return err
 			}
 			if subjectID == "" {
-				return errors.New(noArtifact)
+				return ccdaemon.NoArtifact(sess)
 			}
 			if err := inlineImages([]doc.Block{blk}, httpUploader(port)); err != nil {
 				return err
@@ -548,7 +583,8 @@ func newRemoveBlockCmd(d cmd.Deps) *cobra.Command {
 				return err
 			}
 			defer func() { _ = cl.CloseSession() }()
-			return cl.RemoveBlock(ctx, sessionOr(session), mustCwd(cwd), d.ClaudePID(), args[0])
+			sess, pid := artifactWindow(d, session)
+			return cl.RemoveBlock(ctx, sess, mustCwd(cwd), pid, args[0])
 		},
 	}
 	c.Flags().StringVar(&session, "session", "", "Claude session id (defaults to $CLAUDE_CODE_SESSION_ID)")
@@ -579,7 +615,8 @@ func newReplyCmd(d cmd.Deps) *cobra.Command {
 				return err
 			}
 			defer func() { _ = cl.CloseSession() }()
-			if err := cl.Reply(ctx, sessionOr(session), mustCwd(cwd), d.ClaudePID(), block, bodyMd); err != nil {
+			sess, pid := artifactWindow(d, session)
+			if err := cl.Reply(ctx, sess, mustCwd(cwd), pid, block, bodyMd); err != nil {
 				return err
 			}
 			_, _ = fmt.Fprintf(c.OutOrStdout(), "replied: %s\n", block)
@@ -611,7 +648,8 @@ func newRoundCmd(d cmd.Deps) *cobra.Command {
 				return err
 			}
 			defer func() { _ = cl.CloseSession() }()
-			n, err := cl.Round(ctx, sessionOr(session), mustCwd(cwd), d.ClaudePID(), title)
+			sess, pid := artifactWindow(d, session)
+			n, err := cl.Round(ctx, sess, mustCwd(cwd), pid, title)
 			if err != nil {
 				return err
 			}
@@ -649,7 +687,8 @@ func newRevisingCmd(d cmd.Deps) *cobra.Command {
 				return err
 			}
 			defer func() { _ = cl.CloseSession() }()
-			return cl.Revising(ctx, sessionOr(session), mustCwd(cwd), d.ClaudePID(), args, note)
+			sess, pid := artifactWindow(d, session)
+			return cl.Revising(ctx, sess, mustCwd(cwd), pid, args, note)
 		},
 	}
 	c.Flags().StringVar(&note, "note", "", "note shown with the revising announcement")
@@ -678,7 +717,8 @@ func newOutcomesCmd(d cmd.Deps) *cobra.Command {
 				return err
 			}
 			defer func() { _ = cl.CloseSession() }()
-			raw, err := cl.Outcomes(ctx, sessionOr(session), mustCwd(cwd), d.ClaudePID())
+			sess, pid := artifactWindow(d, session)
+			raw, err := cl.Outcomes(ctx, sess, mustCwd(cwd), pid)
 			if err != nil {
 				return err
 			}
@@ -849,7 +889,8 @@ func newCloseCmd(d cmd.Deps) *cobra.Command {
 				return err
 			}
 			defer func() { _ = cl.CloseSession() }()
-			slug, err := cl.Close(ctx, sessionOr(session), mustCwd(cwd), d.ClaudePID(), summary)
+			sess, pid := artifactWindow(d, session)
+			slug, err := cl.Close(ctx, sess, mustCwd(cwd), pid, summary)
 			if err != nil {
 				return err
 			}

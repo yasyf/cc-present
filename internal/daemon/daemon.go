@@ -6,7 +6,6 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"path/filepath"
 	"regexp"
@@ -517,12 +516,9 @@ func handleRevising(hc ccd.HandlerCtx) ccd.Reply {
 // itself has already taken effect.
 func handleClose(hc ccd.HandlerCtx, ast *assets.Store) ccd.Reply {
 	b := decodeBody(hc.Env.Body)
-	sub, ok, err := hc.Subjects.Find(hc.Ctx, hc.Window, hc.Scope)
+	sub, err := resolve(hc)
 	if err != nil {
 		return errReply(err.Error())
-	}
-	if !ok {
-		return errReply("no cc-present artifact for this window; run `cc-present start` first")
 	}
 	if sub.Status == statusClosed {
 		return errReply(fmt.Sprintf("artifact %s is already closed", sub.Slug))
@@ -548,12 +544,9 @@ func handleClose(hc ccd.HandlerCtx, ast *assets.Store) ccd.Reply {
 // handleOutcomes reduces the artifact's full event log into the document plus
 // the keyed human interactions and returns it as JSON — the post-submit drain.
 func handleOutcomes(hc ccd.HandlerCtx) ccd.Reply {
-	sub, ok, err := hc.Subjects.Find(hc.Ctx, hc.Window, hc.Scope)
+	sub, err := resolve(hc)
 	if err != nil {
 		return errReply(err.Error())
-	}
-	if !ok {
-		return errReply("no cc-present artifact for this window; run `cc-present start` first")
 	}
 	events, err := loadEvents(hc.Ctx, hc.DB, sub.ID)
 	if err != nil {
@@ -570,15 +563,30 @@ func handleOutcomes(hc ccd.HandlerCtx) ccd.Reply {
 	return okReply(result{State: raw})
 }
 
-// resolveOpen finds the window's artifact and rejects a closed one, so a
-// mutating op never appends past present.closed.
-func resolveOpen(hc ccd.HandlerCtx) (subject.Subject, error) {
+// NoArtifact is the error every artifact command returns when session resolves
+// no artifact. A named session resolves exactly, with no Claude pid on the
+// envelope, so it never falls back to the window's latest artifact.
+func NoArtifact(session string) error {
+	return fmt.Errorf("no cc-present artifact for session %q; run `cc-present start` first", session)
+}
+
+func resolve(hc ccd.HandlerCtx) (subject.Subject, error) {
 	sub, ok, err := hc.Subjects.Find(hc.Ctx, hc.Window, hc.Scope)
 	if err != nil {
 		return subject.Subject{}, err
 	}
 	if !ok {
-		return subject.Subject{}, errors.New("no cc-present artifact for this window; run `cc-present start` first")
+		return subject.Subject{}, NoArtifact(hc.Window.Session)
+	}
+	return sub, nil
+}
+
+// resolveOpen finds the window's artifact and rejects a closed one, so a
+// mutating op never appends past present.closed.
+func resolveOpen(hc ccd.HandlerCtx) (subject.Subject, error) {
+	sub, err := resolve(hc)
+	if err != nil {
+		return subject.Subject{}, err
 	}
 	if sub.Status == statusClosed {
 		return subject.Subject{}, fmt.Errorf("artifact %s is closed", sub.Slug)
