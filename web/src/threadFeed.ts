@@ -33,9 +33,13 @@ export interface NoteCopy {
 
 const FEEDBACK_COPY: NoteCopy = { add: 'Add feedback', placeholder: 'Add feedback for the agent…' };
 const NOTE_COPY: NoteCopy = { add: 'Add note', placeholder: 'Add a note for the agent…' };
+const DECISION_NOTE_COPY: NoteCopy = { ...NOTE_COPY, add: 'Note on this decision' };
+const STEP_NOTE_COPY: NoteCopy = { ...NOTE_COPY, add: 'Note on this step' };
 
-export function noteCopy(type: string): NoteCopy {
-  return type === 'approval' ? FEEDBACK_COPY : NOTE_COPY;
+export function noteCopy(type: string, step = false): NoteCopy {
+  if (type === 'approval') return FEEDBACK_COPY;
+  if (type === 'choice') return DECISION_NOTE_COPY;
+  return step ? STEP_NOTE_COPY : NOTE_COPY;
 }
 
 export function ownsThread(block: Block, packInteractive: ReadonlySet<string>): boolean {

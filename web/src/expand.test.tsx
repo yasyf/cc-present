@@ -160,4 +160,12 @@ describe('Clamped toggle keys', () => {
     document.removeEventListener('keydown', listen);
     expect(heard).toEqual(['v']);
   });
+
+  it('names the e shortcut in the toggle title', () => {
+    act(() => root.render(<Clamped html="<p>alpha</p>" lines={2} />));
+    const toggle = container.querySelector('.clamp-toggle') as HTMLElement;
+    expect(toggle.title).toBe('Show more (e expands all)');
+    act(() => toggle.click());
+    expect(toggle.title).toBe('Show less (e collapses all)');
+  });
 });

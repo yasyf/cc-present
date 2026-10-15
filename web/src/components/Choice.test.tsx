@@ -62,12 +62,12 @@ afterEach(() => {
   draftStore.reset();
 });
 
-function render(block: ChoiceBlock, interactions: Interactions): void {
-  const present: PresentApi = { post: async () => true, closed: false, currentRound: 1 };
+function render(block: ChoiceBlock, interactions: Interactions, closed = false): void {
+  const present: PresentApi = { post: async () => true, closed, currentRound: 1 };
   act(() =>
     root.render(
       <PresentContext.Provider value={present}>
-        <KeyboardProvider blocks={[block]} interactions={interactions} closed={false} round={1}>
+        <KeyboardProvider blocks={[block]} interactions={interactions} closed={closed} round={1}>
           <Choice block={block} interactions={interactions} />
         </KeyboardProvider>
       </PresentContext.Provider>,
@@ -222,6 +222,13 @@ describe('Choice keyboard index tags', () => {
     expect(tags.map((t) => t.textContent)).toEqual(['1', '2', '3']);
     // The chrome write-in card takes the next index (4) so a key lands the composer.
     expect(container.querySelector('.option-other .option-index')?.textContent).toBe('4');
+  });
+
+  it('lands digit n+1 in the write-in row under the strip', () => {
+    render(choice('c1', ['A', 'B', 'C']), empty());
+    cursorOntoChoice();
+    press('4');
+    expect(document.activeElement).toBe(otherField());
   });
 
   it('caps the index tags at the 1-9 keymap', () => {
@@ -415,17 +422,17 @@ describe('Choice per-card facts', () => {
 });
 
 describe('Choice card strip', () => {
-  it('opts the container into data-strip at three or more options, with dots and arrows', () => {
+  it('opts the container into data-strip at three or more options, sized by its card count', () => {
     render(choice('c1', ['A', 'B', 'C']), empty());
     const options = container.querySelector('.options') as HTMLElement;
     expect(options.hasAttribute('data-strip')).toBe(true);
-    // One dot per card, including the trailing Other card (3 + 1 = 4).
-    expect(container.querySelectorAll('.strip-nav .strip-dot').length).toBe(4);
-    // Prev/next arrows render as icon buttons.
-    expect(container.querySelectorAll('.strip-nav .btn-icon').length).toBe(2);
+    expect(options.style.getPropertyValue('--strip-n')).toBe('3');
+    expect(options.parentElement?.classList.contains('strip-frame')).toBe(true);
+    expect(container.querySelectorAll('.strip-nav .strip-dot').length).toBe(3);
+    expect(container.querySelectorAll('.strip-arrow').length).toBe(0);
   });
 
-  it('mirrors the scroll edges onto the strip container', () => {
+  it('mirrors the scroll edges onto the strip container and arrows only the hidden edges', () => {
     render(choice('c1', ['A', 'B', 'C']), empty());
     const options = container.querySelector('.options') as HTMLElement;
     Object.defineProperties(options, {
@@ -433,32 +440,45 @@ describe('Choice card strip', () => {
       scrollWidth: { configurable: true, value: 900 },
       scrollLeft: { configurable: true, writable: true, value: 0 },
     });
+    const arrows = () => [...container.querySelectorAll('.strip-frame > .strip-arrow')].map((a) => a.getAttribute('aria-label'));
 
     act(() => options.dispatchEvent(new Event('scroll')));
     expect(options.hasAttribute('data-edge-start')).toBe(true);
     expect(options.hasAttribute('data-edge-end')).toBe(false);
+    expect(arrows()).toEqual(['Next options']);
 
     options.scrollLeft = 300;
     act(() => options.dispatchEvent(new Event('scroll')));
     expect(options.hasAttribute('data-edge-start')).toBe(false);
     expect(options.hasAttribute('data-edge-end')).toBe(false);
+    expect(arrows()).toEqual(['Previous options', 'Next options']);
 
     options.scrollLeft = 600;
     act(() => options.dispatchEvent(new Event('scroll')));
     expect(options.hasAttribute('data-edge-start')).toBe(false);
     expect(options.hasAttribute('data-edge-end')).toBe(true);
+    expect(arrows()).toEqual(['Previous options']);
+  });
+
+  it('clamps an option description at eight lines', () => {
+    const block = choice('c1', ['A', 'B', 'C']);
+    block.options[0]!.md = 'A long description.';
+    render(block, empty());
+    const md = container.querySelector('.option-md') as HTMLElement;
+    expect(md.style.getPropertyValue('--clamp-lines')).toBe('8');
+  });
+
+  it('marks the choice closed so its locked cards keep full opacity', () => {
+    render(choice('c1', ['A', 'B', 'C']), empty(), true);
+    expect(container.querySelector('.choice')?.hasAttribute('data-closed')).toBe(true);
+    expect(container.querySelector('.option')?.getAttribute('aria-disabled')).toBe('true');
   });
 
   it('places the rail comment chip between the strip dots and arrows', () => {
     renderRail(choice('c1', ['A', 'B', 'C']), empty());
     const nav = container.querySelector('.strip-nav') as HTMLElement;
-    expect(nav.querySelector(':scope > .comment-chip-row .comment-chip')?.textContent).toContain('Add note');
-    expect([...nav.children].map((child) => child.className)).toEqual([
-      'strip-dots',
-      'comment-chip-row',
-      'btn btn-ghost btn-sm btn-icon',
-      'btn btn-ghost btn-sm btn-icon',
-    ]);
+    expect(nav.querySelector(':scope > .comment-chip-row .comment-chip')?.textContent).toContain('Note on this decision');
+    expect([...nav.children].map((child) => child.className)).toEqual(['strip-dots', 'comment-chip-row']);
     expect(container.querySelector('.choice > .comment-chip-row')).toBeNull();
   });
 
@@ -473,43 +493,54 @@ describe('Choice card strip', () => {
     renderRail(choice('c1', ['A', 'B']), empty());
     expect(container.querySelector('.strip-nav')).toBeNull();
     const row = container.querySelector('.choice > .comment-chip-row');
-    expect(row?.querySelector('.comment-chip')?.textContent).toContain('Add note');
+    expect(row?.querySelector('.comment-chip')?.textContent).toContain('Note on this decision');
     expect(row?.previousElementSibling?.classList.contains('options')).toBe(true);
   });
 
-  it('places the Other write-in as the trailing card inside the strip', () => {
+  it('places the Other write-in as a row under the strip, inside the options group', () => {
     render(choice('c1', ['A', 'B', 'C']), empty());
-    const cards = container.querySelectorAll('.options > .option');
-    expect(cards.length).toBe(4);
-    expect(cards[3]!.classList.contains('option-other')).toBe(true);
+    expect(container.querySelectorAll('.options > .option').length).toBe(3);
+    expect(container.querySelector('.options .option-other')).toBeNull();
+    const group = container.querySelector('.strip-group') as HTMLElement;
+    expect(group.getAttribute('role')).toBe('radiogroup');
+    expect(container.querySelector('.options')?.hasAttribute('role')).toBe(false);
+    expect([...group.children].map((child) => child.classList.contains('option-other'))).toEqual([false, true]);
+  });
+
+  it('keeps the Other write-in inside the vertical stack at two or fewer options', () => {
+    render(choice('c1', ['A', 'B']), empty());
+    const options = container.querySelector('.options') as HTMLElement;
+    expect(options.getAttribute('role')).toBe('radiogroup');
+    expect(options.lastElementChild?.classList.contains('option-other')).toBe(true);
   });
 
   it('reveals a clicked card, the Other card included', () => {
     render(choice('c1', ['A', 'B', 'C']), empty());
     const reveal = vi.spyOn(Element.prototype, 'scrollIntoView');
     const cards = container.querySelectorAll<HTMLElement>('.options > .option');
+    const other = container.querySelector<HTMLElement>('.option-other')!;
 
     act(() => cards[1]!.click());
     expect(reveal).toHaveBeenCalledTimes(1);
     expect(reveal.mock.contexts[0]).toBe(cards[1]);
     expect(reveal).toHaveBeenLastCalledWith({ inline: 'nearest', block: 'nearest', behavior: 'smooth' });
 
-    act(() => cards[3]!.click());
+    act(() => other.click());
     expect(reveal).toHaveBeenCalledTimes(2);
-    expect(reveal.mock.contexts[1]).toBe(cards[3]);
+    expect(reveal.mock.contexts[1]).toBe(other);
   });
 
-  it('marks the dot of each selected card, following an uncommitted write-in', () => {
+  it('marks the dot of each selected card, clearing it for an uncommitted write-in', () => {
     render(choice('c1', ['A', 'B', 'C']), { ...empty(), choices: { c1: { optionIds: ['o1'] } } });
     const pickedDots = () => [...container.querySelectorAll('.strip-dot')].map((dot) => dot.classList.contains('picked'));
-    expect(pickedDots()).toEqual([false, true, false, false]);
+    expect(pickedDots()).toEqual([false, true, false]);
     const dots = container.querySelectorAll('.strip-dot');
     expect(dots[0]!.getAttribute('aria-label')).toBe('Go to option 1');
     expect(dots[1]!.getAttribute('aria-label')).toBe('Go to option 2, selected');
     expect(container.querySelector('.strip-dot[aria-current]')).toBeNull();
 
     typeOther('roll our own');
-    expect(pickedDots()).toEqual([false, false, false, true]);
+    expect(pickedDots()).toEqual([false, false, false]);
   });
 });
 
@@ -532,10 +563,10 @@ describe('Choice universal escape hatch', () => {
     expect(posted).toEqual([{ type: 'choice.selected', blockId: 'c1', optionIds: [], other: 'roll our own' }]);
   });
 
-  it('renders an Add-note affordance whose feedback posts against the choice', () => {
+  it('renders a decision note affordance whose feedback posts against the choice', () => {
     render(choice('c1', ['A', 'B']), empty());
     const link = container.querySelector('.feedback-affordance .link-btn');
-    expect(link?.textContent).toBe('Add note');
+    expect(link?.textContent).toBe('Note on this decision');
   });
 });
 
@@ -563,18 +594,7 @@ describe('Choice write-in selection semantics', () => {
   });
 
   it('disables the Other card when the block is closed', () => {
-    const present: PresentApi = { post: async () => true, closed: true, currentRound: 1 };
-    const block = choice('c1', ['A', 'B']);
-    const interactions = empty();
-    act(() =>
-      root.render(
-        <PresentContext.Provider value={present}>
-          <KeyboardProvider blocks={[block]} interactions={interactions} closed round={1}>
-            <Choice block={block} interactions={interactions} />
-          </KeyboardProvider>
-        </PresentContext.Provider>,
-      ),
-    );
+    render(choice('c1', ['A', 'B']), empty(), true);
     const other = container.querySelector('.option-other') as HTMLElement;
     expect(other.getAttribute('aria-disabled')).toBe('true');
     expect(other.getAttribute('tabindex')).toBe('-1');

@@ -77,7 +77,7 @@ export function OptionCard({
         {option.hint && (
           <div className="option-hint" dangerouslySetInnerHTML={{ __html: renderInlineMarkdown(option.hint) }} />
         )}
-        {option.md && <Clamped html={renderInlineMarkdown(option.md)} lines={3} className="option-md prose" />}
+        {option.md && <Clamped html={renderInlineMarkdown(option.md)} lines={8} className="option-md prose" />}
       </span>
       {facts && (
         <span className="option-facts">

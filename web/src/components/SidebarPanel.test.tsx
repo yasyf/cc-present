@@ -158,7 +158,7 @@ describe('SidebarPanel empty', () => {
     expect(container.querySelector('.rail-mast-count')!.textContent).toBe('0');
     expect(container.querySelector('.rail-empty-mark svg')).not.toBeNull();
     expect(container.querySelector('.rail-empty-lead')!.textContent).toBe('No notes yet.');
-    expect(container.querySelector('.rail-empty-how')!.textContent).toContain('Add note');
+    expect(container.querySelector('.rail-empty-how')!.textContent).toContain('note chip on any block');
     expect(container.querySelector('.rail-pinned')).toBeNull();
     expect(container.querySelector('.rail-feed')).toBeNull();
   });

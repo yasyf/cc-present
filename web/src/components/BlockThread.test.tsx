@@ -58,7 +58,7 @@ function Active() {
 
 function render(
   host: ThreadHost,
-  over: { type?: string; feedback?: Feedback[]; locked?: boolean } = {},
+  over: { type?: string; feedback?: Feedback[]; locked?: boolean; step?: boolean } = {},
 ): RefObject<FeedbackHandle | null> {
   const ref = createRef<FeedbackHandle>();
   const present: PresentApi = { post: async () => true, closed: false, currentRound: 1 };
@@ -75,6 +75,7 @@ function render(
                 feedback={over.feedback ?? []}
                 replies={[]}
                 locked={over.locked ?? false}
+                step={over.step}
               />
             </ThreadHostContext.Provider>
             <Active />
@@ -96,6 +97,17 @@ describe('BlockThread inline host', () => {
     expect(chip()).toBeNull();
     render('inline', { type: 'approval' });
     expect(container.querySelector('.feedback-affordance .link-btn')!.textContent).toBe('Add feedback');
+  });
+
+  it('names the note target: a decision, or the focus step it annotates', () => {
+    render('inline', { type: 'choice' });
+    expect(container.querySelector('.feedback-affordance .link-btn')!.textContent).toBe('Note on this decision');
+    render('inline', { type: 'choice', step: true });
+    expect(container.querySelector('.feedback-affordance .link-btn')!.textContent).toBe('Note on this decision');
+    render('inline', { step: true });
+    expect(container.querySelector('.feedback-affordance .link-btn')!.textContent).toBe('Note on this step');
+    render('rail', { step: true });
+    expect(chip()!.textContent).toBe('Note on this step');
   });
 
   it('raises the inline composer on open()', () => {

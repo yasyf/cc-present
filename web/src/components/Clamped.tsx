@@ -76,6 +76,7 @@ export function Clamped({ html, children, contentKey, lines, className }: Clampe
           type="button"
           className="clamp-toggle link-btn"
           aria-expanded={expanded}
+          title={expanded ? 'Show less (e collapses all)' : 'Show more (e expands all)'}
           onClick={(e) => {
             e.stopPropagation();
             setExpanded((v) => !v);
