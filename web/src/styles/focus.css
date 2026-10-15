@@ -45,6 +45,7 @@
 }
 html:has(.doc-header[data-compact]) {
   scroll-padding-top: var(--doc-header-h, 0px);
+  overflow-x: clip;
 }
 .doc-header[data-compact] {
   position: sticky;

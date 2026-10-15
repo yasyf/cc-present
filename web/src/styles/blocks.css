@@ -1604,6 +1604,25 @@
   overflow: auto;
   max-height: 78vh;
 }
+.diagram-svg,
+.diagram-expanded {
+  --diagram-fade: 3rem;
+}
+:is(.diagram-svg, .diagram-expanded):not([data-edge-start]):not([data-edge-end]) {
+  mask-image: linear-gradient(
+    to right,
+    transparent,
+    black var(--diagram-fade),
+    black calc(100% - var(--diagram-fade)),
+    transparent
+  );
+}
+:is(.diagram-svg, .diagram-expanded):not([data-edge-start])[data-edge-end] {
+  mask-image: linear-gradient(to right, transparent, black var(--diagram-fade));
+}
+:is(.diagram-svg, .diagram-expanded)[data-edge-start]:not([data-edge-end]) {
+  mask-image: linear-gradient(to right, black calc(100% - var(--diagram-fade)), transparent);
+}
 .diagram-expanded svg {
   width: var(--diagram-natural);
 }

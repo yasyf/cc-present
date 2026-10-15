@@ -125,6 +125,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Board view entered from a late focus step holds that step in place while
+  diagrams and PR cards load above it. Keyboard moves keep a decision clear of
+  the sticky section header, a diagram wider than its frame fades at the cut
+  edge, and a departing card no longer widens a narrow page. A closed board
+  drops the "1–9 pick" hint and shows an open card as closed.
 - A command given `--session <id>` fails with `no cc-present artifact for
   session "<id>"` when no artifact is bound to that id. `outcomes`, `watch`,
   `push`, `update-block`, `remove-block`, `reply`, `round`, `revising`, and

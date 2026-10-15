@@ -29,7 +29,7 @@ afterEach(() => {
   container.remove();
 });
 
-function render(index: number, advancing = false, onPrev = vi.fn(), onNext = vi.fn(), onJump = vi.fn()) {
+function render(index: number, advancing = false, onPrev = vi.fn(), onNext = vi.fn(), onJump = vi.fn(), closed = false) {
   act(() =>
     root.render(
       <WizardFooter
@@ -37,6 +37,7 @@ function render(index: number, advancing = false, onPrev = vi.fn(), onNext = vi.
         index={index}
         total={steps.length}
         advancing={advancing}
+        closed={closed}
         interactions={interactions}
         packInteractive={packInteractive}
         onJump={onJump}
@@ -61,6 +62,11 @@ describe('WizardFooter', () => {
     expect(container.querySelector('.wizard-progress .wizard-hint')?.textContent).toBe(
       'j/k or ←/→ move · 1–9 pick · ? shortcuts',
     );
+  });
+
+  it('drops the pick hint once the board is closed', () => {
+    render(0, false, vi.fn(), vi.fn(), vi.fn(), true);
+    expect(container.querySelector('.wizard-hint')?.textContent).toBe('j/k or ←/→ move · ? shortcuts');
   });
 
   it('renders the review label and auto-advance cue on the final step', () => {

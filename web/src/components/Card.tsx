@@ -1,6 +1,7 @@
 import { useContext } from 'react';
-import type { Card as CardBlock } from '../schema';
+import type { Card as CardBlock, CardStatus } from '../schema';
 import type { Interactions } from '../events';
+import { usePresent } from '../present';
 import { renderInlineMarkdown } from '../markdown';
 import { BlockRenderer } from './BlockRenderer';
 import { FocusStepContext } from './focusStep';
@@ -14,7 +15,7 @@ export function Card({ block, interactions }: { block: CardBlock; interactions: 
       {!focus && (
         <div className="card-head">
           {block.title && <span className="card-title">{block.title}</span>}
-          {block.status && <span className={`status status-${block.status}`}>{block.status}</span>}
+          {block.status && <StatusPill status={block.status} />}
           {block.chips && block.chips.length > 0 && (
             <span className="chips">
               {block.chips.map((chip, i) => (
@@ -40,4 +41,10 @@ export function Card({ block, interactions }: { block: CardBlock; interactions: 
       </div>
     </div>
   );
+}
+
+export function StatusPill({ status }: { status: CardStatus }) {
+  const { closed } = usePresent();
+  const shown = closed && status === 'open' ? 'closed' : status;
+  return <span className={`status status-${shown}`}>{shown}</span>;
 }

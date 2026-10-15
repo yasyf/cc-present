@@ -8,6 +8,7 @@ export interface WizardFooterProps {
   index: number;
   total: number;
   advancing: boolean;
+  closed: boolean;
   interactions: Interactions;
   packInteractive: ReadonlySet<string>;
   onJump: (id: string) => void;
@@ -20,6 +21,7 @@ export function WizardFooter({
   index,
   total,
   advancing,
+  closed,
   interactions,
   packInteractive,
   onJump,
@@ -40,7 +42,7 @@ export function WizardFooter({
           packInteractive={packInteractive}
           onJump={onJump}
         />
-        <p className="wizard-hint">j/k or ←/→ move · 1–9 pick · ? shortcuts</p>
+        <p className="wizard-hint">{closed ? 'j/k or ←/→ move · ? shortcuts' : 'j/k or ←/→ move · 1–9 pick · ? shortcuts'}</p>
       </div>
       <Button
         variant="primary"
