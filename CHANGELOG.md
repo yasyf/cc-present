@@ -95,6 +95,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   "The agent replied" and nothing else.
 - The submit confirm arms on every unanswered item, counts them by kind, and
   offers Go to first. It used to arm on approvals alone.
+- In focus view, the left and right arrow keys move between steps like `j` and
+  `k`, which now walk each decision in a step first, so `1` to `9` reach every
+  decision in a card. DOM focus follows the cursor for Space and Enter. On a
+  closed board, `j`, `k`, and `n` still move a read-only cursor. A verdict aimed
+  at an off-screen decision scrolls it into view instead.
 
 ### Removed
 
