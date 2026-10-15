@@ -46,6 +46,8 @@ export function contextTitle(block: Block): string {
       return block.title ?? 'Files';
     case 'record':
       return block.title ?? 'Record';
+    case 'pr':
+      return block.title ?? `${block.repo}#${block.number}`;
     default:
       return block.type;
   }

@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"math"
 	"net/url"
+	"path"
 	"regexp"
 	"strconv"
 	"strings"
@@ -36,6 +37,7 @@ const (
 	MaxRecordLinks  = 8
 	MaxTriageItems  = 50
 	MaxCodeLine     = 1_000_000
+	MaxPRFiles      = 50
 )
 
 var (
@@ -52,6 +54,7 @@ var (
 	driveLetterPrefix  = regexp.MustCompile(`^[A-Za-z]:$`)
 	lineRangePattern   = regexp.MustCompile(`^([1-9][0-9]*)(?:-([1-9][0-9]*))?$`)
 	codeShaPattern     = regexp.MustCompile(`^[0-9a-f]{7,40}(\+wt)?$`)
+	repoPattern        = regexp.MustCompile(`^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$`)
 	errEmptyBlockID    = errors.New("block id must not be empty")
 	errEmptyTitle      = errors.New("doc title must not be empty")
 )
@@ -418,6 +421,18 @@ type Record struct {
 	Chips []Chip `json:"chips,omitempty"`
 	Facts []Fact `json:"facts"`
 	Links []Link `json:"links,omitempty"`
+}
+
+// PR is a GitHub pull request the daemon renders live from gh: Repo is
+// owner/name, Title overrides the PR's own title, Summary is markdown under the
+// heading, and Files narrows the changed-file list to matching paths.
+type PR struct {
+	base
+	Repo    string   `json:"repo"`
+	Number  int      `json:"number"`
+	Title   string   `json:"title,omitempty"`
+	Summary string   `json:"summary,omitempty"`
+	Files   []string `json:"files,omitempty"`
 }
 
 // UnmarshalJSON decodes the envelope and dispatches each block by its type tag.
@@ -1309,6 +1324,27 @@ func validateRecord(r *Record) error {
 	for _, l := range r.Links {
 		if err := validateLink(l); err != nil {
 			return fmt.Errorf("record %q: %w", r.ID, err)
+		}
+	}
+	return nil
+}
+
+func validatePR(p *PR) error {
+	if !repoPattern.MatchString(p.Repo) {
+		return fmt.Errorf("pr %q: repo must be owner/name, got %q", p.ID, p.Repo)
+	}
+	if p.Number < 1 {
+		return fmt.Errorf("pr %q: number must be a positive integer", p.ID)
+	}
+	if isMultiline(p.Title) {
+		return fmt.Errorf("pr %q: title must be a single line", p.ID)
+	}
+	if len(p.Files) > MaxPRFiles {
+		return fmt.Errorf("pr %q: %d files patterns exceeds %d", p.ID, len(p.Files), MaxPRFiles)
+	}
+	for _, f := range p.Files {
+		if _, err := path.Match(f, ""); f == "" || err != nil {
+			return fmt.Errorf("pr %q: files pattern %q is not a valid glob", p.ID, f)
 		}
 	}
 	return nil

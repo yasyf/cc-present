@@ -87,6 +87,7 @@ public enum Block: Codable, Equatable, Sendable {
     case term(Term)
     case filetree(FileTree)
     case record(Record)
+    case pr(PR)
     case pack(Pack)
 
     /// Section is a top-level header marker with optional prose.
@@ -587,6 +588,26 @@ public enum Block: Codable, Equatable, Sendable {
         }
     }
 
+    /// PR is a GitHub pull request the daemon reads live through gh; `repo` is
+    /// owner/name, `title` overrides the PR's own, `files` narrows its changed files.
+    public struct PR: Codable, Equatable, Sendable {
+        public var id: String
+        public var repo: String
+        public var number: Int
+        public var title: String?
+        public var summary: String?
+        public var files: [String]?
+
+        public init(id: String, repo: String, number: Int, title: String? = nil, summary: String? = nil, files: [String]? = nil) {
+            self.id = id
+            self.repo = repo
+            self.number = number
+            self.title = title
+            self.summary = summary
+            self.files = files
+        }
+    }
+
     /// Pack is a plugin-supplied block whose type carries a `<pack>.<name>`
     /// namespace. The client does not model its fields; `raw` holds the entire
     /// block object (id and type included) verbatim so a pack-supplied renderer
@@ -624,6 +645,7 @@ public enum Block: Codable, Equatable, Sendable {
         case let .term(block): block.id
         case let .filetree(block): block.id
         case let .record(block): block.id
+        case let .pr(block): block.id
         case let .pack(block): block.id
         }
     }
@@ -649,6 +671,7 @@ public enum Block: Codable, Equatable, Sendable {
         case .term: "term"
         case .filetree: "filetree"
         case .record: "record"
+        case .pr: "pr"
         case let .pack(block): block.packType
         }
     }
@@ -680,6 +703,7 @@ public enum Block: Codable, Equatable, Sendable {
         case "term": self = try .term(Term(from: decoder))
         case "filetree": self = try .filetree(FileTree(from: decoder))
         case "record": self = try .record(Record(from: decoder))
+        case "pr": self = try .pr(PR(from: decoder))
         default:
             if type.contains(".") {
                 let id = try container.decode(String.self, forKey: .id)
@@ -724,6 +748,7 @@ public enum Block: Codable, Equatable, Sendable {
         case let .term(block): try block.encode(to: encoder)
         case let .filetree(block): try block.encode(to: encoder)
         case let .record(block): try block.encode(to: encoder)
+        case let .pr(block): try block.encode(to: encoder)
         case .pack: break
         }
     }

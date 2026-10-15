@@ -48,6 +48,7 @@ type restServer struct {
 	resolve func(ctx context.Context, ref string) (string, bool, error)
 	assets  *assets.Store
 	packs   *packs.Loader
+	fetchPR prFetcher
 	static  http.Handler
 	version string
 }
@@ -97,6 +98,7 @@ func mountREST(s *ccd.Server, ast *assets.Store, loader *packs.Loader, version s
 		resolve: s.ResolveSubject,
 		assets:  ast,
 		packs:   loader,
+		fetchPR: ghPRFetcher,
 		static:  sse.StaticHandler(web.Dist()),
 		version: version,
 	}
@@ -112,6 +114,7 @@ func (rs *restServer) routes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/interactions", rs.handleInteractions)
 	mux.HandleFunc("POST /api/assets", rs.handlePutAsset)
 	mux.HandleFunc("GET /api/packs", rs.handlePacks)
+	mux.HandleFunc("GET /api/pr", rs.handlePR)
 	mux.HandleFunc("GET /packs/{pack}/{file...}", rs.handlePackFile)
 	mux.HandleFunc("GET /assets/{sha}", rs.handleGetAsset)
 	mux.HandleFunc("/api/", rs.handleAPINotFound)

@@ -19,6 +19,8 @@ import (
 	"sync"
 	"syscall"
 	"time"
+
+	"github.com/yasyf/cc-present/internal/toolpath"
 )
 
 const (
@@ -319,33 +321,12 @@ func logTail(log string, n int) string {
 	return strings.Join(lines, "\n")
 }
 
-// A daemon launched outside a login shell lacks mise's shims on PATH.
 func findBun() (string, error) {
-	if p, err := exec.LookPath("bun"); err == nil {
-		return p, nil
+	bun, err := toolpath.Find("bun")
+	if err != nil {
+		return "", fmt.Errorf("build needs bun: %w", err)
 	}
-	dirs := miseShimDirs()
-	for _, d := range dirs {
-		p := filepath.Join(d, "bun")
-		if info, err := os.Stat(p); err == nil && !info.IsDir() && info.Mode()&0o111 != 0 {
-			return p, nil
-		}
-	}
-	return "", fmt.Errorf("build needs bun: not found on PATH or in mise shims (%s)", strings.Join(dirs, ", "))
-}
-
-func miseShimDirs() []string {
-	var dirs []string
-	if d := os.Getenv("MISE_DATA_DIR"); d != "" {
-		dirs = append(dirs, filepath.Join(d, "shims"))
-	}
-	if d := os.Getenv("XDG_DATA_HOME"); d != "" {
-		dirs = append(dirs, filepath.Join(d, "mise", "shims"))
-	}
-	if home, err := os.UserHomeDir(); err == nil {
-		dirs = append(dirs, filepath.Join(home, ".local", "share", "mise", "shims"))
-	}
-	return dirs
+	return bun, nil
 }
 
 // The lock lives outside the pack so the build emptying dist/ cannot unlink it.

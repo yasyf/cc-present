@@ -100,6 +100,10 @@ func init() {
 			decode:   decodeLeaf[Record],
 			validate: func(b Block) error { return validateRecord(b.(*Record)) },
 		},
+		"pr": {
+			decode:   decodeLeaf[PR],
+			validate: func(b Block) error { return validatePR(b.(*PR)) },
+		},
 	}
 }
 
