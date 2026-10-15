@@ -52,7 +52,7 @@ export interface KeyboardApi {
   registerEscape: (fn: (() => boolean) | null) => void;
   registerStepNav: (nav: StepNav | null) => void;
   setCursor: (id: string | null) => void;
-  reveal: (id: string) => void;
+  focusDecision: (id: string) => void;
   jumpTo: (id: string) => void;
   jumpNextUndecided: () => void;
   announce: (msg: string) => void;
@@ -103,6 +103,9 @@ export function useDecidable(id: string, spec: DecidableSpec): {
 
   return { ref, cursor: navigable && cursorId === id };
 }
+
+export const FOCUSABLE =
+  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 function isTypingTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
@@ -230,7 +233,15 @@ export function KeyboardProvider({ blocks, interactions, closed, round, onViewTo
     },
     [registry],
   );
-  const reveal = useCallback((id: string) => scrollToId(id, 'nearest'), [scrollToId]);
+  const focusDecision = useCallback(
+    (id: string) => {
+      scrollToId(id, 'nearest');
+      const control = registry.get(id)?.elRef.current?.querySelector<HTMLElement>(FOCUSABLE);
+      if (control) control.focus({ preventScroll: true });
+      else if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+    },
+    [registry, scrollToId],
+  );
   // Focus mode registers a StepNav: a jump then targets the step owning the id
   // (its anchor or any nested decidable) via setStep, never a scroll or a registry
   // lookup against the unmounted off-step blocks.
@@ -420,7 +431,7 @@ export function KeyboardProvider({ blocks, interactions, closed, round, onViewTo
       registerEscape,
       registerStepNav,
       setCursor,
-      reveal,
+      focusDecision,
       jumpTo,
       jumpNextUndecided,
       announce,
@@ -433,7 +444,7 @@ export function KeyboardProvider({ blocks, interactions, closed, round, onViewTo
       registerEscape,
       registerStepNav,
       setCursor,
-      reveal,
+      focusDecision,
       jumpTo,
       jumpNextUndecided,
       announce,

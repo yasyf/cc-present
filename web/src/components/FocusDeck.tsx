@@ -117,7 +117,7 @@ export function FocusDeck({ steps, interactions, round, closed, onEndChange }: F
       const target = at >= 0 ? within[at + delta] : undefined;
       if (target !== undefined) {
         api.setCursor(target);
-        api.reveal(target);
+        api.focusDecision(target);
         return;
       }
       if (delta === -1 && !closed) {

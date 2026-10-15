@@ -9,15 +9,12 @@ import { useGroupReadOnly } from '@cc-interact/react';
 import type { PackBlock } from '../schema';
 import type { Interactions } from '../events';
 import { usePresent } from '../present';
-import { useDecidable } from '../keyboard';
+import { FOCUSABLE, useDecidable } from '../keyboard';
 import { usePackComponent, usePackDef, useInteractivePackTypes } from '../packs/registry';
 import type { PackBlockContext, PackDefState } from '../packs/registry';
 import { PackBlockScopeContext } from '../packs/state';
 import { BlockThread } from './BlockThread';
 import type { FeedbackHandle } from './FeedbackThread';
-
-const FOCUSABLE =
-  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 function focusFirstFocusable(root: HTMLElement | null): void {
   root?.querySelector<HTMLElement>(FOCUSABLE)?.focus();

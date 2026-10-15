@@ -795,6 +795,18 @@ describe('FocusDeck keyboard walk', () => {
     expect(currentPrompt()).toBe('Ship zero');
   });
 
+  it('moves DOM focus with the cursor inside a step so Space acts on the targeted decision', () => {
+    render({ blocks: walkBlocks, interactions: empty() });
+    pressKey('j');
+    const liveApprovals = (): HTMLElement[] => [
+      ...container.querySelectorAll<HTMLElement>('.focus-card:not([data-exiting]) .approval'),
+    ];
+    act(() => liveApprovals()[0]!.querySelector<HTMLButtonElement>('.verdict-approve')!.focus());
+    pressKey('ArrowRight');
+    expect(cursorText()).toContain('Second call');
+    expect(liveApprovals()[1]!.contains(document.activeElement)).toBe(true);
+  });
+
   it('moves between steps on the arrow keys', () => {
     render({ blocks: three, interactions: empty() });
     pressKey('ArrowRight');
