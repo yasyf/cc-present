@@ -35,7 +35,7 @@ function flipSystemDark(next: boolean): void {
 }
 
 // jsdom lays nothing out and ships no ResizeObserver or native <dialog>: the frame
-// reports `frameWidth`, `resize` replays the observer, and the dialog emulates
+// reports `frameWidth`, `resize` replays every observer, and the dialog emulates
 // showModal/close as the Lightbox suite does.
 let frameWidth = 0;
 Object.defineProperty(HTMLElement.prototype, 'clientWidth', {
@@ -44,10 +44,13 @@ Object.defineProperty(HTMLElement.prototype, 'clientWidth', {
     return frameWidth;
   },
 });
-let resize: ResizeObserverCallback | null = null;
+const observers = new Set<ResizeObserverCallback>();
+const resize = (entries: ResizeObserverEntry[], observer: ResizeObserver) => {
+  for (const callback of observers) callback(entries, observer);
+};
 class ResizeObserverStub {
   constructor(callback: ResizeObserverCallback) {
-    resize = callback;
+    observers.add(callback);
   }
 
   observe(): void {}
@@ -73,7 +76,7 @@ let root: Root;
 beforeEach(() => {
   mockRender.mockReset();
   frameWidth = 0;
-  resize = null;
+  observers.clear();
   darkMatches = false;
   mqlListeners.clear();
   document.documentElement.removeAttribute('data-theme');
@@ -221,7 +224,7 @@ describe('DiagramView', () => {
     frameWidth = 400;
     await renderSvg(1000);
     frameWidth = 900;
-    act(() => resize?.([], {} as ResizeObserver));
+    act(() => resize([], {} as ResizeObserver));
     expect(fitVar()).toBe('900px');
   });
 

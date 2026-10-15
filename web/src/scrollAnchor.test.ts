@@ -19,6 +19,7 @@ class ResizeObserverStub {
 let target: HTMLElement;
 let container: HTMLElement;
 let scroll: ReturnType<typeof vi.fn>;
+let stops: (() => void)[];
 
 beforeEach(() => {
   vi.useFakeTimers();
@@ -28,17 +29,19 @@ beforeEach(() => {
   container.appendChild(target);
   document.body.appendChild(container);
   scroll = vi.fn();
+  stops = [];
   target.scrollIntoView = scroll;
 });
 
 afterEach(() => {
+  for (const stop of stops) stop();
   vi.useRealTimers();
   container.remove();
 });
 
 describe('anchorScroll', () => {
   it('scrolls the target to the top, then again on each container resize', () => {
-    anchorScroll(target, container, 3000);
+    stops.push(anchorScroll(target, container, 3000));
     expect(scroll).toHaveBeenCalledWith({ block: 'start' });
     resize();
     resize();
@@ -46,13 +49,13 @@ describe('anchorScroll', () => {
   });
 
   it('lets go at the first user scroll input', () => {
-    anchorScroll(target, container, 3000);
+    stops.push(anchorScroll(target, container, 3000));
     window.dispatchEvent(new Event('wheel'));
     expect(disconnect).toHaveBeenCalledOnce();
   });
 
   it('lets go once the bound elapses', () => {
-    anchorScroll(target, container, 3000);
+    stops.push(anchorScroll(target, container, 3000));
     vi.advanceTimersByTime(2999);
     expect(disconnect).not.toHaveBeenCalled();
     vi.advanceTimersByTime(1);

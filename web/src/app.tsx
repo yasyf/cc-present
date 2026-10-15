@@ -317,8 +317,9 @@ function ViewEntry({ mode, steps, deckId }: { mode: ViewMode; steps: FocusStep[]
     if (!step) return;
     const row = document.querySelector<HTMLElement>(`.block-row[data-block-id="${CSS.escape(step.id)}"]`);
     if (!row) return;
-    anchorScroll(row, row.closest<HTMLElement>('.board-stage')!, ANCHOR_MS);
+    const stop = anchorScroll(row, row.closest<HTMLElement>('.board-stage')!, ANCHOR_MS);
     row.focus({ preventScroll: true });
+    return stop;
   }, [api, mode, steps, deckId]);
   return null;
 }
