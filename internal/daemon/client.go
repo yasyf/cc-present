@@ -154,11 +154,3 @@ func (cl *Client) Outcomes(ctx context.Context, session, scope string, pid int) 
 	_, res, err := cl.do(ctx, OpOutcomes, session, scope, pid, body{})
 	return res.State, err
 }
-
-// Session fails, naming session, unless an artifact is bound to that session id
-// itself. Unlike the artifact ops, it never falls back to the window's latest
-// artifact, so a caller that names a session cannot reach another one's board.
-func (cl *Client) Session(ctx context.Context, session, scope string) error {
-	_, _, err := cl.do(ctx, OpSession, session, scope, 0, body{})
-	return err
-}

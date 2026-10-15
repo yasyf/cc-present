@@ -109,8 +109,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   session "<id>"` when no artifact is bound to that id. `outcomes`, `watch`,
   `push`, `update-block`, `remove-block`, `reply`, `round`, `revising`, and
   `close` used to fall back to the calling window's latest artifact, so a
-  wrong or stale id silently read or wrote another board. A `--dry-run`, and
-  a command that defaults `--session` from the environment, skip the check.
+  wrong or stale id silently read or wrote another board. A command that
+  defaults `--session` from the environment still resolves this window's
+  artifact.
 - A command no longer fails with `daemon: probe incumbent: wire: session
   capacity exhausted` when another command is probing the daemon at the same
   moment. The daemon's control lane has one slot, and the incumbent probe at

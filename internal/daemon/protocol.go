@@ -22,7 +22,6 @@ const (
 	OpRevising    ccd.Op = "revising"
 	OpClose       ccd.Op = "close"
 	OpOutcomes    ccd.Op = "outcomes"
-	OpSession     ccd.Op = "session"
 )
 
 // Event types appended to a subject's log. The agent-side ops append the agent

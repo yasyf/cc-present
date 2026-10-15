@@ -1323,21 +1323,30 @@ func TestOutcomes(t *testing.T) {
 	}
 }
 
-func TestSessionRefusesAnUnboundSessionOnTheSameWindow(t *testing.T) {
+func TestNamedSessionNeverFallsBackToTheWindow(t *testing.T) {
 	h := newHarness(t)
 	start := handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks, nilDisplay)
 	if !start.OK {
 		t.Fatalf("start not ok: %s", start.Error)
 	}
-	if reply := handleSession(h.hc(body{})); !reply.OK || reply.SubjectID != start.SubjectID {
-		t.Fatalf("bound session = %+v, want subject %s", reply, start.SubjectID)
+	named := func(session string, b body) ccd.HandlerCtx {
+		hc := h.hc(b)
+		hc.Env.Session, hc.Env.ClaudePID = session, 0
+		hc.Window = subject.Window{Session: session}
+		return hc
 	}
 
-	unknown := h.hc(body{})
-	unknown.Env.Session, unknown.Window.Session = "s-unknown", "s-unknown"
-	reply := handleSession(unknown)
-	if reply.OK || !strings.Contains(reply.Error, `"s-unknown"`) {
-		t.Fatalf("unbound session = %+v, want an error naming s-unknown", reply)
+	if reply := handleOutcomes(named("s1", body{})); !reply.OK {
+		t.Fatalf("outcomes for the bound session: %s", reply.Error)
+	}
+	for name, reply := range map[string]ccd.Reply{
+		"outcomes": handleOutcomes(named("s-unknown", body{})),
+		"reply":    handleReply(named("s-unknown", body{BlockID: "a1", Md: "hi"})),
+		"close":    handleClose(named("s-unknown", body{}), h.assets),
+	} {
+		if reply.OK || !strings.Contains(reply.Error, `session "s-unknown"`) {
+			t.Fatalf("%s for an unbound session = %+v, want an error naming s-unknown", name, reply)
+		}
 	}
 }
 
