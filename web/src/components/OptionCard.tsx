@@ -5,7 +5,6 @@ import { renderInlineMarkdown } from '../markdown';
 import { Mark } from './Mark';
 import { Clamped } from './Clamped';
 import { DetailDisclosure } from './Detail';
-import type { FocusStageValue } from './focusStep';
 
 // OptionCard renders one choice option as a selectable card: keyboard index badge,
 // selection indicator, label + Recommended stamp, hint/md body, a per-card facts
@@ -18,7 +17,6 @@ export function OptionCard({
   multi,
   locked,
   showIndex,
-  stage,
   interactions,
   axes,
   onToggle,
@@ -31,7 +29,6 @@ export function OptionCard({
   multi: boolean;
   locked: boolean;
   showIndex: boolean;
-  stage: FocusStageValue | null;
   interactions: Interactions;
   axes: string[] | null;
   onToggle: () => void;
@@ -93,9 +90,7 @@ export function OptionCard({
           })}
         </span>
       )}
-      {(option.detail || (!stage && option.visual)) && (
-        <DetailDisclosure detail={option.detail} visual={stage ? undefined : option.visual} interactions={interactions} />
-      )}
+      {option.detail && <DetailDisclosure detail={option.detail} interactions={interactions} />}
     </div>
   );
 }

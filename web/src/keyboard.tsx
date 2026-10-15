@@ -56,6 +56,7 @@ export interface KeyboardApi {
   jumpTo: (id: string) => void;
   jumpNextUndecided: () => void;
   announce: (msg: string) => void;
+  openHelp: () => void;
 }
 
 const ApiContext = createContext<KeyboardApi | null>(null);
@@ -227,6 +228,7 @@ export function KeyboardProvider({ blocks, interactions, closed, round, onViewTo
   const setCursor = useCallback((id: string | null) => setCursorId(id), []);
 
   const announce = useCallback((msg: string) => setLiveMsg(msg), []);
+  const openHelp = useCallback(() => setHelpOpen(true), []);
   const scrollToId = useCallback(
     (id: string, block: ScrollLogicalPosition) => {
       registry.get(id)?.elRef.current?.scrollIntoView({ block, behavior: scrollBehavior() });
@@ -435,6 +437,7 @@ export function KeyboardProvider({ blocks, interactions, closed, round, onViewTo
       jumpTo,
       jumpNextUndecided,
       announce,
+      openHelp,
     }),
     [
       register,
@@ -448,6 +451,7 @@ export function KeyboardProvider({ blocks, interactions, closed, round, onViewTo
       jumpTo,
       jumpNextUndecided,
       announce,
+      openHelp,
     ],
   );
 

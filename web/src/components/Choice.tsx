@@ -12,6 +12,7 @@ import { Mark } from './Mark';
 import { OptionCard } from './OptionCard';
 import { OptionStrip, scrollBehavior } from './OptionStrip';
 import { BlockThread } from './BlockThread';
+import { BlockBody } from './BlockRenderer';
 import type { FeedbackHandle } from './FeedbackThread';
 import { FocusStageContext, FocusStepContext } from './focusStep';
 import { useThreadHost } from './threadHost';
@@ -155,9 +156,8 @@ export function Choice({ block, interactions }: { block: ChoiceBlock; interactio
     },
   });
 
-  // Publish the active option's visual to the stage: the pointed card, else the
-  // latest pick, else the last pointed card, else the first option. Board mode has
-  // no stage and skips this.
+  // The pointed card's visual, else the latest pick's, else the last pointed, else
+  // the first option's: published to the focus stage, or shown above the board strip.
   const activeId = pointed ?? picks.at(-1) ?? lastPointed ?? block.options[0]?.id;
   const activeVisual = block.options.find((o) => o.id === activeId)?.visual ?? null;
   useEffect(() => {
@@ -253,10 +253,19 @@ export function Choice({ block, interactions }: { block: ChoiceBlock; interactio
       data-closed={closed || undefined}
     >
       {!suppressPrompt && block.prompt && <p className="choice-prompt">{block.prompt}</p>}
+      {!stage && block.options.some((option) => option.visual) && (
+        <div className="choice-visual">
+          {activeVisual ? (
+            <BlockBody block={activeVisual} interactions={interactions} />
+          ) : (
+            <p className="focus-media-empty">No preview for this option</p>
+          )}
+        </div>
+      )}
       <OptionStrip
         strip={strip}
         role={multi ? 'group' : 'radiogroup'}
-        ariaLabel={suppressPrompt ? block.prompt : undefined}
+        ariaLabel={block.prompt}
         cardCount={block.options.length}
         picked={picked}
         containerRef={optionsRef}
@@ -272,7 +281,6 @@ export function Choice({ block, interactions }: { block: ChoiceBlock; interactio
             multi={multi}
             locked={locked}
             showIndex={!!cursor && i < 9}
-            stage={stage}
             interactions={interactions}
             axes={axes}
             onToggle={() => pick(i)}

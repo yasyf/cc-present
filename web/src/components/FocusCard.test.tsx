@@ -284,13 +284,12 @@ describe('FocusCard question-first anatomy', () => {
     expect(container.querySelector('.focus-media')).not.toBeNull();
   });
 
-  it('heads a single-decidable card with the prompt and demotes the title to the meta eyebrow', () => {
+  it('heads a titled single-decidable card with its title and keeps the prompt as the sub-question', () => {
     renderStep([card('k1', 'Transport choice', [choice('c1', 'Which transport?', ['A', 'B'])])]);
-    expect(container.querySelector('.focus-question')?.textContent).toBe('Which transport?');
-    expect(container.querySelector('.focus-meta-eyebrow')?.textContent).toBe('Transport choice');
-    // The in-body card head is hoisted out, not duplicated.
+    expect(container.querySelector('.focus-question')?.textContent).toBe('Transport choice');
+    expect(container.querySelector('.focus-meta-eyebrow')).toBeNull();
     expect(container.querySelector('.card-head')).toBeNull();
-    expect(container.querySelector('.choice-prompt')).toBeNull();
+    expect(container.querySelector('.choice-prompt')?.textContent).toBe('Which transport?');
   });
 
   it('heads a multi-decidable card with its title and keeps the child prompts inline', () => {
@@ -380,6 +379,35 @@ describe('FocusCard question-first anatomy', () => {
     } finally {
       window.matchMedia = original;
     }
+  });
+
+  it('leaves markdown carrying a table unclamped', () => {
+    renderStep([markdown('m1', '| PR | Verdict |\n| --- | --- |\n| #1 | keep |'), approval('a1', 'Ship it?')]);
+    const md = container.querySelector('.focus-context .focus-context-md')!;
+    expect(md.querySelector('table')).not.toBeNull();
+    expect(md.closest('.clamped')).toBeNull();
+  });
+
+  it('titles a table disclosure from its header row and opens a lone table context', () => {
+    const table: Block = {
+      id: 't1',
+      type: 'table',
+      columns: [
+        { key: 'pr', label: 'PR' },
+        { key: 'verdict', label: 'Verdict' },
+      ],
+      rows: [{ pr: '#1', verdict: 'keep' }],
+    };
+    renderStep([table, approval('a1', 'Ship it?')]);
+    const group = container.querySelector('.focus-context .cc-group')!;
+    expect(group.querySelector('.cc-group-header')?.textContent).toContain('PR · Verdict');
+    expect(group.classList.contains('cc-group-expanded')).toBe(true);
+  });
+
+  it('keeps a table collapsed beside other context', () => {
+    const table: Block = { id: 't1', type: 'table', columns: [{ key: 'pr', label: 'PR' }], rows: [] };
+    renderStep([markdown('m1', 'lead'), table, approval('a1', 'Ship it?')]);
+    expect(container.querySelector('.focus-context .cc-group')?.classList.contains('cc-group-expanded')).toBe(false);
   });
 
   it('demotes markdown lead-in to a clamped block and heavy blocks to titled disclosures', () => {

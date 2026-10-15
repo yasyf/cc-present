@@ -5,6 +5,7 @@ import { stepStatus, stepTitle } from '../focus';
 import { flatten } from '../decide';
 import type { ChoiceOption } from '../schema';
 import type { Interactions } from '../events';
+import { usePresent } from '../present';
 import { cardVariants } from './focusMotion';
 
 function optionLabel(options: ChoiceOption[], id: string): string {
@@ -31,6 +32,39 @@ function stepAnswer(step: FocusStep, interactions: Interactions): string | null 
   return parts.length > 0 ? parts.join(' · ') : null;
 }
 
+export interface StepReceiptProps {
+  step: FocusStep;
+  interactions: Interactions;
+  packInteractive: ReadonlySet<string>;
+  current?: boolean;
+  onSelect?: () => void;
+  onDecide?: () => void;
+}
+
+export function StepReceipt({ step, interactions, packInteractive, current, onSelect, onDecide }: StepReceiptProps) {
+  const status = stepStatus(step, interactions, packInteractive);
+  const answer = stepAnswer(step, interactions);
+  return (
+    <li className={`focus-receipt${status ? ` ${status}` : ''}`} aria-current={current || undefined}>
+      {onSelect ? (
+        <button type="button" className="focus-receipt-title focus-receipt-jump" onClick={onSelect}>
+          {stepTitle(step)}
+        </button>
+      ) : (
+        <span className="focus-receipt-title">{stepTitle(step)}</span>
+      )}
+      {status === 'undecided' && onDecide ? (
+        <button type="button" className="link-btn" onClick={onDecide}>
+          decide
+        </button>
+      ) : (
+        <span className="focus-receipt-state">{status ?? '—'}</span>
+      )}
+      {answer && <span className="focus-receipt-answer">{answer}</span>}
+    </li>
+  );
+}
+
 export interface FocusSummaryProps {
   steps: FocusStep[];
   interactions: Interactions;
@@ -38,15 +72,14 @@ export interface FocusSummaryProps {
   onJump: (id: string) => void;
 }
 
-// FocusSummary is the deck-end receipt: one row per step with its verdict, and an
-// undecided item as a jump-link back to its step. The SubmitBar stays mounted
-// below as the single submit path. It forwards the ref AnimatePresence's popLayout
-// mode injects so the outgoing summary can be measured and lifted out of flow.
+// FocusSummary is the deck-end receipt list; an undecided step links back while the
+// round is open. It forwards popLayout's ref so the outgoing summary is measured.
 export const FocusSummary = forwardRef<HTMLDivElement, FocusSummaryProps>(function FocusSummary(
   { steps, interactions, packInteractive, onJump },
   ref,
 ) {
   const present = useIsPresent();
+  const { closed } = usePresent();
   return (
     <m.div
       ref={ref}
@@ -60,23 +93,15 @@ export const FocusSummary = forwardRef<HTMLDivElement, FocusSummaryProps>(functi
     >
       <div className="focus-summary-head">Review</div>
       <ul className="focus-receipts">
-        {steps.map((step) => {
-          const status = stepStatus(step, interactions, packInteractive);
-          const answer = stepAnswer(step, interactions);
-          return (
-            <li key={step.id} className={`focus-receipt${status ? ` ${status}` : ''}`}>
-              <span className="focus-receipt-title">{stepTitle(step)}</span>
-              {status === 'undecided' ? (
-                <button type="button" className="link-btn" onClick={() => onJump(step.id)}>
-                  decide
-                </button>
-              ) : (
-                <span className="focus-receipt-state">{status ?? '—'}</span>
-              )}
-              {answer && <span className="focus-receipt-answer">{answer}</span>}
-            </li>
-          );
-        })}
+        {steps.map((step) => (
+          <StepReceipt
+            key={step.id}
+            step={step}
+            interactions={interactions}
+            packInteractive={packInteractive}
+            onDecide={closed ? undefined : () => onJump(step.id)}
+          />
+        ))}
       </ul>
     </m.div>
   );

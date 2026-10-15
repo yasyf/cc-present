@@ -6,7 +6,7 @@ import type { Root } from 'react-dom/client';
 import { PresentContext } from '../present';
 import type { PresentApi } from '../present';
 import { KeyboardProvider } from '../keyboard';
-import { BoardBlocks } from './BoardBlocks';
+import { BoardBlocks, sectionGroups } from './BoardBlocks';
 import { ThreadHostContext } from './threadHost';
 import type { ThreadHost } from './threadHost';
 import { emptyState } from '../reduce';
@@ -141,6 +141,36 @@ describe('BoardBlocks section hoisting', () => {
     expect(container.querySelector('.block-row[data-flip-key="s1"]')).toBeNull();
     // a non-section block still gets its flip-tracked row
     expect(container.querySelector('.block-row[data-flip-key="a1"]')).not.toBeNull();
+  });
+});
+
+describe('BoardBlocks section grouping', () => {
+  it('groups each section with the rows up to the next section', () => {
+    render([approval('a0'), section('s1', 'One'), approval('a1'), markdown('m1'), section('s2', 'Two'), approval('a2')], empty());
+    const groups = [...container.querySelectorAll('.section-group')];
+    expect(groups.length).toBe(2);
+    const rowIds = (group: Element) =>
+      [...group.querySelectorAll(':scope > .block-row')].map((el) => (el as HTMLElement).dataset.blockId);
+    expect(groups.map((g) => g.querySelector(':scope > .doc-section')?.textContent)).toEqual(['One', 'Two']);
+    expect(groups.map(rowIds)).toEqual([['a1', 'm1'], ['a2']]);
+    expect(row('a0').closest('.section-group')).toBeNull();
+  });
+
+  it('keeps the section description out of the sticky head', () => {
+    render([{ id: 's1', type: 'section', title: 'One', md: 'why this matters' }, approval('a1')], empty());
+    const head = container.querySelector('.doc-section')!;
+    expect(head.querySelector('.section-md')).toBeNull();
+    expect(head.nextElementSibling?.classList.contains('section-md')).toBe(true);
+  });
+});
+
+describe('sectionGroups', () => {
+  it('opens with a sectionless group and starts one group per section', () => {
+    const groups = sectionGroups([approval('a0'), section('s1', 'One'), approval('a1')]);
+    expect(groups.map((g) => [g.section?.id ?? null, g.blocks.map((b) => b.id)])).toEqual([
+      [null, ['a0']],
+      ['s1', ['a1']],
+    ]);
   });
 });
 

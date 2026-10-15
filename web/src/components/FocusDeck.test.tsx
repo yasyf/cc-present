@@ -206,7 +206,6 @@ describe('FocusDeck navigation', () => {
     render({ blocks: [approval('a1', 'Ship one')], interactions: empty() });
     clickNext();
     expect(container.querySelector('.focus-card:not([data-exiting])')).toBeNull();
-    expect(container.querySelector('.focus-step-count')?.textContent).toBe('Review');
     expect(container.querySelector('.focus-summary-head')?.textContent).toBe('Review');
     expect(container.querySelector('.focus-receipt-title')?.textContent).toBe('Ship one');
   });
@@ -286,7 +285,7 @@ describe('FocusDeck step notes', () => {
     renderRail([approval('a1', 'Ship one'), card('k1', 'Rollout', [approval('a2', 'Ship two')])], 'k1');
     expect(probe('active')).toBe('a1');
     jump();
-    expect(currentPrompt()).toBe('Ship two');
+    expect(currentPrompt()).toBe('Rollout');
     expect(probe('active')).toBe('k1');
     pressKey('k');
     expect(currentPrompt()).toBe('Ship one');

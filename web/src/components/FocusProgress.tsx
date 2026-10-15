@@ -7,13 +7,10 @@ export interface FocusProgressProps {
   index: number;
 }
 
-// FocusProgress is the deck header: the mono step counter, the tier label, an
-// optional doc-level drafting one-liner, and a polite live region that announces
-// deck growth. The tap-to-jump step-dot rail lives in WizardFooter.
+// FocusProgress is the deck header: the tier label, an optional drafting line, and a
+// polite live region announcing deck growth. The step counter lives in DocHeader.
 export function FocusProgress({ steps, index }: FocusProgressProps) {
   const total = steps.length;
-  const onSummary = index >= total;
-  const shown = Math.min(index + 1, total);
   const tier = index < total ? steps[index]!.tier : undefined;
 
   // useDrafting also subscribes this header to the revision store, so the imperative
@@ -28,10 +25,7 @@ export function FocusProgress({ steps, index }: FocusProgressProps) {
 
   return (
     <div className="focus-progress">
-      <div className="focus-progress-head">
-        <span className="focus-step-count">{onSummary ? 'Review' : `Step ${shown} / ${total}`}</span>
-        {tier && <span className="focus-step-tier">{tier}</span>}
-      </div>
+      {tier && <span className="focus-step-tier">{tier}</span>}
       {drafting && (
         <p className={`focus-drafting${drafting.passive ? ' passive' : ''}`}>
           Claude is drafting{drafting.note ? ` — ${drafting.note}` : ''}

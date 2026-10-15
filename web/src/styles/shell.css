@@ -634,6 +634,17 @@
 .section-md p {
   margin: 0;
 }
+.section-group {
+  display: flex;
+  flex-direction: column;
+}
+.section-group > .section-md {
+  margin-top: var(--space-2);
+}
+.section-group > .block-row {
+  margin-top: var(--space-7);
+  scroll-margin-top: 5rem;
+}
 
 /* --- Submit bar (solid, 2px accent top rule, stamp readout) --- */
 
@@ -1294,6 +1305,8 @@ body[data-single] .toast-stack {
     row-gap: var(--space-2);
   }
   .doc-conn {
+    flex: 0 1 auto;
+    max-width: 100%;
     flex-wrap: wrap;
     justify-content: flex-end;
   }
@@ -1363,10 +1376,7 @@ body[data-single] .toast-stack {
 }
 
 @media (max-width: 440px) {
-  /* The connection cluster is flex:none, so it holds max-content and clips the
-     theme toggle off a phone width; here it fills its own row and wraps within it. */
   .doc-conn {
     flex-basis: 100%;
   }
-
 }
