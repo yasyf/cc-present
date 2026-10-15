@@ -105,6 +105,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- A `--session` naming another window's session no longer resolves to the
+  caller's own board. `outcomes --session <unknown id>` used to exit 0 and print
+  the calling window's latest board, because every command sent its own Claude
+  pid and the daemon fell back to that window's newest artifact. The pid now
+  rides along only when `--session` is empty or equals `$CLAUDE_CODE_SESSION_ID`,
+  so another session resolves by its exact binding or fails with "no cc-present
+  artifact for this window". `start --session <other>` no longer rebinds the
+  caller's board to that session.
+
 - A command no longer fails with `daemon: probe incumbent: wire: session
   capacity exhausted` when another command is probing the daemon at the same
   moment. The daemon's control lane has one slot, and the incumbent probe at

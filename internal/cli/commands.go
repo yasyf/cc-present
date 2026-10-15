@@ -31,13 +31,17 @@ func mustCwd(cwd string) string {
 	return d
 }
 
-// sessionOr defaults an empty --session to the Claude session id the plugin sets,
-// so a subject resolves consistently across separate CLI invocations.
-func sessionOr(s string) string {
-	if s != "" {
-		return s
+// windowOf resolves the session and claude pid a command addresses. An empty
+// --session defaults to the Claude session id the plugin sets. The pid, which lets
+// the daemon fall back to the window's latest artifact after a session rotation,
+// rides along only for the caller's own session: a --session naming another
+// window resolves by its exact binding or fails, never to the caller's board.
+func windowOf(d cmd.Deps, session string) (string, int) {
+	own := os.Getenv("CLAUDE_CODE_SESSION_ID")
+	if session == "" || session == own {
+		return own, d.ClaudePID()
 	}
-	return os.Getenv("CLAUDE_CODE_SESSION_ID")
+	return session, 0
 }
 
 // readInput reads a document/block argument from a file, or from in for "-".
@@ -291,7 +295,8 @@ func newStartCmd(d cmd.Deps) *cobra.Command {
 				return err
 			}
 			defer func() { _ = cl.CloseSession() }()
-			sess, scope, pid := sessionOr(session), mustCwd(cwd), d.ClaudePID()
+			sess, pid := windowOf(d, session)
+			scope := mustCwd(cwd)
 			var docJSON json.RawMessage
 			if docPath != "" {
 				raw, err := readInput(docPath, c.InOrStdin())
@@ -397,7 +402,8 @@ func newPushCmd(d cmd.Deps) *cobra.Command {
 				return err
 			}
 			defer func() { _ = cl.CloseSession() }()
-			sess, scope, pid := sessionOr(session), mustCwd(cwd), d.ClaudePID()
+			sess, pid := windowOf(d, session)
+			scope := mustCwd(cwd)
 			subjectID, port, err := cl.Resolve(ctx, sess, scope, pid)
 			if err != nil {
 				return err
@@ -493,7 +499,8 @@ func newUpdateBlockCmd(d cmd.Deps) *cobra.Command {
 				return err
 			}
 			defer func() { _ = cl.CloseSession() }()
-			sess, scope, pid := sessionOr(session), mustCwd(cwd), d.ClaudePID()
+			sess, pid := windowOf(d, session)
+			scope := mustCwd(cwd)
 			subjectID, port, err := cl.Resolve(ctx, sess, scope, pid)
 			if err != nil {
 				return err
@@ -548,7 +555,8 @@ func newRemoveBlockCmd(d cmd.Deps) *cobra.Command {
 				return err
 			}
 			defer func() { _ = cl.CloseSession() }()
-			return cl.RemoveBlock(ctx, sessionOr(session), mustCwd(cwd), d.ClaudePID(), args[0])
+			sess, pid := windowOf(d, session)
+			return cl.RemoveBlock(ctx, sess, mustCwd(cwd), pid, args[0])
 		},
 	}
 	c.Flags().StringVar(&session, "session", "", "Claude session id (defaults to $CLAUDE_CODE_SESSION_ID)")
@@ -579,7 +587,8 @@ func newReplyCmd(d cmd.Deps) *cobra.Command {
 				return err
 			}
 			defer func() { _ = cl.CloseSession() }()
-			if err := cl.Reply(ctx, sessionOr(session), mustCwd(cwd), d.ClaudePID(), block, bodyMd); err != nil {
+			sess, pid := windowOf(d, session)
+			if err := cl.Reply(ctx, sess, mustCwd(cwd), pid, block, bodyMd); err != nil {
 				return err
 			}
 			_, _ = fmt.Fprintf(c.OutOrStdout(), "replied: %s\n", block)
@@ -611,7 +620,8 @@ func newRoundCmd(d cmd.Deps) *cobra.Command {
 				return err
 			}
 			defer func() { _ = cl.CloseSession() }()
-			n, err := cl.Round(ctx, sessionOr(session), mustCwd(cwd), d.ClaudePID(), title)
+			sess, pid := windowOf(d, session)
+			n, err := cl.Round(ctx, sess, mustCwd(cwd), pid, title)
 			if err != nil {
 				return err
 			}
@@ -649,7 +659,8 @@ func newRevisingCmd(d cmd.Deps) *cobra.Command {
 				return err
 			}
 			defer func() { _ = cl.CloseSession() }()
-			return cl.Revising(ctx, sessionOr(session), mustCwd(cwd), d.ClaudePID(), args, note)
+			sess, pid := windowOf(d, session)
+			return cl.Revising(ctx, sess, mustCwd(cwd), pid, args, note)
 		},
 	}
 	c.Flags().StringVar(&note, "note", "", "note shown with the revising announcement")
@@ -678,7 +689,8 @@ func newOutcomesCmd(d cmd.Deps) *cobra.Command {
 				return err
 			}
 			defer func() { _ = cl.CloseSession() }()
-			raw, err := cl.Outcomes(ctx, sessionOr(session), mustCwd(cwd), d.ClaudePID())
+			sess, pid := windowOf(d, session)
+			raw, err := cl.Outcomes(ctx, sess, mustCwd(cwd), pid)
 			if err != nil {
 				return err
 			}
@@ -849,7 +861,8 @@ func newCloseCmd(d cmd.Deps) *cobra.Command {
 				return err
 			}
 			defer func() { _ = cl.CloseSession() }()
-			slug, err := cl.Close(ctx, sessionOr(session), mustCwd(cwd), d.ClaudePID(), summary)
+			sess, pid := windowOf(d, session)
+			slug, err := cl.Close(ctx, sess, mustCwd(cwd), pid, summary)
 			if err != nil {
 				return err
 			}

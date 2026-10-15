@@ -42,7 +42,8 @@ func newSessionsCmd(d cmd.Deps) *cobra.Command {
 				return err
 			}
 			defer func() { _ = cl.CloseSession() }()
-			_, port, err := cl.Resolve(ctx, sessionOr(""), mustCwd(""), d.ClaudePID())
+			sess, pid := windowOf(d, "")
+			_, port, err := cl.Resolve(ctx, sess, mustCwd(""), pid)
 			if err != nil {
 				return err
 			}
