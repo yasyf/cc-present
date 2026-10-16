@@ -125,6 +125,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- The daemon no longer crashes with a nil-pointer SIGSEGV while it shuts down
+  for an upgrade. A channel's connect or disconnect could still be recording
+  its presence change after shutdown had closed the store, so the write hit a
+  nil store. The handovers at 23:47 and 23:48 on 2026-10-14 and at 00:37 on
+  2026-10-15 crashed twelve times this way. Shutdown now stops pending
+  disconnects and waits for any connect or disconnect still being recorded
+  before it closes the store. A disconnect it skips is reconciled when the
+  next daemon starts. Builds on cc-interact v0.37.2.
 - Board view entered from a late focus step holds that step in place while
   diagrams and PR cards load above it. Keyboard moves keep a decision clear of
   the sticky section header, a diagram wider than its frame fades at the cut
