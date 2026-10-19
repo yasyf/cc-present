@@ -153,12 +153,13 @@ function renderWithStage(
   block: ChoiceBlock,
   interactions: Interactions,
   setVisual: FocusStageValue['setVisual'] = () => {},
+  staged = true,
 ): void {
   const present: PresentApi = { post: async () => true, closed: false, currentRound: 1 };
   act(() =>
     root.render(
       <PresentContext.Provider value={present}>
-        <FocusStageContext.Provider value={{ setVisual }}>
+        <FocusStageContext.Provider value={{ staged, setVisual }}>
           <KeyboardProvider blocks={[block]} interactions={interactions} closed={false} round={1}>
             <Choice block={block} interactions={interactions} />
           </KeyboardProvider>
@@ -480,6 +481,20 @@ describe('Choice card strip', () => {
     expect(nav.querySelector(':scope > .comment-chip-row .comment-chip')?.textContent).toContain('Note on this decision');
     expect([...nav.children].map((child) => child.className)).toEqual(['strip-dots', 'comment-chip-row']);
     expect(container.querySelector('.choice > .comment-chip-row')).toBeNull();
+  });
+
+  it('keeps every option in the vertical stack beside a focus stage', () => {
+    renderWithStage(choice('c1', ['A', 'B', 'C', 'D']), empty());
+    const options = container.querySelector('.options') as HTMLElement;
+    expect(options.hasAttribute('data-strip')).toBe(false);
+    expect(options.querySelectorAll('.option:not(.option-other)').length).toBe(4);
+    expect(container.querySelector('.strip-nav')).toBeNull();
+    expect(container.querySelector('.strip-arrow')).toBeNull();
+  });
+
+  it('keeps the strip in a focus step without a stage', () => {
+    renderWithStage(choice('c1', ['A', 'B', 'C']), empty(), () => {}, false);
+    expect(container.querySelector('.options')?.hasAttribute('data-strip')).toBe(true);
   });
 
   it('keeps the vertical stack with no nav at two or fewer options', () => {

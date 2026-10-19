@@ -55,7 +55,9 @@ export function DocHeader({
     <header className="doc-header" ref={ref} data-compact={compact || undefined}>
       {!compact && <p className="doc-eyebrow">CC-PRESENT · ROUND {round}</p>}
       <div className="doc-header-top">
-        <h1 className="doc-title">{doc.title}</h1>
+        <h1 className="doc-title" title={compact ? doc.title : undefined}>
+          {doc.title}
+        </h1>
         {compact && step && <StepJump {...step} />}
         <span className="doc-conn">
           {peerPresent !== null && (

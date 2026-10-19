@@ -246,8 +246,8 @@ export const FocusCard = forwardRef<HTMLDivElement, { step: FocusStep; interacti
   const rejectOpacity = useTransform(x, [-130, -30], [1, 0]);
 
   const [activeVisual, setActiveVisual] = useState<OptionVisual | null>(null);
-  const stageValue = useMemo<FocusStageValue>(() => ({ setVisual: setActiveVisual }), []);
   const staged = hasStage(step.block);
+  const stageValue = useMemo<FocusStageValue>(() => ({ staged, setVisual: setActiveVisual }), [staged]);
   const [wide, setWide] = useState(false);
   const markWide = useCallback(() => setWide(true), []);
 

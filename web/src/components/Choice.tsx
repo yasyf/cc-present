@@ -18,7 +18,7 @@ import { FocusStageContext, FocusStepContext } from './focusStep';
 import { useThreadHost } from './threadHost';
 
 // At three or more options the choice renders as a scroll-snap card strip; two or
-// fewer stay the vertical stack.
+// fewer, or any choice beside a focus stage, stay the vertical stack.
 const STRIP_MIN = 3;
 
 export function Choice({ block, interactions }: { block: ChoiceBlock; interactions: Interactions }) {
@@ -36,7 +36,7 @@ export function Choice({ block, interactions }: { block: ChoiceBlock; interactio
   // The shared ordered fact labels when options declare a matching sequence; each
   // card renders its facts in this order so equal-height cards line their rows up.
   const axes = factAxes(block.options);
-  const strip = block.options.length >= STRIP_MIN;
+  const strip = !stage?.staged && block.options.length >= STRIP_MIN;
 
   const feedbackRef = useRef<FeedbackHandle>(null);
   const otherRef = useRef<HTMLTextAreaElement>(null);
