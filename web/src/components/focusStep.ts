@@ -12,6 +12,7 @@ export interface FocusStepContextValue {
 export const FocusStepContext = createContext<FocusStepContextValue | null>(null);
 
 export interface FocusStageValue {
+  staged: boolean;
   setVisual: (visual: OptionVisual | null) => void;
 }
 

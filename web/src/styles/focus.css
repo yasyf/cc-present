@@ -62,9 +62,12 @@ html:has(.doc-header[data-compact]) {
   min-width: 0;
   font-size: var(--text-md);
   letter-spacing: -0.01em;
-  white-space: nowrap;
+  text-wrap: balance;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
   overflow: hidden;
-  text-overflow: ellipsis;
 }
 .step-jump {
   flex: none;
@@ -338,6 +341,11 @@ html:has(.doc-header[data-compact]) {
 .focus-main > .card {
   border-left: none;
   padding-inline: 0;
+}
+.focus-main .card-summary {
+  font-size: inherit;
+  color: var(--dim);
+  max-width: none;
 }
 .focus-main > .comment-chip-row {
   display: flex;
@@ -683,9 +691,12 @@ html:has(.doc-header[data-compact]) {
   }
 }
 @media (min-width: 1280px) {
+  .app:has(.focus-card-body[data-stage]) {
+    --shell-max: min(80rem, 100vw - 2 * var(--rail-strip-w));
+  }
   .focus-card-body[data-stage]:not([data-wide]) {
     display: grid;
-    grid-template-columns: minmax(0, 11fr) minmax(0, 9fr);
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     align-items: start;
     column-gap: var(--space-5);
   }

@@ -102,7 +102,7 @@ A board with any decision unit opens in focus mode by default: one step at a tim
 }
 ```
 
-`chips[].tone` is `default`, `flag`, or `demo`. `status` is agent-owned: `open`, `resolved` (verdict landed), or `redrafted` (you replaced the content after feedback). `flagged` marks a card needing extra scrutiny. `summary` is an optional one-line inline-markdown lede rendered dim under the title; a newline in it fails validation, naming the block id.
+`chips[].tone` is `default`, `flag`, or `demo`. `status` is agent-owned: `open`, `resolved` (verdict landed), or `redrafted` (you replaced the content after feedback). `flagged` marks a card needing extra scrutiny. `summary` is an optional one-line inline-markdown lede rendered dim under the title; a newline in it fails validation, naming the block id. In focus mode it sits directly above the card's first child at the same size, so it must say something that child does not: never restate the context markdown that follows it.
 
 ### `approval` — approve/reject verdict
 

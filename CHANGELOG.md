@@ -75,6 +75,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- A focus step whose options carry previews lists every option as a
+  full-width row beside the sticky preview, with no card strip. At 1280px
+  and wider the column widens to 80rem, and the options and preview split it
+  evenly. Code in an option preview soft-wraps with a hanging indent. Option
+  fact labels share one column, so every value starts at the same x. In focus
+  mode a card's summary matches the size of the prose below it. The keyboard
+  cursor bar hangs in the frame's margin, so the decision's text stays flush
+  with that prose. The compact header wraps a long title to two lines instead
+  of cutting it off. Inline code chips no longer push a one-line option body
+  into a false Show more.
 - The iOS app builds with Xcode 27. `CI (iOS)` and `TestFlight (iOS)` run on
   the `xcode-27` GitHub runner image instead of `macos-26`.
 
