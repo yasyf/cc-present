@@ -71,11 +71,12 @@ func startTestDaemon(ctx context.Context, t *testing.T) *Client {
 		errCh <- Serve(ctx, p, spec, "v1.0.0", "", 0, "", packs.NewLoader(ctx, nil, nil), nil)
 		close(errCh)
 	}()
-	// Closing errCh after the send lets cleanup's receive return even when the
+	// Closing errCh after the send lets cleanup's drain return even when the
 	// readiness poll already drained the value on an early daemon exit.
 	t.Cleanup(func() {
 		cancel()
-		<-errCh
+		for range errCh {
+		}
 	})
 
 	raw, err := ccd.NewClient(spec)
