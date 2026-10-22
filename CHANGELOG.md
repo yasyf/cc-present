@@ -97,7 +97,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   into a false Show more.
 - The iOS app builds with Xcode 27. `CI (iOS)` and `TestFlight (iOS)` run on
   the `xcode-27` GitHub runner image instead of `macos-26`.
-
+- The present skill sets a budget for each card. A card has a question
+  title, a lede of at most 2 sentences (about 40 words), the decidable, and
+  optional Background. The lede never recaps earlier rulings, previews later
+  cards, or lists the options; earlier rulings go in a `record` in
+  Background. Lists hold 5 one-line bullets or fewer, and a bold sentence is
+  never a heading. Each option carries 2–4 facts with the same labels on every
+  option, which renders the choice as a compare grid. Only the one or two
+  values that decide the pick carry a tone. `detail` is optional, and a visual
+  goes on every option or on none, only where it beats words.
+  `reference/blocks.md` shows a bad card and its rewrite, and the opener and
+  stress example boards follow the new rules.
 - The `push` hint for a choice without a visual counts a `code` block or any
   pack block before the choice as its visual, as it already did a diagram,
   image, chart, or file tree. A plan card's exhibit no longer draws the hint.
@@ -138,6 +148,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+- The `push` hint for a choice without a visual. The skill no longer asks
+  for a visual on every decision, so `push` and `push --dry-run` print no
+  reminder.
 - The `allowFeedback` key on an `approval`. A verdict takes a note on every
   approval, and a document that still sends the key fails with `unknown field
   "allowFeedback"`. A board whose stored document carries the key keeps

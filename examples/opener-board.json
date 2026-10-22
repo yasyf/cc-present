@@ -1,7 +1,7 @@
 {
   "version": 1,
   "title": "26 openers, redrafted with teeth",
-  "intro": "Round-2 verdict was more punchy — every opener is redrafted with command-form hooks, tension, and loss-framing (hype adjectives still banned). Each card shows my pick, two alternates, and the round-1 line; approve, or name any card where you prefer an alternate. The opener doubles as the GitHub About text, package description, docs hero tagline, and banner tagline. Nothing lands until you approve.",
+  "intro": "Each card holds one repo's redrafted opener: my pick, two alternates, and the round-1 line struck out. The opener also becomes the GitHub About text, package description, docs hero tagline, and banner tagline, and nothing lands until you approve.",
   "stats": [
     { "label": "repos drafted", "value": "26" },
     { "label": "flagged (pre-release)", "value": "2" },
@@ -21,8 +21,8 @@
     {
       "id": "card-cc-factory",
       "type": "card",
-      "title": "cc-factory",
-      "summary": "An assembly line of agents that plan, build, review, and ship your spec.",
+      "title": "Which opener ships for cc-factory?",
+      "summary": "cc-factory is pre-release, so its opener has to land without an install command to back it.",
       "flagged": true,
       "status": "redrafted",
       "chips": [
@@ -60,13 +60,6 @@
                 "pros": [ "Names the input and the output in one line", "Factory metaphor matches the repo name" ],
                 "cons": [ "Two sentences where the alternates use one" ],
                 "md": "The clock-in/clock-out pair carries the whole pipeline — design, plan, build, review — without listing a stage."
-              },
-              "visual": {
-                "id": "cc-factory-pick-flow",
-                "type": "diagram",
-                "kind": "mermaid",
-                "title": "Spec to reviewed diff",
-                "source": "graph LR\n  Spec --> Review\n  Review --> Diff"
               }
             },
             {
@@ -100,7 +93,7 @@
         {
           "id": "cc-factory-flag-note",
           "type": "markdown",
-          "md": "**Correction:** the repo is docs-only — no `.claude-plugin/` manifest exists, so the install commands (also in today's README) fail. The retrofit keeps the opener but adds an honest **Status: design stage** line and defers the install/agent block and demo until the plugin ships."
+          "md": "The repo is docs-only: it has no `.claude-plugin/` manifest, so the install commands in today's README fail. The retrofit keeps the opener, adds a `Status: design stage` line, and holds the install block and demo until the plugin ships."
         },
         {
           "id": "cc-factory-approval",
@@ -118,8 +111,8 @@
     {
       "id": "card-captain-hook",
       "type": "card",
-      "title": "captain-hook",
-      "summary": "Turns the corrections you keep giving Claude into typed, tested hooks.",
+      "title": "Which opener ships for captain-hook?",
+      "summary": "This line heads the README, the docs landing page, and the walkthrough.",
       "chips": [
         { "label": "both" },
         { "label": "freeze", "tone": "demo" }
@@ -200,8 +193,8 @@
     {
       "id": "card-cc-review",
       "type": "card",
-      "title": "cc-review",
-      "summary": "Renders your working tree as a local PR and freezes edits until you Submit.",
+      "title": "Which opener ships for cc-review?",
+      "summary": "This line heads the README and the docs landing page, above the edit-gate screenshot.",
       "chips": [
         { "label": "both" },
         { "label": "screenshot", "tone": "demo" }
@@ -280,8 +273,8 @@
     {
       "id": "card-slop-cop",
       "type": "card",
-      "title": "slop-cop",
-      "summary": "48 detectors that catch the tells of LLM-written prose, in CI or inline.",
+      "title": "Which opener ships for slop-cop?",
+      "summary": "This line also becomes the Homebrew formula description, so it has to read on its own.",
       "chips": [
         { "label": "both" },
         { "label": "freeze", "tone": "demo" }
@@ -367,8 +360,8 @@
     {
       "id": "card-cc-notes",
       "type": "card",
-      "title": "cc-notes",
-      "summary": "Agent tasks and notes as a git op-log, invisible to checkout and diff.",
+      "title": "Which opener ships for cc-notes?",
+      "summary": "The README is the repo's only page, so this line carries the whole pitch.",
       "chips": [
         { "label": "both" },
         { "label": "freeze", "tone": "demo" }
@@ -449,8 +442,8 @@
     {
       "id": "card-cc-interact",
       "type": "card",
-      "title": "cc-interact",
-      "summary": "The reusable daemon, event log, SSE, and MCP plumbing behind cc-review.",
+      "title": "Which opener ships for cc-interact?",
+      "summary": "The README is the only page, and its readers are authors of Claude Code tools.",
       "chips": [
         { "label": "prompt" },
         { "label": "animated", "tone": "demo" }

@@ -16,7 +16,21 @@
     {
       "id": "northstar-context",
       "type": "markdown",
-      "md": "## Decision context\n\nNorthstar accepts telemetry bursts from 4,000 retail locations.\n\nPeak traffic is twelve times the hourly average.\n\nProducers retry for up to fifteen minutes after a network outage.\n\nConsumers need ordered events within each store, not across stores.\n\nThe current prototype runs in one region and shares its database with reporting.\n\nThe launch target is 120,000 events per second with a 99.95% ingest SLO.\n\nThe team has six engineers and one embedded SRE.\n\nChoose the smallest architecture that preserves a credible path to regional failover."
+      "md": "Northstar needs a production shape before the Q4 launch. Pick the smallest one that still leaves a path to regional failover."
+    },
+    {
+      "id": "northstar-constraints",
+      "type": "record",
+      "title": "Launch constraints",
+      "facts": [
+        { "label": "Producers", "value": "4,000 retail locations" },
+        { "label": "Peak traffic", "value": "12× the hourly average" },
+        { "label": "Producer retries", "value": "up to 15 minutes after an outage" },
+        { "label": "Ordering", "value": "within each store, not across stores" },
+        { "label": "Prototype", "value": "one region, database shared with reporting" },
+        { "label": "Target", "value": "120,000 events/s at a 99.95% ingest SLO" },
+        { "label": "Team", "value": "six engineers and one embedded SRE" }
+      ]
     },
     {
       "id": "northstar-current-flow",
@@ -36,7 +50,7 @@
           "hint": "One deployable, explicit ingest and delivery modules",
           "recommended": true,
           "facts": [
-            { "label": "p95 latency", "value": "85 ms", "tone": "good" },
+            { "label": "p95 latency", "value": "85 ms" },
             { "label": "on-call load", "value": "Low", "tone": "good" },
             { "label": "fault isolation", "value": "Process" }
           ],
@@ -58,8 +72,8 @@
           "hint": "Independent deploys joined by a durable broker",
           "facts": [
             { "label": "p95 latency", "value": "110 ms" },
-            { "label": "on-call load", "value": "Medium", "tone": "warn" },
-            { "label": "fault isolation", "value": "Service", "tone": "good" }
+            { "label": "on-call load", "value": "Medium" },
+            { "label": "fault isolation", "value": "Service" }
           ],
           "detail": {
             "pros": [ "Independent scaling and failure domains" ],
@@ -78,9 +92,9 @@
           "label": "Edge workers with regional collectors",
           "hint": "Push validation close to producers",
           "facts": [
-            { "label": "p95 latency", "value": "55 ms", "tone": "good" },
+            { "label": "p95 latency", "value": "55 ms" },
             { "label": "on-call load", "value": "High", "tone": "bad" },
-            { "label": "fault isolation", "value": "Region", "tone": "good" }
+            { "label": "fault isolation", "value": "Region" }
           ],
           "detail": {
             "pros": [ "Lowest producer latency", "Natural regional isolation" ],
@@ -104,25 +118,30 @@
         {
           "id": "strict-ordering",
           "label": "Strict per-store ordering",
+          "hint": "Consumers read events in store order",
           "facts": [
-            { "label": "ordering", "value": "Strict", "tone": "good" },
-            { "label": "write latency", "value": "Higher", "tone": "warn" }
+            { "label": "latency", "value": "Higher writes", "tone": "warn" },
+            { "label": "consumer work", "value": "None" },
+            { "label": "memory", "value": "Low" }
           ]
         },
         {
           "id": "eventual-ordering",
           "label": "Best-effort ordering with sequence numbers",
+          "hint": "Consumers reorder by sequence number",
           "facts": [
-            { "label": "throughput", "value": "Highest", "tone": "good" },
-            { "label": "consumer work", "value": "Deduplicate", "tone": "warn" }
+            { "label": "latency", "value": "Lowest" },
+            { "label": "consumer work", "value": "Reorder and deduplicate", "tone": "warn" },
+            { "label": "memory", "value": "Low" }
           ]
         },
         {
           "id": "bounded-reorder",
           "label": "Five-second reorder window",
+          "hint": "The gateway holds events up to 5 s to restore order",
           "facts": [
-            { "label": "staleness", "value": "≤ 5 s" },
-            { "label": "recovery", "value": "Automatic", "tone": "good" },
+            { "label": "latency", "value": "+5 s delivery" },
+            { "label": "consumer work", "value": "None" },
             { "label": "memory", "value": "Moderate" }
           ]
         }
@@ -143,8 +162,8 @@
     {
       "id": "degradation-policy",
       "type": "card",
-      "title": "Degraded-mode policy",
-      "summary": "Choose the overload behavior and explicitly approve its customer impact.",
+      "title": "How does ingest degrade under overload?",
+      "summary": "Customers see whatever ingest does past the regional safety limit, so the behavior needs its own approval.",
       "chips": [
         { "label": "reliability", "tone": "flag" },
         { "label": "two decisions" }
