@@ -12,7 +12,7 @@ import { usePackToastSink } from './packs/toasts';
 import { SubjectProvider, presentKey, queryClient, usePostInteraction } from './api';
 import { emptyState } from './reduce';
 import { boardPhase } from './lifecycle';
-import { focusSteps } from './focus';
+import { focusSteps, remaining } from './focus';
 import type { FocusStep } from './focus';
 import { loadView, resolveMode, saveView } from './viewmode';
 import type { ViewMode } from './viewmode';
@@ -32,7 +32,6 @@ import { viewedStore } from './viewed';
 import type { ThreadEntry, ThreadProjection } from './threadFeed';
 import { interactionErrorText } from './interactionError';
 import { BoardBlocks } from './components/BoardBlocks';
-import { RoundGroup } from './components/RoundGroup';
 import { DocHeader } from './components/DocHeader';
 import type { DocHeaderProps } from './components/DocHeader';
 import { SubmitBar } from './components/SubmitBar';
@@ -140,6 +139,11 @@ function PresentView({ subject }: { subject: string }) {
 
   const packInteractive = useInteractivePackTypes();
   const steps = useMemo(() => focusSteps(liveBlocks, packInteractive), [liveBlocks, packInteractive]);
+  const progress = remaining(steps, state.interactions, packInteractive);
+  const unanswered = phase.kind === 'live' && !closed && progress.left > 0;
+  useEffect(() => {
+    document.title = `${unanswered ? '● ' : ''}${state.doc.title || 'cc-present'}`;
+  }, [unanswered, state.doc.title]);
   const [override, setOverride] = useState<ViewMode | null>(() => loadView(subject));
   const mode = resolveMode(state.doc.presentation, override, steps);
   const setView = useCallback(
@@ -184,13 +188,6 @@ function PresentView({ subject }: { subject: string }) {
       {closed && <ClosedBanner summary={state.interactions.closed.summary} />}
       {mode === 'focus' ? (
         <>
-          {hasHistory && (
-            <div className="focus-history">
-              {state.rounds.history.map((record) => (
-                <RoundGroup key={`round-${record.number}`} record={record} interactions={state.interactions} />
-              ))}
-            </div>
-          )}
           {phase.kind === 'waiting' ? (
             <WaitingPanel round={currentRound} lastRound={phase.lastRound} />
           ) : (
@@ -212,16 +209,6 @@ function PresentView({ subject }: { subject: string }) {
         <>
           <div className="spine">
             <div className="blocks" ref={listRef}>
-              {state.rounds.history.map((record) => (
-                <div
-                  className="round-group spine-node"
-                  key={`round-${record.number}`}
-                  data-flip-key={`round-${record.number}`}
-                  data-node={record.number}
-                >
-                  <RoundGroup record={record} interactions={state.interactions} />
-                </div>
-              ))}
               {liveBlocks.length > 0 && (hasHistory || state.rounds.currentTitle) && (
                 <div className="round-current-header spine-node spine-current" data-node={currentRound}>
                   Round {currentRound}
@@ -237,6 +224,7 @@ function PresentView({ subject }: { subject: string }) {
       {phase.kind === 'live' && (mode !== 'focus' || focusAtEnd) && (
         <SubmitBar
           blocks={liveBlocks}
+          progress={progress}
           doc={state.doc}
           interactions={state.interactions}
           subject={subject}
@@ -273,12 +261,14 @@ function PresentView({ subject }: { subject: string }) {
                 mode,
                 onSetView: setView,
                 step:
-                  phase.kind !== 'waiting' && steps.length > 0
+                  steps.length > 0 || hasHistory
                     ? {
                         steps,
-                        index: deckIndex < 0 ? steps.length : deckIndex,
+                        current: mode === 'focus' ? deckIndex : undefined,
+                        progress,
                         interactions: state.interactions,
                         packInteractive,
+                        history: state.rounds.history,
                       }
                     : undefined,
               }}

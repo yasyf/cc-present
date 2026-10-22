@@ -484,11 +484,20 @@
 }
 .doc-header-top {
   display: flex;
-  align-items: baseline;
-  gap: var(--space-4);
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
   justify-content: space-between;
 }
+.doc-heading {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: 1 1 20rem;
+  min-width: 0;
+}
 .doc-title {
+  min-width: 0;
   font-family: var(--font-prose);
   font-size: clamp(1.75rem, 1.3rem + 2.5vw, 2.75rem);
   font-weight: 700;
@@ -497,48 +506,124 @@
   margin: 0;
   text-wrap: balance;
 }
-.doc-conn {
+.doc-controls {
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
   flex: none;
 }
-.peer {
-  font-size: var(--text-2xs);
-  color: var(--muted);
-  border-radius: var(--radius-sm);
-  padding: 0;
-}
-.peer::before {
-  content: '[ ';
-}
-.peer::after {
-  content: ' ]';
-}
-.peer-on {
-  color: var(--approve);
-}
-.wire-lamp {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1);
-  font-size: var(--text-2xs);
-  color: var(--muted);
-}
 .wire-dot {
-  width: 6px;
-  height: 6px;
+  flex: none;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
   background: currentColor;
+  color: var(--dim);
+}
+.wire-present {
+  color: var(--approve);
 }
 .wire-live {
-  color: var(--accent-ink);
+  color: var(--accent);
+}
+.wire-away {
+  background: none;
+  box-shadow: inset 0 0 0 1.5px currentColor;
 }
 .wire-down {
   color: var(--pending);
-}
-.wire-down .wire-dot {
   animation: focus-dot-pulse 1.4s var(--ease-out) infinite;
+}
+.header-menu-toggle {
+  min-width: 2rem;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--dim);
+  font-size: var(--text-md);
+  line-height: 1.3;
+}
+.header-menu-toggle:hover {
+  color: var(--text);
+  background: var(--mono-bg);
+  border-color: var(--border-strong);
+}
+.header-menu {
+  margin: calc(var(--doc-header-h, 0px) + var(--space-2)) var(--page-pad) auto auto;
+  padding: var(--space-2);
+  min-width: 14rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+  color: var(--text);
+  box-shadow: var(--shadow-3);
+}
+.header-menu[open] {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+.header-menu::backdrop {
+  background: transparent;
+}
+.header-menu-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-height: 2.25rem;
+  padding: var(--space-1) var(--space-2);
+  border: none;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: inherit;
+  font-size: var(--text-sm);
+  text-align: start;
+}
+button.header-menu-item:hover {
+  background: var(--mono-bg);
+}
+.header-menu-count {
+  font-variant-numeric: tabular-nums;
+  color: var(--dim);
+}
+.history-drawer {
+  margin: 0 0 0 auto;
+  padding: 0;
+  inline-size: min(40rem, 100vw);
+  max-inline-size: 100vw;
+  block-size: 100dvh;
+  max-block-size: 100dvh;
+  border: none;
+  border-left: 1px solid var(--line);
+  background: var(--paper);
+  color: var(--text);
+  box-shadow: var(--shadow-3);
+}
+.history-drawer::backdrop {
+  background: rgb(0 0 0 / 25%);
+}
+.history-drawer-head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-3) var(--space-5);
+  border-bottom: 1px solid var(--line);
+  background: var(--paper);
+}
+.history-drawer-title {
+  margin: 0;
+  font-size: var(--text-md);
+}
+.history-drawer-rounds {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-5) var(--space-6);
 }
 .theme-toggle {
   display: inline-flex;
@@ -1112,67 +1197,19 @@
   color: var(--accent-fg);
 }
 
-/* --- Sign-off tally strip ---
-   One compact tally pill per decidable, each still a jump button. The strip
-   wraps to at most two rows and lets pills contract when a long board exceeds
-   its capped measure. */
-.tally-strip {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 4px;
-  inline-size: var(--tally-width);
-}
-.tally-seg {
-  flex: 1 1 var(--tally-segment-width);
-  inline-size: 18px;
-  max-inline-size: 18px;
-  min-inline-size: 0;
-  min-height: 0;
-  height: 4px;
-  padding: 0;
-  border: 0;
+.submit-meter {
+  flex: none;
+  inline-size: 6rem;
+  block-size: 4px;
   border-radius: var(--radius-pill);
-  box-shadow: none;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--dim) 25%, transparent);
 }
-.tally-undecided {
-  background: color-mix(in srgb, var(--graphite) 25%, transparent);
-}
-.tally-approved,
-.tally-rejected,
-.tally-decided {
-  background: var(--pencil);
-}
-.tally-undecided:hover:not(:disabled),
-.tally-undecided:active:not(:disabled) {
-  background: color-mix(in srgb, var(--graphite) 45%, transparent);
-}
-.tally-approved:hover:not(:disabled),
-.tally-approved:active:not(:disabled),
-.tally-rejected:hover:not(:disabled),
-.tally-rejected:active:not(:disabled),
-.tally-decided:hover:not(:disabled),
-.tally-decided:active:not(:disabled) {
-  background: color-mix(in srgb, var(--pencil) 82%, #fff);
-}
-
-/* The landing moment: with every decidable decided the strip's gaps close and the
-   pills fuse into one continuous pencil rule, radius kept only at the ends. The gap
-   transition carries the settle; the reduced-motion freeze lands it fused. */
-.tally-strip {
-  transition: gap var(--dur-2) var(--ease-out);
-}
-.tally-complete {
-  gap: 0;
-}
-.tally-complete .tally-seg {
-  border-radius: 0;
-}
-.tally-complete .tally-seg:first-child {
-  border-radius: var(--radius-pill) 0 0 var(--radius-pill);
-}
-.tally-complete .tally-seg:last-child {
-  border-radius: 0 var(--radius-pill) var(--radius-pill) 0;
+.submit-meter-fill {
+  display: block;
+  block-size: 100%;
+  background: var(--accent);
+  transition: inline-size var(--dur-2) var(--ease-out);
 }
 
 /* The signed submit button: pencil ink washes across on the landing moment and
@@ -1287,8 +1324,7 @@ body[data-single] .toast-stack {
 
 /* --- Responsive: the two breakpoints of record (--bp-rail 720, --bp-compact 440).
    The page gutter already went fluid in tokens.css; here the board chrome reflows —
-   the masthead cluster wraps, the stat cells tighten, the margin rail
-   folds toward the content, and the header touch targets grow to the 44px floor. --- */
+   the stat cells tighten, the margin rail folds toward the content, and the header touch targets grow to the 44px floor. --- */
 
 @media (max-width: 900px) {
   .stat {
@@ -1299,19 +1335,6 @@ body[data-single] .toast-stack {
 @media (max-width: 720px) {
   .submit-note {
     -webkit-line-clamp: 1;
-  }
-
-  /* The connection/view/theme cluster wraps below the title instead of crowding it,
-     and its own chips wrap rather than overflow a narrow width. */
-  .doc-header-top {
-    flex-wrap: wrap;
-    row-gap: var(--space-2);
-  }
-  .doc-conn {
-    flex: 0 1 auto;
-    max-width: 100%;
-    flex-wrap: wrap;
-    justify-content: flex-end;
   }
 
   /* Theme toggle and the collapsed-round caret rows reach the 44px touch floor. */
@@ -1378,8 +1401,3 @@ body[data-single] .toast-stack {
   }
 }
 
-@media (max-width: 440px) {
-  .doc-conn {
-    flex-basis: 100%;
-  }
-}

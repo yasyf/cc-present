@@ -127,7 +127,6 @@
    controls (now pencil via --focus-ring) so each keeps a consistent 2px offset. */
 .verdict:focus-visible,
 .link-btn:focus-visible,
-.tally-seg:focus-visible,
 .submit-count:focus-visible,
 .submit-btn:focus-visible {
   outline: 2px solid var(--focus-ring);

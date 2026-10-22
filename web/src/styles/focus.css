@@ -55,19 +55,17 @@ html:has(.doc-header[data-compact]) {
   background: var(--paper);
 }
 .doc-header[data-compact] .doc-header-top {
-  align-items: center;
+  flex-wrap: nowrap;
+}
+.doc-header[data-compact] .doc-heading {
+  flex: 1 1 0;
 }
 .doc-header[data-compact] .doc-title {
-  flex: 1;
-  min-width: 0;
   font-size: var(--text-md);
   letter-spacing: -0.01em;
-  text-wrap: balance;
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
+  white-space: nowrap;
   overflow: hidden;
+  text-overflow: ellipsis;
 }
 .step-jump {
   flex: none;
@@ -107,6 +105,20 @@ html:has(.doc-header[data-compact]) {
 .step-jump-dialog .focus-receipts {
   padding: var(--space-2) var(--space-4);
 }
+.step-jump-history {
+  display: block;
+  inline-size: 100%;
+  padding: var(--space-3) var(--space-4);
+  border: none;
+  border-top: 1px solid var(--line);
+  background: none;
+  color: var(--accent);
+  font-size: var(--text-sm);
+  text-align: start;
+}
+.step-jump-history:hover {
+  background: var(--mono-bg);
+}
 .focus-receipt[aria-current] {
   background: var(--mono-bg);
 }
@@ -143,13 +155,6 @@ html:has(.doc-header[data-compact]) {
 }
 .choice-visual > .focus-media-empty {
   min-height: 8rem;
-}
-
-.focus-history {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  margin-bottom: var(--space-4);
 }
 
 .focus-deck {

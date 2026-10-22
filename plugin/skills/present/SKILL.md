@@ -181,7 +181,7 @@ Every pick reaches you before submit, so later steps react to earlier ones inste
 
 ## 5. On the `submit` event — the round lifecycle
 
-A submit on a board you've touched this round also closes the round: those blocks collapse into a read-only "Round N" group in the browser, and the next round opens on the same URL. A submit on an untouched board records only the revision. Either way — and always in this session, never a delegate — drain the outcomes:
+A submit on a board you've touched this round also closes the round: those blocks freeze read-only into the "Earlier rounds" drawer, which the human opens from the header's progress menu, and the next round opens on the same URL. A submit on an untouched board records only the revision. Either way — and always in this session, never a delegate — drain the outcomes:
 
 ```bash
 cc-present outcomes --no-doc --session "$CLAUDE_CODE_SESSION_ID"
@@ -210,7 +210,7 @@ cc-present round --title "Redrafts"   # → round: 2 — names the round the sub
 cc-present update-block "$BLOCK"      # each upsert pulls its block into the new round
 ```
 
-**Carry-forward is explicit.** After a submit, a block stays actionable only if you re-upsert it — even unchanged. Touching an old block pulls it into the current round; that *is* the redraft flow, and the old version stays frozen in the collapsed group. Blocks you don't touch stay in the closed round, read-only. A full `push` re-enters only what changed: a block whose content is byte-identical to the board's current version keeps its round assignment, so re-pushing the whole document never revives settled decisions. **New rounds start clean.** Settled context the next round leans on is a fresh `markdown` recap block under a new id — never a re-upsert of a decided actionable block, which would revive its controls. Inputs come back fresh each round automatically (the UI shows a dim "last round" hint) — never ask the human to clear a field.
+**Carry-forward is explicit.** After a submit, a block stays actionable only if you re-upsert it — even unchanged. Touching an old block pulls it into the current round; that *is* the redraft flow, and the old version stays frozen in the Earlier rounds drawer. Blocks you don't touch stay in the closed round, read-only. A full `push` re-enters only what changed: a block whose content is byte-identical to the board's current version keeps its round assignment, so re-pushing the whole document never revives settled decisions. **New rounds start clean.** Settled context the next round leans on is a fresh `markdown` recap block under a new id — never a re-upsert of a decided actionable block, which would revive its controls. Inputs come back fresh each round automatically (the UI shows a dim "last round" hint) — never ask the human to clear a field.
 
 To finish instead:
 
@@ -274,8 +274,8 @@ Channel is `pending`, so arm the Monitor on `watch` and keep working. Events arr
 - The triage report lands: `feedback:9f2c11ab on card-cli — "mention the exit code" → redraft`, `decision:opener-approval:rejected — "neither lands" → redraft`, `owed: card-cli redraft · card-opener redraft`. Dispatch two writers (background, `general-purpose`, the step-4 template): one to reply under `cli-approval` and redraft `card-cli` with the exit-code mention, one to redraft `card-opener` with two fresh alternates. Ledger: `feedback:9f2c11ab`, `decision:opener-approval:rejected`.
 - Each writer reports 1-2 lines as it lands its edits; the browser shows the redrafts live.
 - `{"blockId":"opener-approval","type":"decision.created","verdict":"approved"}` — the redraft landed; no note. Informational. Ledger: `decision:opener-approval:approved`.
-- `{"revision":1,"type":"submit"}` — both cards were upserted this round, so the submit also closes round 1: they collapse into a read-only "Round 1" group. Drain `outcomes --no-doc`, summarize in chat ("CLI wording approved with the exit-code mention; opener: 'Validate first. Ship faster.'"), write the approved text into `CHANGELOG.md`.
-- Round 2: the exit-code mention deserves its own sign-off. `round --title "Exit-code wording"` prints `round: 2`, then upsert a fresh `card-exit-code` — the live board shows only that card, with round 1 collapsed above it. On `{"blockId":"exit-approval","type":"decision.created","verdict":"approved"}` and the next submit, `close --summary "Both drafts approved."` — the Monitor's `watch` prints `{"summary":"Both drafts approved.","type":"present.closed"}` and exits on its own.
+- `{"revision":1,"type":"submit"}` — both cards were upserted this round, so the submit also closes round 1: they freeze read-only into the Earlier rounds drawer. Drain `outcomes --no-doc`, summarize in chat ("CLI wording approved with the exit-code mention; opener: 'Validate first. Ship faster.'"), write the approved text into `CHANGELOG.md`.
+- Round 2: the exit-code mention deserves its own sign-off. `round --title "Exit-code wording"` prints `round: 2`, then upsert a fresh `card-exit-code` — the live board shows only that card, and round 1 opens from the header's "Earlier rounds (1)" entry. On `{"blockId":"exit-approval","type":"decision.created","verdict":"approved"}` and the next submit, `close --summary "Both drafts approved."` — the Monitor's `watch` prints `{"summary":"Both drafts approved.","type":"present.closed"}` and exits on its own.
 
 ## Reference
 

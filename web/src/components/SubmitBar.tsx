@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react';
-import type { CSSProperties } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import type { Block, Doc } from '../schema';
 import type { Interactions } from '../events';
@@ -7,7 +6,7 @@ import { usePresent } from '../present';
 import { revisionKey } from '../api';
 import { unansweredSummary, undecidedKey } from '../submit';
 import { submitItems } from '../decide';
-import type { SubmitItem } from '../decide';
+import type { Remaining } from '../focus';
 import { useKeyboardApi } from '../keyboard';
 import { useRevisionSummary } from '../revision';
 import { viewedStore } from '../viewed';
@@ -15,9 +14,10 @@ import { useInteractivePackTypes } from '../packs/registry';
 import { Button } from './Button';
 
 export interface SubmitBarProps {
-  // The current round's live blocks; the decided/total tally spans only these.
+  // The current round's live blocks; the armed confirm names what is undecided among these.
   blocks: Block[];
-  // The tally strip is the board's per-item rail; the focus deck's dot rail owns per-step progress there.
+  progress: Remaining;
+  // The meter is the board's progress rail; the focus deck's dot rail owns per-step progress there.
   showTally: boolean;
   doc: Doc;
   interactions: Interactions;
@@ -25,7 +25,7 @@ export interface SubmitBarProps {
   hasHistory: boolean;
 }
 
-export function SubmitBar({ blocks, showTally, doc, interactions, subject, hasHistory }: SubmitBarProps) {
+export function SubmitBar({ blocks, progress, showTally, doc, interactions, subject, hasHistory }: SubmitBarProps) {
   const { post, currentRound } = usePresent();
   const kbd = useKeyboardApi();
   const packInteractive = useInteractivePackTypes();
@@ -43,25 +43,8 @@ export function SubmitBar({ blocks, showTally, doc, interactions, subject, hasHi
   const [inFlight, setInFlight] = useState(false);
 
   const items = submitItems(blocks, interactions, packInteractive);
-  const total = items.length;
-  const decided = items.filter((i) => i.decided).length;
-  const complete = total > 0 && decided === total;
-  // Keep the semantic state classes even though every decided segment shares
-  // the same approval ink in the tally's presentation.
-  const segState = (item: SubmitItem): string => {
-    if (!item.decided) return 'undecided';
-    if (item.kind === 'approval') {
-      return interactions.decisions[item.id]?.verdict === 'rejected' ? 'rejected' : 'approved';
-    }
-    return 'decided';
-  };
-  const tallyColumns = Math.max(1, Math.ceil(total / 2));
-  const tallyGapWidth = Math.max(0, tallyColumns - 1) * 4;
-  const tallyWidth = Math.max(
-    Math.min(total * 18 + Math.max(0, total - 1) * 4, 160),
-    tallyGapWidth + tallyColumns,
-  );
-  const tallySegmentWidth = Math.min(18, (tallyWidth - tallyGapWidth) / tallyColumns);
+  const { left, total } = progress;
+  const complete = total > 0 && left === 0;
   const unanswered = items.filter((i) => !i.decided);
   const armedKey = undecidedKey(unanswered.map((i) => i.id));
 
@@ -135,34 +118,25 @@ export function SubmitBar({ blocks, showTally, doc, interactions, subject, hasHi
         {hasHistory && <span className="submit-round">Round {currentRound}</span>}
         {total > 0 && showTally && (
           <div
-            className={`tally-strip${complete ? ' tally-complete' : ''}`}
-            role="group"
+            className="submit-meter"
+            role="progressbar"
             aria-label="review progress"
-            style={
-              {
-                '--tally-width': `${tallyWidth}px`,
-                '--tally-segment-width': `${tallySegmentWidth}px`,
-              } as CSSProperties
-            }
+            aria-valuemin={0}
+            aria-valuemax={total}
+            aria-valuenow={total - left}
           >
-            {items.map((item, i) => (
-              <button
-                key={item.id}
-                type="button"
-                className={`tally-seg tally-${segState(item)}`}
-                aria-label={`Item ${i + 1} of ${total}, ${item.decided ? 'decided' : 'undecided'} — jump`}
-                onClick={() => kbd.jumpTo(item.id)}
-              />
-            ))}
+            <span className="submit-meter-fill" style={{ inlineSize: `${((total - left) / total) * 100}%` }} />
           </div>
         )}
-        <button
-          type="button"
-          className={`submit-count${complete ? ' submit-done' : ''}`}
-          onClick={() => kbd.jumpNextUndecided()}
-        >
-          {total === decided ? 'All answered' : `${total - decided} to answer`}
-        </button>
+        {total > 0 && (
+          <button
+            type="button"
+            className={`submit-count${complete ? ' submit-done' : ''}`}
+            onClick={() => kbd.jumpNextUndecided()}
+          >
+            {complete ? 'All answered' : `${total - left} of ${total} answered`}
+          </button>
+        )}
         {confirming && (
           <span className="submit-warn" role="status">
             {unansweredSummary(items)}

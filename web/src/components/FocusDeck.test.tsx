@@ -13,7 +13,7 @@ import { FocusDeck } from './FocusDeck';
 import { ThreadHostContext } from './threadHost';
 import { SubmitBar } from './SubmitBar';
 import * as focusMotion from './focusMotion';
-import { focusSteps } from '../focus';
+import { focusSteps, remaining } from '../focus';
 import { loadView, saveView } from '../viewmode';
 import { draftStore } from '../drafts';
 import { emptyState } from '../reduce';
@@ -662,7 +662,7 @@ describe('FocusDeck next-undecided wrapping', () => {
 });
 
 describe('FocusDeck SubmitBar progress', () => {
-  it('keeps the cursor on the primary while omitting the SubmitBar tally rail', () => {
+  it('keeps the cursor on the primary while omitting the SubmitBar meter', () => {
     const cardBlock: Block = {
       id: 'c1',
       type: 'card',
@@ -685,6 +685,7 @@ describe('FocusDeck SubmitBar progress', () => {
               <FocusDeck steps={steps} interactions={interactions} round={1} closed={false} />
               <SubmitBar
                 blocks={blocks}
+                progress={remaining(steps, interactions, new Set<string>())}
                 showTally={false}
                 doc={doc}
                 interactions={interactions}
@@ -699,7 +700,7 @@ describe('FocusDeck SubmitBar progress', () => {
     // The cursor enters on the step's primary (the approval).
     expect(container.querySelector('.approval[data-kbd-cursor]')).not.toBeNull();
     expect(container.querySelector('.choice[data-kbd-cursor]')).toBeNull();
-    expect(container.querySelector('.tally-strip')).toBeNull();
+    expect(container.querySelector('.submit-meter')).toBeNull();
     queryClient.clear();
   });
 });

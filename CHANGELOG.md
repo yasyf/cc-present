@@ -75,6 +75,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- The browser tab shows the board's title, with a leading "● " while the open
+  round still has questions to answer. The header row holds only the title, one
+  status dot for the agent and the connection, the progress count, and the
+  Focus/Board toggle. Notes below the rail breakpoint, Shortcuts, and the theme
+  sit behind a ⋯ menu.
+- The header's "3 of 8 left" and the submit bar's "5 of 8 answered" count the
+  same steps, and a note-only step counts in neither. A thin bar replaces the
+  submit bar's per-item dot strip.
+- Earlier rounds no longer sit above the deck or the board. They open in a side
+  drawer from the progress menu's "Earlier rounds (N)" entry, and a comment
+  jump to an old block opens the drawer on its round.
 - A focus step whose options carry previews lists every option as a
   full-width row beside the sticky preview, with no card strip. At 1280px
   and wider the column widens to 80rem, and the options and preview split it
@@ -82,8 +93,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   fact labels share one column, so every value starts at the same x. In focus
   mode a card's summary matches the size of the prose below it. The keyboard
   cursor bar hangs in the frame's margin, so the decision's text stays flush
-  with that prose. The compact header wraps a long title to two lines instead
-  of cutting it off. Inline code chips no longer push a one-line option body
+  with that prose. Inline code chips no longer push a one-line option body
   into a false Show more.
 - The iOS app builds with Xcode 27. `CI (iOS)` and `TestFlight (iOS)` run on
   the `xcode-27` GitHub runner image instead of `macos-26`.

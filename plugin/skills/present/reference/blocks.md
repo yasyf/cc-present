@@ -27,7 +27,7 @@ The document is JSON, validated by `push --dry-run` before anything touches the 
 - **One nesting level.** `blocks` is a flat list of sections, cards, and leaves; a card nests leaf blocks only — never a section or another card.
 - **Ids are globally unique kebab-case**, card children included. Choice option ids are unique within their block.
 - **Agent-owned display state** rides the document: `card.status`, `progress.state`, `chips`, `struck` markdown. Human verdicts live outside it — re-upserting a block never clobbers a decision.
-- **Rounds partition the board over time.** A submit on a board you've touched closes the round: those blocks collapse into a read-only "Round N" group, and only blocks you upsert afterward render live. Re-upsert a block (even unchanged) to carry it into the new round.
+- **Rounds partition the board over time.** A submit on a board you've touched closes the round: those blocks freeze read-only into the "Earlier rounds" drawer, opened from the header's progress menu, and only blocks you upsert afterward render live. Re-upsert a block (even unchanged) to carry it into the new round.
 
 ### Content density
 
@@ -178,7 +178,7 @@ Facts earn the comparison grid by lining up. Give every option the same fact lab
 { "id": "extra-notes", "type": "input", "label": "Anything I missed?", "placeholder": "Optional", "multiline": true }
 ```
 
-An input carried into a new round renders empty with a dim "last round: …" hint showing the previous entry; the old text stays read-only inside the collapsed round. Fields are fresh each round automatically — never ask the human to clear one.
+An input carried into a new round renders empty with a dim "last round: …" hint showing the previous entry; the old text stays read-only in that round inside the Earlier rounds drawer. Fields are fresh each round automatically — never ask the human to clear one.
 
 ### `draft` — document for line comments
 

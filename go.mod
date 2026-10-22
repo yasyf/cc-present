@@ -2,7 +2,7 @@ module github.com/yasyf/cc-present
 
 go 1.26.5
 
-toolchain go1.26.9
+toolchain go1.26.10
 
 require (
 	github.com/grandcat/zeroconf v1.0.0
