@@ -16,7 +16,7 @@
 /* State encoding via :has() — cascade order sets precedence:
    neutral → accent-undecided → flagged-reject → decided approve/reject (win). */
 .card:has(.verdict) {
-  --rail: var(--accent-fill);
+  --rail: var(--accent);
 }
 .card.flagged {
   --rail: var(--reject);
@@ -42,7 +42,7 @@
 }
 .card-summary {
   font-size: var(--text-sm);
-  color: var(--muted);
+  color: var(--dim);
   line-height: var(--leading-normal);
   max-width: 72ch;
   margin-bottom: var(--space-3);
@@ -60,19 +60,19 @@
   padding: 2px var(--space-2);
   border-radius: var(--radius-pill);
   border: 1px solid var(--line);
-  color: var(--muted);
+  color: var(--dim);
 }
 .status-open {
-  color: var(--accent-ink);
-  border-color: color-mix(in srgb, var(--accent-fill) 45%, transparent);
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
 }
 .status-resolved {
   color: var(--approve);
   border-color: color-mix(in srgb, var(--approve) 45%, transparent);
 }
 .status-redrafted {
-  color: var(--accent-ink);
-  border-color: color-mix(in srgb, var(--accent-fill) 45%, transparent);
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
 }
 .chips {
   display: flex;
@@ -85,12 +85,12 @@
   padding: 2px var(--space-2);
   border-radius: var(--radius-pill);
   background: var(--chip-bg);
-  color: var(--muted);
+  color: var(--dim);
   border: 1px solid var(--line);
   white-space: nowrap;
 }
 .chip-demo {
-  color: var(--accent-ink);
+  color: var(--accent);
 }
 .chip-flag {
   background: var(--reject-bg);
@@ -128,7 +128,7 @@
   font-family: var(--font-mono);
 }
 .prose a {
-  color: var(--accent-ink);
+  color: var(--accent);
 }
 .prose table {
   border-collapse: collapse;
@@ -168,7 +168,7 @@
   font-weight: 650;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: var(--muted);
+  color: var(--dim);
   margin: var(--space-3) 0 var(--space-1);
 }
 .markdown-block.struck,
@@ -214,7 +214,7 @@
   margin-top: var(--space-2);
 }
 .verdict {
-  color: var(--muted);
+  color: var(--dim);
 }
 .verdict-glyph {
   font-size: var(--text-xs);
@@ -228,7 +228,7 @@
 .verdict:hover:not(:disabled):not(.active) {
   background: var(--card);
   border-color: var(--line);
-  color: var(--ink);
+  color: var(--text);
 }
 .verdict-approve:hover:not(:disabled):not(.active) {
   color: var(--approve);
@@ -254,7 +254,7 @@
 .link-btn {
   border: none;
   background: none;
-  color: var(--accent-ink);
+  color: var(--accent);
   padding: 0;
   font-family: var(--font-prose);
   font-size: var(--text-sm);
@@ -299,7 +299,7 @@
   font-size: var(--text-2xs);
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: var(--muted);
+  color: var(--dim);
   padding-top: 2px;
   width: 3rem;
 }
@@ -308,13 +308,13 @@
   line-height: var(--leading-normal);
 }
 .reply-item .thread-who {
-  color: var(--accent-ink);
+  color: var(--accent);
 }
 .reply-item .clamped {
   flex: 1;
   min-width: 0;
-  background: color-mix(in srgb, var(--accent-fill) 7%, var(--mono-bg));
-  border-left: 2px solid color-mix(in srgb, var(--accent-fill) 55%, transparent);
+  background: color-mix(in srgb, var(--accent) 7%, var(--mono-bg));
+  border-left: 2px solid color-mix(in srgb, var(--accent) 55%, transparent);
   border-radius: 0 var(--radius-md) var(--radius-md) 0;
   padding: var(--space-2) var(--space-3);
 }
@@ -365,7 +365,7 @@
   padding: 0 var(--space-1);
   min-width: 1.1rem;
   text-align: center;
-  color: var(--muted);
+  color: var(--dim);
   background: color-mix(in srgb, var(--surface) 88%, transparent);
   border-radius: var(--radius-sm);
 }
@@ -383,8 +383,8 @@
   outline-offset: 1px;
 }
 .option.selected {
-  border-color: var(--accent-fill);
-  background: color-mix(in srgb, var(--accent-fill) 8%, var(--card));
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 8%, var(--card));
 }
 .option[aria-disabled='true'] {
   opacity: 0.55;
@@ -421,7 +421,7 @@
 }
 .option-indicator .mark-ring {
   inset: -30%;
-  color: var(--pencil);
+  color: var(--accent);
 }
 .option-indicator .mark-check {
   inset: 0;
@@ -434,17 +434,17 @@
   border-radius: var(--radius-sm);
 }
 .option.selected .option-indicator {
-  border-color: var(--accent-fill);
+  border-color: var(--accent);
 }
 .option[role='radio'].selected .option-indicator::after {
   content: '';
   width: 40%;
   height: 40%;
   border-radius: 50%;
-  background: var(--accent-fill);
+  background: var(--accent);
 }
 .option[role='checkbox'].selected .option-indicator {
-  background: var(--accent-fill);
+  background: var(--accent);
 }
 .option[role='checkbox'].selected .option-indicator::after {
   content: '';
@@ -471,10 +471,10 @@
 }
 .option-hint {
   font-size: var(--text-sm);
-  color: var(--muted);
+  color: var(--dim);
 }
 .option-md {
-  color: var(--muted);
+  color: var(--dim);
   font-size: var(--text-sm);
   line-height: var(--leading-normal);
 }
@@ -544,11 +544,11 @@
   font-family: var(--font-prose);
   font-size: var(--text-sm);
   font-weight: 600;
-  color: var(--accent-ink);
+  color: var(--accent);
   white-space: nowrap;
 }
 .option.recommended {
-  border-color: color-mix(in srgb, var(--accent-fill) 55%, var(--line));
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--line));
 }
 
 .option-row {
@@ -598,7 +598,7 @@
   color: var(--dim);
 }
 .choice-grid > .selected {
-  background: color-mix(in srgb, var(--accent-fill) 6%, var(--card));
+  background: color-mix(in srgb, var(--accent) 6%, var(--card));
 }
 .grid-cell.fact {
   display: block;
@@ -634,7 +634,7 @@
 }
 .choice-grid > .grid-pick.selected {
   border-color: var(--line);
-  box-shadow: inset 0 -2px 0 var(--accent-fill);
+  box-shadow: inset 0 -2px 0 var(--accent);
 }
 
 .choice > .comment-chip-row {
@@ -779,7 +779,7 @@
   align-items: center;
   gap: var(--space-2);
   font-size: var(--text-sm);
-  color: var(--muted);
+  color: var(--dim);
 }
 /* The commit tick: a drawn check by the label answering "did it save?". */
 .input-label .input-tick {
@@ -791,7 +791,7 @@
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
   background: var(--card);
-  color: var(--ink);
+  color: var(--text);
   padding: var(--space-2);
   font: inherit;
   resize: vertical;
@@ -804,7 +804,7 @@
   right: 0;
   bottom: 0;
   height: 2px;
-  background: var(--pencil);
+  background: var(--accent);
   transform: scaleX(1);
   transform-origin: left center;
   animation: input-sweep var(--dur-2) var(--ease-draw);
@@ -821,16 +821,16 @@
   gap: var(--space-1);
   align-items: baseline;
   font-size: var(--text-xs);
-  color: var(--graphite);
+  color: var(--dim);
 }
 .input-last-round-caret {
-  color: var(--graphite);
+  color: var(--dim);
   font-family: var(--font-mono);
 }
 .input-last-round-text {
   font-style: italic;
   text-decoration: line-through;
-  text-decoration-color: color-mix(in srgb, var(--graphite) 60%, transparent);
+  text-decoration-color: color-mix(in srgb, var(--dim) 60%, transparent);
 }
 
 /* --- Code (nested panel) --- */
@@ -848,7 +848,7 @@
 }
 .code-title {
   font-size: var(--text-2xs);
-  color: var(--muted);
+  color: var(--dim);
 }
 .code-tools {
   display: flex;
@@ -860,7 +860,7 @@
   font-size: var(--text-2xs);
   letter-spacing: var(--track-caps);
   text-transform: uppercase;
-  color: var(--muted);
+  color: var(--dim);
 }
 /* The fallback stops being silent: an uncurated language reads in hold amber. */
 .code-lang-plain {
@@ -876,13 +876,13 @@
   padding: 0;
   border: none;
   background: transparent;
-  color: var(--muted);
+  color: var(--dim);
   border-radius: var(--radius-sm);
   cursor: pointer;
   font-size: 15px;
 }
 .copy-button:hover {
-  color: var(--ink);
+  color: var(--text);
 }
 .copy-button:focus-visible {
   outline: 2px solid var(--focus-ring);
@@ -1031,14 +1031,14 @@
 .code-pin-line {
   font-family: var(--font-mono);
   font-size: var(--text-2xs);
-  color: var(--muted);
+  color: var(--dim);
 }
 .code-pin-title {
   font-weight: 600;
-  color: var(--ink);
+  color: var(--text);
 }
 .code-pin-body {
-  color: var(--muted);
+  color: var(--dim);
 }
 .code-pin-good .code-pin-mark {
   background: var(--ok);
@@ -1057,7 +1057,7 @@
 }
 .diff-title {
   font-size: var(--text-2xs);
-  color: var(--muted);
+  color: var(--dim);
   margin-bottom: var(--space-1);
 }
 /* A tall diff caps at 60vh so the per-hunk header can stick as it scrolls; the
@@ -1103,7 +1103,7 @@
 .diff-mark {
   text-align: center;
   user-select: none;
-  color: var(--muted);
+  color: var(--dim);
 }
 .diff-text {
   white-space: pre-wrap;
@@ -1112,7 +1112,7 @@
 }
 .diff-hunk-head {
   background: var(--mono-bg);
-  color: var(--muted);
+  color: var(--dim);
   position: sticky;
   top: 0;
   z-index: 1;
@@ -1188,7 +1188,7 @@
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: var(--muted);
+  color: var(--dim);
 }
 .table-block tbody tr:last-child td {
   border-bottom: none;
@@ -1208,7 +1208,7 @@
   display: flex;
   justify-content: space-between;
   font-size: var(--text-sm);
-  color: var(--muted);
+  color: var(--dim);
 }
 .progress-count {
   font-variant-numeric: tabular-nums;
@@ -1224,7 +1224,7 @@
   background: var(--reject);
 }
 .progress-state-active .progress-fill {
-  background: var(--accent-fill);
+  background: var(--accent);
 }
 
 /* --- Image --- */
@@ -1252,7 +1252,7 @@
 }
 .image-caption {
   font-size: var(--text-sm);
-  color: var(--muted);
+  color: var(--dim);
   margin-top: var(--space-1);
 }
 
@@ -1266,11 +1266,11 @@
   border: 1px solid var(--line);
   border-radius: var(--radius-lg);
   background: var(--card);
-  color: var(--ink);
+  color: var(--text);
   animation: lightbox-in var(--dur-2) var(--ease-out);
 }
 .lightbox::backdrop {
-  background: color-mix(in srgb, var(--ink) 55%, transparent);
+  background: color-mix(in srgb, var(--text) 55%, transparent);
   backdrop-filter: blur(4px);
 }
 /* A drawn close cross pinned to the corner; the backdrop and Escape still
@@ -1288,7 +1288,7 @@
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
   background: color-mix(in srgb, var(--card) 82%, transparent);
-  color: var(--muted);
+  color: var(--dim);
   cursor: pointer;
 }
 .lightbox-close:hover:not(:disabled) {
@@ -1314,7 +1314,7 @@
 }
 .lightbox-caption {
   font-size: var(--text-sm);
-  color: var(--muted);
+  color: var(--dim);
   text-align: center;
 }
 @keyframes lightbox-in {
@@ -1351,7 +1351,7 @@
   text-transform: uppercase;
   letter-spacing: 0.06em;
   font-size: var(--text-2xs);
-  color: var(--muted);
+  color: var(--dim);
 }
 
 /* --- Pack blocks --- */
@@ -1371,7 +1371,7 @@
   border: 1px dashed var(--border-strong);
   border-radius: var(--radius-md);
   background: var(--mono-bg);
-  color: var(--muted);
+  color: var(--dim);
 }
 .pack-placeholder-head {
   display: flex;
@@ -1384,12 +1384,12 @@
   font-size: var(--text-2xs);
   letter-spacing: var(--track-caps);
   text-transform: uppercase;
-  color: var(--ink);
+  color: var(--text);
 }
 .pack-placeholder-id {
   font-family: var(--font-mono);
   font-size: var(--text-2xs);
-  color: var(--muted);
+  color: var(--dim);
 }
 .pack-placeholder-reason {
   margin-left: auto;
@@ -1431,7 +1431,7 @@
 }
 .pack-placeholder-hint {
   font-size: var(--text-2xs);
-  color: var(--muted);
+  color: var(--dim);
 }
 
 /* --- Responsive: block controls at the two breakpoints of record. At --bp-rail
@@ -1491,7 +1491,7 @@
   font-size: var(--text-xs);
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: var(--muted);
+  color: var(--dim);
   margin-bottom: var(--space-2);
 }
 /* inline-size containment keeps a wide SVG from widening the frame's ancestors, so
@@ -1667,7 +1667,7 @@
 }
 .term-title {
   font-size: var(--text-2xs);
-  color: var(--muted);
+  color: var(--dim);
 }
 .term-tools {
   display: flex;
@@ -1688,11 +1688,11 @@
 }
 .term-prompt {
   flex: none;
-  color: var(--muted);
+  color: var(--dim);
   user-select: none;
 }
 .term-command-text {
-  color: var(--ink);
+  color: var(--text);
 }
 .term-plain {
   background: var(--mono-bg);
@@ -2065,7 +2065,7 @@
 }
 .draft-title {
   font-size: var(--text-2xs);
-  color: var(--muted);
+  color: var(--dim);
   margin-bottom: var(--space-1);
 }
 .draft-block .clamped-content {
@@ -2105,7 +2105,7 @@
   cursor: default;
 }
 .draft-gutter:hover:not(:disabled) {
-  color: var(--ink);
+  color: var(--text);
 }
 .draft-text {
   white-space: pre-wrap;
@@ -2136,7 +2136,7 @@
 }
 .draft-composer-range {
   font-size: var(--text-2xs);
-  color: var(--muted);
+  color: var(--dim);
   margin-bottom: var(--space-1);
 }
 .draft-composer-input,
@@ -2149,7 +2149,7 @@
   border-radius: var(--radius-sm);
   padding: var(--space-1) var(--space-2);
   background: var(--paper);
-  color: var(--ink);
+  color: var(--text);
 }
 .draft-composer-actions,
 .triage-note-actions {
@@ -2175,10 +2175,10 @@
 .draft-note-line {
   font-family: var(--font-mono);
   font-size: var(--text-2xs);
-  color: var(--muted);
+  color: var(--dim);
 }
 .draft-note-text {
-  color: var(--ink);
+  color: var(--text);
 }
 .draft-note-moved {
   font-size: var(--text-2xs);
@@ -2205,7 +2205,7 @@
   margin: 0;
   padding-left: var(--space-2);
   border-left: 2px solid var(--line);
-  color: var(--muted);
+  color: var(--dim);
   font-family: var(--font-mono);
   font-size: var(--text-2xs);
   white-space: pre-wrap;
@@ -2229,7 +2229,7 @@
 }
 .triage-progress {
   font-size: var(--text-2xs);
-  color: var(--muted);
+  color: var(--dim);
 }
 .triage-bulk {
   display: inline-flex;
@@ -2241,7 +2241,7 @@
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
   background: var(--card);
-  color: var(--ink);
+  color: var(--text);
   cursor: pointer;
 }
 .triage-bulk-btn:hover {
@@ -2268,7 +2268,7 @@
 .triage-index {
   flex: none;
   font-size: var(--text-2xs);
-  color: var(--muted);
+  color: var(--dim);
   font-family: var(--font-mono);
 }
 .triage-item-body {
@@ -2283,7 +2283,7 @@
 }
 .triage-item-hint {
   font-size: var(--text-2xs);
-  color: var(--muted);
+  color: var(--dim);
 }
 .triage-facts {
   display: inline-flex;
@@ -2297,7 +2297,7 @@
 .triage-note {
   margin-top: var(--space-1);
   font-size: var(--text-xs);
-  color: var(--ink);
+  color: var(--text);
 }
 .triage-note-affordance {
   margin-top: var(--space-1);

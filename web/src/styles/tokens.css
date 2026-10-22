@@ -14,10 +14,7 @@
 
   /* Retained raw names, now derived from the Blue Pencil layer so existing
      library rules re-ink for free. Surfaces and hairlines mix ink into paper. */
-  --muted: var(--graphite);
   --pending: var(--hold);
-  --accent-fill: var(--pencil);
-  --accent-ink: var(--pencil);
   --card: light-dark(#ffffff, #1f1b15);
   /* +2 elevation tier: dialogs, peek, submit bar, rail slide-over. */
   --card-lift: light-dark(#ffffff, #262119);
@@ -35,8 +32,8 @@
   --border: var(--line);
   --border-strong: color-mix(in srgb, var(--ink) 28%, var(--paper));
   --text: var(--ink);
-  --dim: var(--muted);
-  --accent: var(--accent-fill);
+  --dim: var(--graphite);
+  --accent: var(--pencil);
   --accent-fg: light-dark(#ffffff, #161310);
   --surface: var(--card);
   --surface-raised: var(--card-lift);
