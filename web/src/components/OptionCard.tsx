@@ -1,4 +1,3 @@
-import type { MouseEvent } from 'react';
 import type { ChoiceOption } from '../schema';
 import type { Interactions } from '../events';
 import { renderInlineMarkdown } from '../markdown';
@@ -7,7 +6,7 @@ import { Clamped } from './Clamped';
 import { DetailDisclosure } from './Detail';
 
 // OptionCard renders one choice option as a selectable card: keyboard index badge,
-// selection indicator, label + Recommended stamp, hint/md body, a per-card facts
+// selection indicator, label + Recommended mark, hint/md body, a per-card facts
 // tray in factAxes() order, and a foot Detail drill-down. It keeps the .option
 // grammar the keyboard, shell, and swipe-exemption rules couple to.
 export function OptionCard({
@@ -20,8 +19,6 @@ export function OptionCard({
   interactions,
   axes,
   onToggle,
-  onHoverEnter,
-  onHoverLeave,
 }: {
   option: ChoiceOption;
   index: number;
@@ -32,8 +29,6 @@ export function OptionCard({
   interactions: Interactions;
   axes: string[] | null;
   onToggle: () => void;
-  onHoverEnter: (pointer?: MouseEvent) => void;
-  onHoverLeave: (pointer?: MouseEvent) => void;
 }) {
   const facts = option.facts && option.facts.length > 0 ? option.facts : null;
   const factLabels = axes ?? facts?.map((f) => f.label ?? '') ?? [];
@@ -44,10 +39,6 @@ export function OptionCard({
       aria-disabled={locked}
       tabIndex={locked ? -1 : 0}
       className={`option${selected ? ' selected' : ''}${option.recommended ? ' recommended' : ''}`}
-      onMouseMove={onHoverEnter}
-      onMouseLeave={onHoverLeave}
-      onFocus={() => onHoverEnter()}
-      onBlur={() => onHoverLeave()}
       onClick={() => {
         if (!locked) onToggle();
       }}
@@ -69,7 +60,7 @@ export function OptionCard({
       <span className="option-body">
         <span className="option-label">
           {option.label}
-          {option.recommended && <span className="option-reco">Recommended</span>}
+          {option.recommended && <RecommendedMark />}
         </span>
         {option.hint && (
           <div className="option-hint" dangerouslySetInnerHTML={{ __html: renderInlineMarkdown(option.hint) }} />
@@ -92,5 +83,13 @@ export function OptionCard({
       )}
       {option.detail && <DetailDisclosure detail={option.detail} interactions={interactions} />}
     </div>
+  );
+}
+
+export function RecommendedMark() {
+  return (
+    <span className="option-reco">
+      <span aria-hidden>★</span> Recommended
+    </span>
   );
 }

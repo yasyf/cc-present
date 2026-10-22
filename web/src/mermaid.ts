@@ -68,9 +68,14 @@ function configure(mermaid: Mermaid): void {
   themeKey = currentThemeKey();
 }
 
+async function proseFontReady(): Promise<void> {
+  await document.fonts.load('400 1em Barlow');
+  await document.fonts.ready;
+}
+
 function load(): Promise<Mermaid> {
   if (!loader) {
-    loader = import('mermaid').then((mod) => {
+    loader = Promise.all([import('mermaid'), proseFontReady()]).then(([mod]) => {
       configure(mod.default);
       return mod.default;
     });

@@ -1,24 +1,16 @@
 import { createContext } from 'react';
-import type { OptionVisual, Stat } from '../schema';
+import type { Stat } from '../schema';
 
 // FocusStepContextValue names the decidable whose prompt FocusCard hoisted into
 // the step <h2>, so its inline copy is suppressed; null when the card title heads.
 export interface FocusStepContextValue {
   headlineId: string | null;
+  hoisted: ReadonlySet<string>;
 }
 
 // FocusStepContext is provided by FocusCard around a step body; a null value is
 // board mode, where card heads and prompts render as authored.
 export const FocusStepContext = createContext<FocusStepContextValue | null>(null);
-
-export interface FocusStageValue {
-  staged: boolean;
-  setVisual: (visual: OptionVisual | null) => void;
-}
-
-// FocusStageContext is provided by FocusCard in focus mode; null in board mode,
-// where an option's visual renders in its own detail drill-down instead of a stage.
-export const FocusStageContext = createContext<FocusStageValue | null>(null);
 
 export interface FocusLeadValue {
   stepId: string;

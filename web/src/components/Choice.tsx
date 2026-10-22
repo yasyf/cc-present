@@ -1,47 +1,38 @@
-import { useContext, useEffect, useRef, useState } from 'react';
-import type { MouseEvent } from 'react';
+import { useCallback, useContext, useEffect, useRef, useState } from 'react';
+import type { FocusEvent, MouseEvent } from 'react';
 import { useGroupReadOnly } from '@cc-interact/react';
 import type { Choice as ChoiceBlock } from '../schema';
 import type { Interactions } from '../events';
 import { usePresent } from '../present';
 import { draftStore } from '../drafts';
 import { choiceToggle } from '../decide';
-import { factAxes } from '../focus';
+import { choiceShape, factAxes } from '../focus';
 import { useDecidable } from '../keyboard';
+import { useMediaQuery } from '../useMediaQuery';
 import { Mark } from './Mark';
 import { OptionCard } from './OptionCard';
-import { OptionStrip, scrollBehavior } from './OptionStrip';
+import { ChoiceGrid } from './ChoiceGrid';
 import { BlockThread } from './BlockThread';
 import { BlockBody } from './BlockRenderer';
 import type { FeedbackHandle } from './FeedbackThread';
-import { FocusStageContext, FocusStepContext } from './focusStep';
-import { useThreadHost } from './threadHost';
-
-// At three or more options the choice renders as a scroll-snap card strip; two or
-// fewer, or any choice beside a focus stage, stay the vertical stack.
-const STRIP_MIN = 3;
+import { FocusStepContext } from './focusStep';
 
 export function Choice({ block, interactions }: { block: ChoiceBlock; interactions: Interactions }) {
   const { post, closed } = usePresent();
   const readOnly = useGroupReadOnly();
   const focus = useContext(FocusStepContext);
-  const stage = useContext(FocusStageContext);
-  const rail = useThreadHost() === 'rail';
+  const narrow = useMediaQuery('(max-width: 720px)');
   const suppressPrompt = focus?.headlineId === block.id;
   const locked = closed || readOnly;
   const selection = interactions.choices[block.id];
   const selected = selection?.optionIds ?? [];
   const committed = selection?.other ?? '';
   const multi = block.multi ?? false;
-  // The shared ordered fact labels when options declare a matching sequence; each
-  // card renders its facts in this order so equal-height cards line their rows up.
   const axes = factAxes(block.options);
-  const strip = !stage?.staged && block.options.length >= STRIP_MIN;
+  const grid = axes !== null && !narrow && choiceShape(block.options) === 'grid';
 
   const feedbackRef = useRef<FeedbackHandle>(null);
   const otherRef = useRef<HTMLTextAreaElement>(null);
-  const optionsRef = useRef<HTMLDivElement>(null);
-  const otherCard = useRef<HTMLDivElement>(null);
   const [noteComposing, setNoteComposing] = useState(false);
   const [otherComposing, setOtherComposing] = useState(false);
   const [draft, setDraft] = useState(
@@ -110,24 +101,17 @@ export function Choice({ block, interactions }: { block: ChoiceBlock; interactio
   // the cursor in the composer.
   const otherIndex = block.options.length + 1;
 
-  // Bring the nth card into view when a click or the 1-9 keymap picks a card
-  // resting outside the strip's snap window.
-  function revealCard(cardIndex: number) {
-    const card = optionsRef.current?.children[cardIndex] as HTMLElement | undefined;
-    card?.scrollIntoView({ inline: 'nearest', block: 'nearest', behavior: scrollBehavior() });
-  }
-
-  function revealOther() {
-    otherCard.current?.scrollIntoView({ inline: 'nearest', block: 'nearest', behavior: scrollBehavior() });
-  }
-
   function pick(i: number) {
     toggle(block.options[i]!.id);
-    revealCard(i);
+  }
+
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  function reveal(optionId: string) {
+    const targets = rootRef.current?.querySelectorAll<HTMLElement>('.option-row, .grid-pick') ?? [];
+    [...targets].find((el) => el.dataset.optionId === optionId)?.scrollIntoView({ block: 'nearest' });
   }
 
   const [pointed, setPointed] = useState<string | null>(null);
-  const [lastPointed, setLastPointed] = useState<string | null>(null);
   const pointerAt = useRef('');
 
   function pointerMoved({ clientX, clientY }: MouseEvent) {
@@ -137,6 +121,17 @@ export function Choice({ block, interactions }: { block: ChoiceBlock; interactio
     return moved;
   }
 
+  const pointing = {
+    onMouseMove: (e: MouseEvent) => {
+      if (pointerMoved(e)) setPointed(optionAt(e.target));
+    },
+    onMouseLeave: (e: MouseEvent) => {
+      if (pointerMoved(e)) setPointed(null);
+    },
+    onFocus: (e: FocusEvent) => setPointed(optionAt(e.target)),
+    onBlur: () => setPointed(null),
+  };
+
   const { ref, cursor } = useDecidable(block.id, {
     kind: 'choice',
     disabled: locked,
@@ -144,27 +139,26 @@ export function Choice({ block, interactions }: { block: ChoiceBlock; interactio
     choose: (n) => {
       if (n === otherIndex) {
         pickOther();
-        revealOther();
         return;
       }
       const option = block.options[n - 1];
       if (option) {
         setPointed(null);
-        setLastPointed(option.id);
         pick(n - 1);
+        reveal(option.id);
       }
     },
   });
+  const setRoot = useCallback(
+    (el: HTMLDivElement | null) => {
+      rootRef.current = el;
+      ref(el);
+    },
+    [ref],
+  );
 
-  // The pointed card's visual, else the latest pick's, else the last pointed, else
-  // the first option's: published to the focus stage, or shown above the board strip.
-  const activeId = pointed ?? picks.at(-1) ?? lastPointed ?? block.options[0]?.id;
-  const activeVisual = block.options.find((o) => o.id === activeId)?.visual ?? null;
-  useEffect(() => {
-    stage?.setVisual(activeVisual);
-  }, [stage, activeVisual]);
-
-  const picked = new Set(block.options.flatMap((option, i) => (picks.includes(option.id) ? [i] : [])));
+  const shownId = pointed ?? picks.at(-1);
+  const shownVisual = block.options.find((option) => option.id === shownId)?.visual;
   const feedback = interactions.feedback[block.id] ?? [];
   const replies = interactions.replies[block.id] ?? [];
   const thread = (
@@ -181,7 +175,6 @@ export function Choice({ block, interactions }: { block: ChoiceBlock; interactio
 
   const other = (
     <div
-      ref={otherCard}
       role={multi ? 'checkbox' : 'radio'}
       aria-checked={otherOn}
       aria-disabled={locked}
@@ -190,7 +183,6 @@ export function Choice({ block, interactions }: { block: ChoiceBlock; interactio
       data-composing={otherComposing || undefined}
       onClick={(e) => {
         if (locked) return;
-        revealOther();
         // Activating the card chrome (label, indicator, padding) lands the
         // cursor in the write-in; a click on the textarea keeps its native focus.
         if (e.target === otherRef.current) return;
@@ -247,56 +239,61 @@ export function Choice({ block, interactions }: { block: ChoiceBlock; interactio
   return (
     <div
       className="choice"
-      ref={ref}
+      ref={setRoot}
       data-kbd-cursor={cursor || undefined}
       data-composing={noteComposing || undefined}
       data-closed={closed || undefined}
     >
       {!suppressPrompt && block.prompt && <p className="choice-prompt">{block.prompt}</p>}
-      {!stage && block.options.some((option) => option.visual) && (
-        <div className="choice-visual">
-          {activeVisual ? (
-            <BlockBody block={activeVisual} interactions={interactions} />
-          ) : (
-            <p className="focus-media-empty">No preview for this option</p>
-          )}
-        </div>
-      )}
-      <OptionStrip
-        strip={strip}
-        role={multi ? 'group' : 'radiogroup'}
-        ariaLabel={block.prompt}
-        cardCount={block.options.length}
-        picked={picked}
-        containerRef={optionsRef}
-        navActions={strip && rail ? thread : undefined}
-        other={other}
-      >
-        {block.options.map((option, i) => (
-          <OptionCard
-            key={option.id}
-            option={option}
-            index={i}
-            selected={picks.includes(option.id)}
+      {grid ? (
+        <div className="choice-compare" role={multi ? 'group' : 'radiogroup'} aria-label={block.prompt} {...pointing}>
+          <ChoiceGrid
+            options={block.options}
+            axes={axes}
+            picks={picks}
             multi={multi}
             locked={locked}
-            showIndex={!!cursor && i < 9}
+            showIndex={!!cursor}
             interactions={interactions}
-            axes={axes}
-            onToggle={() => pick(i)}
-            onHoverEnter={(pointer) => {
-              if (pointer && !pointerMoved(pointer)) return;
-              setPointed(option.id);
-              setLastPointed(option.id);
-            }}
-            onHoverLeave={(pointer) => {
-              if (pointer) pointerMoved(pointer);
-              setPointed((p) => (p === option.id ? null : p));
-            }}
+            onToggle={pick}
           />
-        ))}
-      </OptionStrip>
-      {!(strip && rail) && thread}
+          {shownVisual && (
+            <div className="option-visual" data-option-id={shownId}>
+              <BlockBody block={shownVisual} interactions={interactions} />
+            </div>
+          )}
+          {other}
+        </div>
+      ) : (
+        <div className="options" role={multi ? 'group' : 'radiogroup'} aria-label={block.prompt} {...pointing}>
+          {block.options.map((option, i) => (
+            <div key={option.id} className="option-row" data-option-id={option.id}>
+              <OptionCard
+                option={option}
+                index={i}
+                selected={picks.includes(option.id)}
+                multi={multi}
+                locked={locked}
+                showIndex={!!cursor && i < 9}
+                interactions={interactions}
+                axes={axes}
+                onToggle={() => pick(i)}
+              />
+              {option.visual && option.id === shownId && (
+                <div className="option-visual">
+                  <BlockBody block={option.visual} interactions={interactions} />
+                </div>
+              )}
+            </div>
+          ))}
+          {other}
+        </div>
+      )}
+      {thread}
     </div>
   );
+}
+
+function optionAt(target: EventTarget): string | null {
+  return (target as Element).closest<HTMLElement>('[data-option-id]')?.dataset.optionId ?? null;
 }

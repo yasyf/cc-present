@@ -10,7 +10,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: var(--pencil);
+  color: var(--accent);
   line-height: 0;
 }
 .mark svg {
@@ -88,38 +88,38 @@
    doubles as the jump highlight. */
 [data-kbd-cursor] {
   border-radius: var(--radius-sm);
-  box-shadow: 0 0 0 2px var(--accent-fill);
+  box-shadow: 0 0 0 2px var(--accent);
   animation: kbd-arrive var(--dur-3) var(--ease-out);
 }
 /* In focus mode the deck already frames the step, so the ring gives way to a
    left-edge bar on the decision a card's keys target, hung in the frame's margin
    so the decision's text stays flush with the prose around it. */
-.focus-main [data-kbd-cursor] {
+.focus-card-body [data-kbd-cursor] {
   box-shadow: none;
   animation: none;
 }
-.focus-main .card-body > [data-kbd-cursor] {
+.focus-card-body .card-body > [data-kbd-cursor] {
   position: relative;
 }
-.focus-main .card-body > [data-kbd-cursor]::before {
+.focus-card-body .card-body > [data-kbd-cursor]::before {
   content: '';
   position: absolute;
   inset-block: 0;
   left: calc(-1 * var(--space-3));
   width: 3px;
   border-radius: 2px;
-  background: var(--accent-fill);
+  background: var(--accent);
 }
 @keyframes kbd-arrive {
   0% {
     box-shadow:
-      0 0 0 2px var(--accent-fill),
-      0 0 0 8px color-mix(in srgb, var(--accent-fill) 30%, transparent);
+      0 0 0 2px var(--accent),
+      0 0 0 8px color-mix(in srgb, var(--accent) 30%, transparent);
   }
   100% {
     box-shadow:
-      0 0 0 2px var(--accent-fill),
-      0 0 0 8px color-mix(in srgb, var(--accent-fill) 0%, transparent);
+      0 0 0 2px var(--accent),
+      0 0 0 8px color-mix(in srgb, var(--accent) 0%, transparent);
   }
 }
 

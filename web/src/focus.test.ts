@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
   autoAdvances,
+  choiceShape,
   factAxes,
   focusSteps,
   remaining,
+  stepFace,
   stepHeadline,
   stepStatus,
   stepTitle,
@@ -439,5 +441,89 @@ describe('factAxes', () => {
   it('falls back with fewer than two fact-carrying options', () => {
     expect(factAxes([opt('a', [{ label: 'Latency', value: '12ms' }]), opt('b')])).toBeNull();
     expect(factAxes([opt('a'), opt('b')])).toBeNull();
+  });
+});
+
+describe('choiceShape', () => {
+  const opt = (id: string, labels: string[]): ChoiceOption => ({
+    id,
+    label: id,
+    facts: labels.map((label) => ({ label, value: '1' })),
+  });
+  const cases: { name: string; options: ChoiceOption[]; shape: 'grid' | 'list' }[] = [
+    { name: 'two options with the same labels compare as a grid', options: [opt('a', ['Cost']), opt('b', ['Cost'])], shape: 'grid' },
+    {
+      name: 'four options with the same labels compare as a grid',
+      options: ['a', 'b', 'c', 'd'].map((id) => opt(id, ['Cost', 'Risk'])),
+      shape: 'grid',
+    },
+    { name: 'five options list', options: ['a', 'b', 'c', 'd', 'e'].map((id) => opt(id, ['Cost'])), shape: 'list' },
+    { name: 'a lone option lists', options: [opt('a', ['Cost'])], shape: 'list' },
+    { name: 'one mismatched label lists', options: [opt('a', ['Cost']), opt('b', ['Price'])], shape: 'list' },
+    { name: 'an option without facts lists', options: [opt('a', ['Cost']), opt('b', ['Cost']), { id: 'c', label: 'c' }], shape: 'list' },
+    { name: 'unlabelled facts list', options: [opt('a', ['']), opt('b', [''])], shape: 'list' },
+  ];
+  for (const c of cases) {
+    it(c.name, () => {
+      expect(choiceShape(c.options)).toBe(c.shape);
+    });
+  }
+});
+
+describe('stepFace', () => {
+  const face = (blocks: Block[], index = 0) => stepFace(focusSteps(blocks, new Set())[index]!, new Set());
+  const ids = (blocks: Block[]) => blocks.map((b) => b.id);
+  const code = (id: string): Block => ({ id, type: 'code', lang: 'go', code: '' });
+
+  it('leads with the first markdown and holds the rest of the context as Background', () => {
+    const f = face([code('k1'), markdown('m1'), markdown('m2'), approval('a1')]);
+    expect(f.lede).toEqual({ md: 'm1', inline: false });
+    expect(ids(f.background)).toEqual(['k1', 'm2']);
+    expect(f.hoisted.size).toBe(0);
+    expect(f.prelude).toEqual([]);
+  });
+
+  it('skips struck markdown for the lede', () => {
+    const struck: Block = { id: 's1', type: 'markdown', md: 'old', struck: true };
+    const f = face([struck, markdown('m1'), approval('a1')]);
+    expect(f.lede?.md).toBe('m1');
+    expect(ids(f.background)).toEqual(['s1']);
+  });
+
+  it('leads a card with its summary and moves its non-decidable children to Background', () => {
+    const k: Block = { id: 'k', type: 'card', summary: 'why now', children: [markdown('m1'), approval('a1'), code('c1')] as never };
+    const f = face([markdown('m0'), k]);
+    expect(f.lede).toEqual({ md: 'why now', inline: true });
+    expect(ids(f.background)).toEqual(['m0', 'm1', 'c1']);
+    expect([...f.hoisted]).toEqual(['m1', 'c1']);
+  });
+
+  it('takes a summary-less card lede from its own markdown child', () => {
+    const f = face([card('k', [markdown('m1'), approval('a1')])]);
+    expect(f.lede?.md).toBe('m1');
+    expect(f.background).toEqual([]);
+    expect([...f.hoisted]).toEqual(['m1']);
+  });
+
+  it('keeps an interactive pack child on the card face', () => {
+    const k = card('k', [pack('p1'), markdown('m1')]);
+    const step = focusSteps([k], new Set(['ex.rating']))[0]!;
+    const f = stepFace(step, new Set(['ex.rating']));
+    expect([...f.hoisted]).toEqual(['m1']);
+  });
+
+  it('renders a context step in full, with no lede or Background', () => {
+    const f = face([markdown('m1'), code('k1')]);
+    expect(f.lede).toBeNull();
+    expect(f.background).toEqual([]);
+    expect(f.hoisted.size).toBe(0);
+    expect(ids(f.prelude)).toEqual(['m1']);
+  });
+
+  it('still leads a context-step card with its summary', () => {
+    const k: Block = { id: 'k', type: 'card', summary: 'for the record', children: [markdown('m1')] as never };
+    const f = face([k]);
+    expect(f.lede).toEqual({ md: 'for the record', inline: true });
+    expect(f.hoisted.size).toBe(0);
   });
 });

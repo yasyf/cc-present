@@ -27,7 +27,7 @@ export function Card({ block, interactions }: { block: CardBlock; interactions: 
           )}
         </div>
       )}
-      {block.summary && (
+      {!focus && block.summary && (
         <div
           className="card-summary"
           dangerouslySetInnerHTML={{ __html: renderInlineMarkdown(block.summary) }}
@@ -35,9 +35,11 @@ export function Card({ block, interactions }: { block: CardBlock; interactions: 
       )}
       {block.flagged && <div className="flag-callout">Flagged for review</div>}
       <div className="card-body">
-        {block.children.map((child) => (
-          <BlockRenderer key={child.id} block={child} interactions={interactions} />
-        ))}
+        {block.children
+          .filter((child) => !focus?.hoisted.has(child.id))
+          .map((child) => (
+            <BlockRenderer key={child.id} block={child} interactions={interactions} />
+          ))}
       </div>
     </div>
   );

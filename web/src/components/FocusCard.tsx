@@ -1,140 +1,61 @@
-import { forwardRef, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { forwardRef, useCallback, useContext, useEffect, useMemo, useRef } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
 import { CollapsedGroup } from '@cc-interact/react';
 import { m, useDragControls, useIsPresent, useMotionValue, useReducedMotion, useTransform } from 'motion/react';
 import type { MotionValue, PanInfo } from 'motion/react';
-import type { FocusStep } from '../focus';
-import { stepHeadline, swipeVerdict } from '../focus';
-import type { Block, OptionVisual } from '../schema';
+import type { FocusStep, StepLede } from '../focus';
+import { stepFace, stepHeadline, swipeVerdict } from '../focus';
+import type { Block } from '../schema';
 import type { Interaction, Interactions } from '../events';
 import { usePresent } from '../present';
 import { revisionStore, useRevisingBanner, useUnseenChange } from '../revision';
 import { FOCUS_DWELL_MS, blockViewIds, viewedStore } from '../viewed';
-import { useMediaQuery } from '../useMediaQuery';
 import { useExpandAll } from '../expand';
-import { renderMarkdown } from '../markdown';
-import { BlockBody, BlockRenderer } from './BlockRenderer';
+import { renderInlineMarkdown, renderMarkdown } from '../markdown';
+import { useInteractivePackTypes } from '../packs/registry';
+import { BlockRenderer } from './BlockRenderer';
 import { Clamped } from './Clamped';
 import { StatusPill } from './Card';
 import { StatsBar } from './StatsBar';
-import { FocusLeadContext, FocusStageContext, FocusStepContext } from './focusStep';
-import type { FocusStageValue } from './focusStep';
+import { FocusLeadContext, FocusStepContext } from './focusStep';
 import { cardVariants } from './focusMotion';
 
-// Heavy lead-in blocks collapse to a one-line titled disclosure; markdown clamps.
-// term and filetree join them; chart and record stay expanded (bounded-height).
-const HEAVY_CONTEXT = new Set(['code', 'diff', 'table', 'image', 'diagram', 'term', 'filetree']);
-
-// contextTitle labels a demoted context or option-visual disclosure, else a type name.
-// Mirrors iOS optionVisualTitle/focusContextTitle.
-export function contextTitle(block: Block): string {
-  switch (block.type) {
-    case 'code':
-      return block.title ?? block.lang;
-    case 'diff':
-      return block.title ?? 'Diff';
-    case 'diagram':
-      return block.title ?? 'Diagram';
-    case 'image':
-      return block.caption ?? block.alt;
-    case 'table':
-      return block.columns.map((column) => column.label).join(' · ');
-    case 'chart':
-      return block.title ?? 'Chart';
-    case 'term':
-      return block.title ?? 'Terminal';
-    case 'filetree':
-      return block.title ?? 'Files';
-    case 'record':
-      return block.title ?? 'Record';
-    case 'pr':
-      return block.title ?? `${block.repo}#${block.number}`;
-    default:
-      return block.type;
+function FocusLede({ lede }: { lede: StepLede }) {
+  const html = lede.inline ? renderInlineMarkdown(lede.md) : renderMarkdown(lede.md);
+  if (html.includes('<table')) {
+    return <div className="prose focus-lede" dangerouslySetInnerHTML={{ __html: html }} />;
   }
+  return <Clamped html={html} lines={3} className="prose focus-lede" />;
 }
 
-function FocusContextBlock({ block, only, interactions }: { block: Block; only: boolean; interactions: Interactions }) {
-  const { epoch, expanded } = useExpandAll();
-  if (block.type === 'markdown') {
-    const html = renderMarkdown(block.md);
-    if (html.includes('<table')) {
-      return <div className="prose markdown-block focus-context-md" dangerouslySetInnerHTML={{ __html: html }} />;
-    }
-    return <Clamped html={html} lines={6} className="prose markdown-block focus-context-md" />;
-  }
-  if (HEAVY_CONTEXT.has(block.type)) {
-    return (
-      <CollapsedGroup
-        key={epoch}
-        defaultExpanded={expanded || (only && block.type === 'table')}
-        header={contextTitle(block)}
-      >
-        <BlockRenderer block={block} interactions={interactions} />
-      </CollapsedGroup>
-    );
-  }
-  return <BlockRenderer block={block} interactions={interactions} />;
-}
-
-function hasStage(block: Block): boolean {
-  if (block.type === 'choice') return block.options.some((option) => option.visual);
-  if (block.type === 'card') return block.children.some(hasStage);
-  return false;
-}
-
-const WIDE_ASPECT = 2.5;
-
-function visualAspect(media: Element): number | null {
-  const figure = media.querySelector('.diagram-svg svg, .image-block img');
-  if (!figure) return null;
-  const { width, height } = figure.getBoundingClientRect();
-  return height > 0 ? width / height : null;
-}
-
-function StageMedia({
-  visual,
-  staged,
+function FocusBackground({
+  blocks,
   interactions,
-  onWide,
+  reveal,
 }: {
-  visual: OptionVisual | null;
-  staged: boolean;
+  blocks: Block[];
   interactions: Interactions;
-  onWide: () => void;
+  reveal: FocusReveal | null;
 }) {
-  const compact = useMediaQuery('(max-width: 440px)');
-  const mediaRef = useRef<HTMLDivElement>(null);
+  const { epoch, expanded } = useExpandAll();
+  const target = reveal && blocks.some((block) => block.id === reveal.id) ? reveal : null;
+  const bodyRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    const media = mediaRef.current;
-    if (!media) return;
-    const measure = () => {
-      const aspect = visualAspect(media);
-      if (aspect !== null && aspect > WIDE_ASPECT) onWide();
-    };
-    measure();
-    const observer = new ResizeObserver(measure);
-    observer.observe(media);
-    return () => observer.disconnect();
-  }, [visual, onWide]);
-  if (!visual) {
-    return (
-      <div className="focus-media">{staged && <p className="focus-media-empty">No preview for this option</p>}</div>
-    );
-  }
-  if (compact) {
-    return (
-      <details className="focus-media focus-media-disclosure">
-        <summary className="focus-media-summary">{contextTitle(visual)}</summary>
-        <div className="focus-media-body">
-          <BlockBody block={visual} interactions={interactions} />
-        </div>
-      </details>
-    );
-  }
+    if (!target) return;
+    const shown = bodyRef.current?.querySelectorAll<HTMLElement>('[data-block-id]') ?? [];
+    [...shown].find((el) => el.dataset.blockId === target.id)?.scrollIntoView({ block: 'center' });
+  }, [target]);
   return (
-    <div className="focus-media" ref={mediaRef}>
-      <BlockBody block={visual} interactions={interactions} />
+    <div className="focus-background">
+      <CollapsedGroup key={`${epoch}:${target?.seq ?? 0}`} defaultExpanded={expanded || target !== null} header="Background">
+        <div className="focus-background-body" ref={bodyRef}>
+          {blocks.map((block) => (
+            <div key={block.id} data-block-id={block.id}>
+              <BlockRenderer block={block} interactions={interactions} />
+            </div>
+          ))}
+        </div>
+      </CollapsedGroup>
     </div>
   );
 }
@@ -228,8 +149,16 @@ export function resolveDragEnd(
 // (started only off interactive children) tilts the card and reveals
 // APPROVE/REJECT affordances, and a committed swipe drives the shared decide path.
 // It never wraps a block in .block-row/data-flip-key — FLIP is board-only.
-export const FocusCard = forwardRef<HTMLDivElement, { step: FocusStep; interactions: Interactions }>(function FocusCard(
-  { step, interactions },
+export interface FocusReveal {
+  id: string;
+  seq: number;
+}
+
+export const FocusCard = forwardRef<
+  HTMLDivElement,
+  { step: FocusStep; interactions: Interactions; reveal: FocusReveal | null }
+>(function FocusCard(
+  { step, interactions, reveal },
   ref,
 ) {
   const { post, closed, currentRound } = usePresent();
@@ -245,11 +174,8 @@ export const FocusCard = forwardRef<HTMLDivElement, { step: FocusStep; interacti
   const approveOpacity = useTransform(x, [30, 130], [0, 1]);
   const rejectOpacity = useTransform(x, [-130, -30], [1, 0]);
 
-  const [activeVisual, setActiveVisual] = useState<OptionVisual | null>(null);
-  const staged = hasStage(step.block);
-  const stageValue = useMemo<FocusStageValue>(() => ({ staged, setVisual: setActiveVisual }), [staged]);
-  const [wide, setWide] = useState(false);
-  const markWide = useCallback(() => setWide(true), []);
+  const packInteractive = useInteractivePackTypes();
+  const face = useMemo(() => stepFace(step, packInteractive), [step, packInteractive]);
 
   const primaryId = step.primary?.id;
   const swipeable = step.swipeable && primaryId !== undefined && !closed;
@@ -321,8 +247,7 @@ export const FocusCard = forwardRef<HTMLDivElement, { step: FocusStep; interacti
   const hasMeta = eyebrow !== undefined || status !== undefined || (chips?.length ?? 0) > 0;
 
   return (
-    <FocusStepContext.Provider value={{ headlineId: headline.suppressId }}>
-      <FocusStageContext.Provider value={stageValue}>
+    <FocusStepContext.Provider value={{ headlineId: headline.suppressId, hoisted: face.hoisted }}>
       <m.div
         ref={ref}
         className="focus-card"
@@ -368,27 +293,18 @@ export const FocusCard = forwardRef<HTMLDivElement, { step: FocusStep; interacti
             {headline.text}
           </h2>
         )}
-        <div className="focus-card-body" data-stage={staged || undefined} data-wide={(staged && wide) || undefined}>
-          <div className="focus-main">
-            <FocusLead stepId={step.id} />
-            {step.context.length > 0 && (
-              <div className="focus-context">
-                {step.context.map((block) => (
-                  <FocusContextBlock
-                    key={block.id}
-                    block={block}
-                    only={step.context.length === 1}
-                    interactions={interactions}
-                  />
-                ))}
-              </div>
-            )}
-            <BlockRenderer key={step.block.id} block={step.block} interactions={interactions} note />
-          </div>
-          <StageMedia visual={activeVisual} staged={staged} interactions={interactions} onWide={markWide} />
+        <div className="focus-card-body">
+          <FocusLead stepId={step.id} />
+          {face.lede && <FocusLede lede={face.lede} />}
+          {face.prelude.map((block) => (
+            <BlockRenderer key={block.id} block={block} interactions={interactions} />
+          ))}
+          <BlockRenderer key={step.block.id} block={step.block} interactions={interactions} note />
+          {face.background.length > 0 && (
+            <FocusBackground blocks={face.background} interactions={interactions} reveal={reveal} />
+          )}
         </div>
       </m.div>
-      </FocusStageContext.Provider>
     </FocusStepContext.Provider>
   );
 });
