@@ -1,4 +1,4 @@
-import { useContext, useEffect, useRef, useState } from 'react';
+import { useCallback, useContext, useEffect, useRef, useState } from 'react';
 import type { FocusEvent, MouseEvent } from 'react';
 import { useGroupReadOnly } from '@cc-interact/react';
 import type { Choice as ChoiceBlock } from '../schema';
@@ -105,6 +105,12 @@ export function Choice({ block, interactions }: { block: ChoiceBlock; interactio
     toggle(block.options[i]!.id);
   }
 
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  function reveal(optionId: string) {
+    const targets = rootRef.current?.querySelectorAll<HTMLElement>('.option-row, .grid-pick') ?? [];
+    [...targets].find((el) => el.dataset.optionId === optionId)?.scrollIntoView({ block: 'nearest' });
+  }
+
   const [pointed, setPointed] = useState<string | null>(null);
   const pointerAt = useRef('');
 
@@ -135,12 +141,21 @@ export function Choice({ block, interactions }: { block: ChoiceBlock; interactio
         pickOther();
         return;
       }
-      if (block.options[n - 1]) {
+      const option = block.options[n - 1];
+      if (option) {
         setPointed(null);
         pick(n - 1);
+        reveal(option.id);
       }
     },
   });
+  const setRoot = useCallback(
+    (el: HTMLDivElement | null) => {
+      rootRef.current = el;
+      ref(el);
+    },
+    [ref],
+  );
 
   const shownId = pointed ?? picks.at(-1);
   const shownVisual = block.options.find((option) => option.id === shownId)?.visual;
@@ -224,7 +239,7 @@ export function Choice({ block, interactions }: { block: ChoiceBlock; interactio
   return (
     <div
       className="choice"
-      ref={ref}
+      ref={setRoot}
       data-kbd-cursor={cursor || undefined}
       data-composing={noteComposing || undefined}
       data-closed={closed || undefined}

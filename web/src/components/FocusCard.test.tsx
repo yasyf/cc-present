@@ -9,13 +9,14 @@ import { PresentContext } from '../present';
 import type { PresentApi } from '../present';
 import { KeyboardProvider } from '../keyboard';
 import { FocusCard, NO_DRAG, resolveDragEnd, swipeCommit } from './FocusCard';
+import type { FocusReveal } from './FocusCard';
 import { ThreadHostContext } from './threadHost';
 import type { ThreadHost } from './threadHost';
 import { focusSteps } from '../focus';
 import { emptyState } from '../reduce';
 import { DECAY_MS, revisionStore } from '../revision';
 import { FOCUS_DWELL_MS, viewedStore } from '../viewed';
-import type { Interaction, PresentState, Revising, WireFrame } from '../events';
+import type { Interaction, Interactions, PresentState, Revising, WireFrame } from '../events';
 import type { Block } from '../schema';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -90,9 +91,13 @@ const staged = (id: string): Block =>
 
 // renderStep renders the step focusSteps derives at `index` from a block run, so a
 // step's demoted lead-in context (the run before its anchor) can be exercised.
-function renderStep(blocks: Block[], index = 0, host: ThreadHost = 'inline'): void {
+function renderStep(
+  blocks: Block[],
+  index = 0,
+  host: ThreadHost = 'inline',
+  { interactions = emptyState().interactions, reveal = null }: { interactions?: Interactions; reveal?: FocusReveal | null } = {},
+): void {
   const step = focusSteps(blocks, new Set())[index]!;
-  const interactions = emptyState().interactions;
   const present: PresentApi = { post: async () => true, closed: false, currentRound: 1 };
   act(() =>
     root.render(
@@ -101,7 +106,7 @@ function renderStep(blocks: Block[], index = 0, host: ThreadHost = 'inline'): vo
           <PresentContext.Provider value={present}>
             <ThreadHostContext.Provider value={host}>
               <KeyboardProvider blocks={blocks} interactions={interactions} closed={false} round={1}>
-                <FocusCard step={step} interactions={interactions} />
+                <FocusCard step={step} interactions={interactions} reveal={reveal} />
               </KeyboardProvider>
             </ThreadHostContext.Provider>
           </PresentContext.Provider>
@@ -139,7 +144,7 @@ function renderCard(block: Block): void {
         <MotionConfig reducedMotion="user">
           <PresentContext.Provider value={present}>
             <KeyboardProvider blocks={[block]} interactions={interactions} closed={false} round={1}>
-              <FocusCard step={step} interactions={interactions} />
+              <FocusCard step={step} interactions={interactions} reveal={null} />
             </KeyboardProvider>
           </PresentContext.Provider>
         </MotionConfig>
@@ -336,6 +341,34 @@ describe('FocusCard question-first anatomy', () => {
     expect(background.querySelector('.table-block')).not.toBeNull();
     expect(background.querySelector('.code-block')).not.toBeNull();
     expect(container.querySelector('.focus-question')?.textContent).toBe('Ship it?');
+  });
+
+  it('opens Background and reveals the block a jump targets inside it', () => {
+    const reveal = vi.spyOn(Element.prototype, 'scrollIntoView');
+    renderStep([markdown('m1', 'lead'), code('k1'), approval('a1', 'Ship it?')], 0, 'inline', {
+      reveal: { id: 'k1', seq: 1 },
+    });
+    const background = container.querySelector('.focus-background .cc-group')!;
+    expect(background.classList.contains('cc-group-expanded')).toBe(true);
+    const target = background.querySelector('[data-block-id="k1"]');
+    expect(target?.querySelector('.code-block')).not.toBeNull();
+    expect(reveal.mock.contexts).toContain(target);
+    reveal.mockRestore();
+  });
+
+  it('leaves Background closed for a jump to a block outside it', () => {
+    renderStep([markdown('m1', 'lead'), code('k1'), approval('a1', 'Ship it?')], 0, 'inline', {
+      reveal: { id: 'a1', seq: 1 },
+    });
+    expect(container.querySelector('.focus-background .cc-group-expanded')).toBeNull();
+  });
+
+  it('counts notes on a card child moved into Background on the card chip', () => {
+    const k = card('k1', 'Transport choice', [markdown('m1', 'history'), choice('c1', 'Which?', ['A', 'B'])]);
+    renderStep([k], 0, 'rail', {
+      interactions: { ...emptyState().interactions, feedback: { m1: [{ id: 'f1', text: 'why?' }] } },
+    });
+    expect(container.querySelector('.focus-card-body > .comment-chip-row .comment-chip')?.textContent).toBe('1 comment');
   });
 
   it('renders a context step in full, with no Background', () => {

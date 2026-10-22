@@ -5,6 +5,7 @@ import type { Stat } from '../schema';
 // the step <h2>, so its inline copy is suppressed; null when the card title heads.
 export interface FocusStepContextValue {
   headlineId: string | null;
+  hoisted: ReadonlySet<string>;
 }
 
 // FocusStepContext is provided by FocusCard around a step body; a null value is

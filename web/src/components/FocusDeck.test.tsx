@@ -281,6 +281,16 @@ describe('FocusDeck step notes', () => {
     expect(probe('active')).toBe('m1');
   });
 
+  it('lands a jump to a card child held in Background on its step, Background open', () => {
+    const code: Block = { id: 'k9', type: 'code', lang: 'go', code: 'package main' };
+    renderRail([approval('a1', 'Ship one'), card('k1', 'Rollout', [code as ChildBlock, approval('a2', 'Ship two')])], 'k9');
+    jump();
+    expect(currentPrompt()).toBe('Rollout');
+    const background = container.querySelector('.focus-card:not([data-exiting]) .focus-background .cc-group');
+    expect(background?.classList.contains('cc-group-expanded')).toBe(true);
+    expect(background?.querySelector('[data-block-id="k9"] .code-block')).not.toBeNull();
+  });
+
   it('keeps a card thread pinned through the jump that moves the cursor onto its step', () => {
     renderRail([approval('a1', 'Ship one'), card('k1', 'Rollout', [approval('a2', 'Ship two')])], 'k1');
     expect(probe('active')).toBe('a1');

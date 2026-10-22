@@ -182,26 +182,23 @@ export interface StepLede {
 export interface StepFace {
   prelude: Block[];
   lede: StepLede | null;
-  block: Block;
   background: Block[];
+  hoisted: ReadonlySet<string>;
 }
 
 export function stepFace(step: FocusStep, packInteractive: ReadonlySet<string>): StepFace {
-  if (step.kind === 'context') return { prelude: step.context, lede: null, block: step.block, background: [] };
   const card = step.block.type === 'card' ? step.block : null;
+  const summary = card?.summary ? { md: card.summary, inline: true } : null;
+  if (step.kind === 'context') return { prelude: step.context, lede: summary, background: [], hoisted: new Set() };
   const decides = (b: Block) => decidableIds([b], packInteractive).length > 0;
-  const aside = [...step.context, ...(card?.children.filter((child) => !decides(child)) ?? [])];
-  const ledeBlock = card?.summary ? undefined : aside.find((b): b is Markdown => b.type === 'markdown' && !b.struck);
-  const lede = card?.summary
-    ? { md: card.summary, inline: true }
-    : ledeBlock
-      ? { md: ledeBlock.md, inline: false }
-      : null;
+  const moved = card?.children.filter((child) => !decides(child)) ?? [];
+  const aside = [...step.context, ...moved];
+  const ledeBlock = summary ? undefined : aside.find((b): b is Markdown => b.type === 'markdown' && !b.struck);
   return {
     prelude: [],
-    lede,
-    block: card ? { ...card, summary: undefined, children: card.children.filter(decides) } : step.block,
+    lede: summary ?? (ledeBlock ? { md: ledeBlock.md, inline: false } : null),
     background: aside.filter((b) => b !== ledeBlock),
+    hoisted: new Set(moved.map((child) => child.id)),
   };
 }
 

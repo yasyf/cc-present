@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { SyntheticEvent } from 'react';
 import { AnimatePresence, LazyMotion, MotionConfig, domMax } from 'motion/react';
-import { submitItems } from '../decide';
+import { flatten, submitItems } from '../decide';
 import { autoAdvances, stepTitle } from '../focus';
 import type { FocusStep } from '../focus';
 import { useCursor, useKeyboardApi } from '../keyboard';
@@ -11,6 +11,7 @@ import { useInteractivePackTypes } from '../packs/registry';
 import type { Block } from '../schema';
 import type { Interactions } from '../events';
 import { FocusCard } from './FocusCard';
+import type { FocusReveal } from './FocusCard';
 import { FocusPeek } from './FocusPeek';
 import { FocusProgress } from './FocusProgress';
 import { WizardFooter } from './WizardFooter';
@@ -107,9 +108,12 @@ export function FocusDeck({
   packRef.current = packInteractive;
   cursorRef.current = cursor;
 
+  const [reveal, setReveal] = useState<FocusReveal | null>(null);
+  const revealSeq = useRef(0);
   const go = useCallback((i: number) => {
     const list = stepsRef.current;
     const clamped = Math.max(0, Math.min(i, list.length));
+    setReveal(null);
     setCurrentId(clamped >= list.length ? DECK_END : list[clamped]!.id);
   }, []);
   const move = useCallback(
@@ -140,18 +144,19 @@ export function FocusDeck({
   const jump = useCallback(
     (id: string) => {
       const list = stepsRef.current;
-      const i = list.findIndex(
-        (s) => s.id === id || s.decidables.includes(id) || s.context.some((block) => block.id === id),
-      );
+      const i = list.findIndex((s) => flatten([...s.context, s.block]).some((block) => block.id === id));
       if (i < 0) return;
       // A jump to a nested decidable lands the cursor on that id; a jump to the
       // anchor (or a non-decidable target) falls back to the step's primary.
       const target = list[i]!.decidables.includes(id) ? id : list[i]!.primary?.id ?? null;
       api.setCursor(target);
-      if (i === indexRef.current) return;
-      setExitCustom({ dir: i > indexRef.current ? 1 : -1, kind: 'nav' });
-      pendingCursorRef.current = target;
-      go(i);
+      if (i !== indexRef.current) {
+        setExitCustom({ dir: i > indexRef.current ? 1 : -1, kind: 'nav' });
+        pendingCursorRef.current = target;
+        go(i);
+      }
+      revealSeq.current += 1;
+      setReveal({ id, seq: revealSeq.current });
     },
     [api, go],
   );
@@ -339,7 +344,12 @@ export function FocusDeck({
                   onJump={jump}
                 />
               ) : (
-                <FocusCard key={`${round}:${currentStep!.id}`} step={currentStep!} interactions={interactions} />
+                <FocusCard
+                  key={`${round}:${currentStep!.id}`}
+                  step={currentStep!}
+                  interactions={interactions}
+                  reveal={reveal}
+                />
               )}
             </AnimatePresence>
           </div>

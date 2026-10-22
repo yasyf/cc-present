@@ -208,6 +208,15 @@ describe('Choice keyboard index tags', () => {
     expect(document.activeElement).toBe(otherField());
   });
 
+  it('scrolls the option a digit key picks into view', () => {
+    render(choice('c1', ['A', 'B', 'C']), empty());
+    cursorOntoChoice();
+    const reveal = vi.spyOn(Element.prototype, 'scrollIntoView');
+    press('3');
+    expect(reveal.mock.contexts.at(-1)).toBe(container.querySelectorAll('.option-row')[2]);
+    expect(reveal).toHaveBeenLastCalledWith({ block: 'nearest' });
+  });
+
   it('caps the index tags at the 1-9 keymap', () => {
     render(
       choice(
@@ -483,6 +492,14 @@ describe('Choice compare grid', () => {
     expect(cellText('.grid-pick .option-index')).toEqual(['1', '2', '3']);
     press('2');
     expect(posted).toEqual([{ type: 'choice.selected', blockId: 'c1', optionIds: ['o1'] }]);
+  });
+
+  it('scrolls the pick cell of the column a digit key picks into view', () => {
+    render(plans(), empty());
+    act(() => container.querySelector('.grid-pick')!.dispatchEvent(new FocusEvent('focusin', { bubbles: true })));
+    const reveal = vi.spyOn(Element.prototype, 'scrollIntoView');
+    press('3');
+    expect(reveal.mock.contexts.at(-1)).toBe(container.querySelectorAll('.grid-pick')[2]);
   });
 
   it('falls back to the list shape on a narrow viewport', () => {

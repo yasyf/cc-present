@@ -28,14 +28,31 @@ function FocusLede({ lede }: { lede: StepLede }) {
   return <Clamped html={html} lines={3} className="prose focus-lede" />;
 }
 
-function FocusBackground({ blocks, interactions }: { blocks: Block[]; interactions: Interactions }) {
+function FocusBackground({
+  blocks,
+  interactions,
+  reveal,
+}: {
+  blocks: Block[];
+  interactions: Interactions;
+  reveal: FocusReveal | null;
+}) {
   const { epoch, expanded } = useExpandAll();
+  const target = reveal && blocks.some((block) => block.id === reveal.id) ? reveal : null;
+  const bodyRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!target) return;
+    const shown = bodyRef.current?.querySelectorAll<HTMLElement>('[data-block-id]') ?? [];
+    [...shown].find((el) => el.dataset.blockId === target.id)?.scrollIntoView({ block: 'center' });
+  }, [target]);
   return (
     <div className="focus-background">
-      <CollapsedGroup key={epoch} defaultExpanded={expanded} header="Background">
-        <div className="focus-background-body">
+      <CollapsedGroup key={`${epoch}:${target?.seq ?? 0}`} defaultExpanded={expanded || target !== null} header="Background">
+        <div className="focus-background-body" ref={bodyRef}>
           {blocks.map((block) => (
-            <BlockRenderer key={block.id} block={block} interactions={interactions} />
+            <div key={block.id} data-block-id={block.id}>
+              <BlockRenderer block={block} interactions={interactions} />
+            </div>
           ))}
         </div>
       </CollapsedGroup>
@@ -132,8 +149,16 @@ export function resolveDragEnd(
 // (started only off interactive children) tilts the card and reveals
 // APPROVE/REJECT affordances, and a committed swipe drives the shared decide path.
 // It never wraps a block in .block-row/data-flip-key — FLIP is board-only.
-export const FocusCard = forwardRef<HTMLDivElement, { step: FocusStep; interactions: Interactions }>(function FocusCard(
-  { step, interactions },
+export interface FocusReveal {
+  id: string;
+  seq: number;
+}
+
+export const FocusCard = forwardRef<
+  HTMLDivElement,
+  { step: FocusStep; interactions: Interactions; reveal: FocusReveal | null }
+>(function FocusCard(
+  { step, interactions, reveal },
   ref,
 ) {
   const { post, closed, currentRound } = usePresent();
@@ -222,7 +247,7 @@ export const FocusCard = forwardRef<HTMLDivElement, { step: FocusStep; interacti
   const hasMeta = eyebrow !== undefined || status !== undefined || (chips?.length ?? 0) > 0;
 
   return (
-    <FocusStepContext.Provider value={{ headlineId: headline.suppressId }}>
+    <FocusStepContext.Provider value={{ headlineId: headline.suppressId, hoisted: face.hoisted }}>
       <m.div
         ref={ref}
         className="focus-card"
@@ -274,8 +299,10 @@ export const FocusCard = forwardRef<HTMLDivElement, { step: FocusStep; interacti
           {face.prelude.map((block) => (
             <BlockRenderer key={block.id} block={block} interactions={interactions} />
           ))}
-          <BlockRenderer key={step.block.id} block={face.block} interactions={interactions} note />
-          {face.background.length > 0 && <FocusBackground blocks={face.background} interactions={interactions} />}
+          <BlockRenderer key={step.block.id} block={step.block} interactions={interactions} note />
+          {face.background.length > 0 && (
+            <FocusBackground blocks={face.background} interactions={interactions} reveal={reveal} />
+          )}
         </div>
       </m.div>
     </FocusStepContext.Provider>

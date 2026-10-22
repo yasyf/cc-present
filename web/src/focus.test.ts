@@ -479,7 +479,7 @@ describe('stepFace', () => {
     const f = face([code('k1'), markdown('m1'), markdown('m2'), approval('a1')]);
     expect(f.lede).toEqual({ md: 'm1', inline: false });
     expect(ids(f.background)).toEqual(['k1', 'm2']);
-    expect(f.block.id).toBe('a1');
+    expect(f.hoisted.size).toBe(0);
     expect(f.prelude).toEqual([]);
   });
 
@@ -495,28 +495,35 @@ describe('stepFace', () => {
     const f = face([markdown('m0'), k]);
     expect(f.lede).toEqual({ md: 'why now', inline: true });
     expect(ids(f.background)).toEqual(['m0', 'm1', 'c1']);
-    expect(f.block.type === 'card' && f.block.summary).toBeFalsy();
-    expect(f.block.type === 'card' && ids(f.block.children)).toEqual(['a1']);
+    expect([...f.hoisted]).toEqual(['m1', 'c1']);
   });
 
   it('takes a summary-less card lede from its own markdown child', () => {
     const f = face([card('k', [markdown('m1'), approval('a1')])]);
     expect(f.lede?.md).toBe('m1');
     expect(f.background).toEqual([]);
+    expect([...f.hoisted]).toEqual(['m1']);
   });
 
   it('keeps an interactive pack child on the card face', () => {
     const k = card('k', [pack('p1'), markdown('m1')]);
     const step = focusSteps([k], new Set(['ex.rating']))[0]!;
     const f = stepFace(step, new Set(['ex.rating']));
-    expect(f.block.type === 'card' && ids(f.block.children)).toEqual(['p1']);
+    expect([...f.hoisted]).toEqual(['m1']);
   });
 
   it('renders a context step in full, with no lede or Background', () => {
     const f = face([markdown('m1'), code('k1')]);
     expect(f.lede).toBeNull();
     expect(f.background).toEqual([]);
+    expect(f.hoisted.size).toBe(0);
     expect(ids(f.prelude)).toEqual(['m1']);
-    expect(f.block.id).toBe('k1');
+  });
+
+  it('still leads a context-step card with its summary', () => {
+    const k: Block = { id: 'k', type: 'card', summary: 'for the record', children: [markdown('m1')] as never };
+    const f = face([k]);
+    expect(f.lede).toEqual({ md: 'for the record', inline: true });
+    expect(f.hoisted.size).toBe(0);
   });
 });
