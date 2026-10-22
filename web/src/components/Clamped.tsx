@@ -52,9 +52,7 @@ export function Clamped({ html, children, contentKey, lines, className }: Clampe
   }, [html, contentKey]);
 
   const collapsed = !expanded;
-  const contentClass = `clamped-content${className ? ` ${className}` : ''}${
-    collapsed ? ' is-clamped' : ''
-  }${collapsed && overflowing ? ' is-faded' : ''}`;
+  const contentClass = `clamped-content${className ? ` ${className}` : ''}${collapsed ? ' is-clamped' : ''}`;
   const style = collapsed ? ({ '--clamp-lines': lines } as CSSProperties) : undefined;
 
   return (

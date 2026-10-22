@@ -82,14 +82,15 @@
   /* Margin-rail geometry, the sticky ladder, and .btn control heights.
      --bp-margin documents the rail fold. The desktop rail floats over the board
      (fixed overlay), so the shell no longer widens to seat it — the reading column
-     keeps --content-width and the rail overlays the right margin. --rail-strip-w is
+     keeps --shell-max and the rail overlays the right margin. --rail-strip-w is
      the collapsed strip's width; --rail-top is the measured masthead height the
      fixed rail hangs below (set at runtime by MarginRail). */
   --bp-margin: 1100px;
   --rail-w: clamp(300px, 26vw, 340px);
   --rail-strip-w: 56px;
   --rail-top: 0px;
-  --shell-max: var(--content-width);
+  --shell-max: 46rem;
+  --shell-wide: 64rem;
 
   --section-clear: 5rem;
   --z-sticky: 1;
@@ -139,11 +140,7 @@
 /* Thin ink-toned scrollbars on the domain's own scroll surfaces. */
 .diff-table,
 .table-block,
-.focus-card-body,
-.focus-main,
-.focus-media,
-.rail-overlay,
-.options[data-strip] .option-detail .cc-group-body {
+.rail-overlay {
   scrollbar-width: thin;
   scrollbar-color: var(--border-strong) transparent;
 }

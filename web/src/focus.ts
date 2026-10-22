@@ -5,7 +5,7 @@
 // off these; iOS mirrors this walk in FocusSteps.swift.
 
 import { decidableIds, flatten, submitItems } from './decide';
-import type { Block, Fact } from './schema';
+import type { Block, ChoiceOption, Fact, Markdown } from './schema';
 import type { Interactions } from './events';
 
 export type FocusStepKind = 'decision' | 'context';
@@ -162,6 +162,47 @@ export function factAxes(options: { facts?: Fact[] }[]): string[] | null {
     if (labels.length !== axes.length || labels.some((l, i) => l !== axes[i])) return null;
   }
   return axes;
+}
+
+export type ChoiceShape = 'grid' | 'list';
+
+const GRID_MAX = 4;
+
+export function choiceShape(options: ChoiceOption[]): ChoiceShape {
+  if (options.length < 2 || options.length > GRID_MAX) return 'list';
+  if (!options.every((o) => o.facts && o.facts.length > 0)) return 'list';
+  return factAxes(options) ? 'grid' : 'list';
+}
+
+export interface StepLede {
+  md: string;
+  inline: boolean;
+}
+
+export interface StepFace {
+  prelude: Block[];
+  lede: StepLede | null;
+  block: Block;
+  background: Block[];
+}
+
+export function stepFace(step: FocusStep, packInteractive: ReadonlySet<string>): StepFace {
+  if (step.kind === 'context') return { prelude: step.context, lede: null, block: step.block, background: [] };
+  const card = step.block.type === 'card' ? step.block : null;
+  const decides = (b: Block) => decidableIds([b], packInteractive).length > 0;
+  const aside = [...step.context, ...(card?.children.filter((child) => !decides(child)) ?? [])];
+  const ledeBlock = card?.summary ? undefined : aside.find((b): b is Markdown => b.type === 'markdown' && !b.struck);
+  const lede = card?.summary
+    ? { md: card.summary, inline: true }
+    : ledeBlock
+      ? { md: ledeBlock.md, inline: false }
+      : null;
+  return {
+    prelude: [],
+    lede,
+    block: card ? { ...card, summary: undefined, children: card.children.filter(decides) } : step.block,
+    background: aside.filter((b) => b !== ledeBlock),
+  };
 }
 
 export type StepStatus = 'approved' | 'rejected' | 'decided' | 'undecided' | null;

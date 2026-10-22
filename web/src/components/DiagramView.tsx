@@ -1,9 +1,8 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
 import DOMPurify from 'dompurify';
 import type { Diagram } from '../schema';
 import { useResolvedTheme } from '../theme';
-import { useScrollEdges } from '../useScrollEdges';
 import { Lightbox } from './Lightbox';
 
 const MIN_SCALE = 0.8;
@@ -11,13 +10,15 @@ const MIN_SCALE = 0.8;
 interface DiagramSize {
   natural: number;
   fit: number;
+  height: number;
 }
 
-function naturalWidth(svg: SVGSVGElement): number | null {
+function naturalSize(svg: SVGSVGElement): { width: number; height: number } | null {
   const viewBox = svg.getAttribute('viewBox');
   try {
-    const width = viewBox ? Number(viewBox.trim().split(/[\s,]+/)[2]) : svg.getBBox().width;
-    return width > 0 ? width : null;
+    const box = viewBox ? viewBox.trim().split(/[\s,]+/).map(Number) : null;
+    const { width, height } = box ? { width: box[2] ?? 0, height: box[3] ?? 0 } : svg.getBBox();
+    return width > 0 && height > 0 ? { width, height } : null;
   } catch {
     return null;
   }
@@ -36,17 +37,7 @@ export function DiagramView({ block }: { block: Diagram }) {
   const [size, setSize] = useState<DiagramSize | null>(null);
   const [expanded, setExpanded] = useState(false);
   const frame = useRef<HTMLDivElement | null>(null);
-  const inline = useScrollEdges<HTMLDivElement>('x');
-  const dialog = useScrollEdges<HTMLDivElement>('x');
   const theme = useResolvedTheme();
-  const { ref: inlineEdgesRef } = inline;
-  const setFrame = useCallback(
-    (el: HTMLDivElement | null) => {
-      frame.current = el;
-      inlineEdgesRef(el);
-    },
-    [inlineEdgesRef],
-  );
 
   useEffect(() => {
     let alive = true;
@@ -70,12 +61,15 @@ export function DiagramView({ block }: { block: Diagram }) {
   useLayoutEffect(() => {
     const el = frame.current;
     if (!el) return;
-    const natural = naturalWidth(el.querySelector('svg')!);
+    const natural = naturalSize(el.querySelector('svg')!);
     if (natural === null) {
       setSize(null);
       return;
     }
-    const measure = () => setSize({ natural, fit: fitWidth(natural, el.clientWidth) });
+    const measure = () => {
+      const fit = fitWidth(natural.width, el.clientWidth);
+      setSize({ natural: natural.width, fit, height: (fit * natural.height) / natural.width });
+    };
     measure();
     const observer = new ResizeObserver(measure);
     observer.observe(el);
@@ -83,7 +77,11 @@ export function DiagramView({ block }: { block: Diagram }) {
   }, [svg]);
 
   const style = size
-    ? ({ '--diagram-fit': `${size.fit}px`, '--diagram-natural': `${size.natural}px` } as CSSProperties)
+    ? ({
+        '--diagram-fit': `${size.fit}px`,
+        '--diagram-h': `${size.height}px`,
+        '--diagram-natural': `${size.natural}px`,
+      } as CSSProperties)
     : undefined;
 
   return (
@@ -91,13 +89,7 @@ export function DiagramView({ block }: { block: Diagram }) {
       {block.title ? <figcaption className="diagram-title">{block.title}</figcaption> : null}
       {svg ? (
         <>
-          <div
-            ref={setFrame}
-            className="diagram-svg"
-            data-edge-start={inline.edges.atStart || undefined}
-            data-edge-end={inline.edges.atEnd || undefined}
-            dangerouslySetInnerHTML={{ __html: svg }}
-          />
+          <div ref={frame} className="diagram-svg" dangerouslySetInnerHTML={{ __html: svg }} />
           <button
             type="button"
             className="link-btn diagram-expand"
@@ -113,13 +105,7 @@ export function DiagramView({ block }: { block: Diagram }) {
             caption={block.title}
           >
             {expanded ? (
-              <div
-                ref={dialog.ref}
-                className="diagram-expanded"
-                data-edge-start={dialog.edges.atStart || undefined}
-                data-edge-end={dialog.edges.atEnd || undefined}
-                dangerouslySetInnerHTML={{ __html: svg }}
-              />
+              <div className="diagram-expanded" dangerouslySetInnerHTML={{ __html: svg }} />
             ) : null}
           </Lightbox>
         </>

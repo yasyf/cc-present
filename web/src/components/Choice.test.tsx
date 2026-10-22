@@ -9,16 +9,14 @@ import { PresentContext } from '../present';
 import type { PresentApi } from '../present';
 import { KeyboardProvider } from '../keyboard';
 import { Choice } from './Choice';
-import { FocusStageContext } from './focusStep';
-import type { FocusStageValue } from './focusStep';
 import { ThreadHostContext } from './threadHost';
 import { emptyState } from '../reduce';
 import type { Interactions } from '../events';
 import type { Choice as ChoiceBlock, OptionVisual } from '../schema';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
-// OptionStrip's useScrollEdges constructs a ResizeObserver; jsdom ships none, and
-// the strip nav drives scroll APIs the layout-less DOM lacks.
+// Clamped constructs a ResizeObserver and the keyboard reveal scrolls; jsdom ships
+// neither.
 class ResizeObserverStub {
   observe(): void {}
   unobserve(): void {}
@@ -26,10 +24,17 @@ class ResizeObserverStub {
 }
 (globalThis as { ResizeObserver?: unknown }).ResizeObserver = ResizeObserverStub;
 Element.prototype.scrollIntoView = () => {};
-Element.prototype.scrollBy = () => {};
-Element.prototype.scrollTo = () => {};
+HTMLDialogElement.prototype.showModal = function showModal(this: HTMLDialogElement) {
+  this.setAttribute('open', '');
+};
+HTMLDialogElement.prototype.close = function close(this: HTMLDialogElement) {
+  if (!this.open) return;
+  this.removeAttribute('open');
+  this.dispatchEvent(new Event('close'));
+};
+let narrowViewport = false;
 window.matchMedia = ((query: string) => ({
-  matches: false,
+  matches: narrowViewport && query.includes('720px'),
   media: query,
   onchange: null,
   addEventListener() {},
@@ -60,6 +65,7 @@ afterEach(() => {
   container.remove();
   vi.restoreAllMocks();
   draftStore.reset();
+  narrowViewport = false;
 });
 
 function render(block: ChoiceBlock, interactions: Interactions, closed = false): void {
@@ -147,28 +153,6 @@ function remount(): void {
   root = createRoot(container);
 }
 
-// renderWithStage mounts the choice under a FocusStageContext, so `stage` is
-// non-null and the component is in focus mode — the stage owns option visuals.
-function renderWithStage(
-  block: ChoiceBlock,
-  interactions: Interactions,
-  setVisual: FocusStageValue['setVisual'] = () => {},
-  staged = true,
-): void {
-  const present: PresentApi = { post: async () => true, closed: false, currentRound: 1 };
-  act(() =>
-    root.render(
-      <PresentContext.Provider value={present}>
-        <FocusStageContext.Provider value={{ staged, setVisual }}>
-          <KeyboardProvider blocks={[block]} interactions={interactions} closed={false} round={1}>
-            <Choice block={block} interactions={interactions} />
-          </KeyboardProvider>
-        </FocusStageContext.Provider>
-      </PresentContext.Provider>,
-    ),
-  );
-}
-
 // Landing the cursor on the block: focusing an option bubbles a focusin the
 // provider maps to the choice's decidable handle.
 function cursorOntoChoice(): void {
@@ -225,7 +209,7 @@ describe('Choice keyboard index tags', () => {
     expect(container.querySelector('.option-other .option-index')?.textContent).toBe('4');
   });
 
-  it('lands digit n+1 in the write-in row under the strip', () => {
+  it('lands digit n+1 in the write-in row', () => {
     render(choice('c1', ['A', 'B', 'C']), empty());
     cursorOntoChoice();
     press('4');
@@ -380,27 +364,10 @@ describe('Choice per-card facts', () => {
     ],
   });
 
-  it('renders each option facts as its own foot tray in factAxes order', () => {
+  it('renders aligned facts as a compare grid instead of per-option trays', () => {
     render(twoWithFacts(), empty());
-    const options = container.querySelector('.options') as HTMLElement;
-    // The subgrid alignment system is gone: no aligned attr, no shared axis header.
-    expect(options.hasAttribute('data-facts-aligned')).toBe(false);
-    expect(container.querySelector('.fact-axes')).toBeNull();
-    expect(container.querySelector('.fact-cell')).toBeNull();
-    // Each option carries its own tray with rows in the shared axis order.
-    const trays = container.querySelectorAll('.option-facts');
-    expect(trays.length).toBe(2);
-    const firstRows = [...trays[0]!.querySelectorAll('.fact')].map((f) => [
-      f.querySelector('.fact-value')?.textContent,
-      f.querySelector('.fact-label')?.textContent,
-    ]);
-    expect(firstRows).toEqual([
-      ['12ms', 'Latency'],
-      ['$5', 'Cost'],
-    ]);
-    // Tone survives onto each row.
-    expect(trays[0]!.querySelector('.fact-good .fact-value')?.textContent).toBe('12ms');
-    expect(trays[1]!.querySelector('.fact-bad .fact-value')?.textContent).toBe('$2');
+    expect(container.querySelector('.choice-grid')).not.toBeNull();
+    expect(container.querySelector('.option-facts')).toBeNull();
   });
 
   it('keeps each option facts in its own authored order on a label mismatch', () => {
@@ -422,43 +389,13 @@ describe('Choice per-card facts', () => {
   });
 });
 
-describe('Choice card strip', () => {
-  it('opts the container into data-strip at three or more options, sized by its card count', () => {
-    render(choice('c1', ['A', 'B', 'C']), empty());
+describe('Choice list shape', () => {
+  it('lists every option as a full-width row with the Other write-in last, inside one group', () => {
+    render(choice('c1', ['A', 'B', 'C', 'D', 'E']), empty());
     const options = container.querySelector('.options') as HTMLElement;
-    expect(options.hasAttribute('data-strip')).toBe(true);
-    expect(options.style.getPropertyValue('--strip-n')).toBe('3');
-    expect(options.parentElement?.classList.contains('strip-frame')).toBe(true);
-    expect(container.querySelectorAll('.strip-nav .strip-dot').length).toBe(3);
-    expect(container.querySelectorAll('.strip-arrow').length).toBe(0);
-  });
-
-  it('mirrors the scroll edges onto the strip container and arrows only the hidden edges', () => {
-    render(choice('c1', ['A', 'B', 'C']), empty());
-    const options = container.querySelector('.options') as HTMLElement;
-    Object.defineProperties(options, {
-      clientWidth: { configurable: true, value: 300 },
-      scrollWidth: { configurable: true, value: 900 },
-      scrollLeft: { configurable: true, writable: true, value: 0 },
-    });
-    const arrows = () => [...container.querySelectorAll('.strip-frame > .strip-arrow')].map((a) => a.getAttribute('aria-label'));
-
-    act(() => options.dispatchEvent(new Event('scroll')));
-    expect(options.hasAttribute('data-edge-start')).toBe(true);
-    expect(options.hasAttribute('data-edge-end')).toBe(false);
-    expect(arrows()).toEqual(['Next options']);
-
-    options.scrollLeft = 300;
-    act(() => options.dispatchEvent(new Event('scroll')));
-    expect(options.hasAttribute('data-edge-start')).toBe(false);
-    expect(options.hasAttribute('data-edge-end')).toBe(false);
-    expect(arrows()).toEqual(['Previous options', 'Next options']);
-
-    options.scrollLeft = 600;
-    act(() => options.dispatchEvent(new Event('scroll')));
-    expect(options.hasAttribute('data-edge-start')).toBe(false);
-    expect(options.hasAttribute('data-edge-end')).toBe(true);
-    expect(arrows()).toEqual(['Previous options']);
+    expect(options.getAttribute('role')).toBe('radiogroup');
+    expect(options.querySelectorAll(':scope > .option-row > .option').length).toBe(5);
+    expect(options.lastElementChild?.classList.contains('option-other')).toBe(true);
   });
 
   it('clamps an option description at eight lines', () => {
@@ -475,95 +412,109 @@ describe('Choice card strip', () => {
     expect(container.querySelector('.option')?.getAttribute('aria-disabled')).toBe('true');
   });
 
-  it('places the rail comment chip between the strip dots and arrows', () => {
+  it('keeps the rail comment chip in its own row after the options', () => {
     renderRail(choice('c1', ['A', 'B', 'C']), empty());
-    const nav = container.querySelector('.strip-nav') as HTMLElement;
-    expect(nav.querySelector(':scope > .comment-chip-row .comment-chip')?.textContent).toContain('Note on this decision');
-    expect([...nav.children].map((child) => child.className)).toEqual(['strip-dots', 'comment-chip-row']);
-    expect(container.querySelector('.choice > .comment-chip-row')).toBeNull();
-  });
-
-  it('keeps every option in the vertical stack beside a focus stage', () => {
-    renderWithStage(choice('c1', ['A', 'B', 'C', 'D']), empty());
-    const options = container.querySelector('.options') as HTMLElement;
-    expect(options.hasAttribute('data-strip')).toBe(false);
-    expect(options.querySelectorAll('.option:not(.option-other)').length).toBe(4);
-    expect(container.querySelector('.strip-nav')).toBeNull();
-    expect(container.querySelector('.strip-arrow')).toBeNull();
-  });
-
-  it('keeps the strip in a focus step without a stage', () => {
-    renderWithStage(choice('c1', ['A', 'B', 'C']), empty(), () => {}, false);
-    expect(container.querySelector('.options')?.hasAttribute('data-strip')).toBe(true);
-  });
-
-  it('keeps the vertical stack with no nav at two or fewer options', () => {
-    render(choice('c1', ['A', 'B']), empty());
-    const options = container.querySelector('.options') as HTMLElement;
-    expect(options.hasAttribute('data-strip')).toBe(false);
-    expect(container.querySelector('.strip-nav')).toBeNull();
-  });
-
-  it('keeps the rail comment chip in its own row for the vertical stack', () => {
-    renderRail(choice('c1', ['A', 'B']), empty());
-    expect(container.querySelector('.strip-nav')).toBeNull();
     const row = container.querySelector('.choice > .comment-chip-row');
     expect(row?.querySelector('.comment-chip')?.textContent).toContain('Note on this decision');
     expect(row?.previousElementSibling?.classList.contains('options')).toBe(true);
   });
 
-  it('places the Other write-in as a row under the strip, inside the options group', () => {
-    render(choice('c1', ['A', 'B', 'C']), empty());
-    expect(container.querySelectorAll('.options > .option').length).toBe(3);
-    expect(container.querySelector('.options .option-other')).toBeNull();
-    const group = container.querySelector('.strip-group') as HTMLElement;
-    expect(group.getAttribute('role')).toBe('radiogroup');
-    expect(container.querySelector('.options')?.hasAttribute('role')).toBe(false);
-    expect([...group.children].map((child) => child.classList.contains('option-other'))).toEqual([false, true]);
-  });
-
-  it('keeps the Other write-in inside the vertical stack at two or fewer options', () => {
-    render(choice('c1', ['A', 'B']), empty());
-    const options = container.querySelector('.options') as HTMLElement;
-    expect(options.getAttribute('role')).toBe('radiogroup');
-    expect(options.lastElementChild?.classList.contains('option-other')).toBe(true);
-  });
-
-  it('names the options group after an inline prompt in both layouts', () => {
-    render({ ...choice('c1', ['A', 'B']), prompt: 'Pick a plan' }, empty());
+  it('names the options group after an inline prompt', () => {
+    render({ ...choice('c1', ['A', 'B', 'C', 'D']), prompt: 'Pick a plan' }, empty());
     expect(container.querySelector('.choice-prompt')?.textContent).toBe('Pick a plan');
     expect(container.querySelector('[role="radiogroup"]')?.getAttribute('aria-label')).toBe('Pick a plan');
-    render({ ...choice('c1', ['A', 'B', 'C', 'D']), prompt: 'Pick a plan' }, empty());
-    expect(container.querySelector('.strip-group')?.getAttribute('aria-label')).toBe('Pick a plan');
+  });
+});
+
+describe('Choice compare grid', () => {
+  const plans = (n = 3, multi = false): ChoiceBlock => ({
+    id: 'c1',
+    type: 'choice',
+    multi,
+    prompt: 'Pick a plan',
+    options: Array.from({ length: n }, (_, i) => ({
+      id: `o${i}`,
+      label: `Plan ${i}`,
+      recommended: i === 1,
+      facts: [
+        { label: 'Cost', value: `$${i + 1}`, tone: i === 0 ? ('good' as const) : undefined },
+        { label: 'Latency', value: `${(i + 1) * 10}ms` },
+      ],
+    })),
+  });
+  const cellText = (selector: string) => [...container.querySelectorAll(selector)].map((el) => el.textContent);
+
+  it('lays options out as columns with one row per fact axis and the picks along the foot', () => {
+    render(plans(), empty());
+    const grid = container.querySelector('.choice-grid') as HTMLElement;
+    expect(grid.style.getPropertyValue('--grid-n')).toBe('3');
+    expect(cellText('.grid-head .option-label')).toEqual(['Plan 0', 'Plan 1', 'Plan 2']);
+    expect(container.querySelectorAll('.grid-head')[1]!.querySelector('.option-reco')).not.toBeNull();
+    expect(cellText('.grid-axis:not(.grid-pick-axis)')).toEqual(['Cost', 'Latency']);
+    expect(cellText('.grid-cell.fact .fact-value')).toEqual(['$1', '$2', '$3', '10ms', '20ms', '30ms']);
+    expect(container.querySelector('.grid-cell.fact-good .fact-value')?.textContent).toBe('$1');
+    expect(container.querySelectorAll('.grid-pick[role="radio"]').length).toBe(3);
   });
 
-  it('reveals a clicked card, the Other card included', () => {
-    render(choice('c1', ['A', 'B', 'C']), empty());
-    const reveal = vi.spyOn(Element.prototype, 'scrollIntoView');
-    const cards = container.querySelectorAll<HTMLElement>('.options > .option');
-    const other = container.querySelector<HTMLElement>('.option-other')!;
-
-    act(() => cards[1]!.click());
-    expect(reveal).toHaveBeenCalledTimes(1);
-    expect(reveal.mock.contexts[0]).toBe(cards[1]);
-    expect(reveal).toHaveBeenLastCalledWith({ inline: 'nearest', block: 'nearest', behavior: 'smooth' });
-
-    act(() => other.click());
-    expect(reveal).toHaveBeenCalledTimes(2);
-    expect(reveal.mock.contexts[1]).toBe(other);
+  it('keeps the Other write-in under the grid inside the same named group', () => {
+    render(plans(), empty());
+    const group = container.querySelector('.choice-compare') as HTMLElement;
+    expect(group.getAttribute('role')).toBe('radiogroup');
+    expect(group.getAttribute('aria-label')).toBe('Pick a plan');
+    expect([...group.children].map((child) => child.classList[0])).toEqual(['choice-grid', 'option']);
+    expect(group.lastElementChild?.classList.contains('option-other')).toBe(true);
   });
 
-  it('marks the dot of each selected card, clearing it for an uncommitted write-in', () => {
-    render(choice('c1', ['A', 'B', 'C']), { ...empty(), choices: { c1: { optionIds: ['o1'] } } });
-    const pickedDots = () => [...container.querySelectorAll('.strip-dot')].map((dot) => dot.classList.contains('picked'));
-    expect(pickedDots()).toEqual([false, true, false]);
-    const dots = container.querySelectorAll('.strip-dot');
-    expect(dots[0]!.getAttribute('aria-label')).toBe('Go to option 1');
-    expect(dots[1]!.getAttribute('aria-label')).toBe('Go to option 2, selected');
-    expect(container.querySelector('.strip-dot[aria-current]')).toBeNull();
+  it('posts the same choice.selected from a grid pick as from the list row', () => {
+    const fromGrid = renderCapturing(plans(), empty());
+    act(() => container.querySelectorAll<HTMLElement>('.grid-pick')[2]!.click());
+    narrowViewport = true;
+    remount();
+    const fromList = renderCapturing(plans(), empty());
+    expect(container.querySelector('.choice-grid')).toBeNull();
+    act(() => container.querySelectorAll<HTMLElement>('.options .option')[2]!.click());
+    expect(fromGrid).toEqual([{ type: 'choice.selected', blockId: 'c1', optionIds: ['o2'] }]);
+    expect(fromList).toEqual(fromGrid);
+  });
 
-    typeOther('roll our own');
-    expect(pickedDots()).toEqual([false, false, false]);
+  it('marks the picked column and checks its pick cell', () => {
+    render(plans(3, true), { ...empty(), choices: { c1: { optionIds: ['o1'] } } });
+    const picks = container.querySelectorAll('.grid-pick[role="checkbox"]');
+    expect([...picks].map((p) => p.getAttribute('aria-checked'))).toEqual(['false', 'true', 'false']);
+    expect(picks[1]!.querySelector('.mark-check')).not.toBeNull();
+    expect(container.querySelectorAll('.grid-head')[1]!.classList.contains('selected')).toBe(true);
+  });
+
+  it('picks a column on its digit key once the cursor rests on the grid', () => {
+    const posted = renderCapturing(plans(), empty());
+    act(() => container.querySelector('.grid-pick')!.dispatchEvent(new FocusEvent('focusin', { bubbles: true })));
+    expect(cellText('.grid-pick .option-index')).toEqual(['1', '2', '3']);
+    press('2');
+    expect(posted).toEqual([{ type: 'choice.selected', blockId: 'c1', optionIds: ['o1'] }]);
+  });
+
+  it('falls back to the list shape on a narrow viewport', () => {
+    narrowViewport = true;
+    render(plans(), empty());
+    expect(container.querySelector('.choice-grid')).toBeNull();
+    expect(container.querySelectorAll('.options .option-facts').length).toBe(3);
+  });
+
+  it('adds a visual row whose thumbnail opens the visual in a lightbox', () => {
+    const block = plans(2);
+    block.options[0]!.visual = { id: 'v0', type: 'code', lang: 'go', code: 'package main', title: 'main.go' };
+    render(block, empty());
+    expect(cellText('.grid-axis:not(.grid-pick-axis)')).toEqual(['Cost', 'Latency', 'Visual']);
+    const thumbs = container.querySelectorAll('.grid-thumb');
+    expect(thumbs.length).toBe(2);
+    expect(thumbs[1]!.childElementCount).toBe(0);
+    const open = thumbs[0]!.querySelector('.grid-thumb-open') as HTMLButtonElement;
+    expect(open.getAttribute('aria-label')).toBe('Expand main.go');
+    const dialog = thumbs[0]!.querySelector('dialog') as HTMLDialogElement;
+    expect(dialog.querySelector('.code-block')).toBeNull();
+    act(() => open.click());
+    expect(dialog.open).toBe(true);
+    expect(dialog.querySelector('.code-block')).not.toBeNull();
   });
 });
 
@@ -854,127 +805,101 @@ describe('Choice submit chord', () => {
   });
 });
 
-describe('Choice stage preview', () => {
+describe('Choice inline option visual', () => {
   const visual = (n: number): OptionVisual => ({ id: `v${n}`, type: 'image', src: 'data:,x', alt: `chart-${n}` });
-  const visuals = [visual(0), visual(1), visual(2)];
   const withVisuals = (multi = false): ChoiceBlock => ({
     id: 'c1',
     type: 'choice',
     multi,
-    options: visuals.map((v, i) => ({ id: `o${i}`, label: `Option ${i}`, visual: v })),
+    options: [0, 1, 2].map((i) => ({ id: `o${i}`, label: `Option ${i}`, visual: visual(i) })),
   });
-  const card = (i: number) => container.querySelectorAll<HTMLElement>('.option')[i]!;
-  const fire = (i: number, event: Event) => act(() => void card(i).dispatchEvent(event));
+  const row = (i: number) => container.querySelectorAll<HTMLElement>('.option-row')[i]!;
+  const fire = (i: number, event: Event) => act(() => void row(i).querySelector('.option')!.dispatchEvent(event));
   const pointer = (type: string, i: number, clientX: number) =>
     fire(i, new MouseEvent(type, { bubbles: true, clientX, clientY: 10 }));
+  const shown = () =>
+    [...container.querySelectorAll('.option-row')].flatMap((r, i) =>
+      r.querySelector(':scope > .option-visual img') ? [i] : [],
+    );
 
-  it('stages the first option before any hover, then holds the last hovered card after the pointer leaves', () => {
-    const setVisual = vi.fn<FocusStageValue['setVisual']>();
-    renderWithStage(withVisuals(), empty(), setVisual);
-    expect(setVisual).toHaveBeenLastCalledWith(visuals[0]);
-
-    pointer('mousemove', 1, 50);
-    expect(setVisual).toHaveBeenLastCalledWith(visuals[1]);
-    pointer('mouseout', 1, 400);
-    expect(setVisual).toHaveBeenLastCalledWith(visuals[1]);
+  it('shows no visual and no placeholder before a hover or a pick', () => {
+    render(withVisuals(), empty());
+    expect(shown()).toEqual([]);
+    expect(container.textContent).not.toContain('No preview');
   });
 
-  it('returns to the selected option once the pointer or focus rests', () => {
-    const setVisual = vi.fn<FocusStageValue['setVisual']>();
-    renderWithStage(withVisuals(), { ...empty(), choices: { c1: { optionIds: ['o2'] } } }, setVisual);
-    expect(setVisual).toHaveBeenLastCalledWith(visuals[2]);
+  it('renders nothing beneath an option without a visual', () => {
+    const block = withVisuals();
+    delete block.options[1]!.visual;
+    render(block, empty());
+    pointer('mousemove', 1, 50);
+    expect(container.querySelector('.option-visual')).toBeNull();
+  });
+
+  it('shows a hovered option visual beneath it and drops it once the pointer leaves', () => {
+    render(withVisuals(), empty());
+    pointer('mousemove', 1, 50);
+    expect(shown()).toEqual([1]);
+    expect(row(1).querySelector<HTMLImageElement>('.option-visual img')?.alt).toBe('chart-1');
+    pointer('mouseout', 1, 400);
+    expect(shown()).toEqual([]);
+  });
+
+  it('returns to the selected option visual once the pointer or focus leaves', () => {
+    render(withVisuals(), { ...empty(), choices: { c1: { optionIds: ['o2'] } } });
+    expect(shown()).toEqual([2]);
 
     pointer('mousemove', 0, 50);
-    expect(setVisual).toHaveBeenLastCalledWith(visuals[0]);
+    expect(shown()).toEqual([0]);
     pointer('mouseout', 0, 400);
-    expect(setVisual).toHaveBeenLastCalledWith(visuals[2]);
-    pointer('mousemove', 0, 50);
-    expect(setVisual).toHaveBeenLastCalledWith(visuals[0]);
-    pointer('mouseout', 0, 400);
+    expect(shown()).toEqual([2]);
 
     fire(1, new FocusEvent('focusin', { bubbles: true }));
-    expect(setVisual).toHaveBeenLastCalledWith(visuals[1]);
+    expect(shown()).toEqual([1]);
     fire(1, new FocusEvent('focusout', { bubbles: true }));
-    expect(setVisual).toHaveBeenLastCalledWith(visuals[2]);
+    expect(shown()).toEqual([2]);
   });
 
-  it('keeps the picked card staged when a scroll slides a neighbour under a still pointer', () => {
-    const setVisual = vi.fn<FocusStageValue['setVisual']>();
-    renderWithStage(withVisuals(), { ...empty(), choices: { c1: { optionIds: ['o1'] } } }, setVisual);
+  it('holds the hovered visual when a layout shift slides a neighbour under a still pointer', () => {
+    render(withVisuals(), { ...empty(), choices: { c1: { optionIds: ['o0'] } } });
     pointer('mousemove', 1, 50);
-    expect(setVisual).toHaveBeenLastCalledWith(visuals[1]);
+    expect(shown()).toEqual([1]);
 
     pointer('mouseout', 1, 50);
-    pointer('mouseover', 0, 50);
-    pointer('mousemove', 0, 50);
-    expect(setVisual).toHaveBeenLastCalledWith(visuals[1]);
+    pointer('mouseover', 2, 50);
+    pointer('mousemove', 2, 50);
+    expect(shown()).toEqual([1]);
 
-    pointer('mousemove', 0, 51);
-    expect(setVisual).toHaveBeenLastCalledWith(visuals[0]);
+    pointer('mousemove', 2, 51);
+    expect(shown()).toEqual([2]);
   });
 
   it('moves to the option a digit key picks', () => {
-    const setVisual = vi.fn<FocusStageValue['setVisual']>();
-    renderWithStage(withVisuals(), empty(), setVisual);
+    render(withVisuals(), empty());
     cursorOntoChoice();
-    expect(setVisual).toHaveBeenLastCalledWith(visuals[0]);
+    expect(shown()).toEqual([0]);
     press('2');
-    expect(setVisual).toHaveBeenLastCalledWith(visuals[1]);
+    render(withVisuals(), { ...empty(), choices: { c1: { optionIds: ['o1'] } } });
+    expect(shown()).toEqual([1]);
   });
 
   it('follows the most recently checked option still checked on a multi-select', () => {
-    const setVisual = vi.fn<FocusStageValue['setVisual']>();
     const block = withVisuals(true);
-    renderWithStage(block, { ...empty(), choices: { c1: { optionIds: ['o0', 'o2'] } } }, setVisual);
-    expect(setVisual).toHaveBeenLastCalledWith(visuals[2]);
-
-    renderWithStage(block, { ...empty(), choices: { c1: { optionIds: ['o0', 'o2', 'o1'] } } }, setVisual);
-    expect(setVisual).toHaveBeenLastCalledWith(visuals[1]);
-
-    renderWithStage(block, { ...empty(), choices: { c1: { optionIds: ['o0', 'o2'] } } }, setVisual);
-    expect(setVisual).toHaveBeenLastCalledWith(visuals[2]);
-  });
-});
-
-describe('Choice board-mode option visual', () => {
-  const imageVisual: OptionVisual = { id: 'v0', type: 'image', src: 'data:,x', alt: 'chart-a' };
-  const withVisual = (detail?: ChoiceBlock['options'][number]['detail']): ChoiceBlock => ({
-    id: 'c1',
-    type: 'choice',
-    multi: false,
-    options: [{ id: 'o0', label: 'A', visual: imageVisual, detail }],
+    render(block, { ...empty(), choices: { c1: { optionIds: ['o0', 'o2'] } } });
+    expect(shown()).toEqual([2]);
+    render(block, { ...empty(), choices: { c1: { optionIds: ['o0', 'o2', 'o1'] } } });
+    expect(shown()).toEqual([1]);
   });
 
-  it('renders the active option visual full-width above the options in board mode', () => {
-    render(withVisual(), empty());
-    expect(container.querySelector('.option-detail')).toBeNull();
-    const visual = container.querySelector('.choice > .choice-visual') as HTMLElement;
-    expect(visual.nextElementSibling?.classList.contains('options')).toBe(true);
-    expect(visual.querySelector<HTMLImageElement>('.image-block img')?.alt).toBe('chart-a');
-  });
-
-  it('keeps detail content in the drill-down and the visual above the options', () => {
-    render(withVisual({ pros: ['fast'] }), empty());
+  it('keeps detail content in the drill-down and the visual out of it', () => {
+    const block = withVisuals();
+    block.options[0]!.detail = { pros: ['fast'] };
+    render(block, { ...empty(), choices: { c1: { optionIds: ['o0'] } } });
     const detail = container.querySelector('.option-detail') as HTMLElement;
     act(() => (detail.querySelector('.cc-group-header') as HTMLElement).click());
     expect(detail.querySelector('.detail-pros')?.textContent).toContain('fast');
-    expect(detail.querySelector('.detail-visual')).toBeNull();
-    expect(container.querySelector('.choice-visual .image-block')).not.toBeNull();
-  });
-
-  it('leaves a visual-only option to the stage in focus mode — no disclosure', () => {
-    renderWithStage(withVisual(), empty());
-    expect(container.querySelector('.option-detail')).toBeNull();
-    expect(container.querySelector('.choice-visual')).toBeNull();
-  });
-
-  it('shows only detail in the focus-mode disclosure, never double-rendering the visual', () => {
-    renderWithStage(withVisual({ pros: ['fast'] }), empty());
-    const detail = container.querySelector('.option-detail') as HTMLElement;
-    expect(detail).not.toBeNull();
-    act(() => (detail.querySelector('.cc-group-header') as HTMLElement).click());
-    expect(detail.querySelector('.detail-pros')?.textContent).toContain('fast');
-    expect(detail.querySelector('.detail-visual')).toBeNull();
+    expect(detail.querySelector('img')).toBeNull();
+    expect(row(0).querySelector(':scope > .option-visual img')).not.toBeNull();
   });
 });
 

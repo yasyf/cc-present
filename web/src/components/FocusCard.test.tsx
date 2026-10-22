@@ -8,7 +8,7 @@ import type { PanInfo } from 'motion/react';
 import { PresentContext } from '../present';
 import type { PresentApi } from '../present';
 import { KeyboardProvider } from '../keyboard';
-import { contextTitle, FocusCard, NO_DRAG, resolveDragEnd, swipeCommit } from './FocusCard';
+import { FocusCard, NO_DRAG, resolveDragEnd, swipeCommit } from './FocusCard';
 import { ThreadHostContext } from './threadHost';
 import type { ThreadHost } from './threadHost';
 import { focusSteps } from '../focus';
@@ -59,37 +59,6 @@ describe('swipeCommit', () => {
       }
     });
   }
-});
-
-describe('contextTitle', () => {
-  it('labels the new visual types by authored title, matching iOS optionVisualTitle', () => {
-    const chart = { id: 'c', type: 'chart', kind: 'bar', categories: [], series: [] } as Block;
-    expect(contextTitle({ ...chart, title: 'Latency' } as Block)).toBe('Latency');
-    expect(contextTitle(chart)).toBe('Chart');
-    expect(contextTitle({ id: 't', type: 'term', output: 'x', title: 'Build' } as Block)).toBe('Build');
-    expect(contextTitle({ id: 't', type: 'term', output: 'x' } as Block)).toBe('Terminal');
-    expect(contextTitle({ id: 'f', type: 'filetree', entries: [], title: 'Changed' } as Block)).toBe('Changed');
-    expect(contextTitle({ id: 'f', type: 'filetree', entries: [] } as Block)).toBe('Files');
-    expect(contextTitle({ id: 'r', type: 'record', facts: [], title: 'AA123' } as Block)).toBe('AA123');
-    expect(contextTitle({ id: 'r', type: 'record', facts: [] } as Block)).toBe('Record');
-  });
-});
-
-describe('contextTitle', () => {
-  it('labels the new visual types by authored title, else the iOS fallback name', () => {
-    const chart = (title?: string) => ({ id: 'c', type: 'chart', kind: 'bar', title, categories: [], series: [] }) as Block;
-    const term = (title?: string) => ({ id: 't', type: 'term', output: 'x', title }) as Block;
-    const filetree = (title?: string) => ({ id: 'f', type: 'filetree', title, entries: [] }) as Block;
-    const record = (title?: string) => ({ id: 'r', type: 'record', title, facts: [] }) as Block;
-    expect(contextTitle(chart('Latency'))).toBe('Latency');
-    expect(contextTitle(chart())).toBe('Chart');
-    expect(contextTitle(term('Build'))).toBe('Build');
-    expect(contextTitle(term())).toBe('Terminal');
-    expect(contextTitle(filetree('Changed'))).toBe('Changed');
-    expect(contextTitle(filetree())).toBe('Files');
-    expect(contextTitle(record('AA123'))).toBe('AA123');
-    expect(contextTitle(record())).toBe('Record');
-  });
 });
 
 const approval = (id: string, prompt: string): Block => ({ id, type: 'approval', prompt });
@@ -278,10 +247,9 @@ describe('FocusCard question-first anatomy', () => {
     expect(container.querySelector('.focus-card')?.getAttribute('aria-labelledby')).toBe(q?.id);
   });
 
-  it('reserves the empty revision and media landing slots', () => {
+  it('reserves the empty revision landing slot', () => {
     renderStep([choice('c1', 'Which transport?', ['A', 'B'])]);
     expect(container.querySelector('.focus-revision')).not.toBeNull();
-    expect(container.querySelector('.focus-media')).not.toBeNull();
   });
 
   it('heads a titled single-decidable card with its title and keeps the prompt as the sub-question', () => {
@@ -303,122 +271,79 @@ describe('FocusCard question-first anatomy', () => {
     expect(prompts).toEqual(['First?', 'Second?']);
   });
 
-  it('mounts the active option visual in the focus-media stage', () => {
-    const withVisual: Block = {
-      id: 'c1',
-      type: 'choice',
-      prompt: 'Which transport?',
-      options: [
-        { id: 'o0', label: 'A', visual: { id: 'o0v', type: 'code', lang: 'go', code: 'package main' } },
-        { id: 'o1', label: 'B' },
-      ],
-    } as Block;
-    renderStep([withVisual]);
-    // The first option is active at rest, so its visual mounts in the stage.
-    expect(container.querySelector('.focus-media .code-block')).not.toBeNull();
-  });
-
-  it('marks the body staged when a choice option carries a visual, bare or inside a card', () => {
+  it('keeps option visuals out of any preview column, with no placeholder', () => {
     renderStep([staged('c1')]);
-    expect(container.querySelector('.focus-card-body')?.hasAttribute('data-stage')).toBe(true);
-    renderStep([card('k1', 'Transport choice', [staged('c2')])]);
-    expect(container.querySelector('.focus-card-body')?.hasAttribute('data-stage')).toBe(true);
-  });
-
-  it('leaves a step with no option visual unstaged, its media slot empty', () => {
-    renderStep([choice('c1', 'Which transport?', ['A', 'B'])]);
-    expect(container.querySelector('.focus-card-body')?.hasAttribute('data-stage')).toBe(false);
-    expect(container.querySelector('.focus-media')?.childElementCount).toBe(0);
-  });
-
-  it('holds the stage with a placeholder while the active option has no visual', () => {
-    renderStep([staged('c1')]);
-    expect(container.querySelector('.focus-media > .focus-media-empty')?.textContent).toBe(
-      'No preview for this option',
-    );
-    expect(container.querySelector('.focus-media .code-block')).toBeNull();
-  });
-
-  it('stacks the lead-in, the block, and its note row in the left column, the stage beside it', () => {
-    renderStep([markdown('m1', 'Lead-in'), card('k1', 'Transport choice', [staged('c1')])], 0, 'rail');
     const body = container.querySelector('.focus-card-body')!;
-    expect([...body.children].map((child) => child.className)).toEqual(['focus-main', 'focus-media']);
-    const main = body.querySelector(':scope > .focus-main')!;
-    expect([...main.children].map((child) => child.classList[0])).toEqual(['focus-context', 'card', 'comment-chip-row']);
-    expect(main.querySelector(':scope > .card .choice')).not.toBeNull();
+    expect(body.hasAttribute('data-stage')).toBe(false);
+    expect(container.querySelector('.focus-media')).toBeNull();
+    expect(container.textContent).not.toContain('No preview');
   });
 
-  it('collapses the option-visual stage to a titled disclosure at the compact breakpoint', () => {
-    const original = window.matchMedia;
-    window.matchMedia = ((query: string) => ({
-      matches: query.includes('440px'),
-      media: query,
-      onchange: null,
-      addEventListener() {},
-      removeEventListener() {},
-      addListener() {},
-      removeListener() {},
-      dispatchEvent: () => false,
-    })) as typeof window.matchMedia;
-    try {
-      const withVisual: Block = {
-        id: 'c1',
-        type: 'choice',
-        prompt: 'Which transport?',
-        options: [
-          { id: 'o0', label: 'A', visual: { id: 'o0v', type: 'code', lang: 'go', code: 'package main' } },
-          { id: 'o1', label: 'B' },
-        ],
-      } as Block;
-      renderStep([withVisual]);
-      const media = container.querySelector('.focus-media');
-      expect(media?.tagName).toBe('DETAILS');
-      expect(media?.querySelector('summary.focus-media-summary')?.textContent).toBe('go');
-      // The visual still mounts, now inside the disclosure body.
-      expect(container.querySelector('.focus-media .code-block')).not.toBeNull();
-    } finally {
-      window.matchMedia = original;
-    }
+  it('orders the face as lede, decidable, note row, then one Background disclosure', () => {
+    renderStep([markdown('m1', 'Lead-in'), code('code1'), card('k1', 'Transport choice', [staged('c1')])], 0, 'rail');
+    const body = container.querySelector('.focus-card-body')!;
+    expect([...body.children].map((child) => child.classList[0])).toEqual([
+      'clamped',
+      'card',
+      'comment-chip-row',
+      'focus-background',
+    ]);
+    expect(body.querySelector(':scope > .card .choice')).not.toBeNull();
   });
 
-  it('leaves markdown carrying a table unclamped', () => {
+  it('clamps the lede to three lines', () => {
+    renderStep([markdown('m1', 'lead-in prose'), approval('a1', 'Ship it?')]);
+    const lede = container.querySelector('.focus-lede') as HTMLElement;
+    expect(lede.textContent).toBe('lead-in prose');
+    expect(lede.style.getPropertyValue('--clamp-lines')).toBe('3');
+    expect(container.querySelector('.focus-background')).toBeNull();
+  });
+
+  it('leaves a lede carrying a table unclamped', () => {
     renderStep([markdown('m1', '| PR | Verdict |\n| --- | --- |\n| #1 | keep |'), approval('a1', 'Ship it?')]);
-    const md = container.querySelector('.focus-context .focus-context-md')!;
-    expect(md.querySelector('table')).not.toBeNull();
-    expect(md.closest('.clamped')).toBeNull();
+    const lede = container.querySelector('.focus-lede')!;
+    expect(lede.querySelector('table')).not.toBeNull();
+    expect(lede.closest('.clamped')).toBeNull();
   });
 
-  it('titles a table disclosure from its header row and opens a lone table context', () => {
-    const table: Block = {
-      id: 't1',
-      type: 'table',
-      columns: [
-        { key: 'pr', label: 'PR' },
-        { key: 'verdict', label: 'Verdict' },
-      ],
-      rows: [{ pr: '#1', verdict: 'keep' }],
+  it('leads with the card summary and moves the card context into Background', () => {
+    const withSummary: Block = {
+      id: 'k1',
+      type: 'card',
+      title: 'Transport choice',
+      summary: 'Pick *one* transport',
+      children: [markdown('m1', 'history') as never, choice('c1', 'Which?', ['A', 'B']) as never],
     };
-    renderStep([table, approval('a1', 'Ship it?')]);
-    const group = container.querySelector('.focus-context .cc-group')!;
-    expect(group.querySelector('.cc-group-header')?.textContent).toContain('PR · Verdict');
-    expect(group.classList.contains('cc-group-expanded')).toBe(true);
+    renderStep([withSummary]);
+    expect(container.querySelector('.focus-lede')?.innerHTML).toContain('<em>one</em>');
+    expect(container.querySelector('.card-summary')).toBeNull();
+    expect(container.querySelector('.card .markdown-block')).toBeNull();
+    const background = container.querySelector('.focus-background')!;
+    act(() => (background.querySelector('.cc-group-header') as HTMLElement).click());
+    expect(background.querySelector('.markdown-block')?.textContent).toBe('history');
   });
 
-  it('keeps a table collapsed beside other context', () => {
+  it('collects the remaining context into one collapsed Background disclosure', () => {
     const table: Block = { id: 't1', type: 'table', columns: [{ key: 'pr', label: 'PR' }], rows: [] };
-    renderStep([markdown('m1', 'lead'), table, approval('a1', 'Ship it?')]);
-    expect(container.querySelector('.focus-context .cc-group')?.classList.contains('cc-group-expanded')).toBe(false);
+    renderStep([markdown('m1', 'lead'), table, code('code1'), approval('a1', 'Ship it?')]);
+    const groups = container.querySelectorAll('.cc-group');
+    expect(groups.length).toBe(1);
+    const background = container.querySelector('.focus-background .cc-group')!;
+    expect(background.querySelector('.cc-group-header')?.textContent).toContain('Background');
+    expect(background.classList.contains('cc-group-expanded')).toBe(false);
+    expect(background.querySelector('.code-block')).toBeNull();
+    act(() => (background.querySelector('.cc-group-header') as HTMLElement).click());
+    expect(background.querySelector('.table-block')).not.toBeNull();
+    expect(background.querySelector('.code-block')).not.toBeNull();
+    expect(container.querySelector('.focus-question')?.textContent).toBe('Ship it?');
   });
 
-  it('demotes markdown lead-in to a clamped block and heavy blocks to titled disclosures', () => {
-    renderStep([markdown('m1', 'lead-in prose'), code('code1'), approval('a1', 'Ship it?')], 0);
-    const context = container.querySelector('.focus-context');
-    expect(context).not.toBeNull();
-    expect(context?.querySelector('.markdown-block.focus-context-md')).not.toBeNull();
-    // The code block collapses behind a disclosure titled by its language.
-    const header = context?.querySelector('.cc-group-header');
-    expect(header?.textContent).toContain('go');
-    expect(container.querySelector('.focus-question')?.textContent).toBe('Ship it?');
+  it('renders a context step in full, with no Background', () => {
+    renderStep([markdown('m1', 'first'), code('code1')]);
+    expect(container.querySelector('.focus-background')).toBeNull();
+    expect(container.querySelector('.focus-lede')).toBeNull();
+    expect(container.querySelector('.markdown-block')?.textContent).toBe('first');
+    expect(container.querySelector('.code-block')).not.toBeNull();
   });
 });
 
@@ -511,6 +436,14 @@ describe('FocusCard viewed tracking', () => {
     expect(viewedStore.viewed()).toEqual(['c1', 'a1']);
     act(() => vi.advanceTimersByTime(1));
     expect(viewedStore.viewed()).toEqual(['c1', 'a1', 'k1']);
+  });
+
+  it('marks context held in a closed Background viewed once the step dwells', () => {
+    vi.useFakeTimers();
+    renderStep([markdown('m1', 'lead'), code('k1'), approval('a1', 'Ship?')]);
+    act(() => vi.advanceTimersByTime(FOCUS_DWELL_MS));
+    expect(container.querySelector('.focus-background .cc-group-expanded')).toBeNull();
+    expect(viewedStore.viewed()).toEqual(['m1', 'k1', 'a1']);
   });
 
   it('never marks a step the human skips past before the dwell', () => {

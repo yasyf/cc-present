@@ -141,9 +141,6 @@ html:has(.doc-header[data-compact]) {
 .wire-closed {
   color: var(--muted);
 }
-.focus-deck {
-  scroll-margin-top: calc(var(--doc-header-h, 0px) + var(--space-3));
-}
 .focus-lead {
   display: flex;
   flex-direction: column;
@@ -153,11 +150,9 @@ html:has(.doc-header[data-compact]) {
 .focus-lead .stats {
   margin: 0;
 }
-.choice-visual > .focus-media-empty {
-  min-height: 8rem;
-}
 
 .focus-deck {
+  scroll-margin-top: calc(var(--doc-header-h, 0px) + var(--space-3));
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
@@ -336,23 +331,18 @@ html:has(.doc-header[data-compact]) {
   flex-direction: column;
   gap: var(--space-4);
 }
-.focus-main {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-}
 /* The focus frame already borders and insets the step, so a nested card's state
    rail reads as a stray rule and its side padding as a double margin. */
-.focus-main > .card {
+.focus-card-body > .card {
   border-left: none;
   padding-inline: 0;
 }
-.focus-main .card-summary {
+.focus-card-body .card-summary {
   font-size: inherit;
   color: var(--dim);
   max-width: none;
 }
-.focus-main > .comment-chip-row {
+.focus-card-body > .comment-chip-row {
   display: flex;
   justify-content: flex-end;
   margin-top: 0;
@@ -461,79 +451,28 @@ html:has(.doc-header[data-compact]) {
   color: var(--ink);
   margin: 0 0 var(--space-3);
 }
-/* Lead-in context, demoted below the question: dim, and markdown clamps in place
-   while heavy blocks collapse to titled disclosures (rendered in FocusCard). */
-.focus-context {
+.focus-lede {
+  color: var(--dim);
+}
+.focus-lede.is-clamped {
+  max-height: 3lh;
+}
+.focus-background .cc-group {
+  background: transparent;
+}
+.focus-background .cc-group-header {
+  font-family: var(--font-prose);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--dim);
+}
+.focus-background-body {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
-  color: var(--dim);
 }
-.focus-context-md.is-clamped {
-  max-height: 6lh;
-}
-.focus-context-md.is-faded {
-  -webkit-mask-image: linear-gradient(to bottom, #000 0, #000 calc(100% - 1.5lh), transparent 100%);
-  mask-image: linear-gradient(to bottom, #000 0, #000 calc(100% - 1.5lh), transparent 100%);
-}
-.focus-context .clamp-toggle {
-  margin-top: var(--space-2);
-}
-.focus-media {
-  margin: 0;
-  overflow: auto;
-}
-.focus-media:empty {
-  display: none;
-}
-.focus-card-body[data-stage] {
-  --stage-h: max(22rem, 100dvh - var(--doc-header-h, 0px) - 2 * var(--space-5));
-}
-.focus-card-body[data-stage] > .focus-main {
-  display: contents;
-}
-.focus-card-body[data-stage] > .focus-main > .focus-lead {
-  order: -3;
-}
-.focus-card-body[data-stage] > .focus-main > .focus-context {
-  order: -2;
-}
-.focus-card-body[data-stage] > .focus-media {
-  order: -1;
-  flex: none;
-  height: calc(var(--stage-h) / 2);
-}
-.focus-card-body[data-wide] > .focus-media {
-  height: auto;
-}
-.focus-media-empty {
-  display: grid;
-  place-items: center;
-  height: 100%;
-  margin: 0;
-  border: 1px dashed var(--line);
-  border-radius: var(--radius-sm);
-  font-family: var(--font-stamp);
-  font-size: var(--text-sm);
-  color: var(--muted);
-}
-/* At --bp-compact FocusCard mounts the stage as a <details> so the demonstration
-   collapses to a titled row and expands inline; the height cap moves to the body. */
-.focus-media-disclosure {
-  overflow: visible;
-}
-.focus-media-summary {
-  cursor: pointer;
-  font-family: var(--font-stamp);
-  font-size: var(--text-sm);
-  font-weight: 700;
-  letter-spacing: var(--track-caps);
-  color: var(--muted);
-  padding: var(--space-2) 0;
-}
-.focus-media-body {
-  max-height: 42vh;
-  overflow: auto;
+.focus-stage:has(.choice-compare) {
+  margin-inline: min(0px, 50% - min(var(--shell-wide), 100vw - 2 * var(--rail-strip-w)) / 2);
 }
 
 /* Wizard progress: the shared footer grid owns Back and Next; its center holds the
@@ -666,8 +605,8 @@ html:has(.doc-header[data-compact]) {
   .focus-dot {
     position: relative;
   }
-  /* Mirrors .strip-dot: glyph stays put, a centered pseudo carries the tap to 44px
-     (neighbors overlap, which is fine). */
+  /* The glyph stays put; a centered pseudo carries the tap to 44px (neighbors
+     overlap, which is fine). */
   .focus-dot::after {
     content: '';
     position: absolute;
@@ -683,36 +622,5 @@ html:has(.doc-header[data-compact]) {
   }
   .focus-dot.tick {
     padding: 13px;
-  }
-  .focus-card-body[data-stage] > .focus-media {
-    height: auto;
-  }
-  .focus-media-empty {
-    display: block;
-    padding: var(--space-2) 0;
-    border: none;
-    font-weight: 700;
-    letter-spacing: var(--track-caps);
-  }
-}
-@media (min-width: 1280px) {
-  .app:has(.focus-card-body[data-stage]) {
-    --shell-max: min(80rem, 100vw - 2 * var(--rail-strip-w));
-  }
-  .focus-card-body[data-stage]:not([data-wide]) {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    align-items: start;
-    column-gap: var(--space-5);
-  }
-  .focus-card-body[data-stage]:not([data-wide]) > .focus-main {
-    display: flex;
-  }
-  .focus-card-body[data-stage]:not([data-wide]) > .focus-media {
-    order: 0;
-    position: sticky;
-    top: calc(var(--doc-header-h, 0px) + var(--space-3));
-    height: auto;
-    max-height: var(--stage-h);
   }
 }

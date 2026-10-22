@@ -4,6 +4,8 @@ import { beforeAll, describe, expect, it, vi } from 'vitest';
 const initialize = vi.fn();
 const render = vi.fn().mockResolvedValue({ svg: '<svg></svg>' });
 vi.mock('mermaid', () => ({ default: { initialize, render } }));
+const fontLoad = vi.fn().mockResolvedValue([]);
+Object.defineProperty(document, 'fonts', { configurable: true, value: { load: fontLoad, ready: Promise.resolve() } });
 
 import { renderDiagram } from './mermaid';
 
@@ -15,6 +17,12 @@ describe('mermaid configure', () => {
     await renderDiagram('graph LR\n  A[Client] --> B[Edge]');
     expect(initialize).toHaveBeenCalledTimes(1);
     cfg = initialize.mock.calls[0]![0];
+  });
+
+  it('loads the Barlow prose face before mermaid first measures a label', () => {
+    expect(fontLoad).toHaveBeenCalledWith('400 1em Barlow');
+    expect(fontLoad.mock.invocationCallOrder[0]!).toBeLessThan(initialize.mock.invocationCallOrder[0]!);
+    expect(initialize.mock.invocationCallOrder[0]!).toBeLessThan(render.mock.invocationCallOrder[0]!);
   });
 
   it('disables HTML labels at the top level, not the ignored flowchart.htmlLabels', () => {

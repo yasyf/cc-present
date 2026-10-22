@@ -8,10 +8,9 @@
   gap: var(--space-2);
   min-height: var(--control-h);
   padding: 0 var(--space-4);
-  font-family: var(--font-stamp);
+  font-family: var(--font-prose);
   font-size: var(--text-sm);
   font-weight: 600;
-  letter-spacing: 0.02em;
   color: var(--ink);
   background: var(--card);
   border: 1px solid var(--line);
@@ -96,7 +95,6 @@
 .btn-sm {
   min-height: var(--control-h-sm);
   padding: 0 var(--space-3);
-  font-size: var(--text-2xs);
 }
 .btn-lg {
   min-height: var(--control-h-lg);

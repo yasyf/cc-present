@@ -220,6 +220,12 @@ describe('DiagramView', () => {
     expect(fitVar()).toBe('800px');
   });
 
+  it('sizes the frame to the fitted SVG height, leaving no fixed slack', async () => {
+    frameWidth = 400;
+    await renderSvg(1000);
+    expect(figure().style.getPropertyValue('--diagram-h')).toBe('80px');
+  });
+
   it('re-fits when the frame resizes', async () => {
     frameWidth = 400;
     await renderSvg(1000);
