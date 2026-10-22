@@ -277,7 +277,7 @@ describe('FocusDeck step notes', () => {
   it('lands a jump to a lead-in block on the step that shows it', () => {
     renderRail([approval('a1', 'Ship one'), markdown('m1'), markdown('m2')], 'm1');
     jump();
-    expect(container.querySelector('.focus-card:not([data-exiting]) .markdown-block')?.textContent).toBe('m1');
+    expect(container.querySelector('.focus-card:not([data-exiting]) .markdown-block')?.textContent?.trim()).toBe('m1');
     expect(probe('active')).toBe('m1');
   });
 

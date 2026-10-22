@@ -299,7 +299,7 @@ describe('FocusCard question-first anatomy', () => {
   it('clamps the lede to three lines', () => {
     renderStep([markdown('m1', 'lead-in prose'), approval('a1', 'Ship it?')]);
     const lede = container.querySelector('.focus-lede') as HTMLElement;
-    expect(lede.textContent).toBe('lead-in prose');
+    expect(lede.textContent?.trim()).toBe('lead-in prose');
     expect(lede.style.getPropertyValue('--clamp-lines')).toBe('3');
     expect(container.querySelector('.focus-background')).toBeNull();
   });
@@ -325,7 +325,7 @@ describe('FocusCard question-first anatomy', () => {
     expect(container.querySelector('.card .markdown-block')).toBeNull();
     const background = container.querySelector('.focus-background')!;
     act(() => (background.querySelector('.cc-group-header') as HTMLElement).click());
-    expect(background.querySelector('.markdown-block')?.textContent).toBe('history');
+    expect(background.querySelector('.markdown-block')?.textContent?.trim()).toBe('history');
   });
 
   it('collects the remaining context into one collapsed Background disclosure', () => {
@@ -375,7 +375,7 @@ describe('FocusCard question-first anatomy', () => {
     renderStep([markdown('m1', 'first'), code('code1')]);
     expect(container.querySelector('.focus-background')).toBeNull();
     expect(container.querySelector('.focus-lede')).toBeNull();
-    expect(container.querySelector('.markdown-block')?.textContent).toBe('first');
+    expect(container.querySelector('.markdown-block')?.textContent?.trim()).toBe('first');
     expect(container.querySelector('.code-block')).not.toBeNull();
   });
 });
