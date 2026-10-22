@@ -94,14 +94,14 @@
 /* In focus mode the deck already frames the step, so the ring gives way to a
    left-edge bar on the decision a card's keys target, hung in the frame's margin
    so the decision's text stays flush with the prose around it. */
-.focus-main [data-kbd-cursor] {
+.focus-card-body [data-kbd-cursor] {
   box-shadow: none;
   animation: none;
 }
-.focus-main .card-body > [data-kbd-cursor] {
+.focus-card-body .card-body > [data-kbd-cursor] {
   position: relative;
 }
-.focus-main .card-body > [data-kbd-cursor]::before {
+.focus-card-body .card-body > [data-kbd-cursor]::before {
   content: '';
   position: absolute;
   inset-block: 0;

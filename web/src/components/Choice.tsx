@@ -1,5 +1,5 @@
 import { useContext, useEffect, useRef, useState } from 'react';
-import type { MouseEvent } from 'react';
+import type { FocusEvent, MouseEvent } from 'react';
 import { useGroupReadOnly } from '@cc-interact/react';
 import type { Choice as ChoiceBlock } from '../schema';
 import type { Interactions } from '../events';
@@ -115,6 +115,17 @@ export function Choice({ block, interactions }: { block: ChoiceBlock; interactio
     return moved;
   }
 
+  const pointing = {
+    onMouseMove: (e: MouseEvent) => {
+      if (pointerMoved(e)) setPointed(optionAt(e.target));
+    },
+    onMouseLeave: (e: MouseEvent) => {
+      if (pointerMoved(e)) setPointed(null);
+    },
+    onFocus: (e: FocusEvent) => setPointed(optionAt(e.target)),
+    onBlur: () => setPointed(null),
+  };
+
   const { ref, cursor } = useDecidable(block.id, {
     kind: 'choice',
     disabled: locked,
@@ -132,6 +143,7 @@ export function Choice({ block, interactions }: { block: ChoiceBlock; interactio
   });
 
   const shownId = pointed ?? picks.at(-1);
+  const shownVisual = block.options.find((option) => option.id === shownId)?.visual;
   const feedback = interactions.feedback[block.id] ?? [];
   const replies = interactions.replies[block.id] ?? [];
   const thread = (
@@ -219,7 +231,7 @@ export function Choice({ block, interactions }: { block: ChoiceBlock; interactio
     >
       {!suppressPrompt && block.prompt && <p className="choice-prompt">{block.prompt}</p>}
       {grid ? (
-        <div className="choice-compare" role={multi ? 'group' : 'radiogroup'} aria-label={block.prompt}>
+        <div className="choice-compare" role={multi ? 'group' : 'radiogroup'} aria-label={block.prompt} {...pointing}>
           <ChoiceGrid
             options={block.options}
             axes={axes}
@@ -230,23 +242,17 @@ export function Choice({ block, interactions }: { block: ChoiceBlock; interactio
             interactions={interactions}
             onToggle={pick}
           />
+          {shownVisual && (
+            <div className="option-visual" data-option-id={shownId}>
+              <BlockBody block={shownVisual} interactions={interactions} />
+            </div>
+          )}
           {other}
         </div>
       ) : (
-        <div className="options" role={multi ? 'group' : 'radiogroup'} aria-label={block.prompt}>
+        <div className="options" role={multi ? 'group' : 'radiogroup'} aria-label={block.prompt} {...pointing}>
           {block.options.map((option, i) => (
-            <div
-              key={option.id}
-              className="option-row"
-              onMouseMove={(e) => {
-                if (pointerMoved(e)) setPointed(option.id);
-              }}
-              onMouseLeave={(e) => {
-                if (pointerMoved(e)) setPointed((p) => (p === option.id ? null : p));
-              }}
-              onFocus={() => setPointed(option.id)}
-              onBlur={() => setPointed((p) => (p === option.id ? null : p))}
-            >
+            <div key={option.id} className="option-row" data-option-id={option.id}>
               <OptionCard
                 option={option}
                 index={i}
@@ -271,4 +277,8 @@ export function Choice({ block, interactions }: { block: ChoiceBlock; interactio
       {thread}
     </div>
   );
+}
+
+function optionAt(target: EventTarget): string | null {
+  return (target as Element).closest<HTMLElement>('[data-option-id]')?.dataset.optionId ?? null;
 }

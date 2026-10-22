@@ -195,6 +195,9 @@
   font-weight: 550;
   font-size: var(--text-base);
 }
+.approval:has(.verdict.active) > .approval-prompt {
+  padding-inline-end: 7rem;
+}
 .decision-bar {
   display: flex;
   gap: var(--space-3);
@@ -485,10 +488,11 @@
   grid-column: 1 / -1;
   margin-top: auto;
   display: grid;
-  grid-template-columns: max-content minmax(0, 1fr);
+  grid-template-columns: minmax(0, min(12rem, 40%)) minmax(0, 1fr);
   align-items: baseline;
   gap: var(--space-2) var(--space-3);
   min-width: 0;
+  overflow-wrap: anywhere;
   border-top: 1px solid var(--line);
   padding-top: var(--space-2);
   text-align: left;
@@ -517,6 +521,22 @@
 .option-facts .fact-label {
   font-size: var(--text-sm);
   color: var(--dim);
+}
+.option-facts .fact-value,
+.grid-cell .fact-value {
+  font-weight: 400;
+}
+.option-row > .option {
+  container: option / inline-size;
+}
+@container option (max-width: 480px) {
+  .option-facts {
+    grid-template-columns: minmax(0, 1fr);
+    row-gap: 0;
+  }
+  .option-facts .fact:not(:first-child) > :first-child {
+    margin-top: var(--space-2);
+  }
 }
 :is(.fact-good, .fact-warn, .fact-bad) .fact-value::before {
   content: '';
@@ -564,7 +584,13 @@
 .choice-compare {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
+}
+.choice-compare > .option-visual {
+  margin-inline-start: 0;
+  padding-top: var(--space-3);
+}
+.choice-compare > .option-other {
+  margin-top: var(--space-2);
 }
 .choice-grid {
   display: grid;
@@ -575,6 +601,7 @@
 }
 .choice-grid > * {
   min-width: 0;
+  overflow-wrap: anywhere;
   padding: var(--space-2) var(--space-3);
   border-top: 1px solid var(--line);
   text-align: left;
@@ -602,27 +629,6 @@
 }
 .grid-cell.fact {
   display: block;
-}
-.grid-thumb {
-  position: relative;
-}
-.grid-thumb-frame {
-  max-height: 8rem;
-  overflow: hidden;
-  pointer-events: none;
-}
-.grid-thumb-open {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  border: none;
-  border-radius: 0;
-  background: transparent;
-  cursor: zoom-in;
-}
-.grid-thumb-open:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--mono-bg) 35%, transparent);
-  border-color: transparent;
 }
 .choice-grid > .grid-pick {
   display: flex;
@@ -911,25 +917,21 @@
 .code-plain {
   white-space: pre;
 }
-.option-visual .code-plain,
-.grid-thumb-frame .code-plain {
+.option-visual .code-plain {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
-.option-visual .shiki code,
-.grid-thumb-frame .shiki code {
+.option-visual .shiki code {
   white-space: normal;
 }
-.option-visual .shiki .line,
-.grid-thumb-frame .shiki .line {
+.option-visual .shiki .line {
   display: block;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   padding-left: 4ch;
   text-indent: -4ch;
 }
-.option-visual .shiki .line:empty::before,
-.grid-thumb-frame .shiki .line:empty::before {
+.option-visual .shiki .line:empty::before {
   content: ' ';
 }
 

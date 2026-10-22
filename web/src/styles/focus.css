@@ -471,8 +471,8 @@ html:has(.doc-header[data-compact]) {
   flex-direction: column;
   gap: var(--space-3);
 }
-.focus-stage:has(.choice-compare) {
-  margin-inline: min(0px, 50% - min(var(--shell-wide), 100vw - 2 * var(--rail-strip-w)) / 2);
+.app:has(.choice-compare) {
+  --shell-max: min(var(--shell-wide), 100vw - 2 * var(--rail-strip-w));
 }
 
 /* Wizard progress: the shared footer grid owns Back and Next; its center holds the

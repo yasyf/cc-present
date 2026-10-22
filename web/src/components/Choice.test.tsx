@@ -24,14 +24,6 @@ class ResizeObserverStub {
 }
 (globalThis as { ResizeObserver?: unknown }).ResizeObserver = ResizeObserverStub;
 Element.prototype.scrollIntoView = () => {};
-HTMLDialogElement.prototype.showModal = function showModal(this: HTMLDialogElement) {
-  this.setAttribute('open', '');
-};
-HTMLDialogElement.prototype.close = function close(this: HTMLDialogElement) {
-  if (!this.open) return;
-  this.removeAttribute('open');
-  this.dispatchEvent(new Event('close'));
-};
 let narrowViewport = false;
 window.matchMedia = ((query: string) => ({
   matches: narrowViewport && query.includes('720px'),
@@ -500,21 +492,28 @@ describe('Choice compare grid', () => {
     expect(container.querySelectorAll('.options .option-facts').length).toBe(3);
   });
 
-  it('adds a visual row whose thumbnail opens the visual in a lightbox', () => {
-    const block = plans(2);
-    block.options[0]!.visual = { id: 'v0', type: 'code', lang: 'go', code: 'package main', title: 'main.go' };
+  it('shows the hovered or picked column visual full-width under the grid, and nothing at rest', () => {
+    const block = plans(3);
+    block.options[0]!.visual = { id: 'v0', type: 'image', src: 'data:,x', alt: 'chart-0' };
+    block.options[2]!.visual = { id: 'v2', type: 'image', src: 'data:,x', alt: 'chart-2' };
+    const shown = () => container.querySelector<HTMLImageElement>('.choice-compare > .option-visual img')?.alt ?? null;
+    const at = (selector: string, i: number) => container.querySelectorAll<HTMLElement>(selector)[i]!;
+    const pointer = (el: HTMLElement, type: string, clientX: number) =>
+      act(() => void el.dispatchEvent(new MouseEvent(type, { bubbles: true, clientX, clientY: 10 })));
+
+    render(block, { ...empty(), choices: { c1: { optionIds: ['o2'] } } });
+    expect(container.querySelector('.choice-grid img')).toBeNull();
+    expect(shown()).toBe('chart-2');
+
+    pointer(at('.grid-cell.fact', 0), 'mousemove', 50);
+    expect(shown()).toBe('chart-0');
+    pointer(at('.grid-head', 1), 'mousemove', 60);
+    expect(shown()).toBeNull();
+    pointer(at('.grid-head', 1), 'mouseout', 400);
+    expect(shown()).toBe('chart-2');
+
     render(block, empty());
-    expect(cellText('.grid-axis:not(.grid-pick-axis)')).toEqual(['Cost', 'Latency', 'Visual']);
-    const thumbs = container.querySelectorAll('.grid-thumb');
-    expect(thumbs.length).toBe(2);
-    expect(thumbs[1]!.childElementCount).toBe(0);
-    const open = thumbs[0]!.querySelector('.grid-thumb-open') as HTMLButtonElement;
-    expect(open.getAttribute('aria-label')).toBe('Expand main.go');
-    const dialog = thumbs[0]!.querySelector('dialog') as HTMLDialogElement;
-    expect(dialog.querySelector('.code-block')).toBeNull();
-    act(() => open.click());
-    expect(dialog.open).toBe(true);
-    expect(dialog.querySelector('.code-block')).not.toBeNull();
+    expect(shown()).toBeNull();
   });
 });
 
