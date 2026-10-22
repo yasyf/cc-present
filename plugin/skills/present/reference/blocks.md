@@ -116,7 +116,7 @@ The rewrite keeps a short phrase in each fact and moves the caveats to `detail`:
 ```json
 {
   "id": "claim-row",
-  "label": "Replace the old path with a claim row",
+  "label": "Replace the lock with a SandSQL claim row",
   "hint": "needs an epoch from SandSQL first",
   "facts": [
     { "label": "code", "value": "~733 lines deleted" },
