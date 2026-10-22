@@ -518,13 +518,13 @@
   height: 8px;
   border-radius: 50%;
   background: currentColor;
-  color: var(--muted);
+  color: var(--dim);
 }
 .wire-present {
   color: var(--approve);
 }
 .wire-live {
-  color: var(--accent-ink);
+  color: var(--accent);
 }
 .wire-away {
   background: none;
@@ -540,12 +540,12 @@
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
   background: none;
-  color: var(--muted);
+  color: var(--dim);
   font-size: var(--text-md);
   line-height: 1.3;
 }
 .header-menu-toggle:hover {
-  color: var(--ink);
+  color: var(--text);
   background: var(--mono-bg);
   border-color: var(--border-strong);
 }
@@ -556,7 +556,7 @@
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
   background: var(--surface-raised);
-  color: var(--ink);
+  color: var(--text);
   box-shadow: var(--shadow-3);
 }
 .header-menu[open] {
@@ -586,7 +586,7 @@ button.header-menu-item:hover {
 }
 .header-menu-count {
   font-variant-numeric: tabular-nums;
-  color: var(--muted);
+  color: var(--dim);
 }
 .history-drawer {
   margin: 0 0 0 auto;
@@ -598,7 +598,7 @@ button.header-menu-item:hover {
   border: none;
   border-left: 1px solid var(--line);
   background: var(--paper);
-  color: var(--ink);
+  color: var(--text);
   box-shadow: var(--shadow-3);
 }
 .history-drawer::backdrop {
@@ -1203,12 +1203,12 @@ button.header-menu-item:hover {
   block-size: 4px;
   border-radius: var(--radius-pill);
   overflow: hidden;
-  background: color-mix(in srgb, var(--graphite) 25%, transparent);
+  background: color-mix(in srgb, var(--dim) 25%, transparent);
 }
 .submit-meter-fill {
   display: block;
   block-size: 100%;
-  background: var(--pencil);
+  background: var(--accent);
   transition: inline-size var(--dur-2) var(--ease-out);
 }
 
