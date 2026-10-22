@@ -49,7 +49,7 @@ A card is a question title, a lede, the decidable, and optional Background. The 
 
 - Never recap earlier rulings in prose. Put them in a `record` block in Background, one fact per ruling.
 - Never preview later cards or list the options in prose; the deck and the choice already show both.
-- Never use a bold sentence as a heading. Use a `section`, or a heading of 6 words or fewer.
+- Never use a bold sentence as a heading. Inside a card or an option body, use a markdown heading of 6 words or fewer; a `section` is top-level only.
 - Keep a list to 5 bullets or fewer, one line each.
 
 **Bad.** An agent wrote this lede for a card that decides how to build two release channels:
