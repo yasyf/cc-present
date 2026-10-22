@@ -31,7 +31,7 @@ The document is JSON, validated by `push --dry-run` before anything touches the 
 
 ### Content density
 
-The UI clamps long prose behind "Show more" — markdown blocks at ~10 lines, approval replies at 4, option bodies at 3. Write for the fold. Labels carry the pick, `hint` the one-line why, `md` only the short must-read lede — the full drill-down rides `detail` (next section).
+The UI clamps long prose behind "Show more": option bodies at 3 lines, approval replies at 4. Write for the fold. The label carries the pick and `hint` the one-line why; `md` and `detail` are optional depth.
 
 ```json
 { "id": "sqlite", "label": "Use SQLite because it gives us a single-file deployment with zero operational overhead, WAL supports our single-writer daemon, and migrating to Postgres later stays easy since all SQL lives in the store package" }
@@ -41,16 +41,93 @@ The UI clamps long prose behind "Show more" — markdown blocks at ~10 lines, ap
 { "id": "sqlite", "label": "SQLite, single writer", "hint": "zero ops; rules out horizontal scaling", "md": "WAL fits the per-repo daemon; all SQL stays in `store`, so a later Postgres move is contained." }
 ```
 
-The first buries the tradeoff in a label nobody scans; the second reads at a glance and keeps the detail one clamp away.
+The first buries the tradeoff in a label nobody scans; the second reads at a glance.
 
-### Give the whole picture
+### Write a card
 
-Never present an option blind. Every option carries enough for the human to decide without a follow-up question: the tradeoff, the numbers, the pros and the cons. If someone scanning the board couldn't say why they'd pick an option over its neighbor, you've under-informed — clamping keeps the row scannable; it is not license to omit. Split context by tier, don't drop it:
+A card is a question title, a lede, the decidable, and optional Background. The lede is the card's `summary`: at most 2 sentences, about 40 words, saying what is being decided and why it matters now. Every other content block in the card renders in a Background disclosure the human opens on demand. Plan boards are the exception to the question title: each behavior card's title is a claim, as "Present a plan" below says.
 
-- `label` is the pick (~6 words); `hint` the one-line why beside it.
-- `facts` are the comparable numbers — `{value, label?, tone?}`, an aligned cluster that reads column-to-column across options. Set `tone` (`good`/`warn`/`bad`) to flag the outlier.
-- `detail` is the drill-down — `pros`, `cons`, a full `md` — opened on demand, so depth never costs up-front clarity. Fill it: an empty `detail`, or a throwaway "My pick.", is the anti-pattern this replaces.
-- `md` holds only a short must-read lede; everything longer belongs in `detail`.
+- Never recap earlier rulings in prose. Put them in a `record` block in Background, one fact per ruling.
+- Never preview later cards or list the options in prose; the deck and the choice already show both.
+- Never use a bold sentence as a heading. Inside a card or an option body, use a markdown heading of 6 words or fewer; a `section` is top-level only.
+- Keep a list to 5 bullets or fewer, one line each.
+
+**Bad.** An agent wrote this lede for a card that decides how to build two release channels:
+
+> You ruled for channels from one branch, with the old build still fixable and releasable, and asked how to build it. All three ways below keep both trees on dev, build two sand binaries in CI, publish each to its own pointer, and let the flag pick one per person. They differ in how the two trees are kept apart: build tags in one tree, two folders in one Go module, or two Go modules. The code favors two folders. Who the flag picks and the release-tools approval stay as you answered them. Three more questions follow, each one the plan had settled without you: where the new cloud runs during the internal Mac week, whether a Mac below the minimum version may restart in the middle of a turn, and whether a sand started from a terminal installs updates on its own.
+
+It runs 143 words, recaps four rulings, lists the three options, and previews three later questions. The question the card decides first appears in its third sentence. Below the lede, a bold "The same under all three." line headed a run of long bullets, every fact value carried a `warn` or `bad` tone, and only some options had a visual.
+
+**Good.** The same card, rewritten:
+
+```json
+{
+  "id": "card-tree-split",
+  "type": "card",
+  "title": "How do the two trees stay apart on dev?",
+  "summary": "Both trees build from dev into two sand binaries, and this pick sets how every file and CI job tells them apart. The code today leans toward two folders.",
+  "children": [
+    {
+      "id": "tree-split-rulings",
+      "type": "record",
+      "title": "Already decided",
+      "facts": [
+        { "label": "Branch", "value": "both channels from dev" },
+        { "label": "Old build", "value": "stays fixable and releasable" },
+        { "label": "Who gets which", "value": "flag picks per person" },
+        { "label": "Release tools", "value": "approval as answered" }
+      ]
+    },
+    {
+      "id": "tree-split",
+      "type": "choice",
+      "options": [
+        { "id": "build-tags", "label": "Build tags in one tree", "hint": "no moves; every file needs a tag",
+          "facts": [ { "label": "files moved", "value": "none" }, { "label": "go.mod files", "value": "1" }, { "label": "mixing caught at", "value": "code review", "tone": "warn" } ] },
+        { "id": "two-folders", "label": "Two folders, one module", "hint": "matches today's layout", "recommended": true,
+          "facts": [ { "label": "files moved", "value": "new tree" }, { "label": "go.mod files", "value": "1" }, { "label": "mixing caught at", "value": "lint" } ] },
+        { "id": "two-modules", "label": "Two Go modules", "hint": "hardest wall; two go.mod files to keep in step",
+          "facts": [ { "label": "files moved", "value": "new tree" }, { "label": "go.mod files", "value": "2" }, { "label": "mixing caught at", "value": "compile", "tone": "good" } ] }
+      ]
+    }
+  ]
+}
+```
+
+The title asks the question, and the lede says what the pick sets. The three options share their fact labels, so the choice renders as a compare grid, and only the two values that separate the options carry a tone. The earlier rulings sit in the `record`, inside Background. Each of the three later questions gets its own card.
+
+### Options
+
+An option's row shows its `label` (the pick, ~6 words), its `hint` (the one-line why or cost), and its facts. The rest is optional depth.
+
+- `facts` are 2–4 `{value, label?, tone?}` entries with the same labels in the same order on every option. A choice of 2–4 options whose labels match renders as a compare grid, options as columns and facts as rows. One mismatched label drops it back to a list of rows, silently. Options that differ in kind, not degree, skip facts and render as that list.
+- A fact `value` is a number or a phrase of about 6 words, such as "~733 lines deleted" or "+6–15 min per landing", so it reads at a glance. Caveats and how it works go in `detail`, never in a fact.
+- `tone` (`good`/`warn`/`bad`) marks only the one or two values that decide the pick, so they stand out against untoned neighbors.
+- `md` is one short sentence under the label. Most options need none.
+- `detail` holds `pros`, `cons`, and a longer `md`, opened on demand. Add it when an option needs more than its hint and facts; leave it out otherwise.
+- `visual` goes on every option of a choice or on none, and only where the picture beats a sentence. A picture shared by every option belongs in Background.
+
+A fact value written as a sentence turns the grid into a wall of text. An agent wrote this one as a single fact:
+
+> about 733 lines deleted; one claim row and its compare-and-swap added, size not yet estimated; its epoch also orders run progress, so deleting it needs an epoch from SandSQL (about 0.5 day plus a resume test), or a resumed cloud run…
+
+The rewrite keeps a short phrase in each fact and moves the caveats to `detail`:
+
+```json
+{
+  "id": "claim-row",
+  "label": "Replace the lock with a SandSQL claim row",
+  "hint": "needs an epoch from SandSQL first",
+  "facts": [
+    { "label": "code", "value": "~733 lines deleted" },
+    { "label": "added", "value": "1 claim row + CAS" },
+    { "label": "prerequisite", "value": "SandSQL epoch, ~0.5 day" }
+  ],
+  "detail": {
+    "md": "The old epoch also orders run progress, so deleting it needs an epoch from SandSQL and a resume test. The claim row's size is not estimated yet."
+  }
+}
+```
 
 ## Composing for focus mode
 
@@ -58,8 +135,8 @@ A board with any decision unit opens in focus mode by default: one step at a tim
 
 - **Each card is one focus step.** "Cards are decision units" is literal: the card renders as the step body and its controls decide it.
 - **Doc order is deck order.** Order cards by decision priority — the human meets them one at a time.
-- **A card fits one screen.** The content-density clamps above are the budget; an overlong card splits into multiple cards, same as on the board.
-- **Context attaches forward.** A top-level run of content blocks (markdown, code, diff, diagram, image, table, progress, chart, term, filetree, record) becomes the lead-in of the next card or decidable; a trailing run is its own read-only step. Put context immediately before the decision it informs — a run cut off by a section header turns into a standalone read-only step instead of attaching.
+- **A card fits one screen.** "Write a card" above sets the budget; an overlong card splits into multiple cards, same as on the board.
+- **Context attaches forward.** A top-level run of content blocks (markdown, code, diff, diagram, image, table, progress, chart, term, filetree, record) attaches to the next card or decidable: its first markdown block is the step's lede when no card `summary` gives one, and the rest folds into Background. A trailing run is its own read-only step. Put context immediately before the decision it informs — a run cut off by a section header turns into a standalone read-only step instead of attaching.
 - **Sections are never steps.** A section surfaces as the tier label in the deck's progress header.
 - **A lone approval swipes.** A step whose only decidable is an approval takes swipe-to-decide — right approves, left rejects. A card with several decidables decides by its controls only.
 - **Content-only boards stay boards.** A push with no decision unit opens as the classic board; set `presentation` to override either default.
@@ -93,8 +170,8 @@ A board with any decision unit opens in focus mode by default: one step at a tim
 {
   "id": "card-slop-cop",
   "type": "card",
-  "title": "slop-cop",
-  "summary": "Opener redrafted; install command corrected.",
+  "title": "Which opener ships for slop-cop?",
+  "summary": "The opener also becomes the Homebrew description, and the install command is corrected.",
   "chips": [ { "label": "plugin" }, { "label": "corrected", "tone": "flag" } ],
   "flagged": true,
   "status": "open",
@@ -102,7 +179,7 @@ A board with any decision unit opens in focus mode by default: one step at a tim
 }
 ```
 
-`chips[].tone` is `default`, `flag`, or `demo`. `status` is agent-owned: `open`, `resolved` (verdict landed), or `redrafted` (you replaced the content after feedback). `flagged` marks a card needing extra scrutiny. `summary` is an optional one-line inline-markdown lede rendered dim under the title; a newline in it fails validation, naming the block id. In focus mode it sits directly above the card's first child at the same size, so it must say something that child does not: never restate the context markdown that follows it.
+`chips[].tone` is `default`, `flag`, or `demo`. `status` is agent-owned: `open`, `resolved` (verdict landed), or `redrafted` (you replaced the content after feedback). `flagged` marks a card needing extra scrutiny. `summary` is the card's lede: one line of inline markdown, at most 2 sentences, saying what is being decided and why now (see "Write a card"). A newline in it fails validation, naming the block id. It must say something the card's children do not: never restate the context markdown that follows it.
 
 ### `approval` — approve/reject verdict
 
@@ -168,9 +245,9 @@ The `md`-vs-`detail.md` line: `md` is what the human must read before deciding; 
 
 `recommended: true` marks your suggested pick: the option carries a stamp badge, and it replaces the free-text "Recommended —" `hint` prefix that used to signal the same thing. At most one option per single-select choice may set it — a second one fails validation. A multi-select choice allows any number.
 
-`visual` attaches one visual block to an option — a `code`, `diagram`, `image`, `diff`, `chart`, `term`, `filetree`, or `record`, each with its own doc-unique id. The deck renders it in the step's visual stage as the option becomes active, so it stands in for a prose tier instead of crowding the row; on the board it rides inside the option's Details. Pick the type that shows the difference between the options: `code` for the shape of what the option produces, `diagram` for a flow or structure that differs across them, `diff` for a before/after edit, `image` for a rendered mockup or screenshot, `chart` for magnitudes the eye should rank, `term` for what running the option prints, `filetree` for the files it touches, `record` for the entity behind it. Any other block type is rejected at decode, naming the option.
+`visual` attaches one visual block to an option — a `code`, `diagram`, `image`, `diff`, `chart`, `term`, `filetree`, or `record`, each with its own doc-unique id. In focus mode it renders beneath its option when the option is selected or hovered, and as a thumbnail row in a compare grid; on the board it rides inside the option's Details. Attach visuals to every option of the choice or to none, and only when the picture beats a sentence. Pick the type that shows the difference between the options: `code` for the shape of what the option produces, `diagram` for a flow or structure that differs across them, `diff` for a before/after edit, `image` for a rendered mockup or screenshot, `chart` for magnitudes the eye should rank, `term` for what running the option prints, `filetree` for the files it touches, `record` for the entity behind it. Any other block type is rejected at decode, naming the option.
 
-Facts earn the comparison grid by lining up. Give every option the same fact labels in the same order — matched labels render as a column-to-column grid the eye reads across options; a single mismatched label drops the whole choice back to per-option chips, silently.
+Facts earn the compare grid by lining up. Give 2–4 options the same fact labels in the same order and the choice renders as a grid, options as columns and facts as rows. A single mismatched label, or a fifth option, drops the whole choice back to the list shape, silently.
 
 ### `input` — free text
 
@@ -358,7 +435,7 @@ A record is one entity's labeled profile: 1–16 `facts` (every fact carries a `
 
 Three shapes carry labeled values; pick by what's being compared:
 
-- **Option `facts`** — numbers aligned *across* options; the comparison grid reads column-to-column.
+- **Option `facts`** — values aligned *across* options; the compare grid reads them row by row.
 - **`table`** — many entities sharing columns.
 - **`record`** — one entity in full; the thing itself, not a comparison.
 
@@ -424,8 +501,8 @@ A condensed version of `examples/opener-board.json` — sections as tiers, one c
     {
       "id": "card-cc-factory",
       "type": "card",
-      "title": "cc-factory",
-      "summary": "Opener redrafted; install command corrected to the released path.",
+      "title": "Which opener ships for cc-factory?",
+      "summary": "cc-factory is pre-release, so its opener has to land without an install command to back it.",
       "flagged": true,
       "status": "redrafted",
       "chips": [ { "label": "plugin" }, { "label": "corrected", "tone": "flag" } ],
@@ -490,7 +567,8 @@ A condensed version of `examples/opener-board.json` — sections as tiers, one c
     {
       "id": "card-slop-cop",
       "type": "card",
-      "title": "slop-cop",
+      "title": "Which opener ships for slop-cop?",
+      "summary": "This line also becomes the Homebrew formula description, so it has to read on its own.",
       "chips": [ { "label": "both" } ],
       "children": [
         {
@@ -540,17 +618,17 @@ The dominant board shape: a section groups cards, and each card carries the befo
     {
       "id": "card-opener",
       "type": "card",
-      "title": "README opener",
+      "title": "Which README opener ships?",
       "status": "redrafted",
       "children": [
         { "id": "opener-was", "type": "markdown", "struck": true, "md": "A tool for checking prose." },
         { "id": "opener-new", "type": "markdown", "md": "**Never ship 'delve' again.**" },
         { "id": "opener-alts", "type": "choice", "prompt": "My pick is selected. Prefer an alternate?", "options": [
           { "id": "pick", "label": "Never ship 'delve' again.", "hint": "my pick — shortest, boldest",
-            "facts": [ { "label": "words", "value": "4", "tone": "good" } ],
+            "facts": [ { "label": "words", "value": "4", "tone": "good" }, { "label": "frame", "value": "command" } ],
             "detail": { "pros": [ "A concrete tell every reader recognizes" ], "cons": [ "Opaque without LLM context" ] } },
           { "id": "alt-a", "label": "Catch the AI accent before it lands.", "hint": "softer, names the mechanism",
-            "facts": [ { "label": "words", "value": "7" } ],
+            "facts": [ { "label": "words", "value": "7" }, { "label": "frame", "value": "mechanism" } ],
             "detail": { "pros": [ "Legible with zero context" ], "cons": [ "Less memorable than the pick" ] } }
         ]},
         { "id": "opener-approval", "type": "approval", "prompt": "Approve this opener?" }
@@ -572,7 +650,7 @@ The dominant board shape: a section groups cards, and each card carries the befo
     {
       "id": "card-timeout",
       "type": "card",
-      "title": "Raise the request timeout",
+      "title": "Raise the request timeout to 60s?",
       "summary": "30s trips on cold starts; 60s clears every observed case.",
       "children": [
         { "id": "timeout-was", "type": "markdown", "struck": true, "md": "`timeout: 30s` — trips on cold starts." },
@@ -598,7 +676,7 @@ The dominant board shape: a section groups cards, and each card carries the befo
     {
       "id": "card-breaking",
       "type": "card",
-      "title": "Breaking: config key rename",
+      "title": "Accept the breaking config key rename?",
       "flagged": true,
       "chips": [ { "label": "breaking", "tone": "flag" } ],
       "children": [
@@ -611,7 +689,7 @@ The dominant board shape: a section groups cards, and each card carries the befo
     {
       "id": "card-notes",
       "type": "card",
-      "title": "Release notes",
+      "title": "Ship these release notes?",
       "children": [
         { "id": "notes-new", "type": "markdown", "md": "**v2.1** — offline validation, `--no-doc` drains, line/col JSON errors." },
         { "id": "notes-approval", "type": "approval", "prompt": "Ship these notes?" }
@@ -678,9 +756,9 @@ Set the `submit` note to say what an unopened decision means, so the human knows
       ]},
       { "id": "retry-count", "type": "choice", "prompt": "How many retries?", "options": [
         { "id": "three", "label": "3 retries", "recommended": true, "hint": "covers a 15-minute outage",
-          "facts": [ { "label": "worst delay", "value": "15 min" } ] },
+          "facts": [ { "label": "worst delay", "value": "15 min" }, { "label": "lost in a 15-min outage", "value": "none" } ] },
         { "id": "none", "label": "No retries", "hint": "this card goes",
-          "facts": [ { "label": "worst delay", "value": "none" } ] }
+          "facts": [ { "label": "worst delay", "value": "none" }, { "label": "lost in a 15-min outage", "value": "every send" } ] }
       ]}
     ]},
     { "id": "card-shared", "type": "card", "title": "Shared: each message row gains an attempts count.", "children": [

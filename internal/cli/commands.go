@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -153,81 +152,6 @@ func dryRunReport(ctx context.Context, dd *doc.Doc, pt doc.PackTypes, root strin
 		return err.Error(), false
 	}
 	return "ok", true
-}
-
-// visualNudge returns a single-line, non-blocking reminder naming every choice
-// that ships without a visual, or "" when every choice carries one. A choice is
-// satisfied by an option.visual, an exhibit sibling in its card, or a top-level
-// exhibit the forward-attaching run leads into it.
-func visualNudge(dd *doc.Doc) string {
-	var proseOnly []string
-	leadHasVisual := false
-	for _, b := range dd.Blocks {
-		switch b := b.(type) {
-		case *doc.Choice:
-			if len(doc.Visuals(b)) == 0 && !leadHasVisual {
-				proseOnly = append(proseOnly, b.ID)
-			}
-		case *doc.Card:
-			cardHasVisual := cardHasVisualLeadIn(b)
-			for _, child := range b.Children {
-				if c, ok := child.(*doc.Choice); ok && len(doc.Visuals(c)) == 0 && !cardHasVisual {
-					proseOnly = append(proseOnly, c.ID)
-				}
-			}
-		}
-		leadHasVisual = continuesVisualRun(b, leadHasVisual)
-	}
-	if len(proseOnly) == 0 {
-		return ""
-	}
-	subject := "choice ships"
-	if len(proseOnly) > 1 {
-		subject = "choices ship"
-	}
-	return fmt.Sprintf("hint: %d %s without a visual (%s); attach an option.visual or lead the card with a diagram, code, or pack exhibit",
-		len(proseOnly), subject, strings.Join(proseOnly, ", "))
-}
-
-// isVisualLeadIn reports whether b is an exhibit — diagram, image, chart,
-// filetree, code, pr, or any pack block — the block types that satisfy a choice
-// by leading it in.
-func isVisualLeadIn(b doc.Block) bool {
-	if _, ok := b.(*doc.PackBlock); ok {
-		return true
-	}
-	switch b.BlockType() {
-	case "diagram", "image", "chart", "filetree", "code", "pr":
-		return true
-	default:
-		return false
-	}
-}
-
-// cardHasVisualLeadIn reports whether a card carries an exhibit sibling that
-// leads in every choice it nests.
-func cardHasVisualLeadIn(card *doc.Card) bool {
-	for _, child := range card.Children {
-		if isVisualLeadIn(child) {
-			return true
-		}
-	}
-	return false
-}
-
-// continuesVisualRun reports whether the top-level forward-attaching run still
-// carries an exhibit once b is consumed: an exhibit sustains it, a context
-// block passes it through, a decidable/card/section ends it.
-func continuesVisualRun(b doc.Block, running bool) bool {
-	if isVisualLeadIn(b) {
-		return true
-	}
-	switch b.BlockType() {
-	case "markdown", "diff", "table", "progress", "term", "record":
-		return running
-	default:
-		return false
-	}
 }
 
 // blockDoc wraps a lone block in a minimal envelope so update-block --dry-run
@@ -405,9 +329,6 @@ func newPushCmd(d cmd.Deps) *cobra.Command {
 				if err != nil {
 					return err
 				}
-				if hint := visualNudge(dd); hint != "" {
-					_, _ = fmt.Fprintln(c.ErrOrStderr(), hint)
-				}
 				msg, ok := dryRunReport(c.Context(), dd, packs.Load(c.Context(), cfg.PackDirs, cfg.DisabledPacks), root)
 				if hint := longCodeNudge(dd.Blocks); hint != "" {
 					_, _ = fmt.Fprintln(c.ErrOrStderr(), hint)
@@ -458,9 +379,6 @@ func newPushCmd(d cmd.Deps) *cobra.Command {
 			_, _ = fmt.Fprintf(out, "url: %s\n", res.URL)
 			for _, u := range res.TailnetURLs {
 				_, _ = fmt.Fprintf(out, "tailnet: %s\n", u)
-			}
-			if hint := visualNudge(dd); hint != "" {
-				_, _ = fmt.Fprintln(c.ErrOrStderr(), hint)
 			}
 			if hint := longCodeNudge(dd.Blocks); hint != "" {
 				_, _ = fmt.Fprintln(c.ErrOrStderr(), hint)

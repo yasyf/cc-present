@@ -19,19 +19,30 @@ Write the document JSON to a file in your **session scratchpad** and pass the pa
 - Every block id is globally unique, kebab-case; a card nests leaf blocks only (one level deep).
 - Put an `approval` inside each card that needs a verdict; add a `choice` when you're offering alternates.
 - A top-level `submit` bar states what submitting commits the human to.
-- Write for the fold — the UI clamps long prose behind "Show more". Option labels stay short (~6 words); the one-line why or cost goes in the option's `hint`; option `md` holds only a short must-read lede and clamps at ~3 lines, so front-load its first sentence.
-- Never present an option blind — every option carries the tradeoffs a person needs to decide it: comparable numbers in `facts` (`{value, label?, tone?}`, aligned across options), the full why (`pros`, `cons`, longer `md`) in `detail`, one tap away. Clamping keeps the row scannable; it is not license to omit.
-- Give every decision a visual — the default is a picture of the tradeoff, not a paragraph about it: attach a `code` sample, a `diagram`, a `chart` (the default picture of a *quantitative* tradeoff), a `term`, a `filetree`, or a `record` to each option via `option.visual`. Leading the card with an exhibit works too: a `diagram`, `chart`, `image`, `filetree`, `code`, or `pr` block, or a pack block such as `plan.mock`. A prose-only decision is the exception, and `push` prints a non-blocking reminder when a choice ships without one. See `reference/blocks.md` for the visual types and the mermaid style rules.
-- Recommend at most one option — set `recommended: true` on your suggested pick (one per single-select choice) and it renders a stamp badge, replacing the old "Recommended —" `hint` prefix.
-- Keep facts in one order — same labels, same sequence across every option, so matched labels engage the aligned comparison grid that reads column-to-column; a single mismatched label silently drops the whole choice back to per-option chips.
-- Never author an escape hatch: every choice already carries a write-in and a note thread as chrome, so don't add an "Other" option or promise a notes field. Every card and top-level block carries an Add note thread too, and approvals and interactive pack blocks keep their own. They come back in `outcomes`: a write-in as `other` on the choice, a note as `feedback` keyed to the block id, which may be a card or a content block.
-- Front-load the context — a step's lead-in markdown shows ~6 lines before it clamps to expand in place, and a heavier block (code, diff, table, image) collapses to a one-line titled disclosure. Lead with the one sentence that bears on the decision.
 - Order consequential picks first — a step with a lone single-select choice (or a lone approval) auto-advances the deck the moment it's decided, so the picks that reshape later steps come early, and you announce their revisions promptly (see step 4).
-- A content-heavy card gets a one-sentence `summary` — the dim lede under its title.
-- Comparisons go in a `table` block, not parallel markdown paragraphs.
 - A PR mentioned on a board is a `pr` block, never a bare number or link. Write `repo` and `number`; the card reads state, CI, reviews, and each file's diff live from GitHub.
-- A card whose children run past ~2 screens splits into multiple cards.
 - Local image paths in `image` blocks are fine — `push`, `update-block`, and `start --doc` inline them automatically.
+
+**A card has four parts.** The human reads the title and the lede, then decides; Background and option details wait behind a click.
+
+1. A title that asks the question the card decides, in the form "How do the two trees stay apart on dev?"
+2. A lede in the card's `summary`, at most 2 sentences and about 40 words. It says what is being decided and why it matters now. It never recaps earlier rulings, previews later cards, or lists the options in prose; the options already say what they are.
+3. The decidable, a `choice` or an `approval`.
+4. Optional Background, which holds every other context block. Earlier rulings the card builds on go here as one `record` block, one fact per ruling.
+
+In Background and option bodies, a bold sentence is never a heading: use a markdown heading of 6 words or fewer. A `section` is top-level only and never goes inside a card. A list holds 5 bullets or fewer, one line each. Comparisons go in a `table` block, not parallel paragraphs. A card whose children run past ~2 screens splits into two cards. `reference/blocks.md` "Write a card" shows a bad card and its rewrite.
+
+**Options.**
+
+- Labels stay short (~6 words); the one-line why or cost goes in `hint`. Option `md` is one short sentence at most, and most options need none.
+- Give each option 2–4 `facts` with the same labels in the same order on every option. A choice of 2–4 options whose labels match renders as a compare grid, options as columns and facts as rows. One mismatched label drops it back to a list of rows, silently. Options that differ in kind, not degree, skip facts and render as that list.
+- A fact value is a number or a phrase of about 6 words, such as "~733 lines deleted" or "+6–15 min per landing", so it reads at a glance. Caveats and how it works go in the option's `detail`, never in a fact. `reference/blocks.md` "Options" shows a sentence-long value and its rewrite.
+- Set a `tone` only on the one or two values that decide the pick; leave every other value untoned.
+- `detail` (`pros`, `cons`, a longer `md`) is optional. Add it when an option needs more than its hint and facts; leave it out otherwise.
+- Recommend at most one option — set `recommended: true` on your suggested pick (one per single-select choice) and it renders a stamp badge, replacing the old "Recommended —" `hint` prefix.
+- Never author an escape hatch: every choice already carries a write-in and a note thread as chrome, so don't add an "Other" option or promise a notes field. Every card and top-level block carries an Add note thread too, and approvals and interactive pack blocks keep their own. They come back in `outcomes`: a write-in as `other` on the choice, a note as `feedback` keyed to the block id, which may be a card or a content block.
+
+**A visual only where it beats words.** Attach one when a picture shows the difference faster than a sentence: a `diagram` for a flow that differs between options, `code` for the shape an option produces, a `chart` for magnitudes. Put option visuals (`option.visual`) on every option of a choice or on none. A picture that holds for every option, such as today's flow, goes once in Background. A decision that a label and a hint settle needs no visual. See `reference/blocks.md` for the visual types and the mermaid style rules.
 
 **Choosing a presentation.** Omit `presentation` and the client decides: a board with any decision unit opens in focus mode — one card at a time — and a content-only board opens as the classic board. Set `"presentation": "board"` for a reference or dashboard push the human should scan freely; set `"focus"` to force the deck for a decision-heavy review. Either way it is a hint — the viewer's own toggle wins.
 
@@ -234,7 +245,7 @@ The user asks: "present the two release-note drafts for approval." Write this to
     {
       "id": "card-cli",
       "type": "card",
-      "title": "CLI section",
+      "title": "Ship the CLI section as written?",
       "children": [
         { "id": "cli-draft", "type": "markdown", "md": "**New:** `--dry-run` validates a document offline, no daemon required." },
         { "id": "cli-approval", "type": "approval", "prompt": "Ship this wording?" }
@@ -243,7 +254,7 @@ The user asks: "present the two release-note drafts for approval." Write this to
     {
       "id": "card-opener",
       "type": "card",
-      "title": "Opening line",
+      "title": "Which opening line leads the notes?",
       "children": [
         { "id": "opener-choice", "type": "choice", "prompt": "Which opener?", "options": [
           { "id": "punchy", "label": "Validate first. Ship faster.", "hint": "my pick — command form",
