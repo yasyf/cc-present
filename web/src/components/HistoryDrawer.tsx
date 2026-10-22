@@ -29,7 +29,8 @@ export function HistoryDrawer({
       ref={ref}
       className="history-drawer"
       aria-label="Earlier rounds"
-      onClose={() => {
+      onClose={(e) => {
+        if (e.target !== e.currentTarget) return;
         setShown(false);
         onClose();
       }}
