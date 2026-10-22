@@ -25,11 +25,11 @@
       "facts": [
         { "label": "Producers", "value": "4,000 retail locations" },
         { "label": "Peak traffic", "value": "12× the hourly average" },
-        { "label": "Producer retries", "value": "up to 15 minutes after an outage" },
-        { "label": "Ordering", "value": "within each store, not across stores" },
-        { "label": "Prototype", "value": "one region, database shared with reporting" },
-        { "label": "Target", "value": "120,000 events/s at a 99.95% ingest SLO" },
-        { "label": "Team", "value": "six engineers and one embedded SRE" }
+        { "label": "Producer retries", "value": "15 min after an outage" },
+        { "label": "Ordering", "value": "per store only" },
+        { "label": "Prototype", "value": "one region, shared reporting DB" },
+        { "label": "Target", "value": "120k events/s, 99.95% ingest" },
+        { "label": "Team", "value": "6 engineers + 1 SRE" }
       ]
     },
     {

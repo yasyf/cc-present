@@ -72,10 +72,10 @@ It runs 143 words, recaps four rulings, lists the three options, and previews th
       "type": "record",
       "title": "Already decided",
       "facts": [
-        { "label": "Branch", "value": "both channels ship from dev" },
+        { "label": "Branch", "value": "both channels from dev" },
         { "label": "Old build", "value": "stays fixable and releasable" },
-        { "label": "Who gets which", "value": "the flag picks per person" },
-        { "label": "Release tools", "value": "approval stays as you answered it" }
+        { "label": "Who gets which", "value": "flag picks per person" },
+        { "label": "Release tools", "value": "approval as answered" }
       ]
     },
     {
@@ -101,10 +101,33 @@ The title asks the question, and the lede says what the pick sets. The three opt
 An option's row shows its `label` (the pick, ~6 words), its `hint` (the one-line why or cost), and its facts. The rest is optional depth.
 
 - `facts` are 2–4 `{value, label?, tone?}` entries with the same labels in the same order on every option. A choice of 2–4 options whose labels match renders as a compare grid, options as columns and facts as rows. One mismatched label drops it back to a list of rows, silently. Options that differ in kind, not degree, skip facts and render as that list.
+- A fact `value` is a number or a phrase of about 6 words, such as "~733 lines deleted" or "+6–15 min per landing", so it reads at a glance. Caveats and how it works go in `detail`, never in a fact.
 - `tone` (`good`/`warn`/`bad`) marks only the one or two values that decide the pick, so they stand out against untoned neighbors.
 - `md` is one short sentence under the label. Most options need none.
 - `detail` holds `pros`, `cons`, and a longer `md`, opened on demand. Add it when an option needs more than its hint and facts; leave it out otherwise.
 - `visual` goes on every option of a choice or on none, and only where the picture beats a sentence. A picture shared by every option belongs in Background.
+
+A fact value written as a sentence turns the grid into a wall of text. An agent wrote this one as a single fact:
+
+> about 733 lines deleted; one claim row and its compare-and-swap added, size not yet estimated; its epoch also orders run progress, so deleting it needs an epoch from SandSQL (about 0.5 day plus a resume test), or a resumed cloud run…
+
+The rewrite keeps a short phrase in each fact and moves the caveats to `detail`:
+
+```json
+{
+  "id": "claim-row",
+  "label": "Replace the old path with a claim row",
+  "hint": "needs an epoch from SandSQL first",
+  "facts": [
+    { "label": "code", "value": "~733 lines deleted" },
+    { "label": "added", "value": "1 claim row + CAS" },
+    { "label": "prerequisite", "value": "SandSQL epoch, ~0.5 day" }
+  ],
+  "detail": {
+    "md": "The old epoch also orders run progress, so deleting it needs an epoch from SandSQL and a resume test. The claim row's size is not estimated yet."
+  }
+}
+```
 
 ## Composing for focus mode
 

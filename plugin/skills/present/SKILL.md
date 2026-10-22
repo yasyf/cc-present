@@ -36,6 +36,7 @@ In Background and option bodies, a bold sentence is never a heading: use a `sect
 
 - Labels stay short (~6 words); the one-line why or cost goes in `hint`. Option `md` is one short sentence at most, and most options need none.
 - Give each option 2–4 `facts` with the same labels in the same order on every option. A choice of 2–4 options whose labels match renders as a compare grid, options as columns and facts as rows. One mismatched label drops it back to a list of rows, silently. Options that differ in kind, not degree, skip facts and render as that list.
+- A fact value is a number or a phrase of about 6 words, such as "~733 lines deleted" or "+6–15 min per landing", so it reads at a glance. Caveats and how it works go in the option's `detail`, never in a fact. `reference/blocks.md` "Options" shows a sentence-long value and its rewrite.
 - Set a `tone` only on the one or two values that decide the pick; leave every other value untoned.
 - `detail` (`pros`, `cons`, a longer `md`) is optional. Add it when an option needs more than its hint and facts; leave it out otherwise.
 - Recommend at most one option — set `recommended: true` on your suggested pick (one per single-select choice) and it renders a stamp badge, replacing the old "Recommended —" `hint` prefix.
