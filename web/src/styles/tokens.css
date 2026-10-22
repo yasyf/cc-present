@@ -175,8 +175,6 @@
    and tracked, but drawn in the stamp face rather than the typewriter. */
 .doc-header::before,
 .doc-section::before,
-.peer,
-.wire-lamp,
 .chip,
 .round-chip,
 .closed-badge,

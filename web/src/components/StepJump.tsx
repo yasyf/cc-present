@@ -1,19 +1,30 @@
 import { useEffect, useRef, useState } from 'react';
-import type { FocusStep } from '../focus';
-import type { Interactions } from '../events';
+import type { FocusStep, Remaining } from '../focus';
+import type { Interactions, RoundRecord } from '../events';
 import { useKeyboardApi } from '../keyboard';
+import { useActiveBlock } from '../activeBlock';
 import { StepReceipt } from './FocusSummary';
+import { HistoryDrawer } from './HistoryDrawer';
 
 export interface StepJumpProps {
   steps: FocusStep[];
-  index: number;
+  current?: number;
+  progress: Remaining;
   interactions: Interactions;
   packInteractive: ReadonlySet<string>;
+  history: RoundRecord[];
 }
 
-export function StepJump({ steps, index, interactions, packInteractive }: StepJumpProps) {
+export function progressLabel({ left, total }: Remaining, steps: number): string {
+  if (total > 0) return left > 0 ? `${left} of ${total} left` : 'All answered';
+  return steps > 0 ? 'Steps' : 'Earlier rounds';
+}
+
+export function StepJump({ steps, current, progress, interactions, packInteractive, history }: StepJumpProps) {
   const { jumpTo } = useKeyboardApi();
+  const { reveal } = useActiveBlock();
   const [open, setOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const ref = useRef<HTMLDialogElement>(null);
 
   useEffect(() => {
@@ -22,17 +33,28 @@ export function StepJump({ steps, index, interactions, packInteractive }: StepJu
     else if (!open && dialog.open) dialog.close();
   }, [open]);
 
-  const total = steps.length;
+  const revealedRef = useRef(reveal?.epoch);
+  useEffect(() => {
+    if (!reveal || reveal.epoch === revealedRef.current) return;
+    revealedRef.current = reveal.epoch;
+    setHistoryOpen(true);
+  }, [reveal]);
+
+  const openHistory = () => {
+    setOpen(false);
+    setHistoryOpen(true);
+  };
+
   return (
     <>
       <button
         type="button"
         className="step-jump"
         aria-haspopup="dialog"
-        aria-expanded={open}
-        onClick={() => setOpen(true)}
+        aria-expanded={open || historyOpen}
+        onClick={() => (steps.length > 0 ? setOpen(true) : setHistoryOpen(true))}
       >
-        {index >= total ? 'Review' : `Step ${index + 1} / ${total}`}
+        {progressLabel(progress, steps.length)}
       </button>
       <dialog
         ref={ref}
@@ -50,7 +72,7 @@ export function StepJump({ steps, index, interactions, packInteractive }: StepJu
               step={step}
               interactions={interactions}
               packInteractive={packInteractive}
-              current={i === index}
+              current={i === current}
               onSelect={() => {
                 setOpen(false);
                 jumpTo(step.id);
@@ -58,7 +80,20 @@ export function StepJump({ steps, index, interactions, packInteractive }: StepJu
             />
           ))}
         </ul>
+        {history.length > 0 && (
+          <button type="button" className="step-jump-history" onClick={openHistory}>
+            Earlier rounds ({history.length})
+          </button>
+        )}
       </dialog>
+      {history.length > 0 && (
+        <HistoryDrawer
+          open={historyOpen}
+          onClose={() => setHistoryOpen(false)}
+          history={history}
+          interactions={interactions}
+        />
+      )}
     </>
   );
 }

@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { autoAdvances, factAxes, focusSteps, stepHeadline, stepStatus, stepTitle, swipeVerdict } from './focus';
+import {
+  autoAdvances,
+  factAxes,
+  focusSteps,
+  remaining,
+  stepHeadline,
+  stepStatus,
+  stepTitle,
+  swipeVerdict,
+} from './focus';
 import type { FocusStep } from './focus';
 import type { Block, ChoiceOption } from './schema';
 import type { Interactions } from './events';
@@ -225,6 +234,46 @@ describe('stepStatus', () => {
       expect(stepStatus(c.step, c.interactions, new Set())).toBe(c.expected);
     });
   }
+});
+
+describe('remaining', () => {
+  const blocks = [
+    markdown('m0'),
+    approval('a1'),
+    card('c1', [approval('c1a'), choice('c1c')]),
+    input('i1'),
+    section('s1', 'Later'),
+    markdown('m1'),
+    choice('ch1'),
+    markdown('m2'),
+  ];
+  const steps = focusSteps(blocks, new Set());
+  const at = (over: Partial<Interactions>) => remaining(steps, { ...emptyInteractions(), ...over }, new Set());
+
+  it('counts only steps with something to decide, never context runs or input-only steps', () => {
+    expect(steps.length).toBe(5);
+    expect(at({})).toEqual({ left: 3, total: 3 });
+  });
+
+  it('keeps a card counted as left until every decidable in it is decided', () => {
+    expect(at({ decisions: { a1: { verdict: 'approved' }, c1a: { verdict: 'rejected' } } })).toEqual({
+      left: 2,
+      total: 3,
+    });
+    expect(
+      at({
+        decisions: { a1: { verdict: 'approved' }, c1a: { verdict: 'rejected' } },
+        choices: { c1c: { optionIds: ['c1co1'] }, ch1: { optionIds: [], other: 'mine' } },
+      }),
+    ).toEqual({ left: 0, total: 3 });
+  });
+
+  it('reads zero of zero for a deck with nothing to decide', () => {
+    expect(remaining(focusSteps([markdown('m0'), input('i1')], new Set()), emptyInteractions(), new Set())).toEqual({
+      left: 0,
+      total: 0,
+    });
+  });
 });
 
 describe('autoAdvances', () => {

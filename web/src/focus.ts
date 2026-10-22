@@ -184,6 +184,22 @@ export function stepStatus(
   return 'decided';
 }
 
+export interface Remaining {
+  left: number;
+  total: number;
+}
+
+// remaining is the one progress count the header and the SubmitBar share: the
+// steps stepStatus tallies, and how many of them are still undecided.
+export function remaining(
+  steps: FocusStep[],
+  interactions: Interactions,
+  packInteractive: ReadonlySet<string>,
+): Remaining {
+  const statuses = steps.map((step) => stepStatus(step, interactions, packInteractive)).filter((s) => s !== null);
+  return { left: statuses.filter((s) => s === 'undecided').length, total: statuses.length };
+}
+
 // autoAdvances reports whether deciding this step arms the 450ms auto-advance: a
 // lone approval or a lone single-select choice. Multi-decidable cards, multi-select
 // choices, inputs, and packs stay explicit-Next.

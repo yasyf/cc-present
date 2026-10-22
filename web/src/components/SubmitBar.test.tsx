@@ -9,6 +9,7 @@ import type { PresentApi } from '../present';
 import { KeyboardProvider } from '../keyboard';
 import { SubmitBar } from './SubmitBar';
 import { emptyState } from '../reduce';
+import { focusSteps, remaining } from '../focus';
 import { revisionStore } from '../revision';
 import { viewedStore } from '../viewed';
 import type { Interaction, Interactions, Verdict, WireFrame } from '../events';
@@ -44,6 +45,7 @@ function Bar({
         <KeyboardProvider blocks={blocks} interactions={interactions} closed={false} round={1}>
           <SubmitBar
             blocks={blocks}
+            progress={remaining(focusSteps(blocks, new Set()), interactions, new Set())}
             showTally={showTally}
             doc={doc(blocks)}
             interactions={interactions}
@@ -82,20 +84,21 @@ function render(props: {
   act(() => root.render(<Bar {...props} />));
 }
 
-const segClasses = (): string[][] =>
-  [...container.querySelectorAll('.tally-seg')].map((s) => [...s.classList]);
+const card = (id: string, children: Block[]): Block => ({ id, type: 'card', children: children as never });
+const count = () => container.querySelector('.submit-count')?.textContent;
+const meter = () => container.querySelector('.submit-meter') as HTMLDivElement | null;
 
-describe('SubmitBar tally segments', () => {
-  it('hides only the per-item rail when the focus deck owns progress', () => {
+describe('SubmitBar progress', () => {
+  it('hides only the meter when the focus deck owns progress', () => {
     const blocks = [approval('a1')];
     render({ blocks, interactions: empty(), showTally: false });
-    expect(container.querySelector('.tally-strip')).toBeNull();
-    expect(container.querySelector('.submit-count')?.textContent).toBe('1 to answer');
+    expect(meter()).toBeNull();
+    expect(count()).toBe('0 of 1 answered');
     render({ blocks, interactions: empty(), showTally: true });
-    expect(container.querySelector('.tally-strip')).not.toBeNull();
+    expect(meter()).not.toBeNull();
   });
 
-  it('inks one segment per decidable by its state', () => {
+  it('fills the meter by answered steps', () => {
     const blocks = [approval('a1'), approval('a2'), choice('c1'), approval('a3')];
     render({
       blocks,
@@ -104,57 +107,44 @@ describe('SubmitBar tally segments', () => {
         choices: { c1: { optionIds: ['o1'] } },
       }),
     });
-    const classes = segClasses();
-    expect(classes.length).toBe(4);
-    expect(classes[0]).toContain('tally-approved');
-    expect(classes[1]).toContain('tally-rejected');
-    expect(classes[2]).toContain('tally-decided');
-    expect(classes[3]).toContain('tally-undecided');
-    expect(container.querySelector('.tally-strip.tally-complete')).toBeNull();
+    expect(count()).toBe('3 of 4 answered');
+    expect(meter()!.getAttribute('aria-valuenow')).toBe('3');
+    expect(meter()!.getAttribute('aria-valuemax')).toBe('4');
+    expect((meter()!.firstElementChild as HTMLElement).style.inlineSize).toBe('75%');
   });
 
-  it('keeps each segment a jump button with its positional aria-label', () => {
-    const blocks = [approval('a1'), approval('a2')];
-    render({ blocks, interactions: empty() });
-    const segs = container.querySelectorAll('.tally-seg');
-    expect(segs[0]!.getAttribute('aria-label')).toBe('Item 1 of 2, undecided — jump');
-    expect(segs[1]!.getAttribute('aria-label')).toBe('Item 2 of 2, undecided — jump');
+  it('counts a card as one step, answered only once every decidable in it is', () => {
+    const blocks = [card('k1', [approval('k1a'), approval('k1b')]), { id: 'm1', type: 'markdown', md: 'note' } as Block];
+    render({ blocks, interactions: withState({ decisions: decisions({ k1a: 'approved' }) }) });
+    expect(count()).toBe('0 of 1 answered');
+    render({ blocks, interactions: withState({ decisions: decisions({ k1a: 'approved', k1b: 'approved' }) }) });
+    expect(count()).toBe('All answered');
   });
 
-  it('keeps two tally rows viable when fixed gaps exhaust the normal width cap', () => {
-    const blocks = Array.from({ length: 81 }, (_, i) => approval(`a${i + 1}`));
-    render({ blocks, interactions: empty() });
-    const strip = container.querySelector('.tally-strip') as HTMLDivElement;
-    expect(strip.querySelectorAll('.tally-seg').length).toBe(81);
-    expect(strip.style.getPropertyValue('--tally-width')).toBe('201px');
-    expect(strip.style.getPropertyValue('--tally-segment-width')).toBe('1px');
-  });
-
-  it('adds the completion class exactly when every item is decided', () => {
+  it('marks completion exactly when every step is answered', () => {
     const blocks = [approval('a1'), choice('c1')];
     render({ blocks, interactions: withState({ decisions: decisions({ a1: 'approved' }) }) });
-    expect(container.querySelector('.tally-strip.tally-complete')).toBeNull();
     expect(container.querySelector('.submit-btn.submit-ready')).toBeNull();
     render({
       blocks,
       interactions: withState({ decisions: decisions({ a1: 'approved' }), choices: { c1: { optionIds: ['o1'] } } }),
     });
-    expect(container.querySelector('.tally-strip.tally-complete')).not.toBeNull();
     expect(container.querySelector('.submit-btn.submit-ready')).not.toBeNull();
+    expect(count()).toBe('All answered');
   });
 
-  it('counts what is left to answer, never treating a recommended option as answered', () => {
+  it('counts what is answered, never treating a recommended option as answered', () => {
     const recommended: Choice = { id: 'c1', type: 'choice', options: [{ id: 'o1', label: 'one', recommended: true }] };
     const blocks = [approval('a1'), recommended];
     render({ blocks, interactions: empty() });
-    expect(container.querySelector('.submit-count')?.textContent).toBe('2 to answer');
+    expect(count()).toBe('0 of 2 answered');
     render({ blocks, interactions: withState({ decisions: decisions({ a1: 'approved' }) }) });
-    expect(container.querySelector('.submit-count')?.textContent).toBe('1 to answer');
+    expect(count()).toBe('1 of 2 answered');
     render({
       blocks,
       interactions: withState({ decisions: decisions({ a1: 'approved' }), choices: { c1: { optionIds: ['o1'] } } }),
     });
-    expect(container.querySelector('.submit-count')?.textContent).toBe('All answered');
+    expect(count()).toBe('All answered');
   });
 });
 
