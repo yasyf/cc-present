@@ -6,6 +6,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- `cc-present ask` carries a card's markdown blocks into the Slack card's body, with their links as Slack links, so a question whose context runs to several lines reads the same on both surfaces.
+
 ### Added
 
 - `cc-present reply` on a card synced with a Slack ask card also posts the

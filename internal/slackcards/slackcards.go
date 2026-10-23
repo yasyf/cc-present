@@ -29,6 +29,8 @@ const Resolved = "resolved"
 
 var slackLink = regexp.MustCompile(`<(https?://[^|>\s]+)\|([^>]+)>`)
 
+var markdownLink = regexp.MustCompile(`\[([^\]]+)\]\((https?://[^)\s]+)\)`)
+
 // Posted is a waiting card cc-slack posted, as `cc-present slack-sync posted` reads it.
 type Posted struct {
 	Waits       string   `json:"waits"`
@@ -139,16 +141,21 @@ func ToSlack(c *doc.Card, ch *doc.Choice) StatusCard {
 			sc.Recommended = o.Label
 		}
 	}
-	var links []string
+	parts := []string{c.Summary}
 	for _, child := range c.Children {
-		if pr, ok := child.(*doc.PR); ok {
-			url := fmt.Sprintf("https://github.com/%s/pull/%d", pr.Repo, pr.Number)
+		switch b := child.(type) {
+		case *doc.Markdown:
+			if !b.Struck {
+				parts = append(parts, markdownLink.ReplaceAllString(b.Md, "<$2|$1>"))
+			}
+		case *doc.PR:
+			url := fmt.Sprintf("https://github.com/%s/pull/%d", b.Repo, b.Number)
 			sc.Refs = append(sc.Refs, Ref{URL: url})
-			_, name, _ := strings.Cut(pr.Repo, "/")
-			links = append(links, fmt.Sprintf("<%s|%s PR %d>", url, name, pr.Number))
+			_, name, _ := strings.Cut(b.Repo, "/")
+			parts = append(parts, fmt.Sprintf("<%s|%s PR %d>", url, name, b.Number))
 		}
 	}
-	sc.Body = strings.Join(slices.DeleteFunc(append([]string{c.Summary}, links...), func(s string) bool { return s == "" }), "\n")
+	sc.Body = strings.Join(slices.DeleteFunc(parts, func(s string) bool { return s == "" }), "\n")
 	return sc
 }
 
