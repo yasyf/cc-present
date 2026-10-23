@@ -38,7 +38,7 @@ Reference links.
 | Block | Level | Fields | Notes |
 |---|---|---|---|
 | `section` | top | `id`, `type`, `title`, `md?` | Header marker with optional prose. |
-| `card` | top | `id`, `type`, `title?`, `chips?`, `flagged?`, `status?`, `children` | `chips[].tone` is one of `default`, `flag`, `demo`. `status` is one of `open`, `resolved`, `redrafted` and is agent-owned. `children` nests one level of leaf blocks. |
+| `card` | top | `id`, `type`, `title?`, `chips?`, `flagged?`, `status?`, `slack?`, `children` | `chips[].tone` is one of `default`, `flag`, `demo`. `status` is one of `open`, `resolved`, `redrafted` and is agent-owned. `slack` is `{url}`, the permalink of the cc-slack ask card that asks the same question (see Slack ask cards). `children` nests one level of leaf blocks. |
 | `approval` | top or child | `id`, `type`, `prompt?`, `detail?` | `detail` is a `Detail` (see Validation). |
 | `choice` | top or child | `id`, `type`, `prompt?`, `multi?`, `options` | `options[]` is `{id, label, hint?, md?, facts?, detail?, recommended?, visual?}`; option ids are unique within the block. `facts` is `Fact[]`, `detail` a `Detail` (see Validation). `recommended` marks the author's suggested pick (at most one per single-select). `visual` is a restricted leaf (`code`, `diagram`, `image`, `diff`, `chart`, `term`, `filetree`, or `record`) with its own doc-unique id. |
 | `input` | top or child | `id`, `type`, `label`, `placeholder?`, `multiline?` | Free-text field. |
@@ -806,6 +806,50 @@ PRLive = { repo, number, title, url, author,
 branch, the shape a merge queue leaves; `mergedSha` then names that commit.
 `files` holds only the paths the block's `files` globs select, and `patch` is
 absent when GitHub omits it for a binary or oversized file.
+
+## Slack ask cards
+
+A card whose `slack.url` is set is synced with a cc-slack ask card: one
+question asked on both surfaces, answered on either. The card's `id` is the
+Slack card's `waits` id, and its one `choice` child is the question. Both
+surfaces follow the same rules, which `cc-present ask` and the `slack-card`
+op enforce:
+
+- The id is 1 to 64 letters, digits, dots, colons, underscores, or hyphens.
+- The title is the question, 1 to 140 characters.
+- The choice is single-select, with 1 to 4 answers of at most 30 characters.
+- Exactly one answer is `recommended`. No answer is named Other or Explain
+  more, and no label carries "(Recommended)", because each surface draws those
+  itself.
+
+A card's `pr` children become the Slack card's `refs`, each also linked in its
+body as `<url|repo PR N>`. A Slack card's PR refs become `pr` children on the
+board.
+
+`cc-present ask <file|->` posts the card to the session's Slack status thread
+through `cc-slack dm-status --mirrored`, sets `slack.url` to the post's
+permalink, and puts the card on the window's board, starting one titled
+"Questions for you" when the window has none open. cc-slack runs the hidden
+`cc-present slack-sync posted` when it posts an ask card the board does not
+hold yet, and `cc-present slack-sync answered` when the card is answered in
+Slack.
+
+The first answer wins. cc-slack judges the race, so the asking session gets
+exactly one `slack.action` capture whichever surface answered:
+
+- **Answered on the board.** The `choice.selected` lands as a human event, and
+  the daemon runs `cc-slack card-answer` with the label, `--other` for a
+  written-in answer, and `--via` the board URL. If that answer won, the card
+  resolves. If Slack had already been answered, the board selection becomes
+  Slack's answer, the card resolves, and a reply says the pick did not count.
+  If cc-slack fails, the card stays open and a reply carries the error.
+- **Answered in Slack.** The `slack-answer` op records Slack's answer as the
+  question's selection, resolves the card, and replies with a link to the Slack
+  card and the time. A card already resolved keeps its answer.
+
+A `choice.selected` on a resolved synced card returns 409. The daemon writes
+the Slack answer with agent origin, so the session's channel carries only the
+human events.
 
 ## Session listing
 

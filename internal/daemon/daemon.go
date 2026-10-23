@@ -110,6 +110,8 @@ func BuildServer(ctx context.Context, p paths.Paths, spec daemonkit.Daemon, runt
 	s.Register(OpRevising, handleRevising)
 	s.Register(OpClose, func(hc ccd.HandlerCtx) ccd.Reply { return handleClose(hc, ast) })
 	s.Register(OpOutcomes, handleOutcomes)
+	s.Register(OpSlackCard, func(hc ccd.HandlerCtx) ccd.Reply { return handleSlackCard(hc, loader.Current(), display) })
+	s.Register(OpSlackAnswer, handleSlackAnswer)
 	mountREST(s, ast, loader, runtimeBuild)
 	return s, nil
 }

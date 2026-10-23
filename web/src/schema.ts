@@ -61,6 +61,7 @@ export interface Card {
   chips?: Chip[];
   flagged?: boolean;
   status?: CardStatus;
+  slack?: { url: string };
   children: ChildBlock[];
 }
 

@@ -21,6 +21,7 @@ import (
 	"github.com/yasyf/cc-present/internal/assets"
 	"github.com/yasyf/cc-present/internal/doc"
 	"github.com/yasyf/cc-present/internal/packs"
+	"github.com/yasyf/cc-present/internal/slackcards"
 	"github.com/yasyf/cc-present/internal/state"
 	"github.com/yasyf/cc-present/internal/web"
 )
@@ -43,14 +44,15 @@ const maxViewedIDs = 500
 // Append chokepoint, the subject resolver, the asset store, and the SPA handler
 // that /assets/{sha} falls through to for the app's own build files.
 type restServer struct {
-	db      func() *sql.DB
-	append  ccd.AppendFunc
-	resolve func(ctx context.Context, ref string) (string, bool, error)
-	assets  *assets.Store
-	packs   *packs.Loader
-	fetchPR prFetcher
-	static  http.Handler
-	version string
+	db          func() *sql.DB
+	append      ccd.AppendFunc
+	resolve     func(ctx context.Context, ref string) (string, bool, error)
+	assets      *assets.Store
+	packs       *packs.Loader
+	fetchPR     prFetcher
+	answerSlack slackAnswerer
+	static      http.Handler
+	version     string
 }
 
 // interactionReq is the POST /api/interactions body: which subject, the browser
@@ -93,14 +95,15 @@ type triageEntry struct {
 // and /packs routes precedence over the catch-all.
 func mountREST(s *ccd.Server, ast *assets.Store, loader *packs.Loader, version string) {
 	rs := &restServer{
-		db:      s.DB,
-		append:  s.Append,
-		resolve: s.ResolveSubject,
-		assets:  ast,
-		packs:   loader,
-		fetchPR: ghPRFetcher,
-		static:  sse.StaticHandler(web.Dist()),
-		version: version,
+		db:          s.DB,
+		append:      s.Append,
+		resolve:     s.ResolveSubject,
+		assets:      ast,
+		packs:       loader,
+		fetchPR:     ghPRFetcher,
+		answerSlack: ccSlackCardAnswer,
+		static:      sse.StaticHandler(web.Dist()),
+		version:     version,
 	}
 	rs.routes(s.Mux())
 }
@@ -205,6 +208,11 @@ func (rs *restServer) handleInteractions(w http.ResponseWriter, r *http.Request)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+	card, ch := slackQuestion(&st, &req.Interaction)
+	if card != nil && card.Status == slackcards.Resolved {
+		http.Error(w, fmt.Sprintf("card %q is already answered", card.ID), http.StatusConflict)
+		return
+	}
 	seq, err := appendEvent(r.Context(), rs.append, &ccevent.Event{
 		SubjectID: id, Origin: ccevent.OriginHuman, Type: req.Interaction.Type,
 		Payload:  payload,
@@ -213,6 +221,14 @@ func (rs *restServer) handleInteractions(w http.ResponseWriter, r *http.Request)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
+	}
+	if card != nil {
+		slug, err := subjectSlug(r.Context(), rs.db(), id)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		rs.answerOnSlack(context.WithoutCancel(r.Context()), id, card, ch, &req.Interaction, "http://"+r.Host+"/p/"+slug)
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"seq": seq})
 }

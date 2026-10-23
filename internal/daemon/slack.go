@@ -1,0 +1,226 @@
+package daemon
+
+import (
+	"context"
+	"database/sql"
+	"encoding/json"
+	"fmt"
+	"time"
+
+	ccd "github.com/yasyf/cc-interact/daemon"
+	ccevent "github.com/yasyf/cc-interact/event"
+
+	"github.com/yasyf/cc-present/internal/doc"
+	"github.com/yasyf/cc-present/internal/slackcards"
+	"github.com/yasyf/cc-present/internal/state"
+)
+
+const slackBoardTitle = "Questions for you"
+
+type slackAnswerer func(ctx context.Context, waits, label string, other bool, via string) (slackcards.SlackAnswer, error)
+
+func ccSlackCardAnswer(ctx context.Context, waits, label string, other bool, via string) (slackcards.SlackAnswer, error) {
+	args := []string{"card-answer", "--waits", waits, "--label", label, "--via", via}
+	if other {
+		args = append(args, "--other")
+	}
+	out, err := slackcards.CCSlack(ctx, args...)
+	if err != nil {
+		return slackcards.SlackAnswer{}, err
+	}
+	var res slackcards.SlackAnswer
+	if err := json.Unmarshal(out, &res); err != nil {
+		return slackcards.SlackAnswer{}, fmt.Errorf("decode cc-slack card-answer reply %q: %w", out, err)
+	}
+	return res, nil
+}
+
+func handleSlackCard(hc ccd.HandlerCtx, pt doc.PackTypes, display displayFunc) ccd.Reply {
+	b := decodeBody(hc.Env.Body)
+	blk, err := doc.DecodeBlock(b.Block)
+	if err != nil {
+		return errReply(err.Error())
+	}
+	card, ok := blk.(*doc.Card)
+	if !ok || card.Slack == nil {
+		return errReply(fmt.Sprintf("block %q is a %s; slack-card takes a card carrying its Slack permalink", blk.BlockID(), blk.BlockType()))
+	}
+	if _, err := slackcards.Check(card); err != nil {
+		return errReply(err.Error())
+	}
+	if err := validateBlock(blk, pt); err != nil {
+		return errReply(err.Error())
+	}
+	sub, found, err := hc.Subjects.Find(hc.Ctx, hc.Window, hc.Scope)
+	if err != nil {
+		return errReply(err.Error())
+	}
+	if !found || sub.Status == statusClosed {
+		if sub, _, err = hc.Subjects.Start(hc.Ctx, hc.Window, hc.Scope, slugify(slackBoardTitle)+"--"+randomHex(4), lifecycle, found); err != nil {
+			return errReply(err.Error())
+		}
+	}
+	writeMu.Lock()
+	defer writeMu.Unlock()
+	events, err := loadEvents(hc.Ctx, hc.DB, sub.ID)
+	if err != nil {
+		return errReply(err.Error())
+	}
+	st, err := state.Reduce(events)
+	if err != nil {
+		return errReply(err.Error())
+	}
+	if loc, ok := doc.Locate(st.Doc, card.ID); ok && loc.Kind != doc.TopLevel {
+		return errReply(fmt.Sprintf("block %q already sits inside card %q; a Slack card's id is its own", card.ID, loc.TopID))
+	}
+	if st.Doc.Title == "" && len(st.Doc.Blocks) == 0 {
+		raw, err := json.Marshal(&doc.Doc{Version: 1, Title: slackBoardTitle, Blocks: []doc.Block{card}})
+		if err != nil {
+			return errReply(err.Error())
+		}
+		rev, err := nextRevision(hc.Ctx, hc.DB, sub.ID)
+		if err != nil {
+			return errReply(err.Error())
+		}
+		if _, err := appendEvent(hc.Ctx, hc.Append, &ccevent.Event{
+			SubjectID: sub.ID, Origin: ccevent.OriginAgent, Type: EventDocReplaced,
+			Payload: docReplacedPayload(raw, rev, nil),
+		}); err != nil {
+			return errReply(err.Error())
+		}
+	} else if _, err := appendEvent(hc.Ctx, hc.Append, &ccevent.Event{
+		SubjectID: sub.ID, Origin: ccevent.OriginAgent, Type: EventBlockUpserted,
+		Payload: blockUpsertedPayload(b.Block, ""),
+	}); err != nil {
+		return errReply(err.Error())
+	}
+	res := result{URL: artifactURL(hc.HTTPPort, sub.Slug), TailnetURLs: display(hc.Ctx, sub.Slug, hc.HTTPPort), Slug: sub.Slug}
+	raw, _ := json.Marshal(res)
+	return ccd.Reply{OK: true, SubjectID: sub.ID, HTTPPort: hc.HTTPPort, Body: raw}
+}
+
+func handleSlackAnswer(hc ccd.HandlerCtx) ccd.Reply {
+	b := decodeBody(hc.Env.Body)
+	var a slackcards.Answered
+	if err := json.Unmarshal(b.Answer, &a); err != nil {
+		return errReply("decode answer: " + err.Error())
+	}
+	sub, err := resolveOpen(hc)
+	if err != nil {
+		return errReply(err.Error())
+	}
+	writeMu.Lock()
+	defer writeMu.Unlock()
+	events, err := loadEvents(hc.Ctx, hc.DB, sub.ID)
+	if err != nil {
+		return errReply(err.Error())
+	}
+	st, err := state.Reduce(events)
+	if err != nil {
+		return errReply(err.Error())
+	}
+	card, ch, err := syncedCard(st.Doc, a.Waits)
+	if err != nil {
+		return errReply(err.Error())
+	}
+	if card.Status == slackcards.Resolved {
+		return okReply(result{})
+	}
+	ids, other := slackcards.Selection(ch, a.Label, a.Other)
+	note := fmt.Sprintf("Answered on [Slack](%s) at %s: **%s**", a.Permalink, a.At.Local().Format(time.Kitchen), a.Label)
+	if err := settleCard(hc.Ctx, hc.Append, sub.ID, card, ch, ids, other, note); err != nil {
+		return errReply(err.Error())
+	}
+	return okReply(result{})
+}
+
+func syncedCard(d *doc.Doc, id string) (*doc.Card, *doc.Choice, error) {
+	loc, ok := doc.Locate(d, id)
+	if !ok || loc.Kind != doc.TopLevel {
+		return nil, nil, fmt.Errorf("no card %q on this board", id)
+	}
+	card, ok := loc.Block.(*doc.Card)
+	if !ok || card.Slack == nil {
+		return nil, nil, fmt.Errorf("block %q is not a card synced with Slack", id)
+	}
+	ch, ok := slackcards.Question(card)
+	if !ok {
+		return nil, nil, fmt.Errorf("card %q asks no single question", id)
+	}
+	return card, ch, nil
+}
+
+func settleCard(ctx context.Context, appendFn ccd.AppendFunc, subID string, card *doc.Card, ch *doc.Choice, ids []string, other, note string) error {
+	if ids != nil {
+		p := map[string]any{"blockId": ch.ID, "optionIds": ids}
+		if other != "" {
+			p["other"] = other
+		}
+		if _, err := appendEvent(ctx, appendFn, &ccevent.Event{
+			SubjectID: subID, Origin: ccevent.OriginAgent, Type: EventChoiceSelected, Payload: mustJSON(p),
+		}); err != nil {
+			return err
+		}
+	}
+	resolved := *card
+	resolved.Status = slackcards.Resolved
+	raw, err := json.Marshal(&resolved)
+	if err != nil {
+		return err
+	}
+	if _, err := appendEvent(ctx, appendFn, &ccevent.Event{
+		SubjectID: subID, Origin: ccevent.OriginAgent, Type: EventBlockUpserted, Payload: blockUpsertedPayload(raw, ""),
+	}); err != nil {
+		return err
+	}
+	if note == "" {
+		return nil
+	}
+	_, err = appendEvent(ctx, appendFn, &ccevent.Event{
+		SubjectID: subID, Origin: ccevent.OriginAgent, Type: EventReplyCreated,
+		Payload: mustJSON(map[string]string{"id": randomHex(4), "blockId": card.ID, "md": note}),
+	})
+	return err
+}
+
+func slackQuestion(st *state.State, it *interaction) (*doc.Card, *doc.Choice) {
+	if it.Type != EventChoiceSelected {
+		return nil, nil
+	}
+	loc, ok := doc.Locate(st.Doc, it.BlockID)
+	if !ok || loc.Kind != doc.CardChild {
+		return nil, nil
+	}
+	card, ch, err := syncedCard(st.Doc, loc.TopID)
+	if err != nil || ch.ID != it.BlockID {
+		return nil, nil
+	}
+	return card, ch
+}
+
+func (rs *restServer) answerOnSlack(ctx context.Context, subID string, card *doc.Card, ch *doc.Choice, it *interaction, via string) {
+	label, other := slackcards.Label(ch, it.OptionIDs, it.Other)
+	res, err := rs.answerSlack(ctx, card.ID, label, other, via)
+	writeMu.Lock()
+	defer writeMu.Unlock()
+	switch {
+	case err != nil:
+		_, _ = appendEvent(ctx, rs.append, &ccevent.Event{
+			SubjectID: subID, Origin: ccevent.OriginAgent, Type: EventReplyCreated,
+			Payload: mustJSON(map[string]string{"id": randomHex(4), "blockId": card.ID, "md": fmt.Sprintf("This answer did not reach the [Slack card](%s): %s", card.Slack.URL, err)}),
+		})
+	case res.Answered:
+		_ = settleCard(ctx, rs.append, subID, card, ch, nil, "", "")
+	default:
+		ids, written := slackcards.Selection(ch, res.Label, false)
+		_ = settleCard(ctx, rs.append, subID, card, ch, ids, written, fmt.Sprintf("The [Slack card](%s) was answered first: **%s**. This pick did not count.", card.Slack.URL, res.Label))
+	}
+}
+
+func subjectSlug(ctx context.Context, db *sql.DB, subID string) (string, error) {
+	var slug string
+	if err := db.QueryRowContext(ctx, `SELECT slug FROM subjects WHERE id=?`, subID).Scan(&slug); err != nil {
+		return "", fmt.Errorf("read subject slug: %w", err)
+	}
+	return slug, nil
+}

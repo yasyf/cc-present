@@ -154,3 +154,19 @@ func (cl *Client) Outcomes(ctx context.Context, session, scope string, pid int) 
 	_, res, err := cl.do(ctx, OpOutcomes, session, scope, pid, body{})
 	return res.State, err
 }
+
+// SlackCard puts a card synced with a Slack ask card on the window's board,
+// starting the board when the window has none open.
+func (cl *Client) SlackCard(ctx context.Context, session, scope string, pid int, blockJSON json.RawMessage) (StartResult, error) {
+	reply, res, err := cl.do(ctx, OpSlackCard, session, scope, pid, body{Block: blockJSON})
+	if err != nil {
+		return StartResult{}, err
+	}
+	return StartResult{SubjectID: reply.SubjectID, URL: res.URL, TailnetURLs: res.TailnetURLs}, nil
+}
+
+// SlackAnswer records an answer given on a synced card's Slack ask card.
+func (cl *Client) SlackAnswer(ctx context.Context, session, scope string, pid int, answerJSON json.RawMessage) error {
+	_, _, err := cl.do(ctx, OpSlackAnswer, session, scope, pid, body{Answer: answerJSON})
+	return err
+}

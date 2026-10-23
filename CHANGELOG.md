@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- A card can be synced with a cc-slack ask card through its new `slack`
+  field, the Slack card's permalink. `cc-present ask <file>` posts a card to
+  the session's Slack status thread and puts it on the board, and an ask card
+  posted in Slack lands on the board the same way. The first answer on either
+  surface wins: the card resolves on both, and the session gets one cc-slack
+  capture. Both surfaces hold the card to the same rules, one single-select
+  question with exactly one recommended answer and no Other or Explain more
+  answer. A card's PR blocks travel to Slack as linked PR refs and back.
 - A `display.system` block draws a hand-drawn map of a running system. The
   agent lists blocks in the order a request meets them, with their parts,
   links, one main path, a few stories, and up to three sticky notes. The map
