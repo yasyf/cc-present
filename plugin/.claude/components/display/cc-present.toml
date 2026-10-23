@@ -1,6 +1,6 @@
 host_api = 1
 name = "display"
-version = "0.3.1"
+version = "0.3.2"
 description = "Read-only explanation blocks: a Markdown page with Mermaid diagrams, an animated sequence of messages between actors, an animated timeline, a comparison grid, a system map, and a sandboxed one-off HTML or SVG artifact."
 entry = "dist/pack.js"
 styles = "dist/pack.css"

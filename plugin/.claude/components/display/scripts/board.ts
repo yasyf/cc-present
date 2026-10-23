@@ -14,7 +14,7 @@ interface Reply {
 }
 
 const root = new URL('..', import.meta.url).pathname;
-const fixtures = ['examples/system.json', 'scripts/fixtures/tiny.json', 'scripts/fixtures/storage.json', 'scripts/fixtures/web.json', 'scripts/fixtures/dense.json', 'scripts/fixtures/sessions.json'];
+const fixtures = ['examples/system.json', 'scripts/fixtures/tiny.json', 'scripts/fixtures/storage.json', 'scripts/fixtures/web.json', 'scripts/fixtures/dense.json', 'scripts/fixtures/sessions.json', 'scripts/fixtures/queue.json'];
 const sizes: [number, number][] = [
   [1440, 900],
   [1024, 768],
