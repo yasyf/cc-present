@@ -34,6 +34,11 @@ export function Card({ block, interactions }: { block: CardBlock; interactions: 
         />
       )}
       {block.flagged && <div className="flag-callout">Flagged for review</div>}
+      {block.slack && (
+        <a className="card-slack" href={block.slack.url} target="_blank" rel="noreferrer">
+          Also on Slack: answering either one answers both
+        </a>
+      )}
       <div className="card-body">
         {block.children
           .filter((child) => !focus?.hoisted.has(child.id))

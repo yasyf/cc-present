@@ -17,6 +17,7 @@ import (
 	ccdaemon "github.com/yasyf/cc-present/internal/daemon"
 	"github.com/yasyf/cc-present/internal/doc"
 	"github.com/yasyf/cc-present/internal/packs"
+	"github.com/yasyf/cc-present/internal/slackcards"
 	"github.com/yasyf/cc-present/internal/version"
 )
 
@@ -585,10 +586,18 @@ func newReplyCmd(d cmd.Deps) *cobra.Command {
 			}
 			defer func() { _ = cl.CloseSession() }()
 			sess, pid := artifactWindow(d, session)
-			if err := cl.Reply(ctx, sess, mustCwd(cwd), pid, block, bodyMd); err != nil {
+			waits, err := cl.Reply(ctx, sess, mustCwd(cwd), pid, block, bodyMd)
+			if err != nil {
 				return err
 			}
 			_, _ = fmt.Fprintf(c.OutOrStdout(), "replied: %s\n", block)
+			if waits == "" {
+				return nil
+			}
+			if _, err := slackcards.CCSlack(ctx, "dm-status", bodyMd, "--about", waits, "--session", sess); err != nil {
+				return fmt.Errorf("replied on the board, but not under the Slack card %q: %w", waits, err)
+			}
+			_, _ = fmt.Fprintf(c.OutOrStdout(), "slack: replied under %s\n", waits)
 			return nil
 		},
 	}

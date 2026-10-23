@@ -107,6 +107,11 @@
   border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
   margin-bottom: var(--space-3);
 }
+.card-slack {
+  display: inline-block;
+  font-size: var(--text-sm);
+  margin-bottom: var(--space-3);
+}
 
 /* --- Prose / markdown --- */
 

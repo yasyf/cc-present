@@ -104,6 +104,28 @@ The `tailnet:` line appears zero or more times — once per live tailnet leg, on
 
 To preview a visually heavy board yourself — many images, diffs, or pack blocks — screenshot the live URL with the agent-browser skill and read the result. There is no CLI preview verb; the running artifact is the preview.
 
+### Ask a question on the board and in Slack at once
+
+When cc-slack is installed, one question can wait on both surfaces. Write it
+as a card whose `id` is the question id, such as `step-3:merge`, with the
+question as its `title` and one single-select `choice` of 1 to 4 answers,
+exactly one `recommended`. Add no Other or Explain more answer; both surfaces
+draw them. Put each PR the question is about in a `pr` child. Then run:
+
+```bash
+cc-present ask "$CARD" --session "$CLAUDE_CODE_SESSION_ID"
+```
+
+It posts the card to this session's Slack status thread, puts it on the board
+linked to that post, and prints `url:`, any `tailnet:` lines, and `slack:`.
+The user answers wherever they are. The first answer wins, the card resolves
+on both surfaces, and the session gets one cc-slack `slack.action` capture
+with the answer; act on that capture, not on the board's `choice.selected`.
+An ask card posted through `slack_dm_status` lands on the board the same way.
+When the user taps Explain more, answer with
+`cc-present reply --block <card id> --body "<answer>"`: the reply lands on the
+board and under the Slack card, opening with a link back to it.
+
 ## 3. Wire up event delivery — then keep working
 
 Route by the `channel:` line from step 2:

@@ -117,15 +117,23 @@ type Chip struct {
 }
 
 // Card is a top-level container that nests one level of child blocks. Status is
-// agent-owned display state; it never records a human verdict.
+// agent-owned display state; it never records a human verdict. Slack, when set,
+// links the cc-slack ask card that asks the same question; an answer on either
+// surface answers both.
 type Card struct {
 	base
-	Title    string  `json:"title,omitempty"`
-	Summary  string  `json:"summary,omitempty"`
-	Chips    []Chip  `json:"chips,omitempty"`
-	Flagged  bool    `json:"flagged,omitempty"`
-	Status   string  `json:"status,omitempty"`
-	Children []Block `json:"children"`
+	Title    string     `json:"title,omitempty"`
+	Summary  string     `json:"summary,omitempty"`
+	Chips    []Chip     `json:"chips,omitempty"`
+	Flagged  bool       `json:"flagged,omitempty"`
+	Status   string     `json:"status,omitempty"`
+	Slack    *CardSlack `json:"slack,omitempty"`
+	Children []Block    `json:"children"`
+}
+
+// CardSlack is the Slack ask card a card is synced with: URL is its permalink.
+type CardSlack struct {
+	URL string `json:"url"`
 }
 
 // Approval is an approve/reject control whose verdict may carry a note.
@@ -491,6 +499,7 @@ func decodeCard(data json.RawMessage, unmarshal unmarshalFunc) (Block, error) {
 		Chips    []Chip            `json:"chips"`
 		Flagged  bool              `json:"flagged"`
 		Status   string            `json:"status"`
+		Slack    *CardSlack        `json:"slack"`
 		Children []json.RawMessage `json:"children"`
 	}
 	if err := unmarshal(data, &raw); err != nil {
@@ -507,6 +516,7 @@ func decodeCard(data json.RawMessage, unmarshal unmarshalFunc) (Block, error) {
 		Chips:    raw.Chips,
 		Flagged:  raw.Flagged,
 		Status:   raw.Status,
+		Slack:    raw.Slack,
 		Children: children,
 	}, nil
 }
@@ -743,6 +753,9 @@ func validateCard(c *Card) error {
 	}
 	if c.Status != "" && !validStatus[c.Status] {
 		return fmt.Errorf("card %q: invalid status %q", c.ID, c.Status)
+	}
+	if c.Slack != nil && !strings.HasPrefix(c.Slack.URL, "https://") {
+		return fmt.Errorf("card %q: slack url %q must be the Slack card's https permalink", c.ID, c.Slack.URL)
 	}
 	for _, chip := range c.Chips {
 		if err := validateChip(chip); err != nil {

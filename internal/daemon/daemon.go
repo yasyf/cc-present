@@ -110,6 +110,8 @@ func BuildServer(ctx context.Context, p paths.Paths, spec daemonkit.Daemon, runt
 	s.Register(OpRevising, handleRevising)
 	s.Register(OpClose, func(hc ccd.HandlerCtx) ccd.Reply { return handleClose(hc, ast) })
 	s.Register(OpOutcomes, handleOutcomes)
+	s.Register(OpSlackCard, func(hc ccd.HandlerCtx) ccd.Reply { return handleSlackCard(hc, loader.Current(), display) })
+	s.Register(OpSlackAnswer, handleSlackAnswer)
 	mountREST(s, ast, loader, runtimeBuild)
 	return s, nil
 }
@@ -411,7 +413,8 @@ func handleReply(hc ccd.HandlerCtx) ccd.Reply {
 	if err != nil {
 		return errReply(err.Error())
 	}
-	if _, _, err := findBlock(st.Doc, b.BlockID); err != nil {
+	_, top, err := findBlock(st.Doc, b.BlockID)
+	if err != nil {
 		return errReply(err.Error())
 	}
 	id := b.ID
@@ -424,7 +427,11 @@ func handleReply(hc ccd.HandlerCtx) ccd.Reply {
 	}); err != nil {
 		return errReply(err.Error())
 	}
-	return okReply(result{})
+	var res result
+	if card, _, err := syncedCard(st.Doc, top); err == nil {
+		res.Waits = card.ID
+	}
+	return okReply(res)
 }
 
 // handleRound appends an agent round.started, then re-reduces to report the
