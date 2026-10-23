@@ -1202,11 +1202,13 @@ class Board {
     }
     tracks(routes);
     this.spread(routes);
+    const lines = [...routes.filter(Boolean).map((r) => r.pts), ...this.SM.rails.map((rl) => offsetLine([...routes[rl.link].pts].reverse(), -13))];
+    const cut = (q) => lines.some((pts) => this.crossesRect(pts, grow(q, 3)));
     for (const fr of G.frames) {
       const L = fr.label;
-      if (!L || !routes.some((r) => r && this.crossesRect(r.pts, L))) continue;
+      if (!L || !cut(L)) continue;
       const others = [...G.fixed, ...G.frames.filter((o) => o !== fr && o.label).map((o) => grow(o.label, 3))];
-      const clear = (q) => !routes.some((r) => r && this.crossesRect(r.pts, q)) && others.every((o) => !area(q, o));
+      const clear = (q) => !cut(q) && others.every((o) => !area(q, o));
       const rows = [...new Set([L.y, fr.rect.y - L.h / 2, fr.rect.y + fr.rect.h - L.h / 2])];
       const spot = rows.flatMap((y) => Array.from({ length: Math.max(0, Math.floor((fr.rect.w - L.w - 28) / 12) + 1) }, (_, k) => ({ ...L, x: fr.rect.x + 14 + k * 12, y }))).find(clear);
       if (spot) Object.assign(L, spot);
