@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `cc-present reply` on a card synced with a Slack ask card also posts the
+  reply under that Slack card, opening with a link back to it, so an Explain
+  more answer reaches both surfaces from one call.
 - A card can be synced with a cc-slack ask card through its new `slack`
   field, the Slack card's permalink. `cc-present ask <file>` posts a card to
   the session's Slack status thread and puts it on the board, and an ask card

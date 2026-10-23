@@ -17,10 +17,10 @@ import (
 
 const slackBoardTitle = "Questions for you"
 
-type slackAnswerer func(ctx context.Context, waits, label string, other bool, via string) (slackcards.SlackAnswer, error)
+type slackAnswerer func(ctx context.Context, waits, card, label string, other bool, via string) (slackcards.SlackAnswer, error)
 
-func ccSlackCardAnswer(ctx context.Context, waits, label string, other bool, via string) (slackcards.SlackAnswer, error) {
-	args := []string{"card-answer", "--waits", waits, "--label", label, "--via", via}
+func ccSlackCardAnswer(ctx context.Context, waits, card, label string, other bool, via string) (slackcards.SlackAnswer, error) {
+	args := []string{"card-answer", "--waits", waits, "--card", card, "--label", label, "--via", via}
 	if other {
 		args = append(args, "--other")
 	}
@@ -51,6 +51,8 @@ func handleSlackCard(hc ccd.HandlerCtx, pt doc.PackTypes, display displayFunc) c
 	if err := validateBlock(blk, pt); err != nil {
 		return errReply(err.Error())
 	}
+	writeMu.Lock()
+	defer writeMu.Unlock()
 	sub, found, err := hc.Subjects.Find(hc.Ctx, hc.Window, hc.Scope)
 	if err != nil {
 		return errReply(err.Error())
@@ -60,8 +62,6 @@ func handleSlackCard(hc ccd.HandlerCtx, pt doc.PackTypes, display displayFunc) c
 			return errReply(err.Error())
 		}
 	}
-	writeMu.Lock()
-	defer writeMu.Unlock()
 	events, err := loadEvents(hc.Ctx, hc.DB, sub.ID)
 	if err != nil {
 		return errReply(err.Error())
@@ -72,6 +72,9 @@ func handleSlackCard(hc ccd.HandlerCtx, pt doc.PackTypes, display displayFunc) c
 	}
 	if loc, ok := doc.Locate(st.Doc, card.ID); ok && loc.Kind != doc.TopLevel {
 		return errReply(fmt.Sprintf("block %q already sits inside card %q; a Slack card's id is its own", card.ID, loc.TopID))
+	}
+	if err := upsertedDoc(st.Doc, card, "").Validate(pt); err != nil {
+		return errReply(err.Error())
 	}
 	if st.Doc.Title == "" && len(st.Doc.Blocks) == 0 {
 		raw, err := json.Marshal(&doc.Doc{Version: 1, Title: slackBoardTitle, Blocks: []doc.Block{card}})
@@ -198,22 +201,36 @@ func slackQuestion(st *state.State, it *interaction) (*doc.Card, *doc.Choice) {
 	return card, ch
 }
 
-func (rs *restServer) answerOnSlack(ctx context.Context, subID string, card *doc.Card, ch *doc.Choice, it *interaction, via string) {
+func (rs *restServer) answerOnSlack(ctx context.Context, subID string, card *doc.Card, ch *doc.Choice, it *interaction, via string) error {
 	label, other := slackcards.Label(ch, it.OptionIDs, it.Other)
-	res, err := rs.answerSlack(ctx, card.ID, label, other, via)
+	res, err := rs.answerSlack(ctx, card.ID, card.Slack.URL, label, other, via)
 	writeMu.Lock()
 	defer writeMu.Unlock()
+	events, lerr := loadEvents(ctx, rs.db(), subID)
+	if lerr != nil {
+		return lerr
+	}
+	st, lerr := state.Reduce(events)
+	if lerr != nil {
+		return lerr
+	}
+	current, currentCh, lerr := syncedCard(st.Doc, card.ID)
+	if lerr != nil || current.Status == slackcards.Resolved || current.Slack.URL != card.Slack.URL {
+		return nil
+	}
 	switch {
 	case err != nil:
-		_, _ = appendEvent(ctx, rs.append, &ccevent.Event{
+		_, err = appendEvent(ctx, rs.append, &ccevent.Event{
 			SubjectID: subID, Origin: ccevent.OriginAgent, Type: EventReplyCreated,
 			Payload: mustJSON(map[string]string{"id": randomHex(4), "blockId": card.ID, "md": fmt.Sprintf("This answer did not reach the [Slack card](%s): %s", card.Slack.URL, err)}),
 		})
+		return err
 	case res.Answered:
-		_ = settleCard(ctx, rs.append, subID, card, ch, nil, "", "")
+		ids, written := slackcards.Selection(currentCh, label, other)
+		return settleCard(ctx, rs.append, subID, current, currentCh, ids, written, "")
 	default:
-		ids, written := slackcards.Selection(ch, res.Label, false)
-		_ = settleCard(ctx, rs.append, subID, card, ch, ids, written, fmt.Sprintf("The [Slack card](%s) was answered first: **%s**. This pick did not count.", card.Slack.URL, res.Label))
+		ids, written := slackcards.Selection(currentCh, res.Label, res.Other)
+		return settleCard(ctx, rs.append, subID, current, currentCh, ids, written, fmt.Sprintf("The [Slack card](%s) was answered first: **%s**. This pick did not count.", card.Slack.URL, res.Label))
 	}
 }
 

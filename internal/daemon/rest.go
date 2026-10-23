@@ -228,7 +228,10 @@ func (rs *restServer) handleInteractions(w http.ResponseWriter, r *http.Request)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		rs.answerOnSlack(context.WithoutCancel(r.Context()), id, card, ch, &req.Interaction, "http://"+r.Host+"/p/"+slug)
+		if err := rs.answerOnSlack(context.WithoutCancel(r.Context()), id, card, ch, &req.Interaction, "http://"+r.Host+"/p/"+slug); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"seq": seq})
 }

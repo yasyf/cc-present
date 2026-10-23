@@ -122,6 +122,9 @@ The user answers wherever they are. The first answer wins, the card resolves
 on both surfaces, and the session gets one cc-slack `slack.action` capture
 with the answer; act on that capture, not on the board's `choice.selected`.
 An ask card posted through `slack_dm_status` lands on the board the same way.
+When the user taps Explain more, answer with
+`cc-present reply --block <card id> --body "<answer>"`: the reply lands on the
+board and under the Slack card, opening with a link back to it.
 
 ## 3. Wire up event delivery — then keep working
 

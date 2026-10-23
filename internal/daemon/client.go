@@ -122,10 +122,11 @@ func (cl *Client) RemoveBlock(ctx context.Context, session, scope string, pid in
 	return err
 }
 
-// Reply appends an agent reply to a block's thread.
-func (cl *Client) Reply(ctx context.Context, session, scope string, pid int, blockID, md string) error {
-	_, _, err := cl.do(ctx, OpReply, session, scope, pid, body{BlockID: blockID, Md: md})
-	return err
+// Reply appends an agent reply to a block's thread, returning the waits id of
+// the Slack ask card the block's card is synced with, if any.
+func (cl *Client) Reply(ctx context.Context, session, scope string, pid int, blockID, md string) (string, error) {
+	_, res, err := cl.do(ctx, OpReply, session, scope, pid, body{BlockID: blockID, Md: md})
+	return res.Waits, err
 }
 
 // Round force-advances the round when the current one is dirty, or titles the

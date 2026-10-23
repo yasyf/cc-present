@@ -847,6 +847,13 @@ exactly one `slack.action` capture whichever surface answered:
   question's selection, resolves the card, and replies with a link to the Slack
   card and the time. A card already resolved keeps its answer.
 
+`cc-present reply` on a synced card, or on any block inside it, also posts the
+reply in the Slack status thread through `cc-slack dm-status --about`, which
+opens it with a link back to the Slack card. Use it to answer Explain more.
+
+A board answer names the Slack card by its permalink as well as its `waits`
+id, so another session's card with the same id is never answered.
+
 A `choice.selected` on a resolved synced card returns 409. The daemon writes
 the Slack answer with agent origin, so the session's channel carries only the
 human events.

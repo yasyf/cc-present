@@ -76,6 +76,7 @@ type Ref struct {
 type SlackAnswer struct {
 	Answered bool   `json:"answered"`
 	Label    string `json:"label"`
+	Other    bool   `json:"other,omitempty"`
 }
 
 // AnswerID is the id FromSlack gives the choice holding a card's answers.
@@ -168,7 +169,7 @@ func FromSlack(p Posted) (json.RawMessage, error) {
 		card["summary"] = p.Body
 	}
 	for _, pr := range p.PRs {
-		children = append(children, map[string]any{"id": fmt.Sprintf("%s-pr-%d", p.Waits, pr.Number), "type": "pr", "repo": pr.Repo, "number": pr.Number})
+		children = append(children, map[string]any{"id": fmt.Sprintf("%s-pr-%s-%d", p.Waits, strings.ReplaceAll(pr.Repo, "/", "-"), pr.Number), "type": "pr", "repo": pr.Repo, "number": pr.Number})
 	}
 	children = append(children, map[string]any{"id": AnswerID(p.Waits), "type": "choice", "options": options})
 	card["children"] = children

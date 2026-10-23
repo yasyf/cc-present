@@ -127,19 +127,23 @@ func (h *restHarness) reduce(t *testing.T) state.State {
 
 func TestBoardPickAnswersTheSlackCardOnce(t *testing.T) {
 	var calls []string
-	h := newSyncedRestHarness(t, func(_ context.Context, waits, label string, other bool, via string) (slackcards.SlackAnswer, error) {
-		calls = append(calls, fmt.Sprintf("%s|%s|%v|%s", waits, label, other, via))
+	h := newSyncedRestHarness(t, func(_ context.Context, waits, card, label string, other bool, via string) (slackcards.SlackAnswer, error) {
+		calls = append(calls, fmt.Sprintf("%s|%s|%s|%v|%s", waits, card, label, other, via))
 		return slackcards.SlackAnswer{Answered: true, Label: label}, nil
 	})
 	if w := h.post(t, `{"subject":"board--abcd0000","nonce":"n1","interaction":{"type":"choice.selected","blockId":"step-3:merge-answer","optionIds":["answer-1"]}}`); w.Code != http.StatusOK {
 		t.Fatalf("pick = %d %s", w.Code, w.Body)
 	}
-	want := []string{"step-3:merge|Merge|false|http://example.com/p/board--abcd0000"}
+	want := []string{"step-3:merge|" + slackPermalink + "|Merge|false|http://example.com/p/board--abcd0000"}
 	if !slices.Equal(calls, want) {
 		t.Fatalf("cc-slack calls = %q, want %q", calls, want)
 	}
-	if got := syncedCardOf(t, h.reduce(t), "step-3:merge").Status; got != slackcards.Resolved {
+	st := h.reduce(t)
+	if got := syncedCardOf(t, st, "step-3:merge").Status; got != slackcards.Resolved {
 		t.Fatalf("card status = %q, want resolved", got)
+	}
+	if sel := st.Interactions.Choices["step-3:merge-answer"]; !slices.Equal(sel.OptionIDs, []string{"answer-1"}) {
+		t.Fatalf("board selection = %v, want the winning Merge recorded with the resolution", sel.OptionIDs)
 	}
 	if w := h.post(t, `{"subject":"board--abcd0000","nonce":"n2","interaction":{"type":"choice.selected","blockId":"step-3:merge-answer","optionIds":["answer-2"]}}`); w.Code != http.StatusConflict {
 		t.Fatalf("second pick = %d, want 409", w.Code)
@@ -151,7 +155,7 @@ func TestBoardPickAnswersTheSlackCardOnce(t *testing.T) {
 
 func TestBoardWriteInLosesToAnEarlierSlackAnswer(t *testing.T) {
 	var sent []string
-	h := newSyncedRestHarness(t, func(_ context.Context, _, label string, other bool, _ string) (slackcards.SlackAnswer, error) {
+	h := newSyncedRestHarness(t, func(_ context.Context, _, _, label string, other bool, _ string) (slackcards.SlackAnswer, error) {
 		sent = append(sent, fmt.Sprintf("%s|%v", label, other))
 		return slackcards.SlackAnswer{Answered: false, Label: "Hold"}, nil
 	})
@@ -174,7 +178,7 @@ func TestBoardWriteInLosesToAnEarlierSlackAnswer(t *testing.T) {
 }
 
 func TestBoardPickThatCannotReachSlackLeavesTheCardOpen(t *testing.T) {
-	h := newSyncedRestHarness(t, func(context.Context, string, string, bool, string) (slackcards.SlackAnswer, error) {
+	h := newSyncedRestHarness(t, func(context.Context, string, string, string, bool, string) (slackcards.SlackAnswer, error) {
 		return slackcards.SlackAnswer{}, errors.New("cc-slack card-answer: no waiting card")
 	})
 	if w := h.post(t, `{"subject":"board--abcd0000","nonce":"n1","interaction":{"type":"choice.selected","blockId":"step-3:merge-answer","optionIds":["answer-1"]}}`); w.Code != http.StatusOK {
@@ -186,5 +190,42 @@ func TestBoardPickThatCannotReachSlackLeavesTheCardOpen(t *testing.T) {
 	}
 	if replies := st.Interactions.Replies["step-3:merge"]; len(replies) != 1 || !strings.Contains(replies[0].Md, "no waiting card") {
 		t.Errorf("replies = %+v, want one carrying the cc-slack error", replies)
+	}
+}
+
+func TestAReplyOnASyncedCardNamesItsSlackCard(t *testing.T) {
+	h := newHarness(t)
+	if r := handleSlackCard(slackWindow(h, body{Block: json.RawMessage(syncedCardJSON)}), doc.NoPacks, nilDisplay); !r.OK {
+		t.Fatalf("card: %s", r.Error)
+	}
+	for _, block := range []string{"step-3:merge", "step-3:merge-answer"} {
+		r := handleReply(slackWindow(h, body{BlockID: block, Md: "Merging lands #41 before the freeze."}))
+		var res result
+		if err := json.Unmarshal(r.Body, &res); err != nil || !r.OK || res.Waits != "step-3:merge" {
+			t.Fatalf("reply on %s = %+v (%s), want the Slack card's waits id", block, res, r.Error)
+		}
+	}
+}
+
+func TestSlackCardRefusesACardWhoseChildIDsCollideWithTheBoard(t *testing.T) {
+	h := newHarness(t)
+	if r := handleSlackCard(slackWindow(h, body{Block: json.RawMessage(syncedCardJSON)}), doc.NoPacks, nilDisplay); !r.OK {
+		t.Fatalf("card: %s", r.Error)
+	}
+	clash := strings.Replace(syncedCardJSON, `{"id":"step-3:merge","type":"card"`, `{"id":"step-4:release","type":"card"`, 1)
+	if r := handleSlackCard(slackWindow(h, body{Block: json.RawMessage(clash)}), doc.NoPacks, nilDisplay); r.OK {
+		t.Fatal("a second card reusing the first card's choice id joined the board")
+	}
+}
+
+func TestBoardPickLosingToASlackWriteInRecordsTheWriteIn(t *testing.T) {
+	h := newSyncedRestHarness(t, func(context.Context, string, string, string, bool, string) (slackcards.SlackAnswer, error) {
+		return slackcards.SlackAnswer{Answered: false, Label: "Hold", Other: true}, nil
+	})
+	if w := h.post(t, `{"subject":"board--abcd0000","nonce":"n1","interaction":{"type":"choice.selected","blockId":"step-3:merge-answer","optionIds":["answer-1"]}}`); w.Code != http.StatusOK {
+		t.Fatalf("pick = %d %s", w.Code, w.Body)
+	}
+	if sel := h.reduce(t).Interactions.Choices["step-3:merge-answer"]; len(sel.OptionIDs) != 0 || sel.Other != "Hold" {
+		t.Errorf("board selection = %v %q, want Slack's written-in Hold", sel.OptionIDs, sel.Other)
 	}
 }

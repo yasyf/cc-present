@@ -79,6 +79,7 @@ type result struct {
 	Revision     int             `json:"revision,omitempty"`     // push
 	Round        int             `json:"round,omitempty"`        // round
 	State        json.RawMessage `json:"state,omitempty"`        // outcomes
+	Waits        string          `json:"waits,omitempty"`        // reply
 }
 
 func decodeBody(raw json.RawMessage) body {

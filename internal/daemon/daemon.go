@@ -413,7 +413,8 @@ func handleReply(hc ccd.HandlerCtx) ccd.Reply {
 	if err != nil {
 		return errReply(err.Error())
 	}
-	if _, _, err := findBlock(st.Doc, b.BlockID); err != nil {
+	_, top, err := findBlock(st.Doc, b.BlockID)
+	if err != nil {
 		return errReply(err.Error())
 	}
 	id := b.ID
@@ -426,7 +427,11 @@ func handleReply(hc ccd.HandlerCtx) ccd.Reply {
 	}); err != nil {
 		return errReply(err.Error())
 	}
-	return okReply(result{})
+	var res result
+	if card, _, err := syncedCard(st.Doc, top); err == nil {
+		res.Waits = card.ID
+	}
+	return okReply(res)
 }
 
 // handleRound appends an agent round.started, then re-reduces to report the
