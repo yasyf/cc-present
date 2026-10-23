@@ -4,6 +4,7 @@ import { artifactDocument, panelProblems, splitMermaid, stepCount, wrapLabel } f
 import { validate } from '../src/system-map.js';
 import type { SystemMap } from '../src/system-map.js';
 import dense from './fixtures/dense.json';
+import sessions from './fixtures/sessions.json';
 import storage from './fixtures/storage.json';
 import tiny from './fixtures/tiny.json';
 import web from './fixtures/web.json';
@@ -126,7 +127,7 @@ describe('system map validate', () => {
   const pairs = ten.flatMap((a, i) => ten.slice(i + 1).map((b) => ({ from: a.id, to: b.id }))).slice(0, 13);
 
   test('accepts the example and every board fixture', () => {
-    for (const map of [example, tiny, storage, web, dense, base()]) expect(validate(map)).toEqual([]);
+    for (const map of [example, tiny, storage, web, dense, sessions, base()]) expect(validate(map)).toEqual([]);
   });
 
   const broken: [string, (m: SystemMap) => void, string][] = [
@@ -140,6 +141,7 @@ describe('system map validate', () => {
     ['no link joins a block to its own part', (m) => m.links?.push({ from: 'api', to: 'edge' }), 'link 3: joins block "api" to one of its own parts'],
     ['at most 12 arrows', (m) => Object.assign(m, { blocks: ten, groups: [], links: pairs, path: undefined, stories: [] }), 'the links roll up to 13 arrows between blocks; keep it to 12'],
     ['waitsFor names an earlier step', (m) => m.path?.steps.splice(0, 1, { from: 'app', to: 'api', say: 'send', waitsFor: 1 }), 'path step 1: "waitsFor" is 1, which is not an earlier step'],
+    ['waitsFor sits on an arrow between blocks', (m) => m.path?.steps.splice(2, 1, { from: 'api', to: 'edge', say: 'reply', waitsFor: 2 }), 'path step 3: "waitsFor" needs an arrow to sit on, but this step stays inside block "api"'],
     ['mark only on stories', (m) => m.path?.steps.splice(0, 1, { from: 'app', to: 'api', say: 'send', mark: 'stop' }), 'path step 1: "mark" belongs only on story steps'],
     ['story labels are unique', (m) => m.stories?.push({ id: 'again', label: 'A retry', steps: [{ from: 'app', to: 'api', say: 'x' }] }), 'story label "A retry" is used twice'],
   ];

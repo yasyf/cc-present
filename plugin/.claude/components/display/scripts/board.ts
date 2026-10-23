@@ -14,7 +14,7 @@ interface Reply {
 }
 
 const root = new URL('..', import.meta.url).pathname;
-const fixtures = ['examples/system.json', 'scripts/fixtures/tiny.json', 'scripts/fixtures/storage.json', 'scripts/fixtures/web.json', 'scripts/fixtures/dense.json'];
+const fixtures = ['examples/system.json', 'scripts/fixtures/tiny.json', 'scripts/fixtures/storage.json', 'scripts/fixtures/web.json', 'scripts/fixtures/dense.json', 'scripts/fixtures/sessions.json'];
 const sizes: [number, number][] = [
   [1440, 900],
   [1024, 768],
@@ -37,6 +37,7 @@ const browser = Bun.spawn(
   [chrome, '--headless=new', '--no-sandbox', '--disable-gpu', '--hide-scrollbars', '--remote-allow-origins=*', `--user-data-dir=${profile}`, '--remote-debugging-port=0', 'about:blank'],
   { stdout: 'ignore', stderr: 'ignore' },
 );
+process.on('exit', () => browser.kill());
 
 let target: { webSocketDebuggerUrl: string } | null = null;
 for (let i = 0; i < 100 && !target; i++) {
@@ -113,6 +114,5 @@ for (const [width, height] of sizes) {
 
 for (const e of errors) console.log(`::error file=plugin/.claude/components/display/src/system-map.js::${e}`);
 ws.close();
-browser.kill();
 await server.stop(true);
 process.exit(errors.length ? 1 : 0);

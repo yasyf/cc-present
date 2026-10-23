@@ -178,6 +178,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `display.system`: opening a block whose only parts are in-memory stores
+  draws its inside view. It used to compute the layout from an empty column
+  list, and the page hung.
+- `display.system`: a main-path step with `waitsFor` keeps its red barrier and
+  "waits for step N" caption when no link joins its two blocks. The barrier now
+  sits on the arrow the step draws for itself. A `waitsFor` on a step that
+  stays inside one block has no arrow to sit on, so the map lists it as a
+  problem.
+- `display.system`: Open the map, and a click on the glimpse, open the dialog
+  where the map starts: its `start` story or block, or the reader's saved
+  place. They used to open on the whole system. A story chip still opens its
+  own story.
 - The daemon no longer crashes with a nil-pointer SIGSEGV while it shuts down
   for an upgrade. A channel's connect or disconnect could still be recording
   its presence change after shutdown had closed the store, so the write hit a

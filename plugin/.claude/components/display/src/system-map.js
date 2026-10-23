@@ -663,6 +663,7 @@ export function validate(map) {
     ref(`path step ${i + 1}`, "from", s.from);
     ref(`path step ${i + 1}`, "to", s.to);
     if (s.waitsFor != null && !(Number.isInteger(s.waitsFor) && s.waitsFor >= 1 && s.waitsFor <= i)) out.push(`path step ${i + 1}: "waitsFor" is ${s.waitsFor}, which is not an earlier step`);
+    else if (s.waitsFor != null && owner[s.from] && owner[s.from] === owner[s.to]) out.push(`path step ${i + 1}: "waitsFor" needs an arrow to sit on, but this step stays inside block "${owner[s.from]}"`);
     if (s.mark != null) out.push(`path step ${i + 1}: "mark" belongs only on story steps`);
   });
   const labels = new Set();
@@ -1748,9 +1749,7 @@ class Board {
 
   waitBar(i) {
     const li = Object.keys(this.SM.on).find((k) => this.SM.on[k].includes(i));
-    const pts = this.railPts[i] || (li != null ? this.routes[li].pts : null);
-    if (!pts) return null;
-    const [p, q] = pts;
+    const [p, q] = this.railPts[i] || this.loosePts[i] || this.routes[li].pts;
     const horiz = Math.abs(p[1] - q[1]) < Math.abs(p[0] - q[0]);
     const barAt = (t) => {
       const cx = p[0] + (q[0] - p[0]) * t;
@@ -1779,7 +1778,7 @@ class Board {
     }
     this.el("circle", { cx: horiz ? cx : bar.x, cy: horiz ? bar.y : cy, r: 4, class: "disc stop" }, g);
     const size = this.rowsOf([{ text: `waits for step ${n}` }], { size: 14, weight: 600, lh: 17 }, 140);
-    const spot = this.place.around(size, grow(bar, 4), [...this.leads, ...this.routes.filter(Boolean).map((r) => r.pts), ...Object.values(this.railPts)]);
+    const spot = this.place.around(size, grow(bar, 4), [...this.leads, ...this.routes.filter(Boolean).map((r) => r.pts), ...Object.values(this.railPts), ...Object.values(this.loosePts)]);
     if (spot) {
       const lab = this.el("g", { class: "ack-lab" }, g);
       this.drawRows(lab, spot, size, "plain");
@@ -1812,6 +1811,8 @@ class Board {
     this.leader = leader;
     this.railPts = {};
     for (const rl of this.SM.rails) this.railPts[rl.i] = offsetLine([...this.routes[rl.link].pts].reverse(), -13);
+    this.loosePts = {};
+    for (const n of this.SM.free) { const s = B.spine.steps[n]; if (s.from !== s.to) this.loosePts[n] = this.go(s.from, s.to, this.taken).pts; }
     this.bars = {};
     if (!this.o.compact) B.spine.steps.forEach((s, i) => { if (s.waitsFor) this.bars[i] = this.waitBar(i); });
     this.drawCallouts();
@@ -2289,8 +2290,8 @@ class Board {
         let lo = touch.length ? Math.min(...touch) : 0;
         let hi = touch.length ? Math.max(...touch) : nCols - 1;
         if (hi === lo && nCols > 1) { if (hi < nCols - 1) hi += 1; else lo -= 1; }
-        const hx = colX[lo];
-        const hw = Math.max(colX[hi] + colW[hi] - hx, 420);
+        const hx = nCols ? colX[lo] : 0;
+        const hw = Math.max(nCols ? colX[hi] + colW[hi] - hx : 0, 420);
         const tw = hw - 120 - this.pillW("in memory");
         const lines = heapIds.map((m) => { const p = this.shapeOf(m); return { m, name: wrap(this.labelOf(m), tw, TY.member), role: wrap(p && p.role ? p.role : (this.items[m].what || ""), tw, TY.mrole) }; });
         let hy = bottom + GY - 12;
@@ -2891,7 +2892,7 @@ class Board {
     }, { passive: false });
     svg.addEventListener("click", () => {
       if (this.dragMoved) return;
-      if (this.o.compact) this.o.onOpen({});
+      if (this.o.compact) this.o.onOpen(this.want || {});
       else if (this.st.shape) this.unfocus();
       else if (this.st.sel) { this.st.sel = null; this.applyFocus(); this.renderReadout(); this.emit(); }
     });
@@ -3040,7 +3041,7 @@ class Board {
       if (this.st.shape) { this.st.shape = null; this.st.part = null; this.applyFocus(); this.renderCrumbs(); }
       this.setStory(b.dataset.s || null);
     }));
-    row.querySelector(".smap-open").addEventListener("click", () => this.o.onOpen({}));
+    row.querySelector(".smap-open").addEventListener("click", () => this.o.onOpen(this.want || {}));
     row.querySelectorAll(".smap-chip").forEach((b) => b.addEventListener("click", () => this.o.onOpen({ story: b.dataset.s })));
   }
 
@@ -3252,7 +3253,7 @@ export function mount(host, map, opts) {
     }
     modal.setAttribute("aria-label", model.thesis);
     if (!modal.open) modal.showModal();
-    if (!dlg) dlg = new Board(modal, model, { rough: opts.rough, dialog: true, state: view, onState, onOpen: () => {}, onClose: close });
+    if (!dlg) dlg = new Board(modal, model, { rough: opts.rough, dialog: true, state: view, onState: (v) => { if (inline.mode) inline.want = v; onState(v); }, onOpen: () => {}, onClose: close });
     else { dlg.refresh(); dlg.show(view); }
     await dlg.ready;
     return dlg;
