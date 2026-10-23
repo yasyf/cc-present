@@ -54,6 +54,7 @@ var (
 	driveLetterPrefix  = regexp.MustCompile(`^[A-Za-z]:$`)
 	lineRangePattern   = regexp.MustCompile(`^([1-9][0-9]*)(?:-([1-9][0-9]*))?$`)
 	codeShaPattern     = regexp.MustCompile(`^[0-9a-f]{7,40}(\+wt)?$`)
+	sourceAliasPattern = regexp.MustCompile(`^[a-z][a-z0-9-]*$`)
 	repoPattern        = regexp.MustCompile(`^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$`)
 	errEmptyBlockID    = errors.New("block id must not be empty")
 	errEmptyTitle      = errors.New("doc title must not be empty")
@@ -92,13 +93,14 @@ type Submit struct {
 // Doc is the document envelope: a flat list of top-level blocks plus header
 // metadata. Version is the schema version and is always 1.
 type Doc struct {
-	Version      int     `json:"version"`
-	Title        string  `json:"title"`
-	Intro        string  `json:"intro,omitempty"`
-	Stats        []Stat  `json:"stats,omitempty"`
-	Submit       *Submit `json:"submit,omitempty"`
-	Presentation *string `json:"presentation,omitempty"`
-	Blocks       []Block `json:"blocks"`
+	Version      int               `json:"version"`
+	Title        string            `json:"title"`
+	Intro        string            `json:"intro,omitempty"`
+	Stats        []Stat            `json:"stats,omitempty"`
+	Submit       *Submit           `json:"submit,omitempty"`
+	Presentation *string           `json:"presentation,omitempty"`
+	Sources      map[string]string `json:"sources,omitempty"`
+	Blocks       []Block           `json:"blocks"`
 }
 
 // Section is a top-level header marker with optional prose.
@@ -459,10 +461,11 @@ func decodeDoc(data []byte, unmarshal unmarshalFunc) (*Doc, error) {
 		Stats        []Stat            `json:"stats"`
 		Submit       *Submit           `json:"submit"`
 		Presentation *string           `json:"presentation"`
+		Sources      map[string]string `json:"sources"`
 		Blocks       []json.RawMessage `json:"blocks"`
 	}
 	if err := unmarshal(data, &raw); err != nil {
-		return nil, fmt.Errorf("unmarshal doc: %w (a doc's keys are version, title, intro, stats, submit, presentation, and blocks; sections and cards are siblings in blocks)", err)
+		return nil, fmt.Errorf("unmarshal doc: %w (a doc's keys are version, title, intro, stats, submit, presentation, sources, and blocks; sections and cards are siblings in blocks)", err)
 	}
 	blocks, err := decodeBlocks(raw.Blocks, unmarshal)
 	if err != nil {
@@ -475,6 +478,7 @@ func decodeDoc(data []byte, unmarshal unmarshalFunc) (*Doc, error) {
 		Stats:        raw.Stats,
 		Submit:       raw.Submit,
 		Presentation: raw.Presentation,
+		Sources:      raw.Sources,
 		Blocks:       blocks,
 	}, nil
 }
@@ -668,6 +672,14 @@ func (d *Doc) Validate(pt PackTypes) error {
 	}
 	if d.Title == "" {
 		errs = append(errs, errEmptyTitle)
+	}
+	for alias, src := range d.Sources {
+		if !sourceAliasPattern.MatchString(alias) {
+			errs = append(errs, fmt.Errorf("source alias %q must match %s", alias, sourceAliasPattern))
+		}
+		if src == "" {
+			errs = append(errs, fmt.Errorf("source %q is empty; give a repo path@rev or an absolute file path", alias))
+		}
 	}
 	if d.Presentation != nil && !validPresentation[*d.Presentation] {
 		errs = append(errs, fmt.Errorf("doc presentation must be focus or board, got %q", *d.Presentation))

@@ -270,6 +270,7 @@ export const FocusCard = forwardRef<
             </m.div>
           </>
         )}
+        <FocusLead stepId={step.id} />
         {hasMeta && (
           <div className="focus-meta">
             {eyebrow !== undefined && <span className="focus-meta-eyebrow">{eyebrow}</span>}
@@ -294,7 +295,6 @@ export const FocusCard = forwardRef<
           </h2>
         )}
         <div className="focus-card-body">
-          <FocusLead stepId={step.id} />
           {face.lede && <FocusLede lede={face.lede} />}
           {face.prelude.map((block) => (
             <BlockRenderer key={block.id} block={block} interactions={interactions} />

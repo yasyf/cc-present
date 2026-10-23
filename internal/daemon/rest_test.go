@@ -593,8 +593,8 @@ func TestAssetRejectsNonImage(t *testing.T) {
 	if w.Code != http.StatusUnsupportedMediaType {
 		t.Fatalf("status = %d, want 415 (body %q)", w.Code, w.Body.String())
 	}
-	if !strings.Contains(w.Body.String(), "not an image") {
-		t.Fatalf("body = %q, want 'not an image'", w.Body.String())
+	if !strings.Contains(w.Body.String(), "neither an image nor a snippet") {
+		t.Fatalf("body = %q, want 'neither an image nor a snippet'", w.Body.String())
 	}
 }
 

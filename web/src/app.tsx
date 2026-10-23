@@ -35,6 +35,7 @@ import { BoardBlocks } from './components/BoardBlocks';
 import { DocHeader } from './components/DocHeader';
 import type { DocHeaderProps } from './components/DocHeader';
 import { SubmitBar } from './components/SubmitBar';
+import { RefPopover } from './components/RefPopover';
 import { FocusDeck } from './components/FocusDeck';
 import { WaitingPanel } from './components/WaitingPanel';
 import { BoardSkeleton } from './components/BoardSkeleton';
@@ -82,6 +83,7 @@ export function App() {
           ) : (
             <PresentView subject={subject} />
           )}
+          <RefPopover />
         </ExpandAllProvider>
       </EventStreamProvider>
     </SubjectProvider>

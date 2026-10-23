@@ -137,12 +137,17 @@ func lineCol(data []byte, offset int64) (int, int) {
 	return line, col
 }
 
-// dryRunReport fills code blocks from their src and inlines any local image
-// against the content-addressed store, then runs the whole-document validator,
-// returning the text to print and whether the document passed; a false result
-// maps to a non-zero exit at the call site.
+// dryRunReport fills code blocks from their src, links references, and inlines
+// any local image against the content-addressed store, then runs the
+// whole-document validator, returning the text to print (with any unresolved
+// references) and whether the document passed; a false result maps to a
+// non-zero exit at the call site.
 func dryRunReport(ctx context.Context, dd *doc.Doc, pt doc.PackTypes, root string) (string, bool) {
 	if err := fillCode(ctx, dd.Blocks, root); err != nil {
+		return err.Error(), false
+	}
+	unresolved, err := linkRefs(ctx, root, dd.Sources, dd.Blocks, localSnippetStore)
+	if err != nil {
 		return err.Error(), false
 	}
 	if err := inlineImages(dd.Blocks, localUploader); err != nil {
@@ -151,7 +156,28 @@ func dryRunReport(ctx context.Context, dd *doc.Doc, pt doc.PackTypes, root strin
 	if err := dd.Validate(pt); err != nil {
 		return err.Error(), false
 	}
+	if hint := unresolvedRefsHint(unresolved); hint != "" {
+		return "ok\n" + hint, true
+	}
 	return "ok", true
+}
+
+// liveSources reads the source aliases of the artifact's current document, so
+// update-block resolves alias references against the doc it lands in.
+func liveSources(ctx context.Context, cl *ccdaemon.Client, sess, scope string, pid int) (map[string]string, error) {
+	raw, err := cl.Outcomes(ctx, sess, scope, pid)
+	if err != nil {
+		return nil, err
+	}
+	var st struct {
+		Doc struct {
+			Sources map[string]string `json:"sources"`
+		} `json:"doc"`
+	}
+	if err := json.Unmarshal(raw, &st); err != nil {
+		return nil, fmt.Errorf("decode live doc: %w", err)
+	}
+	return st.Doc.Sources, nil
 }
 
 // blockDoc wraps a lone block in a minimal envelope so update-block --dry-run
@@ -266,6 +292,13 @@ func newStartCmd(d cmd.Deps) *cobra.Command {
 				if err != nil {
 					return err
 				}
+				unresolved, err := linkRefs(ctx, root, dd.Sources, dd.Blocks, httpSnippetStore(port))
+				if err != nil {
+					return err
+				}
+				if hint := unresolvedRefsHint(unresolved); hint != "" {
+					_, _ = fmt.Fprintln(c.ErrOrStderr(), hint)
+				}
 				if err := inlineImages(dd.Blocks, httpUploader(port)); err != nil {
 					return err
 				}
@@ -287,7 +320,7 @@ func newStartCmd(d cmd.Deps) *cobra.Command {
 	c.Flags().BoolVar(&fresh, "new", false, "start a fresh artifact; refuses while this session has an open one")
 	c.Flags().BoolVar(&replace, "replace", false, "close this session's open artifact and start a fresh one")
 	c.Flags().StringVar(&docPath, "doc", "", "seed the artifact with a document from a file (- for stdin)")
-	c.Flags().StringVar(&root, "root", "", "checkout that code block src paths resolve under (defaults to the git toplevel of the current directory)")
+	c.Flags().StringVar(&root, "root", "", "checkout that code block src paths and markdown code cites resolve under (defaults to the git toplevel of the current directory)")
 	return c
 }
 
@@ -360,6 +393,10 @@ func newPushCmd(d cmd.Deps) *cobra.Command {
 			if subjectID == "" {
 				return ccdaemon.NoArtifact(sess)
 			}
+			unresolved, err := linkRefs(ctx, root, dd.Sources, dd.Blocks, httpSnippetStore(port))
+			if err != nil {
+				return err
+			}
 			if err := inlineImages(dd.Blocks, httpUploader(port)); err != nil {
 				return err
 			}
@@ -383,13 +420,16 @@ func newPushCmd(d cmd.Deps) *cobra.Command {
 			if hint := longCodeNudge(dd.Blocks); hint != "" {
 				_, _ = fmt.Fprintln(c.ErrOrStderr(), hint)
 			}
+			if hint := unresolvedRefsHint(unresolved); hint != "" {
+				_, _ = fmt.Fprintln(c.ErrOrStderr(), hint)
+			}
 			return nil
 		},
 	}
 	c.Flags().StringVar(&session, "session", "", "Claude session id (defaults to $CLAUDE_CODE_SESSION_ID)")
 	c.Flags().StringVar(&cwd, "cwd", "", "working directory (recorded on the request; artifacts are per-window, not resolved by directory)")
 	c.Flags().BoolVar(&dryRun, "dry-run", false, "validate the document only; print every violation and exit non-zero")
-	c.Flags().StringVar(&root, "root", "", "checkout that code block src paths resolve under (defaults to the git toplevel of the current directory)")
+	c.Flags().StringVar(&root, "root", "", "checkout that code block src paths and markdown code cites resolve under (defaults to the git toplevel of the current directory)")
 	c.Flags().StringVar(&round, "round", "", `round intent when a new top-level block lands in an engaged round: "current" (add to it) or "new" (close it and open the next)`)
 	c.Flags().StringVar(&roundTitle, "round-title", "", "title for the round opened by --round new")
 	return c
@@ -454,6 +494,14 @@ func newUpdateBlockCmd(d cmd.Deps) *cobra.Command {
 			if subjectID == "" {
 				return ccdaemon.NoArtifact(sess)
 			}
+			sources, err := liveSources(ctx, cl, sess, scope, pid)
+			if err != nil {
+				return err
+			}
+			unresolved, err := linkRefs(ctx, root, sources, []doc.Block{blk}, httpSnippetStore(port))
+			if err != nil {
+				return err
+			}
 			if err := inlineImages([]doc.Block{blk}, httpUploader(port)); err != nil {
 				return err
 			}
@@ -471,6 +519,9 @@ func newUpdateBlockCmd(d cmd.Deps) *cobra.Command {
 			if hint := longCodeNudge([]doc.Block{blk}); hint != "" {
 				_, _ = fmt.Fprintln(c.ErrOrStderr(), hint)
 			}
+			if hint := unresolvedRefsHint(unresolved); hint != "" {
+				_, _ = fmt.Fprintln(c.ErrOrStderr(), hint)
+			}
 			return nil
 		},
 	}
@@ -478,7 +529,7 @@ func newUpdateBlockCmd(d cmd.Deps) *cobra.Command {
 	c.Flags().StringVar(&cwd, "cwd", "", "working directory (recorded on the request; artifacts are per-window, not resolved by directory)")
 	c.Flags().StringVar(&after, "after", "", "insert a new block after a top-level block, or into a card after a child (unknown ids error)")
 	c.Flags().BoolVar(&dryRun, "dry-run", false, "validate the single block only; print every violation and exit non-zero")
-	c.Flags().StringVar(&root, "root", "", "checkout that code block src paths resolve under (defaults to the git toplevel of the current directory)")
+	c.Flags().StringVar(&root, "root", "", "checkout that code block src paths and markdown code cites resolve under (defaults to the git toplevel of the current directory)")
 	c.Flags().StringVar(&round, "round", "", `round intent when the block is a new top-level block in an engaged round: "current" (add to it) or "new" (close it and open the next)`)
 	c.Flags().StringVar(&roundTitle, "round-title", "", "title for the round opened by --round new")
 	return c

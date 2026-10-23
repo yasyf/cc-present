@@ -2,19 +2,22 @@ package doc
 
 import (
 	"encoding/json"
+	"regexp"
 	"strings"
 )
 
 // spec is the per-type behavior a block registers: how to decode it, how to
 // validate it, its nested children (card only), its per-slot visuals (choice
 // options, triage items), pointers to its asset srcs (image only), and whether it
-// is confined to the top level (section, card).
+// is confined to the top level (section, card), and the markdown fields it
+// renders.
 type spec struct {
 	decode    func(json.RawMessage, unmarshalFunc) (Block, error)
 	validate  func(Block) error
 	children  func(Block) []Block
 	visuals   func(Block) []Block
 	assetSrcs func(Block) []*string
+	markdown  func(Block, func(*string))
 	topOnly   bool
 }
 
@@ -26,21 +29,25 @@ func init() {
 			decode:   decodeLeaf[Section],
 			validate: func(b Block) error { return validateSection(b.(*Section)) },
 			topOnly:  true,
+			markdown: func(b Block, f func(*string)) { f(&b.(*Section).Md) },
 		},
 		"card": {
 			decode:   decodeCard,
 			validate: func(b Block) error { return validateCard(b.(*Card)) },
 			children: func(b Block) []Block { return b.(*Card).Children },
 			topOnly:  true,
+			markdown: func(b Block, f func(*string)) { f(&b.(*Card).Summary) },
 		},
 		"approval": {
 			decode:   decodeLeaf[Approval],
 			validate: func(b Block) error { return validateApproval(b.(*Approval)) },
+			markdown: func(b Block, f func(*string)) { detailMarkdown(b.(*Approval).Detail, f) },
 		},
 		"choice": {
 			decode:   decodeChoice,
 			validate: func(b Block) error { return validateChoice(b.(*Choice)) },
 			visuals:  func(b Block) []Block { return choiceVisuals(b.(*Choice)) },
+			markdown: func(b Block, f func(*string)) { choiceMarkdown(b.(*Choice), f) },
 		},
 		"draft": {
 			decode:   decodeLeaf[Draft],
@@ -50,6 +57,7 @@ func init() {
 			decode:   decodeTriage,
 			validate: func(b Block) error { return validateTriage(b.(*Triage)) },
 			visuals:  func(b Block) []Block { return triageVisuals(b.(*Triage)) },
+			markdown: func(b Block, f func(*string)) { triageMarkdown(b.(*Triage), f) },
 		},
 		"input": {
 			decode:   decodeLeaf[Input],
@@ -58,6 +66,7 @@ func init() {
 		"markdown": {
 			decode:   decodeLeaf[Markdown],
 			validate: func(b Block) error { return validateMarkdown(b.(*Markdown)) },
+			markdown: func(b Block, f func(*string)) { f(&b.(*Markdown).Md) },
 		},
 		"code": {
 			decode:   decodeLeaf[Code],
@@ -79,6 +88,7 @@ func init() {
 		"table": {
 			decode:   decodeLeaf[Table],
 			validate: func(b Block) error { return validateTable(b.(*Table)) },
+			markdown: func(b Block, f func(*string)) { tableMarkdown(b.(*Table), f) },
 		},
 		"progress": {
 			decode:   decodeLeaf[Progress],
@@ -103,6 +113,7 @@ func init() {
 		"pr": {
 			decode:   decodeLeaf[PR],
 			validate: func(b Block) error { return validatePR(b.(*PR)) },
+			markdown: func(b Block, f func(*string)) { f(&b.(*PR).Summary) },
 		},
 	}
 }
@@ -145,6 +156,91 @@ func triageVisuals(t *Triage) []Block {
 		}
 	}
 	return vs
+}
+
+func detailMarkdown(d *Detail, f func(*string)) {
+	if d != nil {
+		f(&d.Md)
+	}
+}
+
+func choiceMarkdown(c *Choice, f func(*string)) {
+	for i := range c.Options {
+		o := &c.Options[i]
+		f(&o.Hint)
+		f(&o.Md)
+		detailMarkdown(o.Detail, f)
+	}
+}
+
+func triageMarkdown(t *Triage, f func(*string)) {
+	for i := range t.Items {
+		it := &t.Items[i]
+		f(&it.Hint)
+		f(&it.Md)
+		detailMarkdown(it.Detail, f)
+	}
+}
+
+func tableMarkdown(t *Table, f func(*string)) {
+	for _, row := range t.Rows {
+		for k, v := range row {
+			f(&v)
+			row[k] = v
+		}
+	}
+}
+
+var refTitlePattern = regexp.MustCompile(`ref:([0-9a-f]{64})`)
+
+// RefTitle is the link title that marks a markdown link as a resolved reference
+// whose hover snippet is the stored asset sha.
+func RefTitle(sha string) string { return "ref:" + sha }
+
+// RefShas returns the snippet sha of every resolved reference link in b's
+// markdown and its nested blocks' markdown.
+func RefShas(b Block) []string {
+	var shas []string
+	markdownPtrs(b, func(p *string) {
+		for _, m := range refTitlePattern.FindAllStringSubmatch(*p, -1) {
+			shas = append(shas, m[1])
+		}
+	})
+	return shas
+}
+
+// VisitMarkdown calls fn with every non-empty markdown field in b and its
+// nested blocks.
+func VisitMarkdown(b Block, fn func(string)) {
+	markdownPtrs(b, func(p *string) {
+		if *p != "" {
+			fn(*p)
+		}
+	})
+}
+
+// RewriteMarkdown replaces every non-empty markdown field in b and its nested
+// blocks with the result of fn, stopping at and returning the first error.
+func RewriteMarkdown(b Block, fn func(string) (string, error)) error {
+	var err error
+	markdownPtrs(b, func(p *string) {
+		if err != nil || *p == "" {
+			return
+		}
+		var v string
+		if v, err = fn(*p); err == nil {
+			*p = v
+		}
+	})
+	return err
+}
+
+func markdownPtrs(b Block, f func(*string)) {
+	Walk(b, func(b Block) {
+		if sp := registry[b.BlockType()]; sp.markdown != nil {
+			sp.markdown(b, f)
+		}
+	})
 }
 
 // AssetRefs returns the sha256 digest of every asset:<sha256> image reference in

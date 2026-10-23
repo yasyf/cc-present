@@ -445,16 +445,16 @@ describe('Choice compare grid', () => {
   });
   const cellText = (selector: string) => [...container.querySelectorAll(selector)].map((el) => el.textContent);
 
-  it('lays options out as columns with one row per fact axis and the picks along the foot', () => {
+  it('lays options out as columns with one row per fact axis and each column head as its pick', () => {
     render(plans(), empty());
     const grid = container.querySelector('.choice-grid') as HTMLElement;
     expect(grid.style.getPropertyValue('--grid-n')).toBe('3');
     expect(cellText('.grid-head .option-label')).toEqual(['Plan 0', 'Plan 1', 'Plan 2']);
     expect(container.querySelectorAll('.grid-head')[1]!.querySelector('.option-reco')).not.toBeNull();
-    expect(cellText('.grid-axis:not(.grid-pick-axis)')).toEqual(['Cost', 'Latency']);
+    expect(cellText('.grid-axis')).toEqual(['Cost', 'Latency']);
     expect(cellText('.grid-cell.fact .fact-value')).toEqual(['$1', '$2', '$3', '10ms', '20ms', '30ms']);
     expect(container.querySelector('.grid-cell.fact-good .fact-value')?.textContent).toBe('$1');
-    expect(container.querySelectorAll('.grid-pick[role="radio"]').length).toBe(3);
+    expect(container.querySelectorAll('.grid-head.grid-pick[role="radio"]').length).toBe(3);
   });
 
   it('keeps the Other write-in under the grid inside the same named group', () => {

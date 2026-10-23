@@ -40,6 +40,9 @@ func gcAssets(ctx context.Context, db *sql.DB, ast *assets.Store) error {
 			for _, sha := range doc.AssetRefs(b) {
 				keep[sha] = true
 			}
+			for _, sha := range doc.RefShas(b) {
+				keep[sha] = true
+			}
 		}
 	}
 	if _, err := ast.Sweep(keep, assetGrace); err != nil {

@@ -4,6 +4,7 @@ import { renderInlineMarkdown } from '../markdown';
 import { Mark } from './Mark';
 import { Clamped } from './Clamped';
 import { DetailDisclosure } from './Detail';
+import { fromRef } from '../refs';
 
 // OptionCard renders one choice option as a selectable card: keyboard index badge,
 // selection indicator, label + Recommended mark, hint/md body, a per-card facts
@@ -39,11 +40,11 @@ export function OptionCard({
       aria-disabled={locked}
       tabIndex={locked ? -1 : 0}
       className={`option${selected ? ' selected' : ''}${option.recommended ? ' recommended' : ''}`}
-      onClick={() => {
-        if (!locked) onToggle();
+      onClick={(e) => {
+        if (!locked && !fromRef(e)) onToggle();
       }}
       onKeyDown={(e) => {
-        if ((e.key === 'Enter' || e.key === ' ') && !e.metaKey && !e.ctrlKey) {
+        if ((e.key === 'Enter' || e.key === ' ') && !e.metaKey && !e.ctrlKey && !fromRef(e)) {
           e.preventDefault();
           if (!locked) onToggle();
         }

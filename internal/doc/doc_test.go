@@ -463,7 +463,7 @@ func TestDecodeRejectsUnknownFields(t *testing.T) {
 		{
 			name: "sections envelope",
 			doc:  string(sectionsEnvelope),
-			want: `unmarshal doc: json: unknown field "sections" (a doc's keys are version, title, intro, stats, submit, presentation, and blocks; sections and cards are siblings in blocks)`,
+			want: `unmarshal doc: json: unknown field "sections" (a doc's keys are version, title, intro, stats, submit, presentation, sources, and blocks; sections and cards are siblings in blocks)`,
 		},
 		{
 			name: "section children",

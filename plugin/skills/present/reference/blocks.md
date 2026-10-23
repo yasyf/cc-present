@@ -19,6 +19,18 @@ The document is JSON, validated by `push --dry-run` before anything touches the 
 - `stats` renders a headline number row — use it for scale ("26 repos", "3 flagged").
 - `submit` labels the submit bar; `note` states exactly what submitting commits the human to. Omit `submit` for a purely informational page.
 - `presentation` (optional) is `focus` or `board` — a per-push hint for the default view. The viewer's own toggle overrides it.
+- `stats` holds facts about the subject, never progress such as "5 answered". The board counts progress itself, and a stale tally contradicts it.
+- `sources` (optional) maps an alias to a file you cite by line: `{ "plan": "docs/replan.md@bb8b40dfc40" }` or an absolute path. `(plan 52, 208)` in any markdown then links to those lines. See "Cite code and records".
+
+## Cite code and records
+
+Markdown cites become short chips that open GitHub and show the code on hover. The CLI resolves them on `start --doc`, `push`, and `update-block`, against the same root as `code` blocks: `--root`, else the git toplevel.
+
+- Code: `` `go/sand/internal/pool.go:63,86-88` @ bb8b40dfc40 ``. The sha is optional (default `HEAD`) and disappears from the rendered text. A follow-up cite to the same file is `` `:1034` ``.
+- cc-notes records and commits: a bare id in parentheses, `(7c2ceba)` or `(7c2ceba, e83dc80)`.
+- Plan or doc lines: declare the file in `sources`, then write `(plan 52, 193)`.
+
+Every cite must resolve. The CLI lists the ones that don't on stderr; fix the path, sha, or alias instead of leaving opaque ids for the human.
 
 ## Composition rules
 
