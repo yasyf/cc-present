@@ -827,10 +827,16 @@ links as Slack links, and a card's `pr` children become the Slack card's
 `refs`, each also linked in its body as `<url|repo PR N>`. A Slack card's PR refs become `pr` children on the
 board.
 
-`cc-present ask <file|->` posts the card to the session's Slack status thread
-through `cc-slack dm-status --mirrored`, sets `slack.url` to the post's
-permalink, and puts the card on the window's board, starting one titled
-"Questions for you" when the window has none open. cc-slack runs the hidden
+`cc-present send` sends the board's open question cards to Slack in one call.
+It takes every top-level card with one question that neither surface has
+answered, or only the cards `--blocks` names, posts each to the session's Slack
+status thread through `cc-slack dm-status --mirrored`, or to the DM thread
+`--slack` names by ts or permalink, and sets each card's `slack.url` to its
+post's permalink. A card already posted in that thread is edited in place, never
+posted twice. An unnamed card that breaks the rules above is skipped with a
+warning; a named one is an error. `cc-present ask <file|->` puts one card on
+the window's board, starting one titled "Questions for you" when the window
+has none open, and sends it the same way. cc-slack runs the hidden
 `cc-present slack-sync posted` when it posts an ask card the board does not
 hold yet, and `cc-present slack-sync answered` when the card is answered in
 Slack.

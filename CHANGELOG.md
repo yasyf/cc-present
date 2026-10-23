@@ -12,6 +12,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `cc-present send` sends a board's open question cards to Slack in one call,
+  to this session's status thread or the DM thread `--slack` names, and edits a
+  card already posted there in place. `cc-present ask` now puts its card on the
+  board and sends it through the same path.
 - `cc-present reply` on a card synced with a Slack ask card also posts the
   reply under that Slack card, opening with a link back to it, so an Explain
   more answer reaches both surfaces from one call.
