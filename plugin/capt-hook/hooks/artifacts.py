@@ -15,6 +15,7 @@ from captain_hook import (
 @on(
     Event.PreToolUse,
     only_if=[Tool("Artifact")],
+    max_fires=1,
     tests={
         Input(tool="Artifact", tool_input={"file_path": "report.html", "icon": "chart"}): Warn(pattern="cc-present"),
         Input(tool="Artifact", tool_input={"action": "open", "url": "https://claude.ai/artifact/x"}): Warn(),

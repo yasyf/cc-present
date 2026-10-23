@@ -6,6 +6,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- The capt-hook pointer from the built-in Artifact tool to the `cc-present:present` skill fires at most once per agent instead of on every Artifact call.
+
 ### Fixed
 
 - `cc-present send` cuts a card title over 140 characters to 139 and an ellipsis on its Slack card, so a long question no longer fails, and prints `sent: <id> ts=<ts> <permalink>` or `failed: <id>: <error>` for each card.
