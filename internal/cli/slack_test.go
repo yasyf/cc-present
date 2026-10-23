@@ -33,7 +33,7 @@ func sendState(t *testing.T) *sendBoard {
 }
 
 func ids(qs []question) []string {
-	var out []string
+	out := make([]string, 0, len(qs))
 	for _, q := range qs {
 		out = append(out, q.card.ID)
 	}
@@ -93,16 +93,16 @@ func TestSendRefusesAClosedBoard(t *testing.T) {
 }
 
 func TestSlackThreadReadsATsOrAPermalink(t *testing.T) {
-	tests := map[string]string{
-		"":                  "",
-		"1800000001.000100": "1800000001.000100",
-		"https://example.slack.com/archives/D1/p1800000001000100":                                  "1800000001.000100",
-		"https://example.slack.com/archives/D1/p1800000009000900?thread_ts=1800000001.000100&cid=D1": "1800000001.000100",
+	tests := []struct{ in, want string }{
+		{"", ""},
+		{"1800000001.000100", "1800000001.000100"},
+		{"https://example.slack.com/archives/D1/p1800000001000100", "1800000001.000100"},
+		{"https://example.slack.com/archives/D1/p1800000009000900?thread_ts=1800000001.000100&cid=D1", "1800000001.000100"},
 	}
-	for in, want := range tests {
-		got, err := slackThread(in)
-		if err != nil || got != want {
-			t.Errorf("slackThread(%q) = %q, %v; want %q", in, got, err, want)
+	for _, tt := range tests {
+		got, err := slackThread(tt.in)
+		if err != nil || got != tt.want {
+			t.Errorf("slackThread(%q) = %q, %v; want %q", tt.in, got, err, tt.want)
 		}
 	}
 	for _, bad := range []string{"D1/1800000001.000100", "https://example.slack.com/archives/D1", "tomorrow"} {
