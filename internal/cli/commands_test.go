@@ -460,3 +460,45 @@ markdown "m1": md must not be empty`,
 		})
 	}
 }
+
+type ratingPacks struct{ doc.PackTypes }
+
+func (ratingPacks) Interactive(typeName string) bool { return typeName == "ex.rating" }
+
+func TestSummaryNudge(t *testing.T) {
+	tests := []struct {
+		name string
+		raw  string
+		want string
+	}{
+		{
+			name: "summary card with a markdown list and a decision",
+			raw:  `{"id":"k","type":"card","summary":"why","children":[{"id":"m","type":"markdown","md":"- a\n- b"},{"id":"c","type":"code","lang":"go","code":"x"},{"id":"a","type":"approval"}]}`,
+			want: "warning: card k: summary hides 2 content blocks behind Background; drop summary or move the content into the lede",
+		},
+		{
+			name: "summary card with a table and an interactive pack",
+			raw:  `{"id":"k","type":"card","summary":"why","children":[{"id":"t","type":"table","columns":[{"key":"a","label":"A"}],"rows":[{"a":"1"}]},{"id":"r","type":"ex.rating"}]}`,
+			want: "warning: card k: summary hides 1 content blocks behind Background; drop summary or move the content into the lede",
+		},
+		{
+			name: "summary card with no decision renders in full",
+			raw:  `{"id":"k","type":"card","summary":"why","children":[{"id":"m","type":"markdown","md":"rules"}]}`,
+		},
+		{
+			name: "summary card holding only code beside its decision",
+			raw:  `{"id":"k","type":"card","summary":"why","children":[{"id":"c","type":"code","lang":"go","code":"x"},{"id":"a","type":"approval"}]}`,
+		},
+		{
+			name: "card without summary leads with its markdown",
+			raw:  `{"id":"k","type":"card","children":[{"id":"m","type":"markdown","md":"rules"},{"id":"a","type":"approval"}]}`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := summaryNudge([]doc.Block{mustBlock(t, tt.raw)}, ratingPacks{doc.NoPacks}); got != tt.want {
+				t.Fatalf("summaryNudge() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}

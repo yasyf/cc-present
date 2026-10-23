@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `push` and `update-block`, with or without `--dry-run`, print a warning on
+  stderr naming each card whose `summary` hides a markdown or table child
+  behind Background beside a decidable:
+  `warning: card <id>: summary hides <n> content blocks behind Background;
+  drop summary or move the content into the lede`. The push still goes
+  through.
 - A `pr` block puts a GitHub pull request on a board. The agent writes `repo`
   and `number`, plus an optional `title`, `summary`, and `files` globs. The
   daemon reads the PR live through the user's `gh` at `GET /api/pr`, taking the

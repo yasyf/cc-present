@@ -7,8 +7,9 @@ import (
 
 // spec is the per-type behavior a block registers: how to decode it, how to
 // validate it, its nested children (card only), its per-slot visuals (choice
-// options, triage items), pointers to its asset srcs (image only), and whether it
-// is confined to the top level (section, card).
+// options, triage items), pointers to its asset srcs (image only), whether it
+// is confined to the top level (section, card), and whether it asks the human
+// for a decision.
 type spec struct {
 	decode    func(json.RawMessage, unmarshalFunc) (Block, error)
 	validate  func(Block) error
@@ -16,6 +17,7 @@ type spec struct {
 	visuals   func(Block) []Block
 	assetSrcs func(Block) []*string
 	topOnly   bool
+	decidable bool
 }
 
 var registry map[string]spec
@@ -34,26 +36,31 @@ func init() {
 			topOnly:  true,
 		},
 		"approval": {
-			decode:   decodeLeaf[Approval],
-			validate: func(b Block) error { return validateApproval(b.(*Approval)) },
+			decode:    decodeLeaf[Approval],
+			validate:  func(b Block) error { return validateApproval(b.(*Approval)) },
+			decidable: true,
 		},
 		"choice": {
-			decode:   decodeChoice,
-			validate: func(b Block) error { return validateChoice(b.(*Choice)) },
-			visuals:  func(b Block) []Block { return choiceVisuals(b.(*Choice)) },
+			decode:    decodeChoice,
+			validate:  func(b Block) error { return validateChoice(b.(*Choice)) },
+			visuals:   func(b Block) []Block { return choiceVisuals(b.(*Choice)) },
+			decidable: true,
 		},
 		"draft": {
-			decode:   decodeLeaf[Draft],
-			validate: func(b Block) error { return validateDraft(b.(*Draft)) },
+			decode:    decodeLeaf[Draft],
+			validate:  func(b Block) error { return validateDraft(b.(*Draft)) },
+			decidable: true,
 		},
 		"triage": {
-			decode:   decodeTriage,
-			validate: func(b Block) error { return validateTriage(b.(*Triage)) },
-			visuals:  func(b Block) []Block { return triageVisuals(b.(*Triage)) },
+			decode:    decodeTriage,
+			validate:  func(b Block) error { return validateTriage(b.(*Triage)) },
+			visuals:   func(b Block) []Block { return triageVisuals(b.(*Triage)) },
+			decidable: true,
 		},
 		"input": {
-			decode:   decodeLeaf[Input],
-			validate: func(b Block) error { return validateInput(b.(*Input)) },
+			decode:    decodeLeaf[Input],
+			validate:  func(b Block) error { return validateInput(b.(*Input)) },
+			decidable: true,
 		},
 		"markdown": {
 			decode:   decodeLeaf[Markdown],
@@ -125,6 +132,16 @@ func Visuals(b Block) []Block {
 		return nil
 	}
 	return sp.visuals(b)
+}
+
+// Decidable reports whether b asks the human for a decision: an approval,
+// choice, draft, triage, or input, or a pack block whose type pt marks
+// interactive.
+func Decidable(b Block, pt PackTypes) bool {
+	if pb, ok := b.(*PackBlock); ok {
+		return pt.Interactive(pb.Type)
+	}
+	return registry[b.BlockType()].decidable
 }
 
 func choiceVisuals(c *Choice) []Block {

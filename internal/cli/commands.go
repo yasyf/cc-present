@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -159,6 +160,49 @@ func dryRunReport(ctx context.Context, dd *doc.Doc, pt doc.PackTypes, root strin
 // update-block inserts it as.
 func blockDoc(b doc.Block) *doc.Doc {
 	return &doc.Doc{Version: 1, Title: "dry-run", Blocks: []doc.Block{b}}
+}
+
+func loadPackTypes(ctx context.Context) (doc.PackTypes, error) {
+	cfg, err := app.ReadConfig()
+	if err != nil {
+		return nil, err
+	}
+	return packs.Load(ctx, cfg.PackDirs, cfg.DisabledPacks), nil
+}
+
+func summaryNudge(blocks []doc.Block, pt doc.PackTypes) string {
+	var lines []string
+	for _, b := range blocks {
+		card, ok := b.(*doc.Card)
+		if !ok || card.Summary == "" {
+			continue
+		}
+		hidden := 0
+		decides, content := false, false
+		for _, child := range card.Children {
+			if doc.Decidable(child, pt) {
+				decides = true
+				continue
+			}
+			hidden++
+			switch child.(type) {
+			case *doc.Markdown, *doc.Table:
+				content = true
+			}
+		}
+		if decides && content {
+			lines = append(lines, fmt.Sprintf("warning: card %s: summary hides %d content blocks behind Background; drop summary or move the content into the lede", card.ID, hidden))
+		}
+	}
+	return strings.Join(lines, "\n")
+}
+
+func printNudges(w io.Writer, blocks []doc.Block, pt doc.PackTypes) {
+	for _, hint := range []string{longCodeNudge(blocks), summaryNudge(blocks, pt)} {
+		if hint != "" {
+			_, _ = fmt.Fprintln(w, hint)
+		}
+	}
 }
 
 // stripDocs drops the top-level "doc" key from reduced-state JSON and cuts each
@@ -324,15 +368,13 @@ func newPushCmd(d cmd.Deps) *cobra.Command {
 			if err := json.Unmarshal(raw, dd); err != nil {
 				return fmt.Errorf("decode doc: %w", jsonErrorAt(raw, err))
 			}
+			pt, err := loadPackTypes(c.Context())
+			if err != nil {
+				return err
+			}
 			if dryRun {
-				cfg, err := app.ReadConfig()
-				if err != nil {
-					return err
-				}
-				msg, ok := dryRunReport(c.Context(), dd, packs.Load(c.Context(), cfg.PackDirs, cfg.DisabledPacks), root)
-				if hint := longCodeNudge(dd.Blocks); hint != "" {
-					_, _ = fmt.Fprintln(c.ErrOrStderr(), hint)
-				}
+				msg, ok := dryRunReport(c.Context(), dd, pt, root)
+				printNudges(c.ErrOrStderr(), dd.Blocks, pt)
 				_, _ = fmt.Fprintln(c.OutOrStdout(), msg)
 				if !ok {
 					os.Exit(1)
@@ -380,9 +422,7 @@ func newPushCmd(d cmd.Deps) *cobra.Command {
 			for _, u := range res.TailnetURLs {
 				_, _ = fmt.Fprintf(out, "tailnet: %s\n", u)
 			}
-			if hint := longCodeNudge(dd.Blocks); hint != "" {
-				_, _ = fmt.Fprintln(c.ErrOrStderr(), hint)
-			}
+			printNudges(c.ErrOrStderr(), dd.Blocks, pt)
 			return nil
 		},
 	}
@@ -418,15 +458,13 @@ func newUpdateBlockCmd(d cmd.Deps) *cobra.Command {
 			if err != nil {
 				return jsonErrorAt(raw, err)
 			}
+			pt, err := loadPackTypes(c.Context())
+			if err != nil {
+				return err
+			}
 			if dryRun {
-				cfg, err := app.ReadConfig()
-				if err != nil {
-					return err
-				}
-				msg, ok := dryRunReport(c.Context(), blockDoc(blk), packs.Load(c.Context(), cfg.PackDirs, cfg.DisabledPacks), root)
-				if hint := longCodeNudge([]doc.Block{blk}); hint != "" {
-					_, _ = fmt.Fprintln(c.ErrOrStderr(), hint)
-				}
+				msg, ok := dryRunReport(c.Context(), blockDoc(blk), pt, root)
+				printNudges(c.ErrOrStderr(), []doc.Block{blk}, pt)
 				_, _ = fmt.Fprintln(c.OutOrStdout(), msg)
 				if !ok {
 					os.Exit(1)
@@ -468,9 +506,7 @@ func newUpdateBlockCmd(d cmd.Deps) *cobra.Command {
 			if n > 0 {
 				_, _ = fmt.Fprintf(c.OutOrStdout(), "round: %d\n", n)
 			}
-			if hint := longCodeNudge([]doc.Block{blk}); hint != "" {
-				_, _ = fmt.Fprintln(c.ErrOrStderr(), hint)
-			}
+			printNudges(c.ErrOrStderr(), []doc.Block{blk}, pt)
 			return nil
 		},
 	}

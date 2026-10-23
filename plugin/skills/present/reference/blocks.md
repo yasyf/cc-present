@@ -179,7 +179,7 @@ A board with any decision unit opens in focus mode by default: one step at a tim
 }
 ```
 
-`chips[].tone` is `default`, `flag`, or `demo`. `status` is agent-owned: `open`, `resolved` (verdict landed), or `redrafted` (you replaced the content after feedback). `flagged` marks a card needing extra scrutiny. `summary` is the card's lede: one line of inline markdown, at most 2 sentences, saying what is being decided and why now (see "Write a card"). A newline in it fails validation, naming the block id. It must say something the card's children do not: never restate the context markdown that follows it. A `summary` takes the lede slot and collapses every other non-decidable child into Background.
+`chips[].tone` is `default`, `flag`, or `demo`. `status` is agent-owned: `open`, `resolved` (verdict landed), or `redrafted` (you replaced the content after feedback). `flagged` marks a card needing extra scrutiny. `summary` is the card's lede: one line of inline markdown, at most 2 sentences, saying what is being decided and why now (see "Write a card"). A newline in it fails validation, naming the block id. It must say something the card's children do not: never restate the context markdown that follows it. A `summary` takes the lede slot and collapses every other non-decidable child into Background. When one of those children is markdown or a table, `push` and `update-block` print `warning: card <id>: summary hides <n> content blocks behind Background; drop summary or move the content into the lede` on stderr.
 
 ### `approval` — approve/reject verdict
 
