@@ -145,7 +145,9 @@ func ToSlack(c *doc.Card, ch *doc.Choice) StatusCard {
 	for _, child := range c.Children {
 		switch b := child.(type) {
 		case *doc.Markdown:
-			parts = append(parts, markdownLink.ReplaceAllString(b.Md, "<$2|$1>"))
+			if !b.Struck {
+				parts = append(parts, markdownLink.ReplaceAllString(b.Md, "<$2|$1>"))
+			}
 		case *doc.PR:
 			url := fmt.Sprintf("https://github.com/%s/pull/%d", b.Repo, b.Number)
 			sc.Refs = append(sc.Refs, Ref{URL: url})

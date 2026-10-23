@@ -155,3 +155,16 @@ func TestASlackBodyCrossesToTheBoardAndBackUnchanged(t *testing.T) {
 		t.Fatalf("ToSlack body = %q, want the Slack body back: %q", got, body)
 	}
 }
+
+func TestStruckContextStaysOffTheSlackCard(t *testing.T) {
+	c := card(t, `{"id":"step-3:merge","type":"card","title":"Merge #41 now?","children":[`+
+		`{"id":"old","type":"markdown","md":"Wait for the freeze.","struck":true},{"id":"now","type":"markdown","md":"The freeze is over."},`+
+		`{"id":"q","type":"choice","options":[{"id":"o1","label":"Merge","recommended":true},{"id":"o2","label":"Hold"}]}]}`)
+	ch, err := slackcards.Check(c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := slackcards.ToSlack(c, ch).Body; got != "The freeze is over." {
+		t.Fatalf("ToSlack body = %q, want only the live context", got)
+	}
+}
