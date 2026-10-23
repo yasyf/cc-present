@@ -12,28 +12,22 @@ import (
 	"slices"
 	"strings"
 	"time"
-	"unicode/utf8"
 
 	"github.com/yasyf/cc-present/internal/doc"
 )
 
 const (
-	maxOptions      = 4
-	maxLabel        = 30
-	maxTitle        = 140
-	maxBody         = 2800
 	answerSuffix    = "-answer"
 	contextSuffix   = "-context"
 	otherLabel      = "Other"
 	explainLabel    = "Explain more"
 	recommendedMark = "(Recommended)"
-	Resolved        = "resolved"
 )
 
-var (
-	waitsPattern = regexp.MustCompile(`^[A-Za-z0-9._:-]{1,64}$`)
-	slackLink    = regexp.MustCompile(`<(https?://[^|>\s]+)\|([^>]+)>`)
-)
+// Resolved is the status a synced card takes once either surface answers it.
+const Resolved = "resolved"
+
+var slackLink = regexp.MustCompile(`<(https?://[^|>\s]+)\|([^>]+)>`)
 
 // Posted is a waiting card cc-slack posted, as `cc-present slack-sync posted` reads it.
 type Posted struct {
@@ -102,18 +96,10 @@ func Question(c *doc.Card) (*doc.Choice, bool) {
 }
 
 // Check enforces the rules a card follows on both surfaces: one single-select
-// question of at most four short answers, exactly one of them recommended, and
-// no Other or Explain more answer, since both surfaces draw those themselves.
+// question whose answers are distinct, exactly one of them recommended, and none
+// of them Other or Explain more, since both surfaces draw those themselves.
+// cc-slack holds the card to Slack's own limits when it posts it.
 func Check(c *doc.Card) (*doc.Choice, error) {
-	if !waitsPattern.MatchString(c.ID) {
-		return nil, fmt.Errorf("card id %q is its Slack waits id: 1 to 64 letters, digits, dots, colons, underscores, or hyphens", c.ID)
-	}
-	if strings.TrimSpace(c.Title) == "" || utf8.RuneCountInString(c.Title) > maxTitle {
-		return nil, fmt.Errorf("card %q needs its question as a title of 1 to %d characters", c.ID, maxTitle)
-	}
-	if utf8.RuneCountInString(c.Summary) > maxBody {
-		return nil, fmt.Errorf("card %q summary runs past %d characters", c.ID, maxBody)
-	}
 	ch, ok := Question(c)
 	if !ok {
 		return nil, fmt.Errorf("card %q asks one question: exactly one choice child", c.ID)
@@ -121,15 +107,10 @@ func Check(c *doc.Card) (*doc.Choice, error) {
 	if ch.Multi {
 		return nil, fmt.Errorf("choice %q takes one answer; it must be single-select", ch.ID)
 	}
-	if len(ch.Options) == 0 || len(ch.Options) > maxOptions {
-		return nil, fmt.Errorf("choice %q offers %d answers; a synced card offers 1 to %d", ch.ID, len(ch.Options), maxOptions)
-	}
 	var labels []string
 	recommended := 0
 	for _, o := range ch.Options {
 		switch {
-		case strings.TrimSpace(o.Label) == "" || utf8.RuneCountInString(o.Label) > maxLabel:
-			return nil, fmt.Errorf("choice %q answer %q needs a label of 1 to %d characters", ch.ID, o.ID, maxLabel)
 		case o.Label == otherLabel || o.Label == explainLabel:
 			return nil, fmt.Errorf("choice %q answer %q: both surfaces draw %s and %s themselves", ch.ID, o.ID, otherLabel, explainLabel)
 		case strings.Contains(o.Label, recommendedMark):
@@ -220,7 +201,7 @@ func Label(ch *doc.Choice, optionIDs []string, other string) (string, bool) {
 // CCSlack runs the cc-slack CLI with args and returns its stdout, or an error
 // carrying its stderr.
 func CCSlack(ctx context.Context, args ...string) ([]byte, error) {
-	out, err := exec.CommandContext(ctx, "cc-slack", args...).Output()
+	out, err := exec.CommandContext(ctx, "cc-slack", args...).Output() //nolint:gosec // G204: argv to the cc-slack binary on PATH, never a shell
 	if err == nil {
 		return out, nil
 	}

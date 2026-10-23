@@ -40,9 +40,7 @@ func TestCheckHoldsACardToTheRulesBothSurfacesShare(t *testing.T) {
 		"an Other answer":     askCard(`{"id":"o1","label":"Merge","recommended":true},{"id":"o2","label":"Other"}`),
 		"a marked label":      askCard(`{"id":"o1","label":"Merge (Recommended)","recommended":true}`),
 		"a repeated answer":   askCard(`{"id":"o1","label":"Merge","recommended":true},{"id":"o2","label":"Merge"}`),
-		"five answers":        askCard(`{"id":"o1","label":"A","recommended":true},{"id":"o2","label":"B"},{"id":"o3","label":"C"},{"id":"o4","label":"D"},{"id":"o5","label":"E"}`),
 		"a multi-select":      strings.Replace(askCard(ok), `"type":"choice",`, `"type":"choice","multi":true,`, 1),
-		"an id Slack refuses": strings.Replace(askCard(ok), `"step-3:merge"`, `"step 3"`, 1),
 		"no question":         `{"id":"step-3:merge","type":"card","title":"Merge #41 now?","children":[]}`,
 	}
 	for name, raw := range tests {
