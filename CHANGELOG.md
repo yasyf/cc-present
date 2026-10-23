@@ -75,6 +75,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- The present skill and its block reference say that a card's `summary`
+  takes the lede slot and collapses every other content child, lists and
+  tables included, into a closed Background. A card whose decision depends on
+  content the human must read drops the `summary`, so its first markdown block
+  becomes the lede.
 - The browser tab shows the board's title, with a leading "● " while the open
   round still has questions to answer. The header row holds only the title, one
   status dot for the agent and the connection, the progress count, and the

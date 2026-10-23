@@ -45,7 +45,7 @@ The first buries the tradeoff in a label nobody scans; the second reads at a gla
 
 ### Write a card
 
-A card is a question title, a lede, the decidable, and optional Background. The lede is the card's `summary`: at most 2 sentences, about 40 words, saying what is being decided and why it matters now. Every other content block in the card renders in a Background disclosure the human opens on demand. Plan boards are the exception to the question title: each behavior card's title is a claim, as "Present a plan" below says.
+A card is a question title, a lede, the decidable, and optional Background. The lede is the card's `summary`: at most 2 sentences, about 40 words, saying what is being decided and why it matters now. Every other content block in the card, lists and tables included, collapses into a closed Background disclosure the human opens on demand. A card whose decision depends on content the human must read, such as a list of rules, drops the `summary`, and its first markdown block becomes the lede. Plan boards are the exception to the question title: each behavior card's title is a claim, as "Present a plan" below says.
 
 - Never recap earlier rulings in prose. Put them in a `record` block in Background, one fact per ruling.
 - Never preview later cards or list the options in prose; the deck and the choice already show both.
@@ -179,7 +179,7 @@ A board with any decision unit opens in focus mode by default: one step at a tim
 }
 ```
 
-`chips[].tone` is `default`, `flag`, or `demo`. `status` is agent-owned: `open`, `resolved` (verdict landed), or `redrafted` (you replaced the content after feedback). `flagged` marks a card needing extra scrutiny. `summary` is the card's lede: one line of inline markdown, at most 2 sentences, saying what is being decided and why now (see "Write a card"). A newline in it fails validation, naming the block id. It must say something the card's children do not: never restate the context markdown that follows it.
+`chips[].tone` is `default`, `flag`, or `demo`. `status` is agent-owned: `open`, `resolved` (verdict landed), or `redrafted` (you replaced the content after feedback). `flagged` marks a card needing extra scrutiny. `summary` is the card's lede: one line of inline markdown, at most 2 sentences, saying what is being decided and why now (see "Write a card"). A newline in it fails validation, naming the block id. It must say something the card's children do not: never restate the context markdown that follows it. A `summary` takes the lede slot and collapses every other non-decidable child into Background.
 
 ### `approval` — approve/reject verdict
 
