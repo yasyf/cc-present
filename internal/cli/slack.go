@@ -98,16 +98,11 @@ func newSendCmd(d cmd.Deps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			var st struct {
-				Doc          *doc.Doc `json:"doc"`
-				Interactions struct {
-					Choices map[string]state.Selection `json:"choices"`
-				} `json:"interactions"`
-			}
+			var st sendBoard
 			if err := json.Unmarshal(raw, &st); err != nil {
 				return fmt.Errorf("decode the board: %w", err)
 			}
-			questions, skipped, err := openQuestions(st.Doc, st.Interactions.Choices, blocks)
+			questions, skipped, err := openQuestions(&st, blocks)
 			if err != nil {
 				return err
 			}
@@ -148,17 +143,32 @@ type board struct {
 	pid     int
 }
 
+type sendBoard struct {
+	Doc          *doc.Doc `json:"doc"`
+	Interactions struct {
+		Choices map[string]state.Selection `json:"choices"`
+		Closed  state.Closed               `json:"closed"`
+	} `json:"interactions"`
+	Rounds struct {
+		Current     int            `json:"current"`
+		BlockRounds map[string]int `json:"blockRounds"`
+	} `json:"rounds"`
+}
+
 type question struct {
 	card   *doc.Card
 	choice *doc.Choice
 }
 
-func openQuestions(d *doc.Doc, choices map[string]state.Selection, named []string) ([]question, []string, error) {
+func openQuestions(b *sendBoard, named []string) ([]question, []string, error) {
+	if b.Interactions.Closed.Value {
+		return nil, nil, errors.New("the board is closed; start a new one before sending its questions")
+	}
 	var picked []question
 	var skipped []string
 	var errs []error
 	found := map[string]bool{}
-	for _, blk := range d.Blocks {
+	for _, blk := range b.Doc.Blocks {
 		card, ok := blk.(*doc.Card)
 		if !ok || (len(named) > 0 && !slices.Contains(named, card.ID)) {
 			continue
@@ -171,8 +181,11 @@ func openQuestions(d *doc.Doc, choices map[string]state.Selection, named []strin
 		case card.Status == slackcards.Resolved:
 			skipped = append(skipped, fmt.Sprintf("card %q is already answered", card.ID))
 			continue
-		case ok && answered(choices[ch.ID]):
+		case ok && answered(b.Interactions.Choices[ch.ID]):
 			skipped = append(skipped, fmt.Sprintf("card %q is already answered on the board", card.ID))
+			continue
+		case frozen(b, card.ID):
+			skipped = append(skipped, fmt.Sprintf("card %q sits in a closed round; update-block it to ask it again", card.ID))
 			continue
 		}
 		ch, err := slackcards.Check(card)
@@ -191,6 +204,11 @@ func openQuestions(d *doc.Doc, choices map[string]state.Selection, named []strin
 		}
 	}
 	return picked, skipped, errors.Join(errs...)
+}
+
+func frozen(b *sendBoard, id string) bool {
+	r, ok := b.Rounds.BlockRounds[id]
+	return ok && r < b.Rounds.Current
 }
 
 func answered(sel state.Selection) bool {

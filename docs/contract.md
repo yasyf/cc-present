@@ -828,13 +828,13 @@ links as Slack links, and a card's `pr` children become the Slack card's
 board.
 
 `cc-present send` sends the board's open question cards to Slack in one call.
-It takes every top-level card with one question that neither surface has
-answered, or only the cards `--blocks` names, posts each to the session's Slack
+It takes every top-level card of the current round with one question that
+neither surface has answered, or only the cards `--blocks` names, posts each to the session's Slack
 status thread through `cc-slack dm-status --mirrored`, or to the DM thread
 `--slack` names by ts or permalink, and sets each card's `slack.url` to its
 post's permalink. A card already posted in that thread is edited in place, never
 posted twice. An unnamed card that breaks the rules above is skipped with a
-warning; a named one is an error. `cc-present ask <file|->` puts one card on
+warning; a named one is an error. A closed board sends nothing. `cc-present ask <file|->` puts one card on
 the window's board, starting one titled "Questions for you" when the window
 has none open, and sends it the same way. cc-slack runs the hidden
 `cc-present slack-sync posted` when it posts an ask card the board does not
