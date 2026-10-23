@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>System map board check</title>
+    <style>
+      body { margin: 0; padding: 24px; background: #f4f3ee; font-family: system-ui, sans-serif; }
+      .host { --smap-max-h: min(80vh, 760px); border: 1px solid #dcdad2; border-radius: 10px; margin-bottom: 32px; }
+      #board { width: calc(100vw - 48px); }
+      #column { width: min(560px, 100%); }
+    </style>
+  </head>
+  <body>
+    <div class="host" id="board"></div>
+    <div class="host" id="column"></div>
+    <script type="module">
+      import { mount } from "../src/system-map.js";
+      import rough from "../node_modules/roughjs/bundled/rough.esm.js";
+      const file = new URLSearchParams(location.search).get("f");
+      const map = await fetch(`../${file}`).then((r) => r.json());
+      const handles = [...document.querySelectorAll(".host")].map((h) => mount(h, map, { rough }));
+      await Promise.all(handles.map((h) => h.ready));
+      window.boardReady = true;
+    </script>
+  </body>
+</html>

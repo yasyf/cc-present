@@ -34,7 +34,7 @@ if (!def) {
 } else {
   if (def.hostApi !== 1) problems.push(`hostApi = ${String(def.hostApi)}, want 1`);
   const blocks = def.blocks ?? {};
-  for (const name of ['page', 'sequence', 'timeline', 'compare', 'artifact']) {
+  for (const name of ['page', 'sequence', 'timeline', 'compare', 'artifact', 'system']) {
     if (typeof blocks[name] !== 'function') {
       problems.push(`blocks.${name} is ${typeof blocks[name]}, want function`);
     }
@@ -47,4 +47,4 @@ if (problems.length > 0) {
   process.exit(1);
 }
 
-console.log('pack smoke ok: default export { hostApi: 1, blocks: { page, sequence, timeline, compare, artifact } }');
+console.log('pack smoke ok: default export { hostApi: 1, blocks: { page, sequence, timeline, compare, artifact, system } }');

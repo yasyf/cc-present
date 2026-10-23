@@ -1,0 +1,10 @@
+{
+  "id": "tiny-map",
+  "type": "display.system",
+  "title": "A browser asks one server for a page",
+  "blocks": [
+    { "id": "browser", "kind": "app", "name": "Browser", "role": "Loads the page" },
+    { "id": "server", "kind": "service", "name": "Web server", "role": "Renders the page" }
+  ],
+  "links": [{ "from": "browser", "to": "server", "label": "GET /" }]
+}

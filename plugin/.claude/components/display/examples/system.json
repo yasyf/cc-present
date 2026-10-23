@@ -1,0 +1,80 @@
+{
+  "id": "orders-map",
+  "type": "display.system",
+  "title": "An order is on disk before the shopper hears yes",
+  "groups": [
+    { "id": "phone", "kind": "zone", "label": "Shopper's phone" },
+    { "id": "vm", "kind": "machine", "label": "Orders VM" },
+    { "id": "api-proc", "kind": "process", "label": "orders-api process", "in": "vm" },
+    { "id": "cloud", "kind": "zone", "label": "Our AWS account" }
+  ],
+  "blocks": [
+    { "id": "app", "kind": "app", "name": "Shop app", "role": "Places and retries orders", "group": "phone" },
+    {
+      "id": "api",
+      "kind": "service",
+      "name": "Orders API",
+      "role": "Checks, logs, then replies",
+      "group": "api-proc",
+      "badges": [{ "tone": "ok", "text": "4/4" }],
+      "parts": [
+        { "id": "http", "shape": "api", "name": "HTTP handler", "role": "Parses POST /orders" },
+        { "id": "dedupe", "shape": "gate", "name": "Retry gate", "role": "Drops repeated order ids" },
+        { "id": "seen", "shape": "store", "medium": "memory", "tag": "RAM", "name": "Seen ids", "role": "Last hour of order ids" }
+      ]
+    },
+    {
+      "id": "wal",
+      "kind": "log",
+      "medium": "disk",
+      "tag": "EBS",
+      "name": "Order log",
+      "role": "Append, fsync per order",
+      "group": "vm",
+      "critical": true,
+      "contents": [{ "text": "Order rows", "note": "/var/lib/orders/wal", "sealed": true }]
+    },
+    { "id": "shipper", "kind": "worker", "name": "Log shipper", "role": "Copies closed segments", "group": "vm" },
+    { "id": "bucket", "kind": "store", "medium": "bucket", "tag": "S3", "name": "Backup bucket", "role": "Keeps every segment", "group": "cloud" },
+    { "id": "key", "kind": "store", "medium": "keys", "tag": "KMS", "name": "Log key", "role": "Wraps the disk key", "group": "cloud" }
+  ],
+  "links": [
+    { "from": "app", "to": "http", "label": "POST /orders" },
+    { "from": "http", "to": "dedupe", "label": "order id" },
+    { "from": "dedupe", "to": "seen", "label": "seen before?" },
+    { "from": "dedupe", "to": "wal", "label": "append + fsync" },
+    { "from": "wal", "to": "shipper", "style": "async", "label": "closed segment" },
+    { "from": "shipper", "to": "bucket", "style": "copy", "label": "upload" },
+    { "from": "api", "to": "key", "style": "control", "label": "unwrap at boot" }
+  ],
+  "path": {
+    "title": "A placed order",
+    "steps": [
+      { "from": "app", "to": "api", "say": "send the order" },
+      { "from": "api", "to": "wal", "say": "append and fsync" },
+      { "from": "api", "to": "app", "say": "reply 201", "waitsFor": 2 }
+    ]
+  },
+  "stories": [
+    {
+      "id": "retry",
+      "label": "A retry",
+      "title": "The app retries after a timeout",
+      "steps": [
+        { "from": "app", "to": "api", "say": "same order id again" },
+        { "from": "dedupe", "to": "seen", "say": "found in memory" },
+        { "from": "api", "to": "app", "say": "reply 201, no second row" }
+      ]
+    },
+    {
+      "id": "restart",
+      "label": "A restart",
+      "title": "The API restarts and forgets recent ids",
+      "steps": [
+        { "from": "api", "to": "key", "say": "unwrap the disk key" },
+        { "from": "dedupe", "to": "seen", "say": "memory starts empty", "mark": "risk" }
+      ]
+    }
+  ],
+  "notes": [{ "on": "wal", "text": "fsync adds about 2 ms per order" }]
+}

@@ -8,6 +8,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- A `display.system` block draws a hand-drawn map of a running system. The
+  agent lists blocks in the order a request meets them, with their parts,
+  links, one main path, a few stories, and up to three sticky notes. The map
+  lays itself out, routes the arrows, and places every caption clear of every
+  box. The reader clicks a block to see its parts, walks a story from its
+  chip, and zooms or pans. A map too dense for its width shows a glimpse of
+  names with an Open the map button that opens the full map in a dialog. A
+  semantic mistake, such as an unknown id or an unlinked part, shows as a red
+  list in place of the map. The renderer is one framework-free module,
+  `display/src/system-map.js`, so other hosts can load the same file.
 - A `pr` block puts a GitHub pull request on a board. The agent writes `repo`
   and `number`, plus an optional `title`, `summary`, and `files` globs. The
   daemon reads the PR live through the user's `gh` at `GET /api/pr`, taking the

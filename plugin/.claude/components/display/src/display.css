@@ -323,6 +323,16 @@ thead .ccpd-hl {
   transition: height 150ms ease;
 }
 
+.ccpd-system {
+  --smap-paper: var(--surface);
+  --smap-ink: var(--text);
+  --smap-line: var(--border);
+  --smap-max-h: min(80vh, 760px);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
 @keyframes ccpd-draw {
   from { stroke-dashoffset: 1; }
   to { stroke-dashoffset: 0; }
