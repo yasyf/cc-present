@@ -1,0 +1,193 @@
+{
+  "id": "dense-map",
+  "type": "display.system",
+  "title": "Every transfer is matched, journaled and acknowledged before settlement leaves the primary host",
+  "groups": [
+    { "id": "g-client", "kind": "zone", "label": "Partner integrations and mobile clients" },
+    { "id": "g-host", "kind": "machine", "label": "Primary ingest host in us-east-1" },
+    { "id": "g-ingest", "kind": "process", "label": "ingest-gateway coordinator process", "in": "g-host" },
+    { "id": "g-match", "kind": "process", "label": "matching-engine supervisor process", "in": "g-host" },
+    { "id": "g-cloud", "kind": "zone", "label": "Shared production cloud account" },
+    { "id": "g-vendor", "kind": "zone", "label": "External settlement networks" }
+  ],
+  "blocks": [
+    { "id": "partner", "kind": "actor", "name": "Partner settlement clients", "role": "Submit signed transfer batches every few seconds", "group": "g-client" },
+    { "id": "mobile", "kind": "app", "name": "Mobile banking application", "role": "Lets customers send one transfer at a time", "group": "g-client" },
+    {
+      "id": "gateway",
+      "kind": "service",
+      "name": "Ingest gateway coordinator",
+      "role": "Authenticates, rate limits and routes batches",
+      "group": "g-ingest",
+      "badges": [{ "tone": "fail", "text": "12/14" }, { "tone": "ask", "text": "3" }],
+      "parts": [
+        { "id": "edge", "shape": "api", "name": "Batch submission endpoint", "role": "Accepts signed batches over mutual TLS" },
+        { "id": "auth", "shape": "guard", "name": "Partner signature checker", "role": "Rejects batches with a bad or stale signature" },
+        { "id": "limit", "shape": "budget", "name": "Per-partner rate limiter", "role": "Caps each partner at its contracted rate" },
+        { "id": "route", "shape": "router", "name": "Matching shard router", "role": "Picks the matching shard for each account" },
+        { "id": "inflight", "shape": "store", "medium": "memory", "tag": "RAM", "name": "In-flight batch table", "role": "Batches accepted but not yet acknowledged" }
+      ]
+    },
+    {
+      "id": "matcher",
+      "kind": "service",
+      "name": "Matching engine supervisor",
+      "role": "Matches instructions against open positions",
+      "group": "g-match",
+      "badges": [{ "tone": "warn", "text": "p99 40ms" }],
+      "parts": [
+        { "id": "intake", "shape": "queue", "name": "Instruction intake queue", "role": "Orders instructions by arrival per account" },
+        { "id": "match", "shape": "module", "name": "Position matching loop", "role": "Pairs debits with credits on the open book" },
+        { "id": "book", "shape": "store", "medium": "memory", "tag": "RAM", "name": "Open position order book", "role": "Every open position held in process memory" },
+        { "id": "emit", "shape": "handoff", "name": "Settlement message emitter", "role": "Hands each match to the settlement network" },
+        { "id": "rebuild", "shape": "recovery", "name": "Order book rebuilder", "role": "Replays the archive into memory after a crash" }
+      ]
+    },
+    {
+      "id": "journal",
+      "kind": "log",
+      "medium": "disk",
+      "tag": "NVME",
+      "name": "Write-ahead journal segment",
+      "role": "Appends every match and syncs before the ack",
+      "group": "g-host",
+      "critical": true,
+      "contents": [
+        { "text": "Matched instruction records in order", "note": "/var/lib/matching/journal/segment-*.wal", "sealed": true },
+        { "text": "Segment checksum index", "note": "/var/lib/matching/journal/index" }
+      ]
+    },
+    {
+      "id": "compactor",
+      "kind": "worker",
+      "name": "Journal compaction scheduler",
+      "role": "Squashes closed segments and ships them away",
+      "group": "g-host",
+      "parts": [
+        { "id": "tick", "shape": "timer", "name": "Compaction interval timer", "role": "Wakes the compactor every thirty seconds" },
+        { "id": "squash", "shape": "compactor", "name": "Segment squash and upload", "role": "Merges closed segments and uploads the result" }
+      ]
+    },
+    { "id": "ledger", "kind": "store", "medium": "disk", "tag": "Postgres", "name": "Settlement ledger replica", "role": "Read model of every settled transfer for audit", "group": "g-cloud" },
+    { "id": "archive", "kind": "store", "medium": "bucket", "tag": "S3", "name": "Cold archive object storage", "role": "Keeps compacted segments for seven years", "group": "g-cloud" },
+    { "id": "vault", "kind": "store", "medium": "keys", "tag": "KMS", "name": "Envelope encryption vault", "role": "Wraps the journal key and the partner keys", "group": "g-cloud" },
+    { "id": "network", "kind": "external", "name": "Card network settlement API", "role": "Clears each matched transfer with the network", "group": "g-vendor" }
+  ],
+  "links": [
+    { "from": "partner", "to": "edge", "label": "signed transfer batch upload" },
+    { "from": "mobile", "to": "edge", "label": "single transfer from the app" },
+    { "from": "edge", "to": "auth", "label": "check the batch signature" },
+    { "from": "auth", "to": "limit", "label": "count against the partner" },
+    { "from": "limit", "to": "route", "label": "admitted batch for routing" },
+    { "from": "route", "to": "inflight", "label": "remember until acknowledged" },
+    { "from": "route", "to": "intake", "label": "instructions for one shard" },
+    { "from": "intake", "to": "match", "label": "next instruction in order" },
+    { "from": "match", "to": "book", "label": "update the open positions" },
+    { "from": "match", "to": "journal", "label": "append match and fsync it" },
+    { "from": "match", "to": "emit", "label": "matched pair ready to send" },
+    { "from": "emit", "to": "network", "label": "settlement clearing message" },
+    { "from": "journal", "to": "tick", "style": "async", "label": "closed segment available" },
+    { "from": "tick", "to": "squash", "label": "time to compact segments" },
+    { "from": "squash", "to": "archive", "style": "copy", "label": "upload compacted segments" },
+    { "from": "match", "to": "ledger", "style": "async", "label": "settled transfer for audit" },
+    { "from": "ledger", "to": "archive", "style": "copy", "label": "nightly ledger snapshot" },
+    { "from": "auth", "to": "vault", "style": "control", "label": "unwrap the partner keys" },
+    { "from": "match", "to": "vault", "style": "control", "label": "unwrap the journal key" },
+    { "from": "archive", "to": "rebuild", "style": "copy", "label": "replay archive after crash", "hidden": true },
+    { "from": "rebuild", "to": "book", "label": "restore the open positions" }
+  ],
+  "path": {
+    "title": "A transfer batch is matched and acknowledged",
+    "steps": [
+      { "from": "partner", "to": "gateway", "say": "submit a signed batch of transfers" },
+      { "from": "gateway", "to": "matcher", "say": "route each instruction to its shard" },
+      { "from": "matcher", "to": "journal", "say": "append the match and fsync the journal" },
+      { "from": "matcher", "to": "network", "say": "send the settlement clearing message" },
+      { "from": "gateway", "to": "partner", "say": "acknowledge the batch after the fsync", "waitsFor": 3 }
+    ]
+  },
+  "stories": [
+    {
+      "id": "replay",
+      "label": "A replayed batch",
+      "title": "A partner resends a batch it already submitted an hour ago",
+      "tone": "fail",
+      "steps": [
+        { "from": "partner", "to": "gateway", "say": "the same batch arrives a second time" },
+        { "from": "route", "to": "inflight", "say": "only the last few minutes are in memory", "mark": "risk" },
+        { "from": "gateway", "to": "matcher", "say": "the batch is matched again" },
+        { "from": "matcher", "to": "journal", "say": "a duplicate match lands in the journal" }
+      ]
+    },
+    {
+      "id": "crash",
+      "label": "Engine crash",
+      "title": "The matching engine process is killed mid-batch",
+      "tone": "ok",
+      "steps": [
+        { "from": "archive", "to": "matcher", "say": "fetch every compacted segment" },
+        { "from": "rebuild", "to": "book", "say": "replay the segments into memory" },
+        { "from": "journal", "to": "matcher", "say": "replay the tail of the journal" },
+        { "from": "partner", "to": "gateway", "say": "batches are accepted again" }
+      ]
+    },
+    {
+      "id": "compact",
+      "label": "Compaction",
+      "title": "Closed journal segments move to the cold archive",
+      "tone": "pending",
+      "steps": [
+        { "from": "journal", "to": "compactor", "say": "a segment closes on the journal" },
+        { "from": "tick", "to": "squash", "say": "the timer wakes the compactor" },
+        { "from": "compactor", "to": "archive", "say": "upload the squashed segment", "mark": "risk" }
+      ]
+    },
+    {
+      "id": "flood",
+      "label": "Partner flood",
+      "title": "One partner sends ten times its contracted rate",
+      "tone": "ok",
+      "steps": [
+        { "from": "partner", "to": "gateway", "say": "a burst of batches arrives at once" },
+        { "from": "auth", "to": "limit", "say": "the limiter counts against the quota" },
+        { "from": "gateway", "to": "gateway", "say": "refuse the excess with a retry header", "mark": "stop" }
+      ]
+    },
+    {
+      "id": "keys",
+      "label": "Key rotation",
+      "title": "The vault rotates the journal and partner keys",
+      "tone": "ok",
+      "steps": [
+        { "from": "gateway", "to": "vault", "say": "unwrap the new partner key" },
+        { "from": "matcher", "to": "vault", "say": "unwrap the new journal key" },
+        { "from": "matcher", "to": "journal", "say": "new segments use the new key" }
+      ]
+    },
+    {
+      "id": "audit",
+      "label": "Audit query",
+      "title": "An auditor reads every transfer settled last quarter",
+      "steps": [
+        { "from": "matcher", "to": "ledger", "say": "each settled transfer is copied over" },
+        { "from": "ledger", "to": "archive", "say": "the nightly snapshot goes to the archive" }
+      ]
+    },
+    {
+      "id": "outage",
+      "label": "Network outage",
+      "title": "The card network stops answering for ten minutes",
+      "tone": "fail",
+      "steps": [
+        { "from": "matcher", "to": "network", "say": "the settlement message times out", "mark": "risk" },
+        { "from": "emit", "to": "emit", "say": "hold matched pairs until it is back" },
+        { "from": "gateway", "to": "partner", "say": "batches are still acknowledged" }
+      ]
+    }
+  ],
+  "notes": [
+    { "on": "journal", "text": "fsync adds about three milliseconds to each match" },
+    { "on": "inflight", "text": "holds at most ninety seconds of accepted batches" },
+    { "on": "archive", "text": "seven years of segments, about forty terabytes" }
+  ]
+}

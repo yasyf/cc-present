@@ -128,7 +128,7 @@ func TestLintDisplayPack(t *testing.T) {
 	}
 	got := blockNames(p)
 	slices.Sort(got)
-	if want := []string{"artifact", "compare", "page", "sequence", "timeline"}; !slices.Equal(got, want) {
+	if want := []string{"artifact", "compare", "page", "sequence", "system", "timeline"}; !slices.Equal(got, want) {
 		t.Fatalf("blocks = %v, want %v", got, want)
 	}
 	for _, bt := range p.Blocks {
@@ -165,6 +165,11 @@ func TestDisplayPackSchemas(t *testing.T) {
 		{"timeline", `{"id":"t","type":"display.timeline","events":[{"when":"Oct 3","title":"x","tone":"danger","url":"https://example.com/x"}]}`, true},
 		{"compare mixed cells", `{"id":"c","type":"display.compare","columns":[{"label":"A"},{"label":"B"}],"rows":[{"label":"r","cells":["yes",{"md":"no","tone":"bad"}]}]}`, true},
 		{"compare unknown tone", `{"id":"c","type":"display.compare","columns":[{"label":"A"}],"rows":[{"label":"r","cells":[{"md":"no","tone":"red"}]}]}`, false},
+		{"system", `{"id":"m","type":"display.system","title":"Orders reach disk first","blocks":[{"id":"app","kind":"app","name":"Shop app","role":"places orders"},{"id":"log","kind":"log","name":"Order log","role":"keeps every order","medium":"disk","critical":true}],"links":[{"from":"app","to":"log","label":"append"}],"path":{"title":"An order","steps":[{"from":"app","to":"log","say":"append"},{"from":"log","to":"app","say":"ack","waitsFor":1}]}}`, true},
+		{"system unknown block kind", `{"id":"m","type":"display.system","title":"x","blocks":[{"id":"a","kind":"robot","name":"A","role":"r"},{"id":"b","kind":"app","name":"B","role":"r"}]}`, false},
+		{"system missing title", `{"id":"m","type":"display.system","blocks":[{"id":"a","kind":"app","name":"A","role":"r"},{"id":"b","kind":"app","name":"B","role":"r"}]}`, false},
+		{"system bad id", `{"id":"m","type":"display.system","title":"x","blocks":[{"id":"Shop_App","kind":"app","name":"A","role":"r"},{"id":"b","kind":"app","name":"B","role":"r"}]}`, false},
+		{"system eleven blocks", `{"id":"m","type":"display.system","title":"x","blocks":[{"id":"b0","kind":"service","name":"Box 0","role":"does one thing"},{"id":"b1","kind":"service","name":"Box 1","role":"does one thing"},{"id":"b2","kind":"service","name":"Box 2","role":"does one thing"},{"id":"b3","kind":"service","name":"Box 3","role":"does one thing"},{"id":"b4","kind":"service","name":"Box 4","role":"does one thing"},{"id":"b5","kind":"service","name":"Box 5","role":"does one thing"},{"id":"b6","kind":"service","name":"Box 6","role":"does one thing"},{"id":"b7","kind":"service","name":"Box 7","role":"does one thing"},{"id":"b8","kind":"service","name":"Box 8","role":"does one thing"},{"id":"b9","kind":"service","name":"Box 9","role":"does one thing"},{"id":"b10","kind":"service","name":"Box 10","role":"does one thing"}]}`, false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

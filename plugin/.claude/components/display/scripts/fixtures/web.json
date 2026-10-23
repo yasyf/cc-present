@@ -1,0 +1,122 @@
+{
+  "id": "checkout-map",
+  "type": "display.system",
+  "title": "A checkout is saved before the receipt shows, and the email goes out later",
+  "groups": [
+    { "id": "user", "kind": "zone", "label": "Customer's browser" },
+    { "id": "cluster", "kind": "machine", "label": "App cluster" },
+    { "id": "web-pod", "kind": "process", "label": "web pod", "in": "cluster" },
+    { "id": "worker-pod", "kind": "process", "label": "worker pod", "in": "cluster" },
+    { "id": "data", "kind": "zone", "label": "Managed data" },
+    { "id": "vendors", "kind": "zone", "label": "Third parties" }
+  ],
+  "blocks": [
+    { "id": "browser", "kind": "app", "name": "Web shop", "role": "Shows the cart and receipt", "group": "user" },
+    {
+      "id": "api",
+      "kind": "service",
+      "name": "Checkout API",
+      "role": "Checks the session, prices, saves",
+      "group": "web-pod",
+      "badges": [{ "tone": "ok", "text": "41/41" }],
+      "about": "A stateless HTTP service, three replicas behind the load balancer. It never holds a checkout in memory across requests.",
+      "parts": [
+        { "id": "routes", "shape": "router", "name": "Router", "role": "Sends each request to a handler" },
+        { "id": "auth", "shape": "guard", "name": "Session check", "role": "Rejects expired sessions" },
+        { "id": "cart", "shape": "module", "name": "Cart service", "role": "Prices the cart and charges it" },
+        { "id": "prices", "shape": "store", "medium": "memory", "tag": "RAM", "name": "Price cache", "role": "Prices seen in the last minute" },
+        { "id": "pool", "shape": "pool", "name": "DB pool", "role": "Twenty Postgres connections" }
+      ]
+    },
+    { "id": "sessions", "kind": "store", "medium": "memory", "tag": "Redis", "name": "Session store", "role": "Sessions and rate limits", "group": "data" },
+    {
+      "id": "db",
+      "kind": "store",
+      "medium": "disk",
+      "tag": "Postgres",
+      "name": "Orders database",
+      "role": "Carts, orders and payments",
+      "group": "data",
+      "critical": true,
+      "contents": [
+        { "text": "orders", "note": "one row per checkout", "sealed": true },
+        { "text": "payments", "note": "provider charge ids", "sealed": true }
+      ]
+    },
+    { "id": "jobs", "kind": "store", "medium": "pages", "tag": "SQS", "name": "Job queue", "role": "Holds receipt jobs", "group": "data" },
+    {
+      "id": "worker",
+      "kind": "worker",
+      "name": "Receipt worker",
+      "role": "Sends receipts, retries on error",
+      "group": "worker-pod",
+      "parts": [
+        { "id": "poller", "shape": "timer", "name": "Poller", "role": "Pulls a job every second" },
+        { "id": "mailer", "shape": "relay", "name": "Mailer", "role": "Calls the email API" }
+      ]
+    },
+    { "id": "pay", "kind": "external", "name": "Payment provider", "role": "Charges the card", "group": "vendors", "badges": [{ "tone": "warn", "text": "p99 3 s" }] },
+    { "id": "email", "kind": "external", "name": "Email provider", "role": "Delivers the receipt", "group": "vendors" }
+  ],
+  "links": [
+    { "from": "browser", "to": "routes", "label": "POST /checkout" },
+    { "from": "routes", "to": "auth", "label": "session cookie" },
+    { "from": "auth", "to": "sessions", "label": "look up session" },
+    { "from": "routes", "to": "cart", "label": "cart id" },
+    { "from": "cart", "to": "prices", "label": "price lookup" },
+    { "from": "cart", "to": "pay", "label": "charge the card" },
+    { "from": "cart", "to": "pool", "label": "save the order" },
+    { "from": "pool", "to": "db", "label": "INSERT order" },
+    { "from": "cart", "to": "jobs", "style": "async", "label": "receipt job" },
+    { "from": "jobs", "to": "poller", "style": "async", "label": "next job" },
+    { "from": "poller", "to": "mailer", "label": "send it" },
+    { "from": "mailer", "to": "email", "label": "send email" }
+  ],
+  "path": {
+    "title": "A checkout",
+    "steps": [
+      { "from": "browser", "to": "api", "say": "submit the cart" },
+      { "from": "api", "to": "pay", "say": "charge the card" },
+      { "from": "api", "to": "db", "say": "save the order" },
+      { "from": "api", "to": "browser", "say": "show the receipt", "waitsFor": 3 }
+    ]
+  },
+  "stories": [
+    {
+      "id": "slow-pay",
+      "label": "Slow payments",
+      "title": "The payment provider takes eight seconds",
+      "tone": "fail",
+      "steps": [
+        { "from": "browser", "to": "api", "say": "submit the cart" },
+        { "from": "api", "to": "pay", "say": "wait for the charge", "mark": "risk" },
+        { "from": "api", "to": "browser", "say": "times out at 5 s" }
+      ]
+    },
+    {
+      "id": "receipt",
+      "label": "A receipt",
+      "title": "The receipt email goes out later",
+      "tone": "ok",
+      "steps": [
+        { "from": "api", "to": "jobs", "say": "queue the receipt" },
+        { "from": "jobs", "to": "worker", "say": "poll the job" },
+        { "from": "worker", "to": "email", "say": "send the email" }
+      ]
+    },
+    {
+      "id": "expired",
+      "label": "Old session",
+      "title": "A shopper comes back with an expired cookie",
+      "steps": [
+        { "from": "browser", "to": "api", "say": "old cookie" },
+        { "from": "auth", "to": "sessions", "say": "session not found" },
+        { "from": "api", "to": "api", "say": "reject with 401", "mark": "stop" }
+      ]
+    }
+  ],
+  "notes": [
+    { "on": "db", "text": "p99 write is 12 ms" },
+    { "on": "jobs", "text": "retries 5 times, then dead-letters" }
+  ]
+}

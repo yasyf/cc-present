@@ -71,6 +71,10 @@ jobs:
           bun test scripts
           bun run build
           bun run smoke
+      - name: Board check display.system
+        if: runner.os == 'Linux'
+        working-directory: plugin/.claude/components/display
+        run: bun scripts/board.ts
       - name: Build plan pack
         working-directory: plugin/.claude/components/plan
         run: |

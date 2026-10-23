@@ -1,0 +1,144 @@
+{
+  "id": "storage-map",
+  "type": "display.system",
+  "title": "Every write is synced to the volume before the app hears yes, and the bucket keeps the rest",
+  "lanes": { "main": "Request path", "background": "After the ack", "control": "Keys and control" },
+  "groups": [
+    { "id": "clients", "kind": "zone", "label": "Customer apps" },
+    { "id": "box", "kind": "machine", "label": "Storage server" },
+    { "id": "proc", "kind": "process", "label": "sql-server process", "in": "box" },
+    { "id": "aws", "kind": "zone", "label": "Customer's AWS account" }
+  ],
+  "blocks": [
+    { "id": "apps", "kind": "actor", "name": "Client apps", "role": "Send SQL with a request id", "group": "clients" },
+    {
+      "id": "sql",
+      "kind": "service",
+      "name": "SQL server",
+      "role": "Checks, admits, then runs it",
+      "group": "proc",
+      "about": "One Python process. Statements run against SQLite tables held in memory; nothing is acknowledged until the redo log has synced.",
+      "badges": [{ "tone": "fail", "text": "7/9" }, { "tone": "ask", "text": "2" }],
+      "parts": [
+        { "id": "adapter", "shape": "relay", "name": "Wire adapter", "role": "Carries SQL from the apps" },
+        { "id": "router", "shape": "router", "name": "Statement router", "role": "Checks, admits, runs each one" },
+        { "id": "dedupe", "shape": "guard", "name": "Retry guard", "role": "Answers a retried id once", "badges": [{ "tone": "ask", "text": "1" }] },
+        { "id": "admit", "shape": "gate", "name": "Admission gate", "role": "Refuses writes when the box is full" },
+        { "id": "keyguard", "shape": "watcher", "name": "Key watcher", "role": "Stops serving when the key is off" },
+        { "id": "restore", "shape": "recovery", "name": "Restore", "role": "Rebuilds the tables from the bucket" },
+        { "id": "tables", "shape": "store", "medium": "memory", "tag": "RAM", "name": "Tables", "role": "Each app's working tables" }
+      ]
+    },
+    {
+      "id": "redo",
+      "kind": "log",
+      "medium": "disk",
+      "tag": "EBS",
+      "name": "Redo log",
+      "role": "Synced before every reply",
+      "group": "box",
+      "critical": true,
+      "contents": [
+        { "text": "Statements, in order", "note": "/data/redo/*.seg", "sealed": false },
+        { "text": "Segment index", "note": "/data/redo/index" }
+      ],
+      "parts": [{ "id": "writer", "shape": "log", "name": "Log writer", "role": "Appends and syncs each write" }]
+    },
+    {
+      "id": "ship",
+      "kind": "worker",
+      "name": "Shipping loop",
+      "role": "Seals, uploads, then sweeps",
+      "group": "proc",
+      "parts": [
+        { "id": "shipper", "shape": "uploader", "name": "Uploader", "role": "Uploads sealed segments" },
+        { "id": "sweeper", "shape": "sweeper", "name": "Sweeper", "role": "Deletes copies once uploaded" }
+      ]
+    },
+    {
+      "id": "bucket",
+      "kind": "store",
+      "medium": "bucket",
+      "tag": "S3",
+      "name": "Customer bucket",
+      "role": "The system of record",
+      "group": "aws",
+      "contents": [{ "text": "Sealed segments", "note": "s3://customer-data/segments/", "sealed": true }]
+    },
+    { "id": "key", "kind": "store", "medium": "keys", "tag": "KMS", "name": "Customer key", "role": "Checked before serving", "group": "aws" }
+  ],
+  "links": [
+    { "from": "apps", "to": "adapter", "label": "SQL + request id" },
+    { "from": "adapter", "to": "router", "label": "statements" },
+    { "from": "router", "to": "dedupe", "label": "seen this id?" },
+    { "from": "router", "to": "admit", "label": "room left?" },
+    { "from": "router", "to": "tables", "label": "run it" },
+    { "from": "router", "to": "writer", "label": "append, then ack" },
+    { "from": "writer", "to": "shipper", "style": "async", "label": "sealed segments" },
+    { "from": "shipper", "to": "bucket", "style": "copy", "label": "upload every 5 s" },
+    { "from": "shipper", "to": "sweeper", "label": "uploaded" },
+    { "from": "sweeper", "to": "writer", "style": "async", "label": "delete local copy" },
+    { "from": "bucket", "to": "restore", "style": "copy", "label": "rebuild after loss", "hidden": true },
+    { "from": "restore", "to": "tables", "label": "replay" },
+    { "from": "keyguard", "to": "key", "style": "control", "label": "is the key on?" },
+    { "from": "keyguard", "to": "router", "style": "control", "label": "stop serving" }
+  ],
+  "path": {
+    "title": "An acknowledged write",
+    "steps": [
+      { "from": "apps", "to": "sql", "say": "INSERT with a request id" },
+      { "from": "sql", "to": "redo", "say": "log the write first" },
+      { "from": "redo", "to": "redo", "say": "sync every 2 ms" },
+      { "from": "sql", "to": "apps", "say": "reply after the sync", "waitsFor": 3 }
+    ]
+  },
+  "stories": [
+    {
+      "id": "retry",
+      "label": "A retry",
+      "title": "The client retries the same batch",
+      "tone": "fail",
+      "steps": [
+        { "from": "apps", "to": "sql", "say": "the client retries" },
+        { "from": "dedupe", "to": "tables", "say": "looks only in memory", "mark": "risk" },
+        { "from": "sql", "to": "redo", "say": "logged a second time" }
+      ]
+    },
+    {
+      "id": "loss",
+      "label": "Machine dies",
+      "title": "The machine disappears",
+      "tone": "ok",
+      "steps": [
+        { "from": "bucket", "to": "sql", "say": "fetch every segment" },
+        { "from": "restore", "to": "tables", "say": "replay into memory" },
+        { "from": "apps", "to": "sql", "say": "serving again" }
+      ]
+    },
+    {
+      "id": "custody",
+      "label": "Custody",
+      "title": "A write reaches the bucket",
+      "tone": "pending",
+      "steps": [
+        { "from": "redo", "to": "ship", "say": "seal the segment" },
+        { "from": "ship", "to": "bucket", "say": "upload it", "mark": "risk" },
+        { "from": "ship", "to": "redo", "say": "delete the local copy" }
+      ]
+    },
+    {
+      "id": "key-off",
+      "label": "Key off",
+      "title": "The customer turns its key off",
+      "tone": "ok",
+      "steps": [
+        { "from": "keyguard", "to": "key", "say": "the watcher checks the key" },
+        { "from": "sql", "to": "sql", "say": "reject every request", "mark": "stop" }
+      ]
+    }
+  ],
+  "notes": [
+    { "on": "redo", "text": "the ack waits for this sync" },
+    { "on": "shipper", "text": "uploads each sealed segment every 5 s" }
+  ]
+}
