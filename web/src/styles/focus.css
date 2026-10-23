@@ -145,6 +145,11 @@ html:has(.doc-header[data-compact]) {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
+  padding-bottom: var(--space-3);
+  margin-bottom: var(--space-3);
+  border-bottom: 1px solid var(--line);
+  color: var(--dim);
+  font-size: var(--text-sm);
 }
 .focus-lead .doc-intro,
 .focus-lead .stats {
@@ -453,9 +458,6 @@ html:has(.doc-header[data-compact]) {
 }
 .focus-lede {
   color: var(--dim);
-}
-.focus-lede.is-clamped {
-  max-height: 3lh;
 }
 .focus-background .cc-group {
   background: transparent;

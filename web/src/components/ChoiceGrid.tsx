@@ -32,16 +32,46 @@ export function ChoiceGrid({
   return (
     <div className="choice-grid" style={{ '--grid-n': options.length } as CSSProperties}>
       <span className="grid-corner" />
-      {options.map((option) => (
-        <div key={option.id} className={`grid-head${on(option)}`} data-option-id={option.id}>
-          <span className="option-label">{option.label}</span>
-          {option.recommended && <RecommendedMark />}
-          {option.hint && (
-            <div className="option-hint" dangerouslySetInnerHTML={{ __html: renderInlineMarkdown(option.hint) }} />
-          )}
-          {option.md && <Clamped html={renderInlineMarkdown(option.md)} lines={4} className="option-md prose" />}
-        </div>
-      ))}
+      {options.map((option, i) => {
+        const selected = picks.includes(option.id);
+        return (
+          <div
+            key={option.id}
+            role={multi ? 'checkbox' : 'radio'}
+            aria-checked={selected}
+            aria-disabled={locked}
+            tabIndex={locked ? -1 : 0}
+            className={`option grid-head grid-pick${on(option)}`}
+            data-option-id={option.id}
+            onClick={() => {
+              if (!locked) onToggle(i);
+            }}
+            onKeyDown={(e) => {
+              if ((e.key === 'Enter' || e.key === ' ') && !e.metaKey && !e.ctrlKey) {
+                e.preventDefault();
+                if (!locked) onToggle(i);
+              }
+            }}
+          >
+            <span className="grid-pick-row">
+              {showIndex && i < 9 && (
+                <kbd className="option-index" aria-hidden>
+                  {i + 1}
+                </kbd>
+              )}
+              <span className="option-indicator" aria-hidden>
+                {selected && <Mark kind={multi ? 'check' : 'ring'} />}
+              </span>
+              <span className="option-label">{option.label}</span>
+              {option.recommended && <RecommendedMark />}
+            </span>
+            {option.hint && (
+              <div className="option-hint" dangerouslySetInnerHTML={{ __html: renderInlineMarkdown(option.hint) }} />
+            )}
+            {option.md && <Clamped html={renderInlineMarkdown(option.md)} lines={4} className="option-md prose" />}
+          </div>
+        );
+      })}
       {axes.map((axis, ai) => (
         <Fragment key={axis}>
           <span className="grid-axis">{axis}</span>
@@ -69,42 +99,6 @@ export function ChoiceGrid({
           ))}
         </>
       )}
-      <span className="grid-axis grid-pick-axis" />
-      {options.map((option, i) => {
-        const selected = picks.includes(option.id);
-        return (
-          <div
-            key={option.id}
-            role={multi ? 'checkbox' : 'radio'}
-            aria-checked={selected}
-            aria-disabled={locked}
-            tabIndex={locked ? -1 : 0}
-            className={`option grid-pick${selected ? ' selected' : ''}`}
-            data-option-id={option.id}
-            onClick={() => {
-              if (!locked) onToggle(i);
-            }}
-            onKeyDown={(e) => {
-              if ((e.key === 'Enter' || e.key === ' ') && !e.metaKey && !e.ctrlKey) {
-                e.preventDefault();
-                if (!locked) onToggle(i);
-              }
-            }}
-          >
-            {showIndex && i < 9 && (
-              <kbd className="option-index" aria-hidden>
-                {i + 1}
-              </kbd>
-            )}
-            <span className="option-indicator" aria-hidden>
-              {selected && <Mark kind={multi ? 'check' : 'ring'} />}
-            </span>
-            <span className="option-body">
-              <span className="option-label">{option.label}</span>
-            </span>
-          </div>
-        );
-      })}
     </div>
   );
 }

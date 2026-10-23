@@ -38,3 +38,31 @@ describe('markdownText', () => {
     expect(markdownText('one\n\n\ntwo   three\n\n- a\n- b\n')).toBe('one two three a b');
   });
 });
+
+describe('ref links', () => {
+  const sha = 'a'.repeat(64);
+
+  it('renders a resolved reference as a ref chip opening in a new tab', () => {
+    const html = renderInlineMarkdown(`see [pool.go:63](<https://github.com/o/r/blob/x/pool.go#L63> "ref:${sha}")`);
+    const a = new DOMParser().parseFromString(html, 'text/html').querySelector('a')!;
+    expect(a.className).toBe('ref');
+    expect(a.dataset.ref).toBe(sha);
+    expect(a.getAttribute('href')).toBe('https://github.com/o/r/blob/x/pool.go#L63');
+    expect(a.getAttribute('target')).toBe('_blank');
+    expect(a.getAttribute('title')).toBeNull();
+    expect(a.textContent).toBe('pool.go:63');
+  });
+
+  it('renders a reference without a URL as a focusable button', () => {
+    const html = renderMarkdown(`(see [7c2ceba](<> "ref:${sha}"))`);
+    const a = new DOMParser().parseFromString(html, 'text/html').querySelector('a.ref')!;
+    expect(a.hasAttribute('href')).toBe(false);
+    expect(a.getAttribute('role')).toBe('button');
+  });
+
+  it('leaves ordinary links alone', () => {
+    const html = renderInlineMarkdown('[docs](https://example.com "Docs")');
+    expect(html).not.toContain('class="ref"');
+    expect(html).toContain('title="Docs"');
+  });
+});
