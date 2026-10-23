@@ -75,6 +75,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- The bundled capt-hook guard no longer blocks the built-in `Artifact` tool.
+  Every Artifact call goes through, with a note suggesting the
+  `cc-present:present` skill for a live board. The note adds no permission
+  approval, so Claude Code's own prompt still decides the call.
+
 - The present skill and its block reference say that a card's `summary`
   takes the lede slot and collapses every other content child, lists and
   tables included, into a closed Background. A card whose decision depends on

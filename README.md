@@ -49,7 +49,7 @@ Driving with an agent? Paste this:
 
 The plugin auto-installs the binary and wires the loop. It adds an MCP channel that delivers clicks into the session as `<channel source="cc-present">` tags, a SessionStart hook, the `/cc-present:present` skill that drives compose, watch, reply, and outcomes, and the `/cc-present:author-pack` skill that authors block packs.
 
-cc-present depends on the [captain-hook](https://github.com/yasyf/captain-hook) plugin, which dispatches the guard that steers Claude off the built-in Artifact tool and onto a live board. captain-hook installs itself. The first session registers its marketplace and Claude Code resolves the dependency, so you add only cc-present's own marketplace, on install and on upgrade alike.
+cc-present depends on the [captain-hook](https://github.com/yasyf/captain-hook) plugin, which dispatches the guard that suggests a live board whenever Claude reaches for the built-in Artifact tool. captain-hook installs itself. The first session registers its marketplace and Claude Code resolves the dependency, so you add only cc-present's own marketplace, on install and on upgrade alike.
 
 ## Pair your phone
 
