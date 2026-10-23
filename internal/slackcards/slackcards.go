@@ -22,6 +22,7 @@ const (
 	otherLabel      = "Other"
 	explainLabel    = "Explain more"
 	recommendedMark = "(Recommended)"
+	maxTitle        = 140
 )
 
 // Resolved is the status a synced card takes once either surface answers it.
@@ -134,7 +135,7 @@ func Check(c *doc.Card) (*doc.Choice, error) {
 
 // ToSlack is the cc-slack card for a card Check passed.
 func ToSlack(c *doc.Card, ch *doc.Choice) StatusCard {
-	sc := StatusCard{Status: "needs_you", Title: c.Title, Body: c.Summary, Waits: c.ID}
+	sc := StatusCard{Status: "needs_you", Title: bounded(c.Title), Body: c.Summary, Waits: c.ID}
 	for _, o := range ch.Options {
 		sc.Options = append(sc.Options, o.Label)
 		if o.Recommended {
@@ -157,6 +158,14 @@ func ToSlack(c *doc.Card, ch *doc.Choice) StatusCard {
 	}
 	sc.Body = strings.Join(slices.DeleteFunc(parts, func(s string) bool { return s == "" }), "\n")
 	return sc
+}
+
+func bounded(title string) string {
+	runes := []rune(title)
+	if len(runes) <= maxTitle {
+		return title
+	}
+	return string(runes[:maxTitle-1]) + "…"
 }
 
 // FromSlack is the board card for a waiting card cc-slack posted, as block JSON.

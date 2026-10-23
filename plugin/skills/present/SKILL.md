@@ -118,8 +118,9 @@ cc-present send --session "$CLAUDE_CODE_SESSION_ID"
 ```
 
 It posts each open question card to this session's Slack status thread, links
-each card on the board to its post, and prints one `slack: <id> <permalink>`
-line per card, then `url:` and any `tailnet:` lines. `--slack <ts|permalink>`
+each card on the board to its post, and prints one line per card,
+`sent: <id> ts=<ts> <permalink>` or `failed: <id>: <error>`, then `url:` and
+any `tailnet:` lines. `--slack <ts|permalink>`
 posts in another thread of your DM, and `--blocks a,b` sends only those cards.
 Running it again edits the cards already posted instead of posting them twice.
 `cc-present ask "$CARD"` puts one card on the board and sends it in one step.
