@@ -30,6 +30,8 @@ Write the document JSON to a file in your **session scratchpad** and pass the pa
 3. The decidable, a `choice` or an `approval`.
 4. Optional Background, which holds every other context block. Earlier rulings the card builds on go here as one `record` block, one fact per ruling.
 
+A `summary` takes the lede slot and collapses every other content child, lists and tables included, into a closed Background disclosure. When the decision depends on content the human must read, such as a list of rules, drop the `summary` so the card's first markdown block becomes the lede, or move that content into the options.
+
 In Background and option bodies, a bold sentence is never a heading: use a markdown heading of 6 words or fewer. A `section` is top-level only and never goes inside a card. A list holds 5 bullets or fewer, one line each. Comparisons go in a `table` block, not parallel paragraphs. A card whose children run past ~2 screens splits into two cards. `reference/blocks.md` "Write a card" shows a bad card and its rewrite.
 
 **Options.**
