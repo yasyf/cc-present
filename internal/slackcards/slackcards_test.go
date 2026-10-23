@@ -139,3 +139,19 @@ func mustJSON(t *testing.T, v any) []byte {
 	}
 	return raw
 }
+
+func TestASlackBodyCrossesToTheBoardAndBackUnchanged(t *testing.T) {
+	body := "This also means:\n1. Nothing copies it to the laptop.\n2. See <https://github.com/acme/app/pull/41|app PR 41>."
+	raw, err := slackcards.FromSlack(slackcards.Posted{Waits: "rule:5c0e9a1", Title: "Did I read it right?", Body: body, Options: []string{"Right", "Some wrong"}, Recommended: "Right", Permalink: permalink})
+	if err != nil {
+		t.Fatal(err)
+	}
+	c := card(t, string(raw))
+	ch, err := slackcards.Check(c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := slackcards.ToSlack(c, ch).Body; got != body {
+		t.Fatalf("ToSlack body = %q, want the Slack body back: %q", got, body)
+	}
+}

@@ -822,8 +822,9 @@ op enforce:
   more, and no label carries "(Recommended)", because each surface draws those
   itself.
 
-A card's `pr` children become the Slack card's `refs`, each also linked in its
-body as `<url|repo PR N>`. A Slack card's PR refs become `pr` children on the
+A card's `markdown` children join its summary in the Slack card's body, their
+links as Slack links, and a card's `pr` children become the Slack card's
+`refs`, each also linked in its body as `<url|repo PR N>`. A Slack card's PR refs become `pr` children on the
 board.
 
 `cc-present ask <file|->` posts the card to the session's Slack status thread
