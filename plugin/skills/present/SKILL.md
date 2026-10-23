@@ -22,15 +22,19 @@ Write the document JSON to a file in your **session scratchpad** and pass the pa
 - Order consequential picks first — a step with a lone single-select choice (or a lone approval) auto-advances the deck the moment it's decided, so the picks that reshape later steps come early, and you announce their revisions promptly (see step 4).
 - A PR mentioned on a board is a `pr` block, never a bare number or link. Write `repo` and `number`; the card reads state, CI, reviews, and each file's diff live from GitHub.
 - Local image paths in `image` blocks are fine — `push`, `update-block`, and `start --doc` inline them automatically.
+- Cite evidence so it resolves: `` `path/file.go:63` @ <sha> ``, `` `:90` `` for the same file, `(7c2ceba)` for a cc-notes record or commit, and `(plan 52)` for a line of a file declared in `sources`. Each renders as a short chip with the code or record on hover, so prose stays readable. Never leave an id the CLI reports as unresolved. `reference/blocks.md` "Cite code and records" has the forms.
+- `stats` carries facts about the subject, never progress tallies. The board counts progress itself.
 
 **A card has four parts.** The human reads the title and the lede, then decides; Background and option details wait behind a click.
 
-1. A title that asks the question the card decides, in the form "How do the two trees stay apart on dev?"
+1. A title that asks the question the card decides, in 12 words or fewer, in the form "How do the two trees stay apart on dev?"
 2. A lede in the card's `summary`, at most 2 sentences and about 40 words. It says what is being decided and why it matters now. It never recaps earlier rulings, previews later cards, or lists the options in prose; the options already say what they are.
 3. The decidable, a `choice` or an `approval`.
 4. Optional Background, which holds every other context block. Earlier rulings the card builds on go here as one `record` block, one fact per ruling.
 
 A `summary` takes the lede slot and collapses every other content child, lists and tables included, into a closed Background disclosure. When the decision depends on content the human must read, such as a list of rules, drop the `summary` so the card's first markdown block becomes the lede, or move that content into the options.
+
+Quote the owner's words with obvious typos fixed. A lead markdown block runs 120 words or fewer; its evidence goes in Background.
 
 In Background and option bodies, a bold sentence is never a heading: use a markdown heading of 6 words or fewer. A `section` is top-level only and never goes inside a card. A list holds 5 bullets or fewer, one line each. Comparisons go in a `table` block, not parallel paragraphs. A card whose children run past ~2 screens splits into two cards. `reference/blocks.md` "Write a card" shows a bad card and its rewrite.
 

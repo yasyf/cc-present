@@ -18,7 +18,7 @@ seq 0 reconstructs a fresh tab's state; there is no get-document endpoint.
 ## Document envelope
 
 ```ts
-Doc = { version: 1, title, intro?, stats?: {label, value}[], submit?: {label, note?}, presentation?: 'focus' | 'board', blocks: Block[] }
+Doc = { version: 1, title, intro?, stats?: {label, value}[], submit?: {label, note?}, presentation?: 'focus' | 'board', sources?: Record<string, string>, blocks: Block[] }
 ```
 
 `blocks` is a flat list of blocks. A `section`, a `card`, any of the built-in
@@ -27,6 +27,11 @@ card nests leaf blocks only.
 
 `presentation` is a per-push hint for the client's default view; the viewer's own
 toggle overrides it.
+
+`sources` maps a lowercase alias (`^[a-z][a-z0-9-]*$`) to a file that markdown
+cites by line number, as `(plan 52, 208)`. A value is a repo path with an
+optional `@<rev>` (default `HEAD`), or an absolute path read from disk. See
+Reference links.
 
 ## Block schema
 
@@ -172,6 +177,36 @@ event payload, a document, a block, or anything nested in one. Each event was
 checked when it was appended, so a board written before a field was removed
 keeps loading. The daemon and the iOS app drop the key from the reduced state;
 the web board leaves it on the block object, where no renderer reads it.
+
+### Reference links
+
+`start --doc`, `push`, `push --dry-run`, and `update-block` rewrite three kinds of
+reference in every markdown field. Those fields are section and markdown `md`,
+card `summary`, option and item `hint` and `md`, detail `md`, table cells, and PR
+`summary`. Fenced code and existing links are left alone.
+
+| Written as | Resolves to |
+|---|---|
+| `` `path/to/file.go:63,86-88` `` with an optional ` @ <sha>` after it | those lines of the file at that commit, `HEAD` when no sha follows |
+| `` `:1034` `` | the same file and commit as the previous cite in the field |
+| `` `path/to/file.go`, `` with a slash and an extension | the file's first 30 lines |
+| a 7–40 hex id inside parentheses, such as `(7c2ceba)` | the cc-notes record with that id, else the commit |
+| `<alias> N, M` inside parentheses, where `alias` is a `sources` key | those lines of the source file |
+
+Each resolved reference becomes a link,
+`[label](<permalink> "ref:<sha256>")`, whose title names a snippet stored in the
+asset store. The label is short: `file.go:63,86-88`, `:1034`, `7c2ceba`, or
+`plan 52`. The permalink is the GitHub blob or commit URL when `origin` is on
+GitHub, and empty otherwise. The board renders the link as a chip that opens the
+permalink in a new tab. Hovering it shows the snippet. Code shows the cited
+lines plus three lines of context, highlighted. A record shows its title, tags,
+date, and body, and a commit its subject, author, and date. A touch tap pins the
+card open, and so does a click on a chip that has no permalink.
+
+A reference that does not resolve stays as written. The CLI lists it on stderr,
+and `--dry-run` lists it after `ok`. The secret checks of Code grounding
+apply to every excerpt, record body, and commit message; a match leaves the
+reference unresolved.
 
 ## Line anchors
 
@@ -403,6 +438,12 @@ The non-color aliases: `--radius-sm`/`--radius-md`/`--radius-lg` are 2px / 4px
 stack; `--track-caps` is 0.1em.
 
 ### Assets
+
+The store holds images and reference snippets. `POST /api/assets` accepts
+`application/octet-stream`, `image/*`, or `application/json`. A JSON body must
+decode exactly into the snippet shape, with a `kind` of `code`, `record`, or
+`commit` and a non-empty `label`. `GET /assets/{sha}` serves a snippet as `application/json` with
+`nosniff`.
 
 > **Warning:** a pack block field must not carry an `asset:` URI. The garbage
 > collector's reference walk does not see pack-defined fields, so an `asset:`
@@ -815,8 +856,9 @@ LAN.
 
 The content-addressed asset store is swept on every `close`. After the
 `present.closed` append and the status flip succeed, the daemon reduces each
-**open** subject's log, collects every `asset:<sha256>` its live document
-references — walking top-level blocks and card children — and deletes every
+**open** subject's log, collects every `asset:<sha256>` image and every
+`ref:<sha256>` snippet its live document references — walking top-level blocks
+and card children — and deletes every
 stored file that is both unreferenced and older than a **15-minute mtime grace
 window**.
 
