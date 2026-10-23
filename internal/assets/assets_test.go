@@ -121,6 +121,7 @@ func TestPutRejectsNonImage(t *testing.T) {
 		{"json that is not a snippet", []byte(`{"kind":"code","label":"a.go:1","script":"x"}`)},
 		{"snippet of unknown kind", []byte(`{"kind":"html","label":"x"}`)},
 		{"snippet without label", []byte(`{"kind":"code"}`)},
+		{"snippet with trailing bytes", []byte(`{"kind":"record","label":"x"}]`)},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

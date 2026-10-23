@@ -7,6 +7,7 @@ import { Clamped } from './Clamped';
 import { DetailDisclosure } from './Detail';
 import { Mark } from './Mark';
 import { RecommendedMark } from './OptionCard';
+import { fromRef } from '../refs';
 
 export function ChoiceGrid({
   options,
@@ -43,11 +44,11 @@ export function ChoiceGrid({
             tabIndex={locked ? -1 : 0}
             className={`option grid-head grid-pick${on(option)}`}
             data-option-id={option.id}
-            onClick={() => {
-              if (!locked) onToggle(i);
+            onClick={(e) => {
+              if (!locked && !fromRef(e)) onToggle(i);
             }}
             onKeyDown={(e) => {
-              if ((e.key === 'Enter' || e.key === ' ') && !e.metaKey && !e.ctrlKey) {
+              if ((e.key === 'Enter' || e.key === ' ') && !e.metaKey && !e.ctrlKey && !fromRef(e)) {
                 e.preventDefault();
                 if (!locked) onToggle(i);
               }

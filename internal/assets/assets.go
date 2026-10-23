@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -66,7 +67,10 @@ func isSnippet(b []byte) bool {
 	dec := json.NewDecoder(bytes.NewReader(b))
 	dec.DisallowUnknownFields()
 	var s Snippet
-	return dec.Decode(&s) == nil && !dec.More() && snippetKinds[s.Kind] && s.Label != ""
+	if dec.Decode(&s) != nil || !errors.Is(dec.Decode(new(json.RawMessage)), io.EOF) {
+		return false
+	}
+	return snippetKinds[s.Kind] && s.Label != ""
 }
 
 // Store is a content-addressed blob store under a directory: each asset is a

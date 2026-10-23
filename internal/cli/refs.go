@@ -4,10 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"os/exec"
 	"path"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -30,8 +32,7 @@ const (
 )
 
 var (
-	fencePattern     = regexp.MustCompile("^ {0,3}(```|~~~)")
-	linkPattern      = regexp.MustCompile(`\[[^\]\n]*\]\([^)\n]*\)`)
+	linkPattern      = regexp.MustCompile(`\[[^\]\n]*\](?:\([^)\n]*\)|\[[^\]\n]*\])`)
 	codeSpanPattern  = regexp.MustCompile("`([^`\n]+)`")
 	citePattern      = regexp.MustCompile(`^([\w.@+-]+(?:/[\w.@+-]+)*)?:(\d+(?:-\d+)?(?:,\d+(?:-\d+)?)*)$`)
 	filePathPattern  = regexp.MustCompile(`^[\w.@+-]+(?:/[\w.@+-]+)+\.\w+$`)
@@ -74,7 +75,6 @@ type sourceFile struct {
 }
 
 type refLinker struct {
-	ctx        context.Context
 	root       string
 	repo       string
 	sources    map[string]string
@@ -122,7 +122,6 @@ func linkRefsWith(
 		return nil, err
 	}
 	l := &refLinker{
-		ctx:      ctx,
 		root:     root,
 		repo:     githubRepo(ctx, root),
 		sources:  sources,
@@ -134,11 +133,11 @@ func linkRefsWith(
 		records:  map[string]*assets.Snippet{},
 		stored:   map[string]string{},
 	}
-	if err := l.prefetchRecords(blocks); err != nil {
+	if err := l.prefetchRecords(ctx, blocks); err != nil {
 		return nil, err
 	}
 	for _, b := range blocks {
-		if err := doc.RewriteMarkdown(b, l.rewrite); err != nil {
+		if err := doc.RewriteMarkdown(b, func(md string) (string, error) { return l.rewrite(ctx, md) }); err != nil {
 			return nil, err
 		}
 	}
@@ -176,11 +175,11 @@ func githubRepo(ctx context.Context, root string) string {
 	return ""
 }
 
-func (l *refLinker) prefetchRecords(blocks []doc.Block) error {
+func (l *refLinker) prefetchRecords(ctx context.Context, blocks []doc.Block) error {
 	var ids []string
 	for _, b := range blocks {
 		doc.VisitMarkdown(b, func(md string) {
-			forEachProseLine(md, func(line string) {
+			proseLines(md, func(_ int, line string) {
 				_, tokens := scanLine(line)
 				for _, t := range tokens {
 					if t.id != "" {
@@ -191,11 +190,11 @@ func (l *refLinker) prefetchRecords(blocks []doc.Block) error {
 		})
 	}
 	var mu sync.Mutex
-	g, ctx := errgroup.WithContext(l.ctx)
+	g, gctx := errgroup.WithContext(ctx)
 	g.SetLimit(refLookupWorkers)
 	for _, id := range dedupe(ids) {
 		g.Go(func() error {
-			s := l.showNote(ctx, l.root, id)
+			s := l.showNote(gctx, l.root, id)
 			mu.Lock()
 			defer mu.Unlock()
 			l.records[id] = s
@@ -207,42 +206,45 @@ func (l *refLinker) prefetchRecords(blocks []doc.Block) error {
 	}
 	for id, s := range l.records {
 		if s == nil {
-			l.records[id] = l.commitRecord(id)
+			l.records[id] = l.commitRecord(ctx, id)
 		}
 	}
 	return nil
 }
 
-func forEachProseLine(md string, fn func(string)) {
-	inFence := false
-	for line := range strings.SplitSeq(md, "\n") {
-		if fencePattern.MatchString(line) {
-			inFence = !inFence
+var fencePattern = regexp.MustCompile("^ {0,3}(`{3,}|~{3,})")
+
+// proseLines calls fn with the index and text of each line of md outside fenced
+// code; a fence closes only on a run of its own character at least as long.
+func proseLines(md string, fn func(int, string)) {
+	open := ""
+	for i, line := range strings.Split(md, "\n") {
+		if m := fencePattern.FindStringSubmatch(line); m != nil {
+			switch {
+			case open == "":
+				open = m[1]
+			case m[1][0] == open[0] && len(m[1]) >= len(open) && strings.TrimSpace(line[len(m[0]):]) == "":
+				open = ""
+			}
 			continue
 		}
-		if !inFence {
-			fn(line)
+		if open == "" {
+			fn(i, line)
 		}
 	}
 }
 
-func (l *refLinker) rewrite(md string) (string, error) {
+func (l *refLinker) rewrite(ctx context.Context, md string) (string, error) {
 	lines := strings.Split(md, "\n")
-	inFence := false
 	var prev *cite
-	for i, line := range lines {
-		if fencePattern.MatchString(line) {
-			inFence = !inFence
-			continue
+	var err error
+	proseLines(md, func(i int, line string) {
+		if err == nil {
+			lines[i], err = l.rewriteLine(ctx, line, &prev)
 		}
-		if inFence {
-			continue
-		}
-		out, err := l.rewriteLine(line, &prev)
-		if err != nil {
-			return "", err
-		}
-		lines[i] = out
+	})
+	if err != nil {
+		return "", err
 	}
 	return strings.Join(lines, "\n"), nil
 }
@@ -252,7 +254,7 @@ type edit struct {
 	text       string
 }
 
-func (l *refLinker) rewriteLine(line string, prev **cite) (string, error) {
+func (l *refLinker) rewriteLine(ctx context.Context, line string, prev **cite) (string, error) {
 	spans, tokens := scanLine(line)
 	var edits []edit
 	for i := range spans {
@@ -270,10 +272,9 @@ func (l *refLinker) rewriteLine(line string, prev **cite) (string, error) {
 			if sp.sha == "" {
 				sp.sha = (*prev).sha
 			}
-		default:
-			*prev = &cite{sp.path, sp.sha}
 		}
-		link, ok, err := l.codeLink(sp, continuation)
+		*prev = &cite{sp.path, sp.sha}
+		link, ok, err := l.codeLink(ctx, sp, continuation)
 		if err != nil {
 			return "", err
 		}
@@ -283,6 +284,7 @@ func (l *refLinker) rewriteLine(line string, prev **cite) (string, error) {
 		}
 		edits = append(edits, edit{sp.start, sp.end, link})
 	}
+	sort.SliceStable(tokens, func(i, j int) bool { return tokens[i].alias != "" && tokens[j].alias == "" })
 	for _, t := range tokens {
 		if t.id != "" {
 			s := l.records[t.id]
@@ -306,7 +308,7 @@ func (l *refLinker) rewriteLine(line string, prev **cite) (string, error) {
 			if i == 0 {
 				label = t.alias + " " + label
 			}
-			s, ok := l.sourceSnippet(t.alias, num, label)
+			s, ok := l.sourceSnippet(ctx, t.alias, num, label)
 			if !ok {
 				l.unresolved = append(l.unresolved, t.alias+" "+line[n[0]:n[1]])
 				continue
@@ -322,8 +324,14 @@ func (l *refLinker) rewriteLine(line string, prev **cite) (string, error) {
 			edits = append(edits, edit{start, n[1], link})
 		}
 	}
-	sort.Slice(edits, func(i, j int) bool { return edits[i].start > edits[j].start })
+	var kept []edit
 	for _, e := range edits {
+		if !slices.ContainsFunc(kept, func(k edit) bool { return e.start < k.end && k.start < e.end }) {
+			kept = append(kept, e)
+		}
+	}
+	sort.Slice(kept, func(i, j int) bool { return kept[i].start > kept[j].start })
+	for _, e := range kept {
 		line = line[:e.start] + e.text + line[e.end:]
 	}
 	return line, nil
@@ -407,11 +415,11 @@ func (l *refLinker) link(s assets.Snippet) (string, error) {
 	return fmt.Sprintf("[%s](<%s> %q)", s.Label, s.URL, doc.RefTitle(sha)), nil
 }
 
-func (l *refLinker) commit(rev string) (string, bool) {
+func (l *refLinker) commit(ctx context.Context, rev string) (string, bool) {
 	if full, ok := l.commits[rev]; ok {
 		return full, full != ""
 	}
-	out, err := runGit(l.ctx, l.root, gitRevParse, "--verify", "--quiet", rev+"^{commit}")
+	out, err := runGit(ctx, l.root, gitRevParse, "--verify", "--quiet", rev+"^{commit}")
 	full := ""
 	if err == nil {
 		full = strings.TrimSpace(string(out))
@@ -420,14 +428,14 @@ func (l *refLinker) commit(rev string) (string, bool) {
 	return full, full != ""
 }
 
-func (l *refLinker) blob(sha, rel string) ([]string, bool) {
+func (l *refLinker) blob(ctx context.Context, sha, rel string) ([]string, bool) {
 	key := sha + ":" + rel
 	if lines, ok := l.blobs[key]; ok {
 		return lines, lines != nil
 	}
 	var lines []string
 	if matchSecret(secretNames, rel) == "" {
-		out, err := runGit(l.ctx, l.root, gitCatFile, "blob", key)
+		out, err := runGit(ctx, l.root, gitCatFile, "blob", key)
 		if err == nil && len(out) <= maxCodeSrcBytes && utf8.Valid(out) {
 			lines = strings.Split(strings.TrimSuffix(string(out), "\n"), "\n")
 		}
@@ -436,16 +444,16 @@ func (l *refLinker) blob(sha, rel string) ([]string, bool) {
 	return lines, lines != nil
 }
 
-func (l *refLinker) codeLink(sp *spanMatch, continuation bool) (string, bool, error) {
+func (l *refLinker) codeLink(ctx context.Context, sp *spanMatch, continuation bool) (string, bool, error) {
 	rev := sp.sha
 	if rev == "" {
 		rev = "HEAD"
 	}
-	full, ok := l.commit(rev)
+	full, ok := l.commit(ctx, rev)
 	if !ok {
 		return "", false, nil
 	}
-	lines, ok := l.blob(full, sp.path)
+	lines, ok := l.blob(ctx, full, sp.path)
 	if !ok {
 		return "", false, nil
 	}
@@ -511,7 +519,11 @@ func (l *refLinker) excerpt(lines []string, spec string, s assets.Snippet) (asse
 }
 
 func blobURL(repo, sha, rel, spec string) string {
-	u := fmt.Sprintf("https://github.com/%s/blob/%s/%s", repo, sha, rel)
+	segs := strings.Split(rel, "/")
+	for i, seg := range segs {
+		segs[i] = url.PathEscape(seg)
+	}
+	u := fmt.Sprintf("https://github.com/%s/blob/%s/%s", repo, sha, strings.Join(segs, "/"))
 	if spec == "" {
 		return u
 	}
@@ -526,25 +538,26 @@ func blobURL(repo, sha, rel, spec string) string {
 	return fmt.Sprintf("%s#L%d-L%d", u, a, b)
 }
 
-func (l *refLinker) source(alias string) (*sourceFile, bool) {
+func (l *refLinker) source(ctx context.Context, alias string) (*sourceFile, bool) {
 	if f, ok := l.files[alias]; ok {
 		return f, f != nil
 	}
-	f := l.loadSource(l.sources[alias])
+	f := l.loadSource(ctx, l.sources[alias])
 	l.files[alias] = f
 	return f, f != nil
 }
 
-func (l *refLinker) loadSource(spec string) *sourceFile {
+func (l *refLinker) loadSource(ctx context.Context, spec string) *sourceFile {
 	if spec == "" {
 		return nil
 	}
 	if filepath.IsAbs(spec) {
-		dir, err := filepath.EvalSymlinks(filepath.Dir(spec))
-		if err != nil {
+		resolved, err := filepath.EvalSymlinks(spec)
+		if err != nil || matchSecret(secretNames, filepath.ToSlash(spec)) != "" || matchSecret(secretNames, filepath.ToSlash(resolved)) != "" {
 			return nil
 		}
-		_, data, err := readCodeSrc(dir, filepath.Base(spec))
+		dir := filepath.Dir(resolved)
+		_, data, err := readCodeSrc(dir, filepath.Base(resolved))
 		if err != nil {
 			return nil
 		}
@@ -554,19 +567,19 @@ func (l *refLinker) loadSource(spec string) *sourceFile {
 	if !found {
 		rev = "HEAD"
 	}
-	full, ok := l.commit(rev)
+	full, ok := l.commit(ctx, rev)
 	if !ok {
 		return nil
 	}
-	lines, ok := l.blob(full, rel)
+	lines, ok := l.blob(ctx, full, rel)
 	if !ok {
 		return nil
 	}
 	return &sourceFile{path: rel, sha: full, lines: lines}
 }
 
-func (l *refLinker) sourceSnippet(alias string, line int, label string) (assets.Snippet, bool) {
-	f, ok := l.source(alias)
+func (l *refLinker) sourceSnippet(ctx context.Context, alias string, line int, label string) (assets.Snippet, bool) {
+	f, ok := l.source(ctx, alias)
 	if !ok {
 		return assets.Snippet{}, false
 	}
@@ -601,12 +614,12 @@ func ccNotesRecord(ctx context.Context, root, id string) *assets.Snippet {
 	}
 }
 
-func (l *refLinker) commitRecord(id string) *assets.Snippet {
-	full, ok := l.commit(id)
+func (l *refLinker) commitRecord(ctx context.Context, id string) *assets.Snippet {
+	full, ok := l.commit(ctx, id)
 	if !ok {
 		return nil
 	}
-	out, err := runGit(l.ctx, l.root, gitCatFile, "commit", full)
+	out, err := runGit(ctx, l.root, gitCatFile, "commit", full)
 	if err != nil {
 		return nil
 	}

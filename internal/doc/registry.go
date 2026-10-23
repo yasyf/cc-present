@@ -191,7 +191,7 @@ func tableMarkdown(t *Table, f func(*string)) {
 	}
 }
 
-var refTitlePattern = regexp.MustCompile(`"ref:([0-9a-f]{64})"\)`)
+var refTitlePattern = regexp.MustCompile(`ref:([0-9a-f]{64})`)
 
 // RefTitle is the link title that marks a markdown link as a resolved reference
 // whose hover snippet is the stored asset sha.

@@ -26,7 +26,11 @@ describe('snapHeight', () => {
     expect(snapHeight([{ top: 100, bottom: 120 }, { top: 120, bottom: 140 }], 100, 1)).toBe(20);
   });
 
-  it('is null when the text fits', () => {
-    expect(snapHeight([{ top: 0, bottom: 20 }, { top: 20, bottom: 40 }], 0, 2)).toBeNull();
+  it('is none when the text fits, even across paragraph gaps', () => {
+    expect(snapHeight([{ top: 0, bottom: 20 }, { top: 40, bottom: 60 }, { top: 80, bottom: 100 }], 0, 3)).toBe('none');
+  });
+
+  it('is null when nothing was measured', () => {
+    expect(snapHeight([], 0, 2)).toBeNull();
   });
 });

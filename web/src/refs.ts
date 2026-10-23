@@ -23,6 +23,10 @@ export interface Snippet {
   date?: string;
 }
 
+export function fromRef(e: { target: EventTarget | null }): boolean {
+  return e.target instanceof Element && e.target.closest('a.ref') !== null;
+}
+
 const snippets = new Map<string, Promise<Snippet>>();
 
 export function loadSnippet(sha: string): Promise<Snippet> {

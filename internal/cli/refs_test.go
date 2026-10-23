@@ -88,9 +88,12 @@ func TestLinkRefsLeavesUnresolvedAndProtectedText(t *testing.T) {
 	md := strings.Join([]string{
 		"missing `go/pool/nope.go:3` and past the end `go/pool/pool.go:999`",
 		"word `open` and a [link `go/pool/pool.go:4`](https://x.test)",
+		"````md",
 		"```",
 		"`go/pool/pool.go:4`",
 		"```",
+		"````",
+		"[`go/pool/pool.go:4`][docs]",
 		"(0deadbe) is not a commit, (plan 2) has no declared source",
 	}, "\n")
 	out, unresolved, _ := linkMarkdown(t, root, nil, md)
@@ -180,5 +183,39 @@ func TestLinkRefsRewritesEveryMarkdownField(t *testing.T) {
 	if got := len(doc.RefShas(dd.Blocks[0])); got != 5 {
 		out, _ := json.Marshal(dd)
 		t.Fatalf("RefShas = %d, want 5 across summary, hint, md, detail, cell: %s", got, out)
+	}
+}
+
+func TestLinkRefsContinuationFollowsLatestSha(t *testing.T) {
+	root, short := refRepo(t)
+	out, unresolved, store := linkMarkdown(t, root, nil, "`go/pool/pool.go:4` @ "+short+", `:6` @ "+short+", `:9`")
+	if len(unresolved) != 0 {
+		t.Fatalf("unresolved = %v", unresolved)
+	}
+	links := linkTitle.FindAllStringSubmatch(out, -1)
+	if len(links) != 3 || store[links[2][3]].Highlight != "9" || store[links[2][3]].Sha != store[links[0][3]].Sha {
+		t.Fatalf("links = %q", links)
+	}
+}
+
+func TestLinkRefsRefusesSecretSourcePaths(t *testing.T) {
+	root, _ := refRepo(t)
+	dir := filepath.Join(t.TempDir(), ".docker")
+	if err := os.MkdirAll(dir, 0o750); err != nil {
+		t.Fatal(err)
+	}
+	cfg := filepath.Join(dir, "config.json")
+	if err := os.WriteFile(cfg, []byte("{}\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	out, unresolved, _ := linkMarkdown(t, root, map[string]string{"cfg": cfg}, "(cfg 1)")
+	if out != "(cfg 1)" || strings.Join(unresolved, "|") != "cfg 1" {
+		t.Fatalf("out = %q unresolved = %q, want the secret-dir source left unresolved", out, unresolved)
+	}
+}
+
+func TestBlobURLEscapesPath(t *testing.T) {
+	if got, want := blobURL("o/r", "abc", "docs/plan#2.md", "3"), "https://github.com/o/r/blob/abc/docs/plan%232.md#L3"; got != want {
+		t.Fatalf("blobURL = %q, want %q", got, want)
 	}
 }
