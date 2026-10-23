@@ -178,6 +178,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `display.system`: a `critical` block that comes first in its group no longer
+  draws its highlight ring through the group's label. The label moves clear of
+  the ring.
+- `display.system`: a printed map shows the full map with every step label,
+  sized to the page. A map in a narrow figure used to print as its names-only
+  glimpse.
+- `display.system`: on a phone, the full-screen map fits its title, groups and
+  blocks to the screen width, stacking the blocks in one column when two do not
+  fit. The title used to run off the right edge.
+- `display.system`: two linkless steps that go opposite ways between the same
+  two blocks draw as two arrows side by side, each label beside its own arrow.
+  They used to share one line.
+- `display.system`: the "waits for step N" caption sits beside its barrier,
+  and the gap between the two blocks widens to make room for it. It could sit
+  about 60 px away.
+- `display.system`: a caption's leader no longer runs through a block or
+  another label, and a link's label keeps off the step arrows drawn beside the
+  link.
+- `display.system`: `audit()` checks the printed layout, a title, group or
+  block cut off when the phone dialog opens, two arrows on one line, a barrier
+  caption far from its barrier, and a leader through a block or label.
 - `display.system`: opening a block whose only parts are in-memory stores
   draws its inside view. It used to compute the layout from an empty column
   list, and the page hung.

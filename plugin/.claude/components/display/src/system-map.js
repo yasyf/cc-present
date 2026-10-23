@@ -81,6 +81,8 @@ const CSS = String.raw`
 .smap-problems ul { margin: 6px 0 0; padding-left: 18px; }
 .smap-dialog { padding: 0; margin: 0; border: 0; width: 100vw; height: 100vh; height: 100dvh; max-width: 100vw; max-height: 100dvh; background: var(--wb-paper, #fbfaf5); overflow: hidden; }
 .smap-dialog::backdrop { background: rgba(20, 22, 26, .5); }
+.smap.printing { break-inside: avoid; }
+.smap.printing > .smap-canvas { max-height: 92vh; }
 .smap-dialog > .smap { height: 100%; grid-template-rows: auto minmax(0, 1fr) auto auto; border-radius: 0; }
 .smap svg text { font-family: var(--hand); fill: var(--wb-ink); }
 .smap svg .t-ink2 { fill: var(--wb-ink-2); }
@@ -283,6 +285,19 @@ const balance = (text, maxW, ty) => {
 };
 
 let fontGen = 0;
+const live = new Set();
+let printFlag = false;
+const printing = () => printFlag || document.documentElement.hasAttribute("data-print") || matchMedia("print").matches;
+let watching = false;
+const watchPrint = () => {
+  if (watching) return;
+  watching = true;
+  const again = () => { for (const b of live) b.refresh(); };
+  new MutationObserver(again).observe(document.documentElement, { attributeFilter: ["data-print"] });
+  matchMedia("print").addEventListener("change", again);
+  addEventListener("beforeprint", () => { printFlag = true; again(); });
+  addEventListener("afterprint", () => { printFlag = false; again(); });
+};
 let fontWait = null;
 const sheet = () => {
   const link = document.querySelector('link[href*="family=Shantell+Sans"]');
@@ -487,7 +502,17 @@ function tracks(routes) {
 
 function placer(hard) {
   const taken = hard.map((r) => ({ ...r }));
-  const free = (r) => taken.every((o) => !(r.x < o.x + o.w && o.x < r.x + r.w && r.y < o.y + o.h && o.y < r.y + r.h));
+  const leads = [];
+  const through = (r, [[x1, y1], [x2, y2]]) => {
+    const n = Math.ceil(Math.hypot(x2 - x1, y2 - y1) / 3);
+    for (let i = 0; i <= n; i++) {
+      const x = x1 + ((x2 - x1) * i) / n;
+      const y = y1 + ((y2 - y1) * i) / n;
+      if (x > r.x && x < r.x + r.w && y > r.y && y < r.y + r.h) return true;
+    }
+    return false;
+  };
+  const free = (r) => taken.every((o) => !(r.x < o.x + o.w && o.x < r.x + r.w && r.y < o.y + o.h && o.y < r.y + r.h)) && !leads.some((l) => through(r, l));
   const crosses = (pts, r) => {
     for (let i = 0; i < pts.length - 1; i++) {
       const [x1, y1] = pts[i];
@@ -519,7 +544,7 @@ function placer(hard) {
         const r = { x: mx + Math.cos(a) * rad - size.w / 2, y: my + Math.sin(a) * rad - size.h / 2, w: size.w, h: size.h };
         if (!free(r)) continue;
         const cost = soft.filter((p) => crosses(p, r)).length;
-        if (strict && ((strict === "clear" && cost) || cuts(lead(r)))) continue;
+        if (strict && ((strict === "clear" && cost) || !lead(r))) continue;
         if (!best || cost < best.cost) best = { r, cost };
       }
       if (best) return best.r;
@@ -553,13 +578,17 @@ function placer(hard) {
     const [p, q] = segs[0] || [pts[0], pts[pts.length - 1]];
     const mx = (p[0] + q[0]) / 2;
     const my = (p[1] + q[1]) / 2;
-    const lead = strict ? (r) => toward(r, p, q) : (r) => tie(r, mx, my);
+    const first = strict ? (r) => toward(r, p, q) : (r) => tie(r, mx, my);
+    const along = (r) => segs.flatMap(([a, b]) => [0.5, 0.3, 0.7, 0.15, 0.85].map((t) => tie(r, a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t))).find((l) => !cuts(l)) || null;
+    const lead = (r) => { const l = first(r); return cuts(l) ? along(r) : l; };
     const clear = spiral(size, mx, my, soft, "clear", 120, lead);
     if (best && !clear) { taken.push(best.r); return { r: best.r, leader: null }; }
     const r = clear || spiral(size, mx, my, soft, "tied", 520, lead) || spiral(size, mx, my, soft);
     if (!r) return null;
+    const leader = lead(r);
     taken.push(r);
-    return { r, leader: lead(r) };
+    if (leader) leads.push(leader);
+    return { r, leader };
   };
   near.around = (size, bx, soft, within) => {
     const opts = [];
@@ -797,6 +826,8 @@ class Board {
     this.full = {};
     this.ready = new Promise((r) => { this.markReady = r; });
     this.interactions();
+    live.add(this);
+    watchPrint();
     this.ro = new ResizeObserver(() => {
       const r = this.canvas.getBoundingClientRect();
       const k = `${Math.round(r.width)}x${o.dialog ? Math.round(r.height) : 0}`;
@@ -1079,6 +1110,18 @@ class Board {
         if (Math.abs(ia - ib) === 1) sgap[list[Math.max(ia, ib)]] = Math.max(sgap[list[Math.max(ia, ib)]] || 0, sh + 16);
       }
     }
+    if (!compact) for (const n of this.SM.free) {
+      const s = B.spine.steps[n];
+      if (!s.waitsFor) continue;
+      if (gy[s.from] === gy[s.to] && Math.abs(gx[s.from] - gx[s.to]) === 1) {
+        const i = Math.min(gx[s.from], gx[s.to]);
+        gut[i] = Math.max(gut[i], (this.waitSize(s.waitsFor, 80).w + 14) / 0.7);
+      }
+      if (gx[s.from] === gx[s.to] && Math.abs(gy[s.from] - gy[s.to]) === 1) {
+        const j = Math.min(gy[s.from], gy[s.to]);
+        rgap[j] = Math.max(rgap[j], (tall ? LY.phoneRowGap : LY.rowGap) + 60);
+      }
+    }
     const stackGap = (id, i) => (i === 0 ? 0 : Math.max(LY.stack, sgap[id] || 0));
     const stackH = (list) => list.reduce((s, id, i) => s + h[id] + stackGap(id, i), 0);
     const off = {};
@@ -1141,7 +1184,7 @@ class Board {
       if (parts.length) frames.push({ f, rect: union(parts) });
     }
     frames.sort((a, b) => (a.f.scope === "machine" ? 0 : 1) - (b.f.scope === "machine" ? 0 : 1));
-    const fixed = [...Object.values(box).map((r) => grow(r, 2)), ...B.blocks.map((b) => this.marksZone(b.id, box[b.id])).filter(Boolean), { x: left, y: thesisTop, w: width, h: thesisBottom - thesisTop + 8 }];
+    const fixed = [...B.blocks.map((b) => grow(box[b.id], b.critical && !compact ? 14 : 2)),...B.blocks.map((b) => this.marksZone(b.id, box[b.id])).filter(Boolean), { x: left, y: thesisTop, w: width, h: thesisBottom - thesisTop + 8 }];
     const busy = [...fixed];
     for (const fr of frames) {
       const w = measure(fr.f.label, this.ty.frame) + 10;
@@ -1173,7 +1216,7 @@ class Board {
     } else if (showLanes) {
       for (let j = 0; j < ny; j++) lanes.push({ text: B.lanes[rowLane[j]], x: LY.margin - 6, y: rowY[j], h: rowH[j], vertical: true });
     }
-    const all = [...Object.values(box), ...frames.flatMap((fr) => (fr.label ? [fr.rect, fr.label] : [fr.rect])), ...(thesis.length ? [{ x: left, y: thesisTop, w: width, h: thesisBottom - thesisTop }] : [])];
+    const all = [...Object.values(box), ...frames.flatMap((fr) => (fr.label ? [fr.rect, fr.label] : [fr.rect])), ...(thesis.length ? [{ x: left, y: thesisTop, w: Math.max(width, ...thesis.map((ln) => measure(ln, this.ty.thesis) + 6)), h: thesisBottom - thesisTop }] : [])];
     const ext = union(all);
     const vg = [colX[0] - 40, ...colX.slice(0, -1).map((cx, i) => cx + colW[i] + gut[i] / 2), right + 40];
     const hg = [topY - 26, ...rowY.slice(0, -1).map((ry, j) => ry + rowH[j] + rgap[j] / 2), bottom + 40];
@@ -1747,7 +1790,7 @@ class Board {
     this.B.spine.steps.forEach((s, i) => { if (this.bars[i]) this.drawWait(i, s.waitsFor); });
   }
 
-  waitBar(i) {
+  waitBar(i, n) {
     const li = Object.keys(this.SM.on).find((k) => this.SM.on[k].includes(i));
     const [p, q] = this.railPts[i] || this.loosePts[i] || this.routes[li].pts;
     const horiz = Math.abs(p[1] - q[1]) < Math.abs(p[0] - q[0]);
@@ -1758,15 +1801,30 @@ class Board {
     };
     const hard = this.obstacles();
     const cost = (x) => hard.reduce((k, o) => k + area(grow(x.bar, 2), o), 0);
-    const opts = [0.3, 0.2, 0.42, 0.12, 0.55, 0.65].map(barAt);
-    const pick = opts.find((x) => this.place.free(grow(x.bar, 6))) || opts.reduce((a, b) => (cost(b) < cost(a) ? b : a));
+    const opts = [0.3, 0.2, 0.42, 0.12, 0.55, 0.65].map(barAt).filter((x) => this.place.free(grow(x.bar, 6)));
+    const soft = [...this.routes.filter(Boolean).map((r) => r.pts), ...Object.values(this.railPts), ...Object.values(this.loosePts)];
+    const clear = (r) => !soft.some((pts) => this.crossesRect(pts, r));
+    const sizes = [this.waitSize(n, 140), this.waitSize(n, 80)];
+    const beside = ({ cx, cy, bar }, z) => (horiz
+      ? [[bar.x + bar.w + 3, cy - z.h - 3], [bar.x + bar.w + 3, cy + 3], [bar.x - z.w - 3, cy - z.h - 3], [bar.x - z.w - 3, cy + 3], [cx - z.w / 2, bar.y - z.h - 2], [cx - z.w / 2, bar.y + bar.h + 2]]
+      : [[bar.x + bar.w + 4, cy - z.h / 2], [bar.x - z.w - 4, cy - z.h / 2], [cx + 3, bar.y - z.h - 2], [cx + 3, bar.y + bar.h + 2]]
+    ).map(([x, y]) => ({ x, y, w: z.w, h: z.h }));
+    const snug = [true, false].flatMap((strict) => opts.flatMap((x) => sizes.flatMap((z) => beside(x, z).filter((r) => this.place.free(r) && (!strict || clear(r))).map((r) => ({ x, r, z })))))[0];
+    const pick = snug ? snug.x : opts[0] || [0.3, 0.2, 0.42, 0.12, 0.55, 0.65].map(barAt).reduce((a, b) => (cost(b) < cost(a) ? b : a));
     this.place.add(grow(pick.bar, 3));
     this.checks[`bar${i}`] = grow(pick.bar, 3);
-    return { ...pick, horiz };
+    const cap = snug ? { r: snug.r, z: snug.z } : { r: this.place.around(sizes[0], grow(pick.bar, 4), soft), z: sizes[0] };
+    if (snug) this.place.add(cap.r);
+    if (cap.r) this.checks[`lab${i}`] = cap.r;
+    return { ...pick, horiz, cap };
+  }
+
+  waitSize(n, w) {
+    return this.rowsOf([{ text: `waits for step ${n}` }], { size: 14, weight: 600, lh: 17 }, w);
   }
 
   drawWait(i, n) {
-    const { cx, cy, bar, horiz } = this.bars[i];
+    const { cx, cy, bar, horiz, cap } = this.bars[i];
     const g = this.el("g", { class: "ack", "data-step": i }, this.layers.spine);
     this.el("title", {}, g).textContent = `Step ${i + 1} waits here until step ${n} is done`;
     this.el("rect", { class: "paper", x: bar.x, y: bar.y, width: bar.w, height: bar.h }, g);
@@ -1777,15 +1835,11 @@ class Board {
       else this.R("k-red", this.rc.line(bar.x + bar.w * k - 3, bar.y, bar.x + bar.w * k + 3, bar.y + bar.h, this.O({ strokeWidth: 2.2, roughness: 0.4 })), g);
     }
     this.el("circle", { cx: horiz ? cx : bar.x, cy: horiz ? bar.y : cy, r: 4, class: "disc stop" }, g);
-    const size = this.rowsOf([{ text: `waits for step ${n}` }], { size: 14, weight: 600, lh: 17 }, 140);
-    const spot = this.place.around(size, grow(bar, 4), [...this.leads, ...this.routes.filter(Boolean).map((r) => r.pts), ...Object.values(this.railPts), ...Object.values(this.loosePts)]);
-    if (spot) {
-      const lab = this.el("g", { class: "ack-lab" }, g);
-      this.drawRows(lab, spot, size, "plain");
-      lab.querySelectorAll("text").forEach((x) => x.setAttribute("class", "t-red halo"));
-      this.checks[`lab${i}`] = spot;
-      this.placed.push(spot);
-    }
+    if (!cap.r) return;
+    const lab = this.el("g", { class: "ack-lab" }, g);
+    this.drawRows(lab, cap.r, cap.z, "plain");
+    lab.querySelectorAll("text").forEach((x) => x.setAttribute("class", "t-red halo"));
+    this.placed.push(cap.r);
   }
 
   drawLinks() {
@@ -1806,15 +1860,16 @@ class Board {
     const leader = (g, spot, cls) => {
       if (!spot || !spot.leader) return;
       this.leads.push(spot.leader);
-      this.R(cls || "k-ink3", this.rc.line(spot.leader[0][0], spot.leader[0][1], spot.leader[1][0], spot.leader[1][1], this.O({ strokeWidth: 1.1, roughness: 0.4, strokeLineDash: [3, 4] })), g);
+      this.R(`${cls || "k-ink3"} lead`, this.rc.line(spot.leader[0][0], spot.leader[0][1], spot.leader[1][0], spot.leader[1][1], this.O({ strokeWidth: 1.1, roughness: 0.4, strokeLineDash: [3, 4] })), g);
     };
     this.leader = leader;
     this.railPts = {};
     for (const rl of this.SM.rails) this.railPts[rl.i] = offsetLine([...this.routes[rl.link].pts].reverse(), -13);
     this.loosePts = {};
-    for (const n of this.SM.free) { const s = B.spine.steps[n]; if (s.from !== s.to) this.loosePts[n] = this.go(s.from, s.to, this.taken).pts; }
+    for (const n of this.SM.free) { const s = B.spine.steps[n]; if (s.from !== s.to) this.loosePts[n] = this.loose(s.from, s.to, B.spine.steps).pts; }
+    soft.push(...Object.values(this.railPts), ...Object.values(this.loosePts));
     this.bars = {};
-    if (!this.o.compact) B.spine.steps.forEach((s, i) => { if (s.waitsFor) this.bars[i] = this.waitBar(i); });
+    if (!this.o.compact) B.spine.steps.forEach((s, i) => { if (s.waitsFor) this.bars[i] = this.waitBar(i, s.waitsFor); });
     this.drawCallouts();
     const order = B.links.map((l, i) => i).sort((a, b) => (this.SM.on[b] ? 1 : 0) - (this.SM.on[a] ? 1 : 0) || (this.rec.has(a) ? 1 : 0) - (this.rec.has(b) ? 1 : 0) || a - b);
     for (const i of order) {
@@ -1857,7 +1912,7 @@ class Board {
       const s = B.spine.steps[n];
       const g = this.el("g", { class: "step", "data-step": n }, sp);
       this.seed = hash(`spine-free-${n}`);
-      this.drawLoose(g, s, "marker", false, TY.step, n, this.el("g", { class: "step", "data-step": n }, this.layers.spineRing), place);
+      this.drawLoose(g, s, B.spine.steps, "marker", false, TY.step, n, this.el("g", { class: "step", "data-step": n }, this.layers.spineRing), place, soft);
       this.wireStep(g, n, null);
     }
   }
@@ -1870,7 +1925,14 @@ class Board {
     g.addEventListener("click", (ev) => { if (this.dragMoved) return; ev.stopPropagation(); this.pickStep(n, p ? p.id : null); });
   }
 
-  drawLoose(g, s, tone, dashed, ty, n, under, place, soft = []) {
+  loose(a, b, steps) {
+    if (!steps.some((x) => x.from === b && x.to === a)) return this.go(a, b, this.taken);
+    const [p, q] = [a, b].sort();
+    const pts = this.go(p, q, this.taken).pts;
+    return { pts: offsetLine(p === a ? pts : [...pts].reverse(), 9) };
+  }
+
+  drawLoose(g, s, steps, tone, dashed, ty, n, under, place, soft = []) {
     const size = this.rowsOf([{ n, text: s.say, tone }], ty);
     const lab = this.el("g", { class: "step", "data-step": n });
     const cls = tone === "red" ? "k-red" : tone === "ink2" ? "k-ink2" : "k-marker";
@@ -1904,10 +1966,10 @@ class Board {
       g.append(lab);
       return lab;
     }
-    const route = this.go(s.from, s.to, this.taken);
+    const route = this.loose(s.from, s.to, steps);
     const hl = this.el("g", { class: "hl" }, g);
     this.R("k-hl", this.rc.path(this.arrowPath(route.pts), this.O({ strokeWidth: 12, roughness: 0.5 })), hl);
-    this.drawArrow(g, route.pts, 2.6, dashed ? [11, 8] : null, "fill", cls, cls.replace("k-", "fh-"));
+    this.drawArrow(this.el("g", { class: "loose" }, g), route.pts, 2.6, dashed ? [11, 8] : null, "fill", cls, cls.replace("k-", "fh-"));
     const spot = place(size, route.pts, [...soft, route.pts], soft.length > 0);
     if (spot) { this.leader(lab, spot, cls); this.drawRows(lab, spot.r, size, mode); this.placed.push(spot.r); }
     g.append(lab);
@@ -1944,7 +2006,7 @@ class Board {
 
   drawCallouts() {
     if (this.o.compact) return;
-    const loose = [...this.B.paths.flatMap((p) => p.steps), ...this.B.spine.steps].filter((s) => s.from !== s.to && this.linkFor(s.from, s.to) < 0).map((s) => this.go(s.from, s.to, this.taken).pts);
+    const loose = [...this.B.paths.map((p) => p.steps), this.B.spine.steps].flatMap((steps) => steps.filter((s) => s.from !== s.to && this.linkFor(s.from, s.to) < 0).map((s) => this.loose(s.from, s.to, steps).pts));
     const soft = [...this.routes.filter(Boolean).map((x) => x.pts), ...Object.values(this.railPts), ...loose];
     (this.B.callouts || []).forEach((c) => {
       const r = this.G.box[c.block];
@@ -1980,6 +2042,7 @@ class Board {
     const onLink = {};
     p.steps.forEach((s, i) => { if (s.from !== s.to) { const li = this.linkFor(s.from, s.to); if (li >= 0) (onLink[li] = onLink[li] || []).push(i); } });
     const lines = this.routes.filter(Boolean).map((r) => r.pts);
+    const loose = p.steps.map((s) => (s.from !== s.to && this.linkFor(s.from, s.to) < 0 ? this.loose(s.from, s.to, p.steps).pts : null));
     const tags = [];
     const done = new Set();
     p.steps.forEach((s, i) => {
@@ -1988,7 +2051,7 @@ class Board {
       this.seed = hash(`path-${p.id}-${i}`);
       const g = this.el("g", { class: "step", "data-step": i }, layer);
       if (li < 0) {
-        const lab = this.drawLoose(g, s, tone, !!s.risk, TY.step, i, this.el("g", { class: "step", "data-step": i }, this.layers.pathRing), place, lines);
+        const lab = this.drawLoose(g, s, p.steps, tone, !!s.risk, TY.step, i, this.el("g", { class: "step", "data-step": i }, this.layers.pathRing), place, [...lines, ...loose.filter((x, k) => x && k !== i)]);
         if (s.stop) { const at = this.boxOf(g); this.octagon(g, at.x - 12, at.y + 11); }
         this.wireStep(lab, i, p);
         tags.push(lab);
@@ -2646,7 +2709,9 @@ class Board {
     let lay = cw < TALL_AT ? "tall" : "wide";
     let compact = false;
     let stack = false;
-    if (!this.o.dialog) {
+    const print = !this.o.dialog && printing();
+    if (this.o.dialog && lay === "tall") stack = cw / this.sizeOf("tall", false, false).w < READ;
+    if (!this.o.dialog && !print) {
       const mh = this.maxH();
       const f = this.sizeOf(lay, false, false);
       compact = Math.min(cw / f.w, mh / f.h) < READ;
@@ -2664,13 +2729,14 @@ class Board {
       this.key = null;
     }
     this.root.classList.toggle("compact", compact);
+    this.root.classList.toggle("printing", print);
     if (this.layoutKey(lay, compact, stack) !== this.key) this.lay(lay, compact, stack);
     this.renderChips();
     this.renderCrumbs();
     this.renderReadout();
-    if (!this.o.dialog) this.sizeCanvas();
+    if (!this.o.dialog) this.sizeCanvas(print);
     cancelAnimationFrame(this.anim);
-    this.setVB(this.st.shape && this.inBox ? this.focusBox() : this.home());
+    this.setVB(print ? this.fitBox() : this.st.shape && this.inBox ? this.focusBox() : this.home());
     if (this.settled) this.markReady();
   }
 
@@ -2710,11 +2776,13 @@ class Board {
     return h;
   }
 
-  sizeCanvas() {
+  sizeCanvas(print) {
     const e = this.G.ext;
     const m = this.o.compact ? 40 : 32;
     const w = e.w + m * 2;
     const h = e.h + m * 2;
+    this.canvas.style.aspectRatio = print ? `${Math.round(w)} / ${Math.round(h)}` : "";
+    if (print) { this.canvas.style.height = "auto"; return; }
     const cw = this.canvas.getBoundingClientRect().width;
     this.canvas.style.height = `${Math.round(Math.min(this.maxH(), (cw * h) / w, h * 1.25))}px`;
   }
@@ -2736,13 +2804,17 @@ class Board {
     const box = { x: E.x - m, y: E.y - m, w: E.w + m * 2, h: E.h + m * 2 };
     const fit = Math.min(1.25, r.width / box.w, r.height / box.h);
     if (fit >= READ) return this.center(box, fit);
-    const k = this.st.layout === "tall" ? clamp(r.width / box.w, READ, 1.25) : READ;
+    const tall = this.st.layout === "tall";
+    const t = this.G.thesis;
+    const core = grow(this.union([...Object.values(this.G.box), ...this.G.frames.map((f) => f.rect), ...(t.lines.length ? [{ x: t.x, y: t.y, w: Math.max(...t.lines.map((ln) => measure(ln, this.ty.thesis))), h: t.lines.length * this.ty.thesis.lh }] : [])]), m);
+    const span = r.width / box.w >= READ ? box : core;
+    const k = tall ? Math.min(r.width / span.w, 1.25) : READ;
     const w = r.width / k;
     const h = r.height / k;
     if (sb && (sb.w + m * 2 > w || sb.h + m * 2 > h)) return this.fitAspect(grow(sb, m));
     const at = (v, lo, hi) => (hi < lo ? (lo + hi) / 2 : clamp(v, lo, hi));
     return {
-      x: at(sb ? sb.x + sb.w / 2 - w / 2 : box.x, box.x, box.x + box.w - w),
+      x: tall && !sb ? span.x + span.w / 2 - w / 2 : at(sb ? sb.x + sb.w / 2 - w / 2 : box.x, box.x, box.x + box.w - w),
       y: at(sb ? sb.y + sb.h / 2 - h / 2 : box.y, box.y, box.y + box.h - h),
       w,
       h,
@@ -3174,6 +3246,53 @@ class Board {
       .map(([id, s]) => `block "${this.K[id].name}" is drawn as "${s}", a word broken across lines`);
   }
 
+  doubled() {
+    const lines = [...this.svg.querySelectorAll(".overview .loose")].filter((g) => g.getClientRects().length && !g.closest(".gone")).map((g) => {
+      const p = g.querySelector("path");
+      const L = p.getTotalLength();
+      const pts = [];
+      for (let s = 0; s <= L; s += 3) pts.push(p.getPointAtLength(s));
+      return { n: Number(g.closest(".step").dataset.step) + 1, pts };
+    });
+    const out = [];
+    lines.forEach((a, i) => {
+      for (const b of lines.slice(i + 1)) {
+        const near = a.pts.filter((q) => b.pts.some((r) => Math.hypot(q.x - r.x, q.y - r.y) < 5)).length;
+        if (near > a.pts.length * 0.3) out.push(`steps ${Math.min(a.n, b.n)} and ${Math.max(a.n, b.n)} draw on one line`);
+      }
+    });
+    return out;
+  }
+
+  farWaits() {
+    return [...this.svg.querySelectorAll(".overview .ack")].filter((g) => g.getClientRects().length && !g.closest(".gone") && g.querySelector(".ack-lab")).flatMap((g) => {
+      const bar = g.querySelector("rect.paper").getBBox();
+      const lab = g.querySelector(".ack-lab").getBBox();
+      const gap = Math.hypot(Math.max(0, bar.x - lab.x - lab.width, lab.x - bar.x - bar.width), Math.max(0, bar.y - lab.y - lab.height, lab.y - bar.y - bar.height));
+      return gap > 16 ? [`the caption "${g.querySelector(".ack-lab").textContent}" sits ${Math.round(gap)} px from its barrier`] : [];
+    });
+  }
+
+  cutLeads() {
+    const shown = (e) => e.getClientRects().length && !e.closest(".gone");
+    const texts = [...this.svg.querySelectorAll(".overview text")].filter((t) => t.textContent.trim() && shown(t)).map((t) => [t, grow(this.boxOf(t), -1)]);
+    const blocks = [...this.svg.querySelectorAll(".overview .block")].map((g) => [g, grow(this.boxOf(g.querySelector("rect.hit")), -10)]);
+    const out = [];
+    for (const lead of this.svg.querySelectorAll(".overview .lead")) {
+      if (!shown(lead)) continue;
+      const own = lead.parentNode;
+      const p = lead.querySelector("path");
+      const L = p.getTotalLength();
+      const pts = [];
+      for (let d = 0; d <= L; d += 2) pts.push(p.getPointAtLength(d));
+      const say = own.textContent.trim().slice(0, 32);
+      const through = (r) => pts.filter((q) => q.x > r.x && q.x < r.x + r.w && q.y > r.y && q.y < r.y + r.h).length >= 2;
+      for (const [g, r] of blocks) if (through(r)) out.push(`the leader to "${say}" runs through block "${this.nameOf(g.dataset.block)}"`);
+      for (const [t, r] of texts) if (!own.contains(t) && !t.closest(".block") && through(r)) out.push(`the leader to "${say}" runs through "${t.textContent.trim().slice(0, 32)}"`);
+    }
+    return [...new Set(out)];
+  }
+
   orphans() {
     const art = this.svg.querySelector(".inside-art");
     const ends = new Set([...art.querySelectorAll(".edge")].flatMap((e) => [e.dataset.a, e.dataset.b]));
@@ -3187,6 +3306,8 @@ class Board {
     const off = (b) => b.left < s.left - 2 || b.right > s.right + 2 || (!tall && (b.top < s.top - 2 || b.bottom > s.bottom + 2));
     for (const g of this.svg.querySelectorAll(".overview .block")) if (off(g.getBoundingClientRect())) out.push(`block "${this.nameOf(g.dataset.block)}" is off screen when the map opens`);
     for (const g of this.svg.querySelectorAll(".overview > g > .frame")) if (off(g.getBoundingClientRect())) out.push(`group "${this.F[g.dataset.frame].label}" is off screen when the map opens`);
+    const title = this.svg.querySelector(".overview .thesis");
+    if (title && off(title.getBoundingClientRect())) out.push(`the title "${this.B.thesis.slice(0, 32)}" is cut off when the map opens`);
     if (this.st.story && off(this.layers.path.getBoundingClientRect())) out.push(`story "${this.st.story}" is not fully in view when the map opens`);
     return [...new Set(out)];
   }
@@ -3203,7 +3324,12 @@ class Board {
       for (const [k, px] of Object.entries(want)) if (m.font[k] < px) add("font", `${k} text renders at ${m.font[k].toFixed(1)} px, want at least ${px}`);
     }
     if (inside) for (const id of this.orphans()) add("orphan", `part "${this.labelOf(id)}" has no arrow to anything inside the view`);
-    else for (const t of this.brokenNames()) add("name", t);
+    else {
+      for (const t of this.brokenNames()) add("name", t);
+      for (const t of this.doubled()) add("overlap", t);
+      for (const t of this.cutLeads()) add("cover", t);
+      for (const t of this.farWaits()) add("caption", t);
+    }
     if (o.fit && !inside) for (const t of this.offScreen()) add("fit", t);
     return out;
   }
@@ -3224,6 +3350,7 @@ class Board {
 
   destroy() {
     this.gone = true;
+    live.delete(this);
     this.ro.disconnect();
     clearTimeout(this.rz);
     cancelAnimationFrame(this.anim);
@@ -3295,11 +3422,19 @@ export function mount(host, map, opts) {
         const d = await open({});
         d.root.classList.add("still");
         await d.reset();
-        out.push(...d.check("dialog home", { home: true }), ...(await d.walk("dialog ")));
+        out.push(...d.check("dialog home", { home: true, fit: d.st.layout === "tall" }), ...(await d.walk("dialog ")));
         d.root.classList.remove("still");
         close();
       }
       await b.reset();
+      printFlag = true;
+      b.refresh();
+      await frames(2);
+      if (b.o.compact) out.push({ view: "print", rule: "print", text: "the map prints as its names-only glimpse, without its step labels" });
+      else out.push(...b.check("print", {}));
+      printFlag = false;
+      b.refresh();
+      await frames(2);
     }
     b.root.classList.remove("still");
     return out;
