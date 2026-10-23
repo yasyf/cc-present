@@ -47,6 +47,7 @@ func NewRootCmd() *cobra.Command {
 		newRemoveBlockCmd(d),
 		newReplyCmd(d),
 		newAskCmd(d),
+		newSendCmd(d),
 		newSlackSyncCmd(d),
 		newRoundCmd(d),
 		newRevisingCmd(d),
