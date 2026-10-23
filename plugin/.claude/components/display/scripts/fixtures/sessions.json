@@ -1,0 +1,53 @@
+{
+  "id": "sessions-map",
+  "type": "display.system",
+  "title": "A page renders only after the visit is written, and sessions live in memory",
+  "groups": [
+    { "id": "vm", "kind": "machine", "label": "Web VM" },
+    { "id": "web-proc", "kind": "process", "label": "web process", "in": "vm" }
+  ],
+  "blocks": [
+    { "id": "browser", "kind": "actor", "name": "Browser", "role": "Sends the session cookie" },
+    {
+      "id": "web",
+      "kind": "service",
+      "name": "Web server",
+      "role": "Checks the session, then renders",
+      "group": "web-proc",
+      "parts": [{ "id": "handler", "shape": "api", "name": "Page handler", "role": "Reads the cookie" }]
+    },
+    {
+      "id": "sessions",
+      "kind": "service",
+      "name": "Session cache",
+      "role": "Holds live sessions",
+      "group": "vm",
+      "parts": [{ "id": "table", "shape": "store", "medium": "memory", "tag": "RAM", "name": "Session table", "role": "Cookie to user id" }]
+    },
+    { "id": "db", "kind": "store", "medium": "disk", "tag": "Postgres", "name": "User database", "role": "Every account and visit", "critical": true }
+  ],
+  "links": [
+    { "from": "handler", "to": "table", "label": "look up cookie" },
+    { "from": "table", "to": "db", "style": "async", "label": "load on a miss" }
+  ],
+  "path": {
+    "title": "A page view",
+    "steps": [
+      { "from": "browser", "to": "web", "say": "send the cookie" },
+      { "from": "web", "to": "db", "say": "write the visit" },
+      { "from": "web", "to": "browser", "say": "render the page", "waitsFor": 2 }
+    ]
+  },
+  "stories": [
+    {
+      "id": "miss",
+      "label": "A cache miss",
+      "title": "The session is not in memory yet",
+      "steps": [
+        { "from": "handler", "to": "table", "say": "cookie not found" },
+        { "from": "table", "to": "db", "say": "load the session row" }
+      ]
+    }
+  ],
+  "start": { "story": "miss" }
+}

@@ -262,7 +262,7 @@ Link styles: `sync` means the caller waits (solid line, filled head). `async` is
 5. Every part appears in at least one link or step.
 6. No link joins a block to itself or to one of its own parts.
 7. At most 12 overview arrows remain after roll-up.
-8. `waitsFor` names an earlier main-path step, `mark` appears only in stories, and story ids and labels are unique.
+8. `waitsFor` names an earlier main-path step and sits on a step between two blocks, `mark` appears only in stories, and story ids and labels are unique.
 
 Semantic mistakes, such as an unknown id, an unlinked part or a process
 outside a machine, do not fail `push --dry-run`. They show as a red list in
