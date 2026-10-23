@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `cc-present send` cuts a card title over 140 characters to 139 and an ellipsis on its Slack card, so a long question no longer fails, and prints `sent: <id> ts=<ts> <permalink>` or `failed: <id>: <error>` for each card.
 - `cc-present ask` carries a card's markdown blocks into the Slack card's body, with their links as Slack links, so a question whose context runs to several lines reads the same on both surfaces.
 
 ### Added

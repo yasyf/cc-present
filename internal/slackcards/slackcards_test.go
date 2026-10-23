@@ -168,3 +168,22 @@ func TestStruckContextStaysOffTheSlackCard(t *testing.T) {
 		t.Fatalf("ToSlack body = %q, want only the live context", got)
 	}
 }
+
+func TestALongTitleReachesSlackCutTo140CharactersWithAnEllipsis(t *testing.T) {
+	ok := `{"id":"o1","label":"Merge","recommended":true}`
+	long := card(t, askCard(ok))
+	long.Title = "“" + strings.Repeat("é", 200) + "” right?"
+	ch, err := slackcards.Check(long)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := slackcards.ToSlack(long, ch).Title
+	if n := len([]rune(got)); n != 140 || !strings.HasSuffix(got, "…") || !strings.HasPrefix(got, "“éé") {
+		t.Fatalf("a 209-character title reached Slack as %d characters: %q", n, got)
+	}
+	exact := card(t, askCard(ok))
+	exact.Title = strings.Repeat("a", 140)
+	if got := slackcards.ToSlack(exact, ch).Title; got != exact.Title {
+		t.Fatalf("a 140-character title changed to %q", got)
+	}
+}

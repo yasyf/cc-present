@@ -56,7 +56,7 @@ func newAskCmd(d cmd.Deps) *cobra.Command {
 			}
 			defer func() { _ = cl.CloseSession() }()
 			sess, pid := artifactWindow(d, session)
-			res, err := mirror(ctx, cl, board{sess, mustCwd(cwd), pid}, card, ch, ts)
+			res, _, err := mirror(ctx, cl, board{sess, mustCwd(cwd), pid}, card, ch, ts)
 			if err != nil {
 				return err
 			}
@@ -116,13 +116,14 @@ func newSendCmd(d cmd.Deps) *cobra.Command {
 			var res ccdaemon.StartResult
 			var errs []error
 			for _, q := range questions {
-				r, err := mirror(ctx, cl, b, q.card, q.choice, ts)
+				r, posted, err := mirror(ctx, cl, b, q.card, q.choice, ts)
 				if err != nil {
 					errs = append(errs, err)
+					_, _ = fmt.Fprintf(c.OutOrStdout(), "failed: %s: %v\n", q.card.ID, err)
 					continue
 				}
 				res = r
-				_, _ = fmt.Fprintf(c.OutOrStdout(), "slack: %s %s\n", q.card.ID, q.card.Slack.URL)
+				_, _ = fmt.Fprintf(c.OutOrStdout(), "sent: %s ts=%s %s\n", q.card.ID, posted, q.card.Slack.URL)
 			}
 			if res.URL != "" {
 				printBoard(c.OutOrStdout(), res)
@@ -215,10 +216,10 @@ func answered(sel state.Selection) bool {
 	return len(sel.OptionIDs) > 0 || sel.Other != ""
 }
 
-func mirror(ctx context.Context, cl *ccdaemon.Client, b board, card *doc.Card, ch *doc.Choice, ts string) (ccdaemon.StartResult, error) {
+func mirror(ctx context.Context, cl *ccdaemon.Client, b board, card *doc.Card, ch *doc.Choice, ts string) (ccdaemon.StartResult, string, error) {
 	sc, err := json.Marshal(slackcards.ToSlack(card, ch))
 	if err != nil {
-		return ccdaemon.StartResult{}, err
+		return ccdaemon.StartResult{}, "", err
 	}
 	args := []string{"dm-status", "--card", string(sc), "--mirrored", "--session", b.session}
 	if ts != "" {
@@ -226,24 +227,25 @@ func mirror(ctx context.Context, cl *ccdaemon.Client, b board, card *doc.Card, c
 	}
 	out, err := slackcards.CCSlack(ctx, args...)
 	if err != nil {
-		return ccdaemon.StartResult{}, fmt.Errorf("card %q: %w", card.ID, err)
+		return ccdaemon.StartResult{}, "", fmt.Errorf("card %q: %w", card.ID, err)
 	}
 	var posted struct {
 		Permalink string `json:"permalink"`
+		TS        string `json:"ts"`
 	}
 	if err := json.Unmarshal(out, &posted); err != nil || posted.Permalink == "" {
-		return ccdaemon.StartResult{}, fmt.Errorf("cc-slack posted card %q but returned no permalink: %s", card.ID, out)
+		return ccdaemon.StartResult{}, "", fmt.Errorf("cc-slack posted card %q but returned no permalink: %s", card.ID, out)
 	}
 	card.Slack = &doc.CardSlack{URL: posted.Permalink}
 	blockJSON, err := json.Marshal(card)
 	if err != nil {
-		return ccdaemon.StartResult{}, err
+		return ccdaemon.StartResult{}, "", err
 	}
 	res, err := cl.SlackCard(ctx, b.session, b.scope, b.pid, blockJSON)
 	if err != nil {
-		return ccdaemon.StartResult{}, fmt.Errorf("card %q is posted in Slack at %s but not on the board: %w", card.ID, posted.Permalink, err)
+		return ccdaemon.StartResult{}, "", fmt.Errorf("card %q is posted in Slack at %s but not on the board: %w", card.ID, posted.Permalink, err)
 	}
-	return res, nil
+	return res, posted.TS, nil
 }
 
 func printBoard(w io.Writer, res ccdaemon.StartResult) {

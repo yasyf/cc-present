@@ -816,7 +816,9 @@ surfaces follow the same rules, which `cc-present ask` and the `slack-card`
 op enforce:
 
 - The id is 1 to 64 letters, digits, dots, colons, underscores, or hyphens.
-- The title is the question, 1 to 140 characters.
+- The title is the question. Slack shows at most 140 characters of it, so a
+  longer title reaches Slack cut to 139 characters and an ellipsis; the board
+  keeps it whole.
 - The choice is single-select, with 1 to 4 answers of at most 30 characters.
 - Exactly one answer is `recommended`. No answer is named Other or Explain
   more, and no label carries "(Recommended)", because each surface draws those
@@ -832,8 +834,9 @@ It takes every top-level card of the current round with one question that
 neither surface has answered, or only the cards `--blocks` names, posts each to the session's Slack
 status thread through `cc-slack dm-status --mirrored`, or to the DM thread
 `--slack` names by ts or permalink, and sets each card's `slack.url` to its
-post's permalink. A card already posted in that thread is edited in place, never
-posted twice. An unnamed card that breaks the rules above is skipped with a
+post's permalink. It prints `sent: <id> ts=<ts> <permalink>` or
+`failed: <id>: <error>` for each card, and exits non-zero when any failed. A
+card already posted in that thread is edited in place, never posted twice. An unnamed card that breaks the rules above is skipped with a
 warning; a named one is an error. A closed board sends nothing. `cc-present ask <file|->` puts one card on
 the window's board, starting one titled "Questions for you" when the window
 has none open, and sends it the same way. cc-slack runs the hidden
