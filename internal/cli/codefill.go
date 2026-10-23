@@ -52,6 +52,7 @@ type gitPlumbing string
 const (
 	gitRevParse gitPlumbing = "rev-parse"
 	gitCatFile  gitPlumbing = "cat-file"
+	gitConfig   gitPlumbing = "config"
 )
 
 func matchSecret(patterns []secretPattern, s string) string {
@@ -77,7 +78,7 @@ func secretInText(text string) string {
 
 func runGit(ctx context.Context, dir string, sub gitPlumbing, args ...string) ([]byte, error) {
 	argv := append([]string{"-c", "core.fsmonitor=false", "-c", "core.hooksPath=/dev/null", "-C", dir, string(sub)}, args...)
-	//nolint:gosec // G204: the subcommand is a rev-parse/cat-file constant; args never reach a shell.
+	//nolint:gosec // G204: the subcommand is a rev-parse/cat-file/config constant; args never reach a shell.
 	cmd := exec.CommandContext(ctx, "git", argv...)
 	cmd.Env = append(os.Environ(), "GIT_OPTIONAL_LOCKS=0", "GIT_TERMINAL_PROMPT=0", "GIT_PAGER=cat", "GIT_NO_LAZY_FETCH=1")
 	return cmd.Output()

@@ -118,13 +118,32 @@ func TestPutRejectsNonImage(t *testing.T) {
 		{"html document", []byte("<!doctype html><script>alert(1)</script>")},
 		{"plain text", []byte("hello")},
 		{"svg", []byte(`<?xml version="1.0"?><svg xmlns="http://www.w3.org/2000/svg"/>`)},
+		{"json that is not a snippet", []byte(`{"kind":"code","label":"a.go:1","script":"x"}`)},
+		{"snippet of unknown kind", []byte(`{"kind":"html","label":"x"}`)},
+		{"snippet without label", []byte(`{"kind":"code"}`)},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if _, err := s.Put(tt.b); !errors.Is(err, ErrNotImage) {
-				t.Fatalf("Put err = %v, want ErrNotImage", err)
+			if _, err := s.Put(tt.b); !errors.Is(err, ErrUnsupported) {
+				t.Fatalf("Put err = %v, want ErrUnsupported", err)
 			}
 		})
+	}
+}
+
+func TestSnippetRoundTrip(t *testing.T) {
+	s := newTestStore(t, t.TempDir())
+	b := []byte(`{"kind":"code","label":"pool.go:63","path":"go/pool.go","chunks":[{"start":60,"code":"a\nb"}]}`)
+	sha, err := s.Put(b)
+	if err != nil {
+		t.Fatalf("Put snippet: %v", err)
+	}
+	got, ct, err := s.Get(sha)
+	if err != nil {
+		t.Fatalf("Get snippet: %v", err)
+	}
+	if ct != SnippetType || !bytes.Equal(got, b) {
+		t.Fatalf("Get = %q %s, want the stored bytes as %s", got, ct, SnippetType)
 	}
 }
 

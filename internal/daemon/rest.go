@@ -610,21 +610,22 @@ func truncateRunes(s string, limit int) string {
 }
 
 // requireAssetType is requireJSON's CSRF gate for the raw-bytes asset upload:
-// the CLI uploader sends application/octet-stream, and neither it nor image/*
-// is a CORS-"simple" type a hostile localhost page could POST preflight-free.
+// the CLI uploader sends application/octet-stream or application/json, and
+// neither those nor image/* is a CORS-"simple" type a hostile localhost page
+// could POST preflight-free.
 // The tokenless loopback CLI rules out a pair-bearer check here.
 func requireAssetType(w http.ResponseWriter, r *http.Request) bool {
 	mt, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
-	if err != nil || (mt != "application/octet-stream" && !strings.HasPrefix(mt, "image/")) {
-		http.Error(w, "Content-Type must be application/octet-stream or image/*", http.StatusUnsupportedMediaType)
+	if err != nil || (mt != "application/octet-stream" && mt != assets.SnippetType && !strings.HasPrefix(mt, "image/")) {
+		http.Error(w, "Content-Type must be application/octet-stream, application/json, or image/*", http.StatusUnsupportedMediaType)
 		return false
 	}
 	return true
 }
 
 // handlePutAsset content-addresses the raw request body into the asset store and
-// returns its asset:<sha256> reference, rejecting a non-image body or one past
-// the cap.
+// returns its asset:<sha256> reference, rejecting a body that is neither an
+// image nor a snippet, or one past the cap.
 func (rs *restServer) handlePutAsset(w http.ResponseWriter, r *http.Request) {
 	if !requireAssetType(w, r) {
 		return
@@ -639,7 +640,7 @@ func (rs *restServer) handlePutAsset(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	sha, err := rs.assets.Put(b)
-	if errors.Is(err, assets.ErrNotImage) {
+	if errors.Is(err, assets.ErrUnsupported) {
 		http.Error(w, err.Error(), http.StatusUnsupportedMediaType)
 		return
 	}
@@ -660,8 +661,8 @@ func (rs *restServer) handleGetAsset(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", ct)
-	// Content-addressed bytes served under a sniffed type: forbid the browser from
-	// re-sniffing a stored blob into active content.
+	// Content-addressed bytes served under a validated type: forbid the browser
+	// from re-sniffing a stored blob into active content.
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
 	w.WriteHeader(http.StatusOK)

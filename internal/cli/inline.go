@@ -52,25 +52,32 @@ func httpUploader(port int) uploader {
 		if err != nil {
 			return "", err
 		}
-		resp, err := http.Post(
-			fmt.Sprintf("http://127.0.0.1:%d/api/assets", port), "application/octet-stream", bytes.NewReader(b),
-		)
+		sha, err := postAsset(port, b, "application/octet-stream")
 		if err != nil {
-			return "", err
+			return "", fmt.Errorf("upload %q: %w", path, err)
 		}
-		defer func() { _ = resp.Body.Close() }()
-		if resp.StatusCode != http.StatusOK {
-			msg, _ := io.ReadAll(resp.Body)
-			return "", fmt.Errorf("upload %q: %s: %s", path, resp.Status, strings.TrimSpace(string(msg)))
-		}
-		var out struct {
-			Asset string `json:"asset"`
-		}
-		if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
-			return "", err
-		}
-		return out.Asset, nil
+		return "asset:" + sha, nil
 	}
+}
+
+// postAsset stores b on the daemon's asset endpoint and returns its sha256.
+func postAsset(port int, b []byte, contentType string) (string, error) {
+	resp, err := http.Post(fmt.Sprintf("http://127.0.0.1:%d/api/assets", port), contentType, bytes.NewReader(b))
+	if err != nil {
+		return "", err
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		msg, _ := io.ReadAll(resp.Body)
+		return "", fmt.Errorf("%s: %s", resp.Status, strings.TrimSpace(string(msg)))
+	}
+	var out struct {
+		Sha string `json:"sha"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		return "", err
+	}
+	return out.Sha, nil
 }
 
 // localUploader content-addresses each image without contacting the daemon, for
