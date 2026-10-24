@@ -217,6 +217,13 @@ func answered(sel state.Selection) bool {
 }
 
 func mirror(ctx context.Context, cl *ccdaemon.Client, b board, card *doc.Card, ch *doc.Choice, ts string) (ccdaemon.StartResult, string, error) {
+	unposted, err := json.Marshal(card)
+	if err != nil {
+		return ccdaemon.StartResult{}, "", err
+	}
+	if err := cl.SlackCardCheck(ctx, b.session, b.scope, b.pid, unposted); err != nil {
+		return ccdaemon.StartResult{}, "", fmt.Errorf("card %q, not posted to Slack: %w", card.ID, err)
+	}
 	sc, err := json.Marshal(slackcards.ToSlack(card, ch))
 	if err != nil {
 		return ccdaemon.StartResult{}, "", err

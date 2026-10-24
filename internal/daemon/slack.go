@@ -70,10 +70,7 @@ func handleSlackCard(hc ccd.HandlerCtx, pt doc.PackTypes, display displayFunc) c
 	if err != nil {
 		return errReply(err.Error())
 	}
-	if loc, ok := doc.Locate(st.Doc, card.ID); ok && loc.Kind != doc.TopLevel {
-		return errReply(fmt.Sprintf("block %q already sits inside card %q; a Slack card's id is its own", card.ID, loc.TopID))
-	}
-	if err := upsertedDoc(st.Doc, card, "").Validate(pt); err != nil {
+	if err := fitsBoard(st.Doc, card, pt); err != nil {
 		return errReply(err.Error())
 	}
 	if st.Doc.Title == "" && len(st.Doc.Blocks) == 0 {
@@ -100,6 +97,48 @@ func handleSlackCard(hc ccd.HandlerCtx, pt doc.PackTypes, display displayFunc) c
 	res := result{URL: artifactURL(hc.HTTPPort, sub.Slug), TailnetURLs: display(hc.Ctx, sub.Slug, hc.HTTPPort), Slug: sub.Slug}
 	raw, _ := json.Marshal(res)
 	return ccd.Reply{OK: true, SubjectID: sub.ID, HTTPPort: hc.HTTPPort, Body: raw}
+}
+
+func handleSlackCardCheck(hc ccd.HandlerCtx, pt doc.PackTypes) ccd.Reply {
+	blk, err := doc.DecodeBlock(decodeBody(hc.Env.Body).Block)
+	if err != nil {
+		return errReply(err.Error())
+	}
+	card, ok := blk.(*doc.Card)
+	if !ok {
+		return errReply(fmt.Sprintf("block %q is a %s; a Slack card is a card", blk.BlockID(), blk.BlockType()))
+	}
+	if _, err := slackcards.Check(card); err != nil {
+		return errReply(err.Error())
+	}
+	if err := validateBlock(blk, pt); err != nil {
+		return errReply(err.Error())
+	}
+	sub, found, err := hc.Subjects.Find(hc.Ctx, hc.Window, hc.Scope)
+	if err != nil {
+		return errReply(err.Error())
+	}
+	var events []state.Event
+	if found && sub.Status != statusClosed {
+		if events, err = loadEvents(hc.Ctx, hc.DB, sub.ID); err != nil {
+			return errReply(err.Error())
+		}
+	}
+	st, err := state.Reduce(events)
+	if err != nil {
+		return errReply(err.Error())
+	}
+	if err := fitsBoard(st.Doc, card, pt); err != nil {
+		return errReply(err.Error())
+	}
+	return okReply(result{})
+}
+
+func fitsBoard(d *doc.Doc, card *doc.Card, pt doc.PackTypes) error {
+	if loc, ok := doc.Locate(d, card.ID); ok && loc.Kind != doc.TopLevel {
+		return fmt.Errorf("block %q already sits inside card %q; a Slack card's id is its own", card.ID, loc.TopID)
+	}
+	return upsertedDoc(d, card, "").Validate(pt)
 }
 
 func handleSlackAnswer(hc ccd.HandlerCtx) ccd.Reply {
