@@ -166,6 +166,13 @@ func (cl *Client) SlackCard(ctx context.Context, session, scope string, pid int,
 	return StartResult{SubjectID: reply.SubjectID, URL: res.URL, TailnetURLs: res.TailnetURLs}, nil
 }
 
+// SlackCardCheck refuses a card the window's board would refuse, before its
+// Slack card is posted; it writes nothing.
+func (cl *Client) SlackCardCheck(ctx context.Context, session, scope string, pid int, blockJSON json.RawMessage) error {
+	_, _, err := cl.do(ctx, OpSlackCardCheck, session, scope, pid, body{Block: blockJSON})
+	return err
+}
+
 // SlackAnswer records an answer given on a synced card's Slack ask card.
 func (cl *Client) SlackAnswer(ctx context.Context, session, scope string, pid int, answerJSON json.RawMessage) error {
 	_, _, err := cl.do(ctx, OpSlackAnswer, session, scope, pid, body{Answer: answerJSON})

@@ -13,17 +13,18 @@ import (
 
 // Artifact control-plane operations, registered on the daemon by name.
 const (
-	OpStart       ccd.Op = "start"
-	OpPush        ccd.Op = "push"
-	OpUpsertBlock ccd.Op = "upsert-block"
-	OpRemoveBlock ccd.Op = "remove-block"
-	OpReply       ccd.Op = "reply"
-	OpRound       ccd.Op = "round"
-	OpRevising    ccd.Op = "revising"
-	OpClose       ccd.Op = "close"
-	OpOutcomes    ccd.Op = "outcomes"
-	OpSlackCard   ccd.Op = "slack-card"
-	OpSlackAnswer ccd.Op = "slack-answer"
+	OpStart          ccd.Op = "start"
+	OpPush           ccd.Op = "push"
+	OpUpsertBlock    ccd.Op = "upsert-block"
+	OpRemoveBlock    ccd.Op = "remove-block"
+	OpReply          ccd.Op = "reply"
+	OpRound          ccd.Op = "round"
+	OpRevising       ccd.Op = "revising"
+	OpClose          ccd.Op = "close"
+	OpOutcomes       ccd.Op = "outcomes"
+	OpSlackCard      ccd.Op = "slack-card"
+	OpSlackCardCheck ccd.Op = "slack-card-check"
+	OpSlackAnswer    ccd.Op = "slack-answer"
 )
 
 // Event types appended to a subject's log. The agent-side ops append the agent

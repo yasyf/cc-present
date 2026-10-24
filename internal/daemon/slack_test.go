@@ -229,3 +229,18 @@ func TestBoardPickLosingToASlackWriteInRecordsTheWriteIn(t *testing.T) {
 		t.Errorf("board selection = %v %q, want Slack's written-in Hold", sel.OptionIDs, sel.Other)
 	}
 }
+
+func TestSlackCardCheckRefusesWhatTheBoardWouldBeforeAnythingIsPosted(t *testing.T) {
+	h := newHarness(t)
+	unposted := strings.Replace(syncedCardJSON, `"slack":{"url":"`+slackPermalink+`"},`, "", 1)
+	multiline := strings.Replace(unposted, `"type":"card",`, `"type":"card","summary":"Merge it.\nThen release.",`, 1)
+	if r := handleSlackCardCheck(slackWindow(h, body{Block: json.RawMessage(multiline)}), doc.NoPacks); r.OK || !strings.Contains(r.Error, "summary must be a single line") {
+		t.Fatalf("check on a multi-line summary = ok %v, error %q", r.OK, r.Error)
+	}
+	if r := handleSlackCardCheck(slackWindow(h, body{Block: json.RawMessage(unposted)}), doc.NoPacks); !r.OK {
+		t.Fatalf("check refused a card the board takes: %s", r.Error)
+	}
+	if _, found, err := h.hc(body{}).Subjects.Find(context.Background(), slackWindow(h, body{}).Window, slackWindow(h, body{}).Scope); err != nil || found {
+		t.Fatalf("check started a board: found %v, err %v", found, err)
+	}
+}
