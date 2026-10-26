@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 
 	ccd "github.com/yasyf/cc-interact/daemon"
 )
@@ -177,4 +178,18 @@ func (cl *Client) SlackCardCheck(ctx context.Context, session, scope string, pid
 func (cl *Client) SlackAnswer(ctx context.Context, session, scope string, pid int, answerJSON json.RawMessage) error {
 	_, _, err := cl.do(ctx, OpSlackAnswer, session, scope, pid, body{Answer: answerJSON})
 	return err
+}
+
+// ImportVerdicts carries verdicts given on an earlier board onto the window's
+// pr-groups rows, leaving any row that already has a verdict untouched.
+func (cl *Client) ImportVerdicts(ctx context.Context, session, scope string, pid int, verdictsJSON json.RawMessage) (ImportResult, error) {
+	_, res, err := cl.do(ctx, OpImportVerdicts, session, scope, pid, body{Verdicts: verdictsJSON})
+	if err != nil {
+		return ImportResult{}, err
+	}
+	var out ImportResult
+	if err := json.Unmarshal(res.State, &out); err != nil {
+		return ImportResult{}, fmt.Errorf("decode import result: %w", err)
+	}
+	return out, nil
 }

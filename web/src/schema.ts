@@ -22,7 +22,8 @@ export type BuiltinBlockType =
   | 'term'
   | 'filetree'
   | 'record'
-  | 'pr';
+  | 'pr'
+  | 'pr-groups';
 
 export interface Stat {
   label: string;
@@ -329,6 +330,45 @@ export interface PR {
   files?: string[];
 }
 
+// Pull requests in one repo grouped by what they change. Each row carries the
+// five things a reviewer needs before approving a merge, plus the head the
+// verdict is pinned to; carried lists earlier heads whose verdict still stands.
+// A row's verdict key is its number in decimal (prRowId).
+export interface PRGroups {
+  id: string;
+  type: 'pr-groups';
+  repo: string;
+  prompt?: string;
+  groups: PRGroup[];
+}
+
+export interface PRGroup {
+  id: string;
+  title: string;
+  // One sentence on what the group changes for a user.
+  summary: string;
+  prs: PRRow[];
+}
+
+export interface PRRow {
+  number: number;
+  head: string;
+  title: string;
+  // What it changes for a user.
+  change: string;
+  // What differs from the plan, or "Matches the plan."
+  plan: string;
+  risk: string;
+  // Code review and CI state.
+  review: string;
+  // What blocks it from landing.
+  blocker: string;
+  // The row's full text, shown when the row is expanded.
+  md?: string;
+  carried?: string[];
+  files?: string[];
+}
+
 // --- Pack blocks (plugin-supplied leaves) ---
 
 // A pack block's wire type is two dot-separated segments, `<pack>.<name>`.
@@ -348,7 +388,7 @@ export interface PackBlock {
 // --- Unions ---
 
 export type StructuralBlock = Section | Card;
-export type InteractiveBlock = Approval | Choice | Input | Draft | Triage;
+export type InteractiveBlock = Approval | Choice | Input | Draft | Triage | PRGroups;
 export type ContentBlock =
   | Markdown
   | Code

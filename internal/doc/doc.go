@@ -38,6 +38,8 @@ const (
 	MaxTriageItems  = 50
 	MaxCodeLine     = 1_000_000
 	MaxPRFiles      = 50
+	MaxPRGroups     = 30
+	MaxPRGroupRows  = 150
 )
 
 var (
@@ -56,6 +58,7 @@ var (
 	codeShaPattern     = regexp.MustCompile(`^[0-9a-f]{7,40}(\+wt)?$`)
 	sourceAliasPattern = regexp.MustCompile(`^[a-z][a-z0-9-]*$`)
 	repoPattern        = regexp.MustCompile(`^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$`)
+	headPattern        = regexp.MustCompile(`^[0-9a-f]{7,40}$`)
 	errEmptyBlockID    = errors.New("block id must not be empty")
 	errEmptyTitle      = errors.New("doc title must not be empty")
 )
@@ -443,6 +446,78 @@ type PR struct {
 	Title   string   `json:"title,omitempty"`
 	Summary string   `json:"summary,omitempty"`
 	Files   []string `json:"files,omitempty"`
+}
+
+// PRGroups is a set of GitHub pull requests in one repo, grouped by what they
+// change, each carrying a head-pinned approve or hold verdict. Every row states
+// what it changes for a user, how it differs from the plan, its risk, its review
+// and CI state, and what blocks it from landing; a tap reads the PR live.
+type PRGroups struct {
+	base
+	Repo   string    `json:"repo"`
+	Prompt string    `json:"prompt,omitempty"`
+	Groups []PRGroup `json:"groups"`
+}
+
+// PRGroup is one heading of related pull requests and one sentence on what the
+// group changes for a user.
+type PRGroup struct {
+	ID      string  `json:"id"`
+	Title   string  `json:"title"`
+	Summary string  `json:"summary"`
+	PRs     []PRRow `json:"prs"`
+}
+
+// PRRow is one pull request in a group. Head is the commit the verdict is
+// given at; Carried lists earlier heads whose verdict still stands for this
+// head. Md is the row's full text, shown when the row is expanded.
+type PRRow struct {
+	Number  int      `json:"number"`
+	Head    string   `json:"head"`
+	Title   string   `json:"title"`
+	Change  string   `json:"change"`
+	Plan    string   `json:"plan"`
+	Risk    string   `json:"risk"`
+	Review  string   `json:"review"`
+	Blocker string   `json:"blocker"`
+	Md      string   `json:"md,omitempty"`
+	Carried []string `json:"carried,omitempty"`
+	Files   []string `json:"files,omitempty"`
+}
+
+// RowID is the verdict key of a pull request row: its number in decimal.
+func RowID(number int) string { return strconv.Itoa(number) }
+
+// Row returns the row whose verdict key is id.
+func (g *PRGroups) Row(id string) (*PRRow, bool) {
+	for i := range g.Groups {
+		for j := range g.Groups[i].PRs {
+			if r := &g.Groups[i].PRs[j]; RowID(r.Number) == id {
+				return r, true
+			}
+		}
+	}
+	return nil, false
+}
+
+// ParseHead checks that s is a 7 to 40 character lowercase hex commit sha.
+func ParseHead(s string) (string, error) {
+	if !headPattern.MatchString(s) {
+		return "", fmt.Errorf("head must be a 7 to 40 character lowercase hex sha, got %q", s)
+	}
+	return s, nil
+}
+
+// SameHead reports whether two commit shas name the same commit: the shorter
+// is a prefix of the longer, so a 7-character head matches its full sha.
+func SameHead(a, b string) bool {
+	if a == "" || b == "" {
+		return false
+	}
+	if len(a) > len(b) {
+		a, b = b, a
+	}
+	return strings.HasPrefix(b, a)
 }
 
 // UnmarshalJSON decodes the envelope and dispatches each block by its type tag.
@@ -1349,6 +1424,89 @@ func validateRecord(r *Record) error {
 	for _, l := range r.Links {
 		if err := validateLink(l); err != nil {
 			return fmt.Errorf("record %q: %w", r.ID, err)
+		}
+	}
+	return nil
+}
+
+func validatePRGroups(g *PRGroups) error {
+	if !repoPattern.MatchString(g.Repo) {
+		return fmt.Errorf("pr-groups %q: repo must be owner/name, got %q", g.ID, g.Repo)
+	}
+	if isMultiline(g.Prompt) {
+		return fmt.Errorf("pr-groups %q: prompt must be a single line", g.ID)
+	}
+	if len(g.Groups) == 0 {
+		return fmt.Errorf("pr-groups %q: must have at least one group", g.ID)
+	}
+	if len(g.Groups) > MaxPRGroups {
+		return fmt.Errorf("pr-groups %q: %d groups exceeds %d", g.ID, len(g.Groups), MaxPRGroups)
+	}
+	groupIDs := map[string]bool{}
+	numbers := map[int]bool{}
+	for _, gr := range g.Groups {
+		if gr.ID == "" {
+			return fmt.Errorf("pr-groups %q: group id must not be empty", g.ID)
+		}
+		if groupIDs[gr.ID] {
+			return fmt.Errorf("pr-groups %q: duplicate group id %q", g.ID, gr.ID)
+		}
+		groupIDs[gr.ID] = true
+		if gr.Title == "" || isMultiline(gr.Title) {
+			return fmt.Errorf("pr-groups %q: group %q title must be one non-empty line", g.ID, gr.ID)
+		}
+		if gr.Summary == "" || isMultiline(gr.Summary) {
+			return fmt.Errorf("pr-groups %q: group %q summary must be one non-empty line saying what the group changes for a user", g.ID, gr.ID)
+		}
+		if len(gr.PRs) == 0 {
+			return fmt.Errorf("pr-groups %q: group %q must have at least one pull request", g.ID, gr.ID)
+		}
+		for i := range gr.PRs {
+			r := &gr.PRs[i]
+			if r.Number < 1 {
+				return fmt.Errorf("pr-groups %q: group %q: number must be a positive integer", g.ID, gr.ID)
+			}
+			if numbers[r.Number] {
+				return fmt.Errorf("pr-groups %q: pull request #%d appears more than once", g.ID, r.Number)
+			}
+			numbers[r.Number] = true
+			if err := validatePRRow(r); err != nil {
+				return fmt.Errorf("pr-groups %q: #%d %w", g.ID, r.Number, err)
+			}
+		}
+	}
+	if len(numbers) > MaxPRGroupRows {
+		return fmt.Errorf("pr-groups %q: %d pull requests exceeds %d", g.ID, len(numbers), MaxPRGroupRows)
+	}
+	return nil
+}
+
+func validatePRRow(r *PRRow) error {
+	if _, err := ParseHead(r.Head); err != nil {
+		return err
+	}
+	for _, c := range r.Carried {
+		if _, err := ParseHead(c); err != nil {
+			return fmt.Errorf("carried %w", err)
+		}
+	}
+	fields := []struct{ name, value string }{
+		{"title", r.Title}, {"change", r.Change}, {"plan", r.Plan}, {"risk", r.Risk}, {"review", r.Review}, {"blocker", r.Blocker},
+	}
+	for _, f := range fields {
+		if f.value == "" {
+			return fmt.Errorf("%s must not be empty", f.name)
+		}
+		if isMultiline(f.value) {
+			return fmt.Errorf("%s must be a single line", f.name)
+		}
+	}
+	if len(r.Files) > MaxPRFiles {
+		return fmt.Errorf("%d files patterns exceeds %d", len(r.Files), MaxPRFiles)
+	}
+	for _, f := range r.Files {
+		if _, err := path.Match(f, ""); f == "" || err != nil {
+			return fmt.Errorf("files pattern %q is not a valid glob", f)
 		}
 	}
 	return nil

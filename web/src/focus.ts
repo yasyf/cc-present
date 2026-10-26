@@ -117,6 +117,8 @@ export function stepTitle(step: FocusStep): string {
       return b.title ?? 'Draft';
     case 'triage':
       return b.prompt ?? 'Triage';
+    case 'pr-groups':
+      return b.prompt ?? 'Pull requests';
     case 'section':
       return b.title;
     default:

@@ -6,6 +6,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- A built-in `pr-groups` block puts pull requests on a board grouped by what they change. Each row shows five facts: what it changes for a user, how it differs from the plan, its risk, its review and CI state, and what blocks it from landing. Approve and Hold buttons sit under the facts, and a tap expands the row's full text and the live PR in place. It renders in one column with 44 px tap targets, so it reads on a phone. Each verdict records the PR number, head, and time it was given at. A new head shows the old verdict and asks for a new tap, unless the agent lists the old head in the row's `carried`. Each group has an Approve all control.
+- `cc-present import-verdicts --file <json>` carries verdicts from an earlier board onto a `pr-groups` block without asking the human again, and never overwrites a verdict already given.
+
 ### Changed
 
 - The capt-hook pointer from the built-in Artifact tool to the `cc-present:present` skill fires at most once per agent instead of on every Artifact call.

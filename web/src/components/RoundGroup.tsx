@@ -38,7 +38,9 @@ export function RoundGroup({ record, interactions }: { record: RoundRecord; inte
   // Triage item verdicts are the same currency as approval verdicts, so the
   // approve/reject chips count them individually alongside approvals.
   const triageVerdicts = (b: (typeof all)[number], v: 'approved' | 'rejected') =>
-    b.type === 'triage' ? Object.values(record.triage[b.id] ?? {}).filter((d) => d.verdict === v).length : 0;
+    b.type === 'triage' || b.type === 'pr-groups'
+      ? Object.values(record.triage[b.id] ?? {}).filter((d) => d.verdict === v).length
+      : 0;
   const approved =
     all.filter((b) => b.type === 'approval' && record.decisions[b.id]?.verdict === 'approved').length +
     all.reduce((n, b) => n + triageVerdicts(b, 'approved'), 0);
@@ -54,7 +56,9 @@ export function RoundGroup({ record, interactions }: { record: RoundRecord; inte
   const filledInputs = all.filter((b) => b.type === 'input' && (record.inputs[b.id]?.text.trim() ?? '') !== '').length;
   const triageNotes = all.reduce(
     (n, b) =>
-      b.type === 'triage' ? n + Object.values(record.triage[b.id] ?? {}).filter((d) => (d.note ?? '') !== '').length : n,
+      b.type === 'triage' || b.type === 'pr-groups'
+        ? n + Object.values(record.triage[b.id] ?? {}).filter((d) => (d.note ?? '') !== '').length
+        : n,
     0,
   );
   const annotationNotes = all.reduce((n, b) => n + (record.annotations[b.id]?.length ?? 0), 0);

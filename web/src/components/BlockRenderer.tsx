@@ -25,6 +25,7 @@ import { TermView } from './TermView';
 import { FileTreeView } from './FileTreeView';
 import { RecordView } from './RecordView';
 import { PRView } from './PRView';
+import { PRGroups } from './PRGroups';
 import { PackBlockView } from './PackBlockView';
 import { BlockThread } from './BlockThread';
 import { ReplyThread } from './ReplyThread';
@@ -64,6 +65,7 @@ const BUILTIN: { [T in BuiltinBlockType]: BuiltinRenderer<T> } = {
   filetree: FileTreeView,
   record: RecordView,
   pr: PRView,
+  'pr-groups': PRGroups,
 };
 
 // BlockRenderer dispatches on the block's type, then threads the agent's replies

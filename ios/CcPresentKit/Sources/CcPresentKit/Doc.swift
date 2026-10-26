@@ -88,6 +88,7 @@ public enum Block: Codable, Equatable, Sendable {
     case filetree(FileTree)
     case record(Record)
     case pr(PR)
+    case prGroups(PRGroups)
     case pack(Pack)
 
     /// Section is a top-level header marker with optional prose.
@@ -608,6 +609,19 @@ public enum Block: Codable, Equatable, Sendable {
         }
     }
 
+    /// PRGroups is a set of pull requests grouped by what they change, each with a
+    /// head-pinned verdict. The client renders it through the SPA's single-block
+    /// page, so `raw` holds the whole block object verbatim, like a pack block.
+    public struct PRGroups: Codable, Equatable, Sendable {
+        public var id: String
+        public var raw: JSONValue
+
+        public init(id: String, raw: JSONValue) {
+            self.id = id
+            self.raw = raw
+        }
+    }
+
     /// Pack is a plugin-supplied block whose type carries a `<pack>.<name>`
     /// namespace. The client does not model its fields; `raw` holds the entire
     /// block object (id and type included) verbatim so a pack-supplied renderer
@@ -646,6 +660,7 @@ public enum Block: Codable, Equatable, Sendable {
         case let .filetree(block): block.id
         case let .record(block): block.id
         case let .pr(block): block.id
+        case let .prGroups(block): block.id
         case let .pack(block): block.id
         }
     }
@@ -672,6 +687,7 @@ public enum Block: Codable, Equatable, Sendable {
         case .filetree: "filetree"
         case .record: "record"
         case .pr: "pr"
+        case .prGroups: "pr-groups"
         case let .pack(block): block.packType
         }
     }
@@ -704,6 +720,8 @@ public enum Block: Codable, Equatable, Sendable {
         case "filetree": self = try .filetree(FileTree(from: decoder))
         case "record": self = try .record(Record(from: decoder))
         case "pr": self = try .pr(PR(from: decoder))
+        case "pr-groups":
+            self = try .prGroups(PRGroups(id: container.decode(String.self, forKey: .id), raw: JSONValue(from: decoder)))
         default:
             if type.contains(".") {
                 let id = try container.decode(String.self, forKey: .id)
@@ -724,6 +742,10 @@ public enum Block: Codable, Equatable, Sendable {
         // A pack block's raw JSON already carries id and type; encode it alone and
         // return before the discriminator container writes type a second time.
         if case let .pack(block) = self {
+            try block.raw.encode(to: encoder)
+            return
+        }
+        if case let .prGroups(block) = self {
             try block.raw.encode(to: encoder)
             return
         }
@@ -749,7 +771,7 @@ public enum Block: Codable, Equatable, Sendable {
         case let .filetree(block): try block.encode(to: encoder)
         case let .record(block): try block.encode(to: encoder)
         case let .pr(block): try block.encode(to: encoder)
-        case .pack: break
+        case .prGroups, .pack: break
         }
     }
 }

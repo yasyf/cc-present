@@ -349,6 +349,58 @@ Write only `repo` and `number`; the board reads everything else live from GitHub
 
 A PR mentioned on a board is a `pr` block, never a bare number or link. It works at the top level or inside a card, so a card that decides a merge leads with its PR.
 
+### `pr-groups` — pull requests grouped for a merge sign-off
+
+```json
+{
+  "id": "merge-prs",
+  "type": "pr-groups",
+  "repo": "yasyf/cc-present",
+  "prompt": "Approve each pull request to merge at the commit shown?",
+  "groups": [
+    {
+      "id": "open-old-chats",
+      "title": "Old chats open again",
+      "summary": "A chat saved by an older version opens read-only instead of failing.",
+      "prs": [
+        {
+          "number": 112,
+          "head": "3f9a0c1",
+          "title": "Open old chats read-only",
+          "change": "Clicking a chat from an older version shows it read-only with a Fork button.",
+          "plan": "Matches the plan.",
+          "risk": "Only old chats take the new path; new chats are untouched.",
+          "review": "Finder pass clean; CI green on 3f9a0c1.",
+          "blocker": "Nothing; lands on your approval.",
+          "md": "Full description: what the read-only view shows, how Fork seeds the new chat, and the tests that cover it.",
+          "files": ["web/src"]
+        }
+      ]
+    }
+  ]
+}
+```
+
+Reach for `pr-groups` whenever you ask the human to approve merges for more than one pull request. Group rows by what they change for a user, never by repo area or lane, and give each group one sentence saying what changes for a user. Every row carries the five facts a merge sign-off needs, each one plain sentence: `change` (what it changes for a user), `plan` (what differs from the plan, or `Matches the plan.`), `risk`, `review` (code review and CI state), and `blocker` (what blocks landing, or `Nothing; lands on your approval.`). Two rows in one group must read differently: say what this PR alone adds. `md` holds the row's full text for the expanded view.
+
+The board renders one column at any width with 44px tap targets. Each row shows its five facts and Approve and Hold buttons; a tap on the row expands its full text and the live PR in place, read through the same `gh` reader as the `pr` block. Each group has an Approve all control that fans out to every row not already approved at its head.
+
+Verdicts are keyed by PR number, not by block layout, so regrouping rows or moving a PR between groups keeps its verdict. A verdict records the `head` it was given at and the daemon's time. When you push a new `head` for a row, its old verdict stays visible as `Approved at <old> on <time>; new head <new> needs your tap.` If the new head changes nothing the human approved, such as a rebase or a test-only fix, add the old head to the row's `carried` list and the verdict stands without a new tap.
+
+`outcomes` shows `interactions.triage[<block id>][<number>]` as `{verdict, note?, head, at}`, where `rejected` means Hold. A verdict stands when its `head` matches the row's `head` or a `carried` entry. The block counts once in the submit tally, decided when every row's verdict stands.
+
+To move verdicts from an earlier board, write a JSON array of `{block, row, verdict, at, note?, head?}` and run `cc-present import-verdicts --file <path>`, after the new block is live. `block` is the `pr-groups` id, `row` the PR number, `verdict` `approved` or `rejected`, `at` when the human gave it. Give the `head` the human saw when it differs from the row's, so the board asks again; omit it to record the verdict at the row's head. A row that already has a verdict keeps it.
+
+| Field | Required | Notes |
+|-------|----------|-------|
+| `repo` | yes | `owner/name` for every row. |
+| `groups[].summary` | yes | One line: what the group changes for a user. |
+| `prs[].head` | yes | The commit the verdict is given at, 7 to 40 lowercase hex characters. |
+| `prs[].change`, `plan`, `risk`, `review`, `blocker` | yes | One non-empty line of inline markdown each. |
+| `prs[].md` | no | Full text, multi-line markdown, shown when the row is expanded. |
+| `prs[].carried` | no | Earlier heads whose verdict still stands for `head`. |
+| `prs[].files` | no | Globs that narrow the live file list, as on `pr`. |
+
 ### `diagram` — text-to-diagram
 
 ```json

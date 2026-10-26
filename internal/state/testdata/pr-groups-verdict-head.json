@@ -1,0 +1,47 @@
+{
+  "name": "pr-groups-verdict-head",
+  "events": [
+    {
+      "origin": "agent",
+      "type": "doc.replaced",
+      "seq": 1,
+      "payload": {
+        "schemaVersion": 1,
+        "type": "doc.replaced",
+        "revision": 1,
+        "doc": {
+          "version": 1,
+          "title": "T",
+          "blocks": [
+            { "id": "pg1", "type": "pr-groups", "repo": "a/b", "groups": [ { "id": "g1", "title": "G", "summary": "S.", "prs": [
+              { "number": 8, "head": "abc1234", "title": "T8", "change": "C.", "plan": "P.", "risk": "R.", "review": "V.", "blocker": "B." },
+              { "number": 9, "head": "def5678", "title": "T9", "change": "C.", "plan": "P.", "risk": "R.", "review": "V.", "blocker": "B." }
+            ] } ] }
+          ]
+        }
+      }
+    },
+    { "origin": "agent", "type": "triage.decided", "seq": 2, "payload": { "schemaVersion": 1, "type": "triage.decided", "blockId": "pg1", "verdicts": { "8": { "verdict": "approved", "head": "0001111", "at": "2026-10-26T20:03:00Z" } } } },
+    { "origin": "human", "type": "triage.decided", "seq": 3, "payload": { "schemaVersion": 1, "type": "triage.decided", "blockId": "pg1", "verdicts": { "8": { "verdict": "approved", "head": "abc1234", "at": "2026-10-26T21:40:00Z" }, "9": { "verdict": "rejected", "note": "wait for the fix", "head": "def5678", "at": "2026-10-26T21:40:00Z" } } } },
+    { "origin": "human", "type": "triage.decided", "seq": 4, "payload": { "schemaVersion": 1, "type": "triage.decided", "blockId": "pg1", "verdicts": { "9": { "verdict": "cleared" } } } }
+  ],
+  "expected": {
+    "schemaVersion": 1,
+    "doc": {
+      "version": 1,
+      "title": "T",
+      "blocks": [
+        { "id": "pg1", "type": "pr-groups", "repo": "a/b", "groups": [ { "id": "g1", "title": "G", "summary": "S.", "prs": [
+          { "number": 8, "head": "abc1234", "title": "T8", "change": "C.", "plan": "P.", "risk": "R.", "review": "V.", "blocker": "B." },
+          { "number": 9, "head": "def5678", "title": "T9", "change": "C.", "plan": "P.", "risk": "R.", "review": "V.", "blocker": "B." }
+        ] } ] }
+      ]
+    },
+    "interactions": {
+      "triage": {
+        "pg1": { "8": { "verdict": "approved", "head": "abc1234", "at": "2026-10-26T21:40:00Z" } }
+      }
+    },
+    "rounds": { "current": 1, "blockRounds": { "pg1": 1 }, "history": [] }
+  }
+}

@@ -25,6 +25,7 @@ const (
 	OpSlackCard      ccd.Op = "slack-card"
 	OpSlackCardCheck ccd.Op = "slack-card-check"
 	OpSlackAnswer    ccd.Op = "slack-answer"
+	OpImportVerdicts ccd.Op = "import-verdicts"
 )
 
 // Event types appended to a subject's log. The agent-side ops append the agent
@@ -68,6 +69,7 @@ type body struct {
 	Note     string          `json:"note,omitempty"`     // revising
 	Round    string          `json:"round,omitempty"`    // push | upsert-block ("" | "current" | "new")
 	Answer   json.RawMessage `json:"answer,omitempty"`   // slack-answer
+	Verdicts json.RawMessage `json:"verdicts,omitempty"` // import-verdicts
 }
 
 // result is the domain payload a handler returns in Reply.Body. Envelope-level
@@ -79,7 +81,7 @@ type result struct {
 	ChannelState string          `json:"channelState,omitempty"` // start
 	Revision     int             `json:"revision,omitempty"`     // push
 	Round        int             `json:"round,omitempty"`        // round
-	State        json.RawMessage `json:"state,omitempty"`        // outcomes
+	State        json.RawMessage `json:"state,omitempty"`        // outcomes | import-verdicts
 	Waits        string          `json:"waits,omitempty"`        // reply
 }
 

@@ -7,10 +7,11 @@ import { getOptionalPackTypes } from './packs/registry';
 import { isPackBlock } from './schema';
 import type { Block, BuiltinBlockType } from './schema';
 import type { Interactions, Verdict } from './events';
+import { allDecided } from './prgroups';
 
 export interface SubmitItem {
   id: string;
-  kind: 'approval' | 'choice' | 'pack' | 'triage';
+  kind: 'approval' | 'choice' | 'pack' | 'triage' | 'pr-groups';
   decided: boolean;
 }
 
@@ -38,6 +39,7 @@ const BUILTIN_DECIDABLE = {
   filetree: false,
   record: false,
   pr: false,
+  'pr-groups': true,
 } satisfies Record<BuiltinBlockType, boolean>;
 
 const BUILTIN_TALLIED = {
@@ -60,6 +62,7 @@ const BUILTIN_TALLIED = {
   filetree: null,
   record: null,
   pr: null,
+  'pr-groups': 'pr-groups',
 } satisfies Record<BuiltinBlockType, SubmitItem['kind'] | null>;
 
 // flatten yields every top-level block plus every card child, so a tally or the
@@ -100,6 +103,8 @@ export function isDecided(block: Block, interactions: Interactions): boolean {
       const verdicts = interactions.triage[block.id];
       return block.items.every((item) => verdicts?.[item.id] !== undefined);
     }
+    case 'pr-groups':
+      return allDecided(block, interactions.triage[block.id]);
     default:
       return false;
   }
