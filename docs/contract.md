@@ -820,7 +820,7 @@ request moved since the human decided, and the board shows
 taps again or the agent adds the old head to `carried`. The submit tally counts
 the block decided once every row's verdict stands.
 
-`cc-present import-verdicts --file <json|->` carries verdicts the human gave
+`cc-present verdict import --file <json|->` carries verdicts the human gave
 on an earlier board onto a live `pr-groups` block, as the agent-side
 `import-verdicts` op. The file is an array of
 `{block, row, verdict, at, note?, head?}`: `block` is the `pr-groups` id, `row`
@@ -829,6 +829,18 @@ time it was given. `head` defaults to the row's current head; an older head is
 recorded as given and reads as stale. The op appends one agent-origin
 `triage.decided` per block, refuses the whole file on any invalid entry, and
 leaves a row that already carries a verdict untouched, reporting it as kept.
+
+`cc-present verdict move` and `verdict copy` run the agent-side
+`move-verdicts` op over `[{from: {block, row}, to: {block, row}, keep?}]`. Each
+source is read from the live interactions, then from closed rounds newest
+first, so a block a later push removed still yields its verdict. Each target
+must be a `triage` item or `pr-groups` row in the live document's current round
+with no verdict yet. A target `pr-groups` row takes the source's `head` and
+`at`, or the row's head and the daemon's time when the source has none; a
+target `triage` item drops both and refuses a note when its block forbids
+notes. The op appends one agent-origin `triage.decided` per target, then one
+`cleared` per source unless `keep` is set, and writes nothing when any pair is
+invalid.
 
 ## Slack ask cards
 

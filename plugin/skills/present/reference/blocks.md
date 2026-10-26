@@ -389,7 +389,9 @@ Verdicts are keyed by PR number, not by block layout, so regrouping rows or movi
 
 `outcomes` shows `interactions.triage[<block id>][<number>]` as `{verdict, note?, head, at}`, where `rejected` means Hold. A verdict stands when its `head` matches the row's `head` or a `carried` entry. The block counts once in the submit tally, decided when every row's verdict stands.
 
-To move verdicts from an earlier board, write a JSON array of `{block, row, verdict, at, note?, head?}` and run `cc-present import-verdicts --file <path>`, after the new block is live. `block` is the `pr-groups` id, `row` the PR number, `verdict` `approved` or `rejected`, `at` when the human gave it. Give the `head` the human saw when it differs from the row's, so the board asks again; omit it to record the verdict at the row's head. A row that already has a verdict keeps it.
+To move verdicts from an earlier board, write a JSON array of `{block, row, verdict, at, note?, head?}` and run `cc-present verdict import --file <path>`, after the new block is live. `block` is the `pr-groups` id, `row` the PR number, `verdict` `approved` or `rejected`, `at` when the human gave it. Give the `head` the human saw when it differs from the row's, so the board asks again; omit it to record the verdict at the row's head. A row that already has a verdict keeps it.
+
+When you regroup a board or re-key a row, move the human's verdict with it: `cc-present verdict move --from <block>/<row> --to <block>/<row>`, repeating the pair for each row. `verdict copy` does the same and keeps the source. Either works between `triage` items and `pr-groups` rows, refuses a target that already has a verdict, and writes nothing unless every pair is valid. A verdict moved onto a `pr-groups` row keeps its recorded head and time, or takes the row's head and the current time when it had none.
 
 | Field | Required | Notes |
 |-------|----------|-------|

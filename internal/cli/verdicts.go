@@ -8,14 +8,27 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/yasyf/cc-interact/cmd"
+
+	ccdaemon "github.com/yasyf/cc-present/internal/daemon"
 )
 
-// newImportVerdictsCmd carries verdicts given on an earlier board onto the
-// window's pr-groups rows, so the human is not asked again.
-func newImportVerdictsCmd(d cmd.Deps) *cobra.Command {
+// newVerdictCmd groups the agent-side verdict verbs: carrying verdicts from an
+// earlier board onto pr-groups rows, and moving or copying a recorded verdict
+// to another row so a regrouped board keeps the human's taps.
+func newVerdictCmd(d cmd.Deps) *cobra.Command {
+	c := &cobra.Command{
+		Use:   "verdict",
+		Short: "Import, move, or copy the human's recorded verdicts",
+		Args:  cobra.NoArgs,
+	}
+	c.AddCommand(newVerdictImportCmd(d), newVerdictMoveCmd(d, false), newVerdictMoveCmd(d, true))
+	return c
+}
+
+func newVerdictImportCmd(d cmd.Deps) *cobra.Command {
 	var session, cwd, file string
 	c := &cobra.Command{
-		Use:   "import-verdicts",
+		Use:   "import",
 		Short: "Carry verdicts from an earlier board onto pr-groups rows",
 		Long: `Reads a JSON array of {block, row, verdict, at, note?, head?} and records each
 as the row's verdict: block is the pr-groups block id, row the PR number,
@@ -25,26 +38,21 @@ needing a fresh tap. A row that already has a verdict keeps it.`,
 		Args: cobra.NoArgs,
 		RunE: func(c *cobra.Command, _ []string) error {
 			if file == "" {
-				return errors.New("import-verdicts requires --file (or - for stdin)")
+				return errors.New("verdict import requires --file (or - for stdin)")
 			}
 			raw, err := readInput(file, c.InOrStdin())
 			if err != nil {
 				return err
 			}
 			if !json.Valid(raw) {
-				return errors.New("import-verdicts: --file is not valid JSON")
+				return errors.New("verdict import: --file is not valid JSON")
 			}
-			ctx := c.Context()
-			if err := d.EnsureCurrent(ctx); err != nil {
-				return err
-			}
-			cl, err := client(ctx, d)
+			cl, sess, pid, done, err := verdictClient(c, d, session)
 			if err != nil {
 				return err
 			}
-			defer func() { _ = cl.CloseSession() }()
-			sess, pid := artifactWindow(d, session)
-			res, err := cl.ImportVerdicts(ctx, sess, mustCwd(cwd), pid, raw)
+			defer done()
+			res, err := cl.ImportVerdicts(c.Context(), sess, mustCwd(cwd), pid, raw)
 			if err != nil {
 				return err
 			}
@@ -56,7 +64,95 @@ needing a fresh tap. A row that already has a verdict keeps it.`,
 		},
 	}
 	c.Flags().StringVar(&file, "file", "", "JSON array of prior verdicts, or - for stdin")
-	c.Flags().StringVar(&session, "session", "", "Claude session id (defaults to $CLAUDE_CODE_SESSION_ID)")
-	c.Flags().StringVar(&cwd, "cwd", "", "working directory (recorded on the request; artifacts are per-window, not resolved by directory)")
+	verdictFlags(c, &session, &cwd)
 	return c
+}
+
+func newVerdictMoveCmd(d cmd.Deps, keep bool) *cobra.Command {
+	var session, cwd string
+	var from, to []string
+	use, past, short := "move", "moved", "Move recorded verdicts to other rows, clearing each source"
+	if keep {
+		use, past, short = "copy", "copied", "Copy recorded verdicts to other rows, keeping each source"
+	}
+	c := &cobra.Command{
+		Use:   use,
+		Short: short,
+		Long: short + `. Each --from <block>/<row> pairs with the --to <block>/<row> at the same
+position. A row is a triage item id or a pr-groups PR number; the target block
+must be live in the current round. A target that already has a verdict is
+refused, and nothing is written unless every pair is valid.`,
+		Args: cobra.NoArgs,
+		RunE: func(c *cobra.Command, _ []string) error {
+			moves, err := verdictMoves(from, to, keep)
+			if err != nil {
+				return err
+			}
+			raw, err := json.Marshal(moves)
+			if err != nil {
+				return err
+			}
+			cl, sess, pid, done, err := verdictClient(c, d, session)
+			if err != nil {
+				return err
+			}
+			defer done()
+			if err := cl.MoveVerdicts(c.Context(), sess, mustCwd(cwd), pid, raw); err != nil {
+				return err
+			}
+			for _, m := range moves {
+				_, _ = fmt.Fprintf(c.OutOrStdout(), "%s: %s/%s -> %s/%s\n", past, m.From.Block, m.From.Row, m.To.Block, m.To.Row)
+			}
+			return nil
+		},
+	}
+	c.Flags().StringArrayVar(&from, "from", nil, "source <block>/<row> (repeatable)")
+	c.Flags().StringArrayVar(&to, "to", nil, "target <block>/<row>, paired with --from by position (repeatable)")
+	verdictFlags(c, &session, &cwd)
+	return c
+}
+
+func verdictMoves(from, to []string, keep bool) ([]ccdaemon.VerdictMove, error) {
+	if len(from) == 0 || len(from) != len(to) {
+		return nil, fmt.Errorf("give one --to for each --from (got %d --from, %d --to)", len(from), len(to))
+	}
+	moves := make([]ccdaemon.VerdictMove, len(from))
+	for i := range from {
+		src, err := verdictRef(from[i])
+		if err != nil {
+			return nil, err
+		}
+		dst, err := verdictRef(to[i])
+		if err != nil {
+			return nil, err
+		}
+		moves[i] = ccdaemon.VerdictMove{From: src, To: dst, Keep: keep}
+	}
+	return moves, nil
+}
+
+func verdictRef(s string) (ccdaemon.VerdictRef, error) {
+	block, row, ok := strings.Cut(s, "/")
+	if !ok || block == "" || row == "" {
+		return ccdaemon.VerdictRef{}, fmt.Errorf("%q is not <block>/<row>", s)
+	}
+	return ccdaemon.VerdictRef{Block: block, Row: row}, nil
+}
+
+func verdictClient(c *cobra.Command, d cmd.Deps, session string) (*ccdaemon.Client, string, int, func(), error) {
+	ctx := c.Context()
+	if err := d.EnsureCurrent(ctx); err != nil {
+		return nil, "", 0, nil, err
+	}
+	cl, err := client(ctx, d)
+	if err != nil {
+		return nil, "", 0, nil, err
+	}
+	sess, pid := artifactWindow(d, session)
+	return cl, sess, pid, func() { _ = cl.CloseSession() }, nil
+}
+
+func verdictFlags(c *cobra.Command, session, cwd *string) {
+	c.Flags().StringVar(session, "session", "", "Claude session id (defaults to $CLAUDE_CODE_SESSION_ID)")
+	c.Flags().StringVar(cwd, "cwd", "", "working directory (recorded on the request; artifacts are per-window, not resolved by directory)")
 }

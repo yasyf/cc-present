@@ -46,7 +46,7 @@ func NewRootCmd() *cobra.Command {
 		newUpdateBlockCmd(d),
 		newRemoveBlockCmd(d),
 		newReplyCmd(d),
-		newImportVerdictsCmd(d),
+		newVerdictCmd(d),
 		newAskCmd(d),
 		newSendCmd(d),
 		newSlackSyncCmd(d),

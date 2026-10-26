@@ -192,3 +192,89 @@ func TestPriorVerdictPayloads(t *testing.T) {
 		})
 	}
 }
+
+func TestMoveVerdictPayloads(t *testing.T) {
+	now := time.Date(2026, 10, 26, 21, 50, 0, 0, time.UTC)
+	seeded := map[string]map[string]state.Decision{
+		"old":  {"row-42732-ab4cced": {Verdict: "approved", Note: "ok"}},
+		"tr1":  {"i1": {Verdict: "rejected"}},
+		"gone": {"x": {Verdict: "approved", Head: "0001111", At: "2026-10-26T20:03:00Z"}},
+	}
+	tests := []struct {
+		name    string
+		moves   []VerdictMove
+		taken   map[string]map[string]state.Decision
+		want    []string
+		wantErr string
+	}{
+		{
+			name:  "triage verdict moves onto a pr-groups row at its head and clears the source",
+			moves: []VerdictMove{{From: VerdictRef{"old", "row-42732-ab4cced"}, To: VerdictRef{"pg", "8"}}},
+			want: []string{
+				`{"blockId":"pg","verdicts":{"8":{"verdict":"approved","note":"ok","head":"abc1234","at":"2026-10-26T21:50:00Z"}}}`,
+				`{"blockId":"old","verdicts":{"row-42732-ab4cced":{"verdict":"cleared"}}}`,
+			},
+		},
+		{
+			name:  "copy keeps the source and the recorded head and time",
+			moves: []VerdictMove{{From: VerdictRef{"gone", "x"}, To: VerdictRef{"pg", "9"}, Keep: true}},
+			want:  []string{`{"blockId":"pg","verdicts":{"9":{"verdict":"approved","head":"0001111","at":"2026-10-26T20:03:00Z"}}}`},
+		},
+		{
+			name:  "pr-groups verdict moves onto a triage item without head or time",
+			moves: []VerdictMove{{From: VerdictRef{"gone", "x"}, To: VerdictRef{"tr2", "j1"}, Keep: true}},
+			want:  []string{`{"blockId":"tr2","verdicts":{"j1":{"verdict":"approved"}}}`},
+		},
+		{name: "no source verdict", moves: []VerdictMove{{From: VerdictRef{"old", "nope"}, To: VerdictRef{"pg", "8"}}}, wantErr: "no verdict recorded at old/nope"},
+		{name: "target taken", moves: []VerdictMove{{From: VerdictRef{"old", "row-42732-ab4cced"}, To: VerdictRef{"tr1", "i1"}}}, wantErr: "already carries a verdict"},
+		{name: "unknown target row", moves: []VerdictMove{{From: VerdictRef{"old", "row-42732-ab4cced"}, To: VerdictRef{"pg", "77"}}}, wantErr: `no pull request "77"`},
+		{name: "unknown target block", moves: []VerdictMove{{From: VerdictRef{"old", "row-42732-ab4cced"}, To: VerdictRef{"nowhere", "1"}}}, wantErr: `unknown block "nowhere"`},
+		{
+			name:    "same target twice",
+			moves:   []VerdictMove{{From: VerdictRef{"old", "row-42732-ab4cced"}, To: VerdictRef{"pg", "8"}}, {From: VerdictRef{"gone", "x"}, To: VerdictRef{"pg", "8"}}},
+			wantErr: "named twice",
+		},
+		{name: "note onto a notes-free triage", moves: []VerdictMove{{From: VerdictRef{"old", "row-42732-ab4cced"}, To: VerdictRef{"trn", "k1"}}}, wantErr: "does not allow notes"},
+	}
+	const moveDoc = `{"version":1,"title":"T","blocks":[
+  {"id":"pg","type":"pr-groups","repo":"a/b","groups":[{"id":"g1","title":"G","summary":"S.","prs":[
+    {"number":8,"head":"abc1234","title":"T8","change":"C.","plan":"P.","risk":"R.","review":"V.","blocker":"B."},
+    {"number":9,"head":"def5678","title":"T9","change":"C.","plan":"P.","risk":"R.","review":"V.","blocker":"B."}]}]},
+  {"id":"tr1","type":"triage","items":[{"id":"i1","label":"First"}]},
+  {"id":"tr2","type":"triage","items":[{"id":"j1","label":"Second"}]},
+  {"id":"trn","type":"triage","allowNotes":false,"items":[{"id":"k1","label":"Third"}]}
+]}`
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := newRestHarnessWith(t, moveDoc, emptyPackLoader(t))
+			events, err := loadEvents(t.Context(), h.cc.DB(), h.id)
+			if err != nil {
+				t.Fatal(err)
+			}
+			st, err := state.Reduce(events)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for block, rows := range seeded {
+				st.Interactions.Triage[block] = rows
+			}
+			payloads, err := moveVerdictPayloads(&st, tt.moves, now)
+			if tt.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+					t.Fatalf("err = %v, want %q", err, tt.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			got := make([]string, len(payloads))
+			for i, p := range payloads {
+				got[i] = string(p)
+			}
+			if strings.Join(got, "\n") != strings.Join(tt.want, "\n") {
+				t.Fatalf("payloads =\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(tt.want, "\n"))
+			}
+		})
+	}
+}

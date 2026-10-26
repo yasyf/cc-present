@@ -193,3 +193,10 @@ func (cl *Client) ImportVerdicts(ctx context.Context, session, scope string, pid
 	}
 	return out, nil
 }
+
+// MoveVerdicts re-keys recorded verdicts onto other triage items or pr-groups
+// rows, clearing each source unless its move keeps it.
+func (cl *Client) MoveVerdicts(ctx context.Context, session, scope string, pid int, movesJSON json.RawMessage) error {
+	_, _, err := cl.do(ctx, OpMoveVerdicts, session, scope, pid, body{Verdicts: movesJSON})
+	return err
+}
