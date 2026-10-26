@@ -18,3 +18,5 @@ func daemonTrust() daemonkit.Trust {
 func Supervise(ctx context.Context) error {
 	return daemonkit.Supervise(ctx, daemonServiceLabel)
 }
+
+func cycleAgent(context.Context) (bool, error) { return false, nil }

@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/yasyf/cc-interact/channel"
 	"github.com/yasyf/cc-interact/cmd"
@@ -91,6 +92,68 @@ func usableDaemon(err error) error {
 	return err
 }
 
+const (
+	silenceProbeTimeout = 5 * time.Second
+	cycleTimeout        = time.Minute
+)
+
+type wedgeRecovery struct {
+	silent   func(context.Context) (bool, error)
+	cycle    func(context.Context) (bool, error)
+	reensure func(context.Context) error
+}
+
+func recoveryFor(l ccd.Launcher) wedgeRecovery {
+	return wedgeRecovery{
+		silent: func(ctx context.Context) (bool, error) { return controlSilent(ctx, l.Daemon) },
+		cycle: func(ctx context.Context) (bool, error) {
+			cycleCtx, cancel := context.WithTimeout(ctx, cycleTimeout)
+			defer cancel()
+			return cycleAgent(cycleCtx)
+		},
+		reensure: func(ctx context.Context) error { return l.EnsureCurrent(ctx, ccd.UpgradeTimeout) },
+	}
+}
+
+func (r wedgeRecovery) after(ctx context.Context, err error) error {
+	if err == nil || errors.Is(err, ccd.ErrIncumbentNewer) {
+		return err
+	}
+	silent, probeErr := r.silent(ctx)
+	if probeErr != nil {
+		return errors.Join(err, probeErr)
+	}
+	if !silent {
+		return err
+	}
+	cycled, cycleErr := r.cycle(ctx)
+	if cycleErr != nil {
+		return errors.Join(err, cycleErr)
+	}
+	if !cycled {
+		return err
+	}
+	return r.reensure(ctx)
+}
+
+func controlSilent(ctx context.Context, d daemonkit.Daemon) (bool, error) {
+	client, err := daemonkit.Open(d)
+	if err != nil {
+		return false, err
+	}
+	probeCtx, cancel := context.WithTimeout(ctx, silenceProbeTimeout)
+	defer cancel()
+	control, err := client.Control(probeCtx)
+	switch {
+	case err == nil:
+		return false, control.Close(probeCtx)
+	case errors.Is(err, daemonkit.ErrAbsent), errors.Is(err, daemonkit.ErrDraining), probeCtx.Err() != nil:
+		return true, nil
+	default:
+		return false, nil
+	}
+}
+
 // Deps wires cc-interact's substrate commands to cc-present's host.
 func Deps() cmd.Deps {
 	return cmd.Deps{
@@ -102,14 +165,14 @@ func Deps() cmd.Deps {
 			if err != nil {
 				return err
 			}
-			return usableDaemon(l.EnsureCurrent(ctx, ccd.UpgradeTimeout))
+			return usableDaemon(recoveryFor(l).after(ctx, l.EnsureCurrent(ctx, ccd.UpgradeTimeout)))
 		},
 		EnsureCurrentIfRunning: func(ctx context.Context) error {
 			l, err := launcher()
 			if err != nil {
 				return err
 			}
-			return l.EnsureCurrentIfRunning(ctx)
+			return recoveryFor(l).after(ctx, l.EnsureCurrentIfRunning(ctx))
 		},
 		Stop: func(ctx context.Context) error {
 			l, err := launcher()
