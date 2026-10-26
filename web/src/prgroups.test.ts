@@ -43,6 +43,9 @@ describe('rowVerdict', () => {
   it('stands at the row head, matched by prefix', () => {
     expect(rowVerdict(r, { verdict: 'approved', head: 'abc1234ffff' }).kind).toBe('current');
   });
+  it('goes stale without a recorded head', () => {
+    expect(rowVerdict(r, { verdict: 'approved' }).kind).toBe('stale');
+  });
   it('goes stale at another head', () => {
     expect(rowVerdict(r, { verdict: 'approved', head: '9999999' }).kind).toBe('stale');
   });

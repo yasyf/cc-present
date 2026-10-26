@@ -98,6 +98,7 @@ struct SubmitItem: Equatable {
         case approval
         case choice
         case triage
+        case prGroups
         case pack
     }
 
@@ -120,6 +121,8 @@ func submitItems(_ blocks: [Block], _ interactions: Interactions, _ packTypes: P
             out.append(SubmitItem(id: choice.id, kind: .choice, decided: isDecided(block, interactions)))
         case let .triage(triage):
             out.append(SubmitItem(id: triage.id, kind: .triage, decided: isDecided(block, interactions)))
+        case let .prGroups(groups):
+            out.append(SubmitItem(id: groups.id, kind: .prGroups, decided: isDecided(block, interactions)))
         case let .pack(pack):
             if packTypes.tallies(pack.packType) {
                 out.append(SubmitItem(id: pack.id, kind: .pack, decided: isDecided(block, interactions)))
@@ -147,6 +150,8 @@ func isDecided(_ block: Block, _ interactions: Interactions) -> Bool {
         }
     case let .triage(triage):
         triage.items.allSatisfy { interactions.triage[triage.id]?[$0.id] != nil }
+    case let .prGroups(groups):
+        groups.rows.allSatisfy { Block.PRGroups.stands(interactions.triage[groups.id]?[String($0.number)], for: $0) }
     case let .pack(pack):
         interactions.packs[pack.id] != nil
     default:

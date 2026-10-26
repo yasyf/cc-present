@@ -30,7 +30,7 @@ export type RowVerdict =
 // head, it is stale and the row needs a fresh tap.
 export function rowVerdict(row: PRRow, decision: Decision | undefined): RowVerdict {
   if (!decision) return { kind: 'none' };
-  if (!decision.head || sameHead(decision.head, row.head)) return { kind: 'current', decision, carried: false };
+  if (sameHead(decision.head, row.head)) return { kind: 'current', decision, carried: false };
   if (row.carried?.some((h) => sameHead(h, decision.head))) return { kind: 'current', decision, carried: true };
   return { kind: 'stale', decision };
 }
@@ -50,7 +50,8 @@ export function formatAt(iso: string | undefined): string {
 }
 
 export function staleLine(row: PRRow, decision: Decision): string {
-  return `${verdictWord(decision.verdict)} at ${shortHead(decision.head ?? '')} on ${formatAt(decision.at)}; new head ${shortHead(row.head)} needs your tap.`;
+  const given = decision.head ? ` at ${shortHead(decision.head)}` : '';
+  return `${verdictWord(decision.verdict)}${given} on ${formatAt(decision.at)}; new head ${shortHead(row.head)} needs your tap.`;
 }
 
 export interface Tally {

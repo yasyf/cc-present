@@ -210,7 +210,7 @@ func moveVerdictPayloads(st *state.State, moves []VerdictMove, now time.Time) ([
 			clears = append(clears, mustJSON(map[string]any{"blockId": m.From.Block, "verdicts": map[string]triageEntry{m.From.Row: {Verdict: "cleared"}}}))
 		}
 	}
-	return append(payloads, clears...), nil
+	return append(clears, payloads...), nil
 }
 
 func recordedVerdict(st *state.State, ref VerdictRef) (state.Decision, bool) {

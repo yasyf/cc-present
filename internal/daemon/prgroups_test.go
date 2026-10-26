@@ -211,8 +211,8 @@ func TestMoveVerdictPayloads(t *testing.T) {
 			name:  "triage verdict moves onto a pr-groups row at its head and clears the source",
 			moves: []VerdictMove{{From: VerdictRef{"old", "row-42732-ab4cced"}, To: VerdictRef{"pg", "8"}}},
 			want: []string{
-				`{"blockId":"pg","verdicts":{"8":{"verdict":"approved","note":"ok","head":"abc1234","at":"2026-10-26T21:50:00Z"}}}`,
 				`{"blockId":"old","verdicts":{"row-42732-ab4cced":{"verdict":"cleared"}}}`,
+				`{"blockId":"pg","verdicts":{"8":{"verdict":"approved","note":"ok","head":"abc1234","at":"2026-10-26T21:50:00Z"}}}`,
 			},
 		},
 		{

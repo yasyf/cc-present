@@ -39,9 +39,9 @@ const FIELDS: readonly { key: 'change' | 'plan' | 'risk' | 'review' | 'blocker';
 // to the row's head; a tap on the row expands its full text and the live PR in
 // place. A verdict given at an older head stays visible and asks for a new tap.
 export function PRGroups({ block, interactions }: { block: PRGroupsBlock; interactions: Interactions }) {
-  const { post, closed } = usePresent();
+  const { post, closed, roundOver } = usePresent();
   const readOnly = useGroupReadOnly();
-  const locked = closed || readOnly;
+  const locked = closed || readOnly || (roundOver ?? false);
   const verdicts = interactions.triage[block.id] ?? {};
   const rows = allRows(block);
   const total = tally(rows, verdicts);
@@ -100,6 +100,7 @@ export function PRGroups({ block, interactions }: { block: PRGroupsBlock; intera
           locked={locked}
           open={open}
           cursorId={cursorId}
+          onFocusRow={(id) => setRowCursor(rows.findIndex((r) => prRowId(r.number) === id))}
           onToggle={toggleOpen}
           send={send}
         />
@@ -115,11 +116,12 @@ interface GroupProps {
   locked: boolean;
   open: ReadonlySet<string>;
   cursorId: string | undefined;
+  onFocusRow: (id: string) => void;
   onToggle: (id: string) => void;
   send: (merge: Record<string, VerdictEntry>) => Promise<boolean>;
 }
 
-function Group({ block, group, verdicts, locked, open, cursorId, onToggle, send }: GroupProps) {
+function Group({ block, group, verdicts, locked, open, cursorId, onFocusRow, onToggle, send }: GroupProps) {
   const t = tally(group.prs, verdicts);
   const pending = Object.keys(approveGroup(group, verdicts)).length;
   return (
@@ -152,6 +154,7 @@ function Group({ block, group, verdicts, locked, open, cursorId, onToggle, send 
               locked={locked}
               expanded={open.has(id)}
               cursored={cursorId === id}
+              onFocus={() => onFocusRow(id)}
               onToggle={() => onToggle(id)}
               send={send}
             />
@@ -169,6 +172,7 @@ interface RowProps {
   locked: boolean;
   expanded: boolean;
   cursored: boolean;
+  onFocus: () => void;
   onToggle: () => void;
   send: (merge: Record<string, VerdictEntry>) => Promise<boolean>;
 }
@@ -181,7 +185,7 @@ function rowState(v: RowVerdict): 'approved' | 'held' | 'stale' | 'open' {
 
 const STATE_LABEL = { approved: 'Approved', held: 'Held', stale: 'Needs your tap', open: 'Waiting on you' } as const;
 
-function Row({ block, row, decision, locked, expanded, cursored, onToggle, send }: RowProps) {
+function Row({ block, row, decision, locked, expanded, cursored, onFocus, onToggle, send }: RowProps) {
   const id = prRowId(row.number);
   const v = rowVerdict(row, decision);
   const state = rowState(v);
@@ -193,7 +197,7 @@ function Row({ block, row, decision, locked, expanded, cursored, onToggle, send 
   }
 
   return (
-    <li className={`prg-row prg-${state}${expanded ? ' is-open' : ''}${cursored ? ' cursor' : ''}`} data-row={id}>
+    <li className={`prg-row prg-${state}${expanded ? ' is-open' : ''}${cursored ? ' cursor' : ''}`} data-row={id} onFocus={onFocus}>
       <button type="button" className="prg-row-head" aria-expanded={expanded} aria-controls={detailId} onClick={onToggle}>
         <span className="prg-row-line">
           <span className="prg-num">#{row.number}</span>

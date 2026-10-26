@@ -244,6 +244,10 @@ struct DocCodableTests {
             return
         }
         #expect(decoded.id == "pg")
+        #expect(decoded.rows == [Block.PRGroups.Row(number: 8, head: "abc1234")])
+        #expect(Block.PRGroups.stands(Decision(verdict: "approved", head: "abc1234ffff"), for: decoded.rows[0]))
+        #expect(!Block.PRGroups.stands(Decision(verdict: "approved", head: "0001111"), for: decoded.rows[0]))
+        #expect(!Block.PRGroups.stands(Decision(verdict: "approved"), for: decoded.rows[0]))
         #expect(groups.type == "pr-groups")
         #expect(try roundTrip(groups) == groups)
     }
