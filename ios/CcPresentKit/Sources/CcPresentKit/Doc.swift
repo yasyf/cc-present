@@ -88,6 +88,7 @@ public enum Block: Codable, Equatable, Sendable {
     case filetree(FileTree)
     case record(Record)
     case pr(PR)
+    case prGroups(PRGroups)
     case pack(Pack)
 
     /// Section is a top-level header marker with optional prose.
@@ -608,6 +609,61 @@ public enum Block: Codable, Equatable, Sendable {
         }
     }
 
+    /// PRGroups is a set of pull requests grouped by what they change, each with a
+    /// head-pinned verdict. The client renders it through the SPA's single-block
+    /// page, so `raw` holds the whole block object verbatim, like a pack block;
+    /// `rows` keeps the fields the native tally reads.
+    public struct PRGroups: Codable, Equatable, Sendable {
+        public var id: String
+        public var raw: JSONValue
+        public var rows: [Row]
+
+        /// Row is one pull request's verdict key and the heads its verdict stands at.
+        public struct Row: Decodable, Equatable, Sendable {
+            public var number: Int
+            public var head: String
+            public var carried: [String]?
+
+            public init(number: Int, head: String, carried: [String]? = nil) {
+                self.number = number
+                self.head = head
+                self.carried = carried
+            }
+        }
+
+        private struct Group: Decodable {
+            var prs: [Row]
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case id, groups
+        }
+
+        public init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            id = try container.decode(String.self, forKey: .id)
+            rows = try container.decode([Group].self, forKey: .groups).flatMap(\.prs)
+            raw = try JSONValue(from: decoder)
+        }
+
+        public func encode(to encoder: Encoder) throws {
+            try raw.encode(to: encoder)
+        }
+
+        /// stands reports whether a recorded verdict holds for the row's current head:
+        /// given at that head or at one the agent carried. Mirrors web/src/prgroups.ts.
+        public static func stands(_ decision: Decision?, for row: Row) -> Bool {
+            guard let head = decision?.head else { return false }
+            return sameHead(head, row.head) || (row.carried ?? []).contains { sameHead(head, $0) }
+        }
+
+        /// sameHead mirrors doc.SameHead: the shorter sha is a prefix of the longer.
+        public static func sameHead(_ a: String, _ b: String) -> Bool {
+            guard !a.isEmpty, !b.isEmpty else { return false }
+            return a.count <= b.count ? b.hasPrefix(a) : a.hasPrefix(b)
+        }
+    }
+
     /// Pack is a plugin-supplied block whose type carries a `<pack>.<name>`
     /// namespace. The client does not model its fields; `raw` holds the entire
     /// block object (id and type included) verbatim so a pack-supplied renderer
@@ -646,6 +702,7 @@ public enum Block: Codable, Equatable, Sendable {
         case let .filetree(block): block.id
         case let .record(block): block.id
         case let .pr(block): block.id
+        case let .prGroups(block): block.id
         case let .pack(block): block.id
         }
     }
@@ -672,6 +729,7 @@ public enum Block: Codable, Equatable, Sendable {
         case .filetree: "filetree"
         case .record: "record"
         case .pr: "pr"
+        case .prGroups: "pr-groups"
         case let .pack(block): block.packType
         }
     }
@@ -704,6 +762,7 @@ public enum Block: Codable, Equatable, Sendable {
         case "filetree": self = try .filetree(FileTree(from: decoder))
         case "record": self = try .record(Record(from: decoder))
         case "pr": self = try .pr(PR(from: decoder))
+        case "pr-groups": self = try .prGroups(PRGroups(from: decoder))
         default:
             if type.contains(".") {
                 let id = try container.decode(String.self, forKey: .id)
@@ -724,6 +783,10 @@ public enum Block: Codable, Equatable, Sendable {
         // A pack block's raw JSON already carries id and type; encode it alone and
         // return before the discriminator container writes type a second time.
         if case let .pack(block) = self {
+            try block.raw.encode(to: encoder)
+            return
+        }
+        if case let .prGroups(block) = self {
             try block.raw.encode(to: encoder)
             return
         }
@@ -749,7 +812,7 @@ public enum Block: Codable, Equatable, Sendable {
         case let .filetree(block): try block.encode(to: encoder)
         case let .record(block): try block.encode(to: encoder)
         case let .pr(block): try block.encode(to: encoder)
-        case .pack: break
+        case .prGroups, .pack: break
         }
     }
 }

@@ -209,6 +209,9 @@ export type Interaction =
 export interface Decision {
   verdict: Verdict;
   note?: string;
+  // A pr-groups row's verdict: the head it was given at and the daemon's stamp.
+  head?: string;
+  at?: string;
 }
 
 export interface Selection {

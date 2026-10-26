@@ -115,6 +115,11 @@ func init() {
 			validate: func(b Block) error { return validatePR(b.(*PR)) },
 			markdown: func(b Block, f func(*string)) { f(&b.(*PR).Summary) },
 		},
+		"pr-groups": {
+			decode:   decodeLeaf[PRGroups],
+			validate: func(b Block) error { return validatePRGroups(b.(*PRGroups)) },
+			markdown: func(b Block, f func(*string)) { prGroupsMarkdown(b.(*PRGroups), f) },
+		},
 	}
 }
 
@@ -170,6 +175,19 @@ func choiceMarkdown(c *Choice, f func(*string)) {
 		f(&o.Hint)
 		f(&o.Md)
 		detailMarkdown(o.Detail, f)
+	}
+}
+
+func prGroupsMarkdown(g *PRGroups, f func(*string)) {
+	for i := range g.Groups {
+		gr := &g.Groups[i]
+		f(&gr.Summary)
+		for j := range gr.PRs {
+			r := &gr.PRs[j]
+			for _, s := range []*string{&r.Change, &r.Plan, &r.Risk, &r.Review, &r.Blocker, &r.Md} {
+				f(s)
+			}
+		}
 	}
 }
 

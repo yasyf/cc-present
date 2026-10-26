@@ -43,10 +43,13 @@ type Event struct {
 	Payload json.RawMessage `json:"payload"`
 }
 
-// Decision is a human's last-write-wins verdict on a block, with an optional note.
+// Decision is a human's last-write-wins verdict on a block, with an optional
+// note. A pr-groups row's verdict also records the head it was given at and when.
 type Decision struct {
 	Verdict string `json:"verdict"`
 	Note    string `json:"note,omitempty"`
+	Head    string `json:"head,omitempty"`
+	At      string `json:"at,omitempty"`
 }
 
 // Selection is a human's last-write-wins option selection on a choice block.
@@ -450,11 +453,8 @@ func (s *State) apply(ev Event) error {
 	case "triage.decided":
 		var p struct {
 			payloadIdentity
-			BlockID  string `json:"blockId"`
-			Verdicts map[string]struct {
-				Verdict string `json:"verdict"`
-				Note    string `json:"note"`
-			} `json:"verdicts"`
+			BlockID  string              `json:"blockId"`
+			Verdicts map[string]Decision `json:"verdicts"`
 		}
 		if err := decodeEventPayload(ev, &p); err != nil {
 			return err
@@ -471,7 +471,7 @@ func (s *State) apply(ev Event) error {
 				delete(block, itemID)
 				continue
 			}
-			block[itemID] = Decision{Verdict: entry.Verdict, Note: entry.Note}
+			block[itemID] = entry
 		}
 		if len(block) == 0 {
 			delete(s.Interactions.Triage, p.BlockID)

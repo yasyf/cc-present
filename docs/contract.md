@@ -53,6 +53,7 @@ Reference links.
 | `filetree` | top or child | `id`, `type`, `title?`, `entries` | Collapsible file tree. `entries[]` is `{path, badge?, note?}`; directories are implicit from path segments. Also usable as an `option.visual`. |
 | `record` | top or child | `id`, `type`, `title?`, `chips?`, `facts`, `links?` | One entity's labeled profile. `facts` is `Fact[]` (see Validation; label required here), `chips` as on `card`, `links[]` is `{label, url}`. Also usable as an `option.visual`. |
 | `pr` | top or child | `id`, `type`, `repo`, `number`, `title?`, `summary?`, `files?` | A GitHub pull request the client reads live from `GET /api/pr` (see Pull requests). `repo` is `owner/name`; `number` is a positive integer; `title` overrides the PR's own; `summary` is markdown under the heading; `files[]` holds up to **50** `path.Match` globs or directory prefixes that narrow the changed-file list. |
+| `pr-groups` | top or child | `id`, `type`, `repo`, `prompt?`, `groups` | Pull requests in one repo grouped by what they change, each with an approve or hold verdict pinned to its head. `groups[]` is `{id, title, summary, prs}`: `summary` is one line on what the group changes for a user, group ids are unique within the block, at most **30** groups. `prs[]` is `{number, head, title, change, plan, risk, review, blocker, md?, carried?, files?}`: `change` is what it changes for a user, `plan` what differs from the plan or `Matches the plan.`, `risk` the risk, `review` the code review and CI state, and `blocker` what blocks landing, each one non-empty line of inline markdown; `md` is the row's full text. `head` and every `carried[]` entry are 7 to 40 lowercase hex characters; `carried` lists earlier heads whose verdict still stands for this head. A number appears once per block, at most **150** rows. `files[]` narrows the live read like a `pr` block's. A row's verdict key is its number in decimal, and its live state comes from `GET /api/pr` with the block's id (see Pull requests). |
 | `image` | top or child | `id`, `type`, `src`, `alt`, `caption?` | `src` is `https://…`, `asset:<sha256>`, or `data:…`. |
 | `table` | top or child | `id`, `type`, `columns`, `rows` | `columns[]` is `{key, label, align?}` where `align` is `left` or `right`; `rows[]` is a `Record<string,string>` of inline-markdown cells. |
 | `progress` | top or child | `id`, `type`, `label`, `value`, `max`, `state?` | `state` is one of `active`, `done`, `error` and is agent-owned. |
@@ -477,7 +478,7 @@ A key a stored payload carries beyond its row below is ignored.
 | human | `pack.interaction` | `{blockId, payload}` | Last-write-wins per block. `payload` is the pack-defined interaction object, stored opaquely — the reducer never inspects its shape. The REST edge validates it against the block's declared interaction schema before appending. |
 | human | `annotation.created` | `{id, blockId, anchor, text, quote}` | Upsert by `id` into the block's ordered annotation list: an existing id is replaced in place, a new id appends — an edit re-sends the id. Targets a `draft` block. The REST edge parses and resolves `anchor` against the block's current `text` (an unresolvable anchor is rejected), rewrites it to the normalized ranged form (see Line anchors), and stamps `quote` from the resolved lines (at most **2 KiB**) — the client-sent `quote` is advisory and always replaced. |
 | human | `annotation.removed` | `{id, blockId}` | Splice the annotation out of the block's list. A replayed unknown id is a reducer no-op; the REST edge rejects one with 400. Removing the last annotation leaves an empty list under the block key. |
-| human | `triage.decided` | `{blockId, verdicts}` | Partial-map merge, last-write-wins per item: `verdicts` is `{[itemId]: {verdict, note?}}`, folded entry by entry, so one event carries a single flip or an atomic accept-all. `cleared` removes the item's entry, and an emptied block map is removed with it. A `note` requires a non-cleared verdict and the block's `allowNotes`. The REST edge rejects an `itemId` outside the block's items. |
+| human | `triage.decided` | `{blockId, verdicts}` | Partial-map merge, last-write-wins per item: `verdicts` is `{[itemId]: {verdict, note?, head?, at?}}`, folded entry by entry, so one event carries a single flip or an atomic accept-all. `cleared` removes the item's entry, and an emptied block map is removed with it. On a `triage`, a `note` requires a non-cleared verdict and the block's `allowNotes`, and `head` and `at` are refused. On a `pr-groups`, the item id is a row's PR number, `rejected` is the Hold verdict, an approve or hold must name a `head` matching the row's current head (a prefix match either way), the REST edge stamps `at` with the daemon's clock in RFC 3339 UTC and refuses a client-sent one, and the appended entry records the row's head as written in the document. A `cleared` carries no note or head. The REST edge rejects an `itemId` outside the block's items or rows. |
 | human | `submit` | `{revision, viewed?}` | Merge each `viewed` id into `interactions.viewed`, then set submitted with the revision. When the round is dirty, additionally snapshot the current round into `rounds.history` with `submittedRevision` set, empty `interactions.viewed`, advance `rounds.current`, and clear the title; a clean submit records only the revision. Does not close the document, so rounds continue. Either way the revising working set clears wholesale (see Live revision). The REST plane rejects a revision the log never produced (below 0 or past the current revision). It keeps only the `viewed` ids that name a top-level block or card child of the current document, deduplicated in order and capped at 500, and omits the key when none remain. The web board and the iOS app both send `viewed` and record it with the same round-scoped rule. |
 | agent | `revising.changed` | `{blockIds, note?}` | Replace the revising working set wholesale (last-write-wins). Each id on the wire names a current top-level block — the daemon edge resolves an announced card-child id to its enclosing card before appending, deduplicating in input order. A `block.upserted` or `block.removed` drops its id (a child write drops the enclosing card's), and draining the last id clears the shared `note` too. `doc.replaced` clears everything, and a `submit` or `round.started` clears the whole set too, note included. An empty set with a `note` is the doc-level drafting state, while an empty set with no `note` abandons the announcement. Announcing never stamps rounds (see Live revision). |
 
@@ -783,7 +784,9 @@ Unknown `/api/*` paths return 404, never the shell.
 the `pr` block `id` carrying that repo and number in the subject's reduced
 document, the live one first and then each closed round, newest first. It
 fetches that PR with the `gh` CLI on the daemon's host under the user's existing
-`gh auth`, applying the block's own `files` filter. A request must match a block
+`gh auth`, applying the block's own `files` filter. A `pr-groups` block `id`
+matches when its `repo` is the requested one and one of its rows carries the
+number; that row's `files` filter applies. A request must match a block
 the agent wrote, so a client cannot aim the user's credentials at a PR of its
 choosing, and no token reaches the document or the client. A redrafted block
 whose id carries a new PR still serves its frozen version in a closed round. An
@@ -806,6 +809,38 @@ PRLive = { repo, number, title, url, author,
 branch, the shape a merge queue leaves; `mergedSha` then names that commit.
 `files` holds only the paths the block's `files` globs select, and `patch` is
 absent when GitHub omits it for a binary or oversized file.
+
+## Pull request verdicts
+
+A `pr-groups` row's verdict lives in `interactions.triage[blockId][number]` as
+`{verdict, note?, head, at}`. It stands for the row when `head` matches the
+row's `head` or one of its `carried` heads; any other head means the pull
+request moved since the human decided, and the board shows
+`Approved at <old> on <time>; new head <new> needs your tap.` until the human
+taps again or the agent adds the old head to `carried`. The submit tally counts
+the block decided once every row's verdict stands.
+
+`cc-present verdict import --file <json|->` carries verdicts the human gave
+on an earlier board onto a live `pr-groups` block, as the agent-side
+`import-verdicts` op. The file is an array of
+`{block, row, verdict, at, note?, head?}`: `block` is the `pr-groups` id, `row`
+the PR number in decimal, `verdict` `approved` or `rejected`, `at` the RFC 3339
+time it was given. `head` defaults to the row's current head; an older head is
+recorded as given and reads as stale. The op appends one agent-origin
+`triage.decided` per block, refuses the whole file on any invalid entry, and
+leaves a row that already carries a verdict untouched, reporting it as kept.
+
+`cc-present verdict move` and `verdict copy` run the agent-side
+`move-verdicts` op over `[{from: {block, row}, to: {block, row}, keep?}]`. Each
+source is read from the live interactions, then from closed rounds newest
+first, so a block a later push removed still yields its verdict. Each target
+must be a `triage` item or `pr-groups` row in the live document's current round
+with no verdict yet. A target `pr-groups` row takes the source's `head` and
+`at`, or the row's head and the daemon's time when the source has none; a
+target `triage` item drops both and refuses a note when its block forbids
+notes. The op appends one agent-origin `triage.decided` per target, then one
+`cleared` per source unless `keep` is set, and writes nothing when any pair is
+invalid.
 
 ## Slack ask cards
 

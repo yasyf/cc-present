@@ -237,6 +237,19 @@ struct DocCodableTests {
 
         #expect(try block(#"{"id":"pr","type":"pr","repo":"yasyf/cc-present","number":47}"#)
             == .pr(Block.PR(id: "pr", repo: "yasyf/cc-present", number: 47)))
+
+        let groups = try block(#"{"id":"pg","type":"pr-groups","repo":"a/b","groups":[{"id":"g1","title":"G","summary":"S.","prs":[{"number":8,"head":"abc1234","title":"T","change":"C.","plan":"P.","risk":"R.","review":"V.","blocker":"B."}]}]}"#)
+        guard case let .prGroups(decoded) = groups else {
+            Issue.record("pr-groups decoded as \(groups.type)")
+            return
+        }
+        #expect(decoded.id == "pg")
+        #expect(decoded.rows == [Block.PRGroups.Row(number: 8, head: "abc1234")])
+        #expect(Block.PRGroups.stands(Decision(verdict: "approved", head: "abc1234ffff"), for: decoded.rows[0]))
+        #expect(!Block.PRGroups.stands(Decision(verdict: "approved", head: "0001111"), for: decoded.rows[0]))
+        #expect(!Block.PRGroups.stands(Decision(verdict: "approved"), for: decoded.rows[0]))
+        #expect(groups.type == "pr-groups")
+        #expect(try roundTrip(groups) == groups)
     }
 
     @Test("a grounded code block decodes its source, slice, highlight, pins, and stamp, and round-trips")

@@ -10,6 +10,7 @@ import (
 	"mime"
 	"net/http"
 	"strings"
+	"time"
 	"unicode"
 	"unicode/utf8"
 
@@ -83,10 +84,13 @@ type interaction struct {
 }
 
 // triageEntry is one item's verdict in a triage.decided interaction, mirrored
-// verbatim into the appended payload with an empty note omitted.
+// into the appended payload with an empty note omitted. On a pr-groups row the
+// human names the head they decided at, and the daemon stamps At.
 type triageEntry struct {
 	Verdict string `json:"verdict"`
 	Note    string `json:"note,omitempty"`
+	Head    string `json:"head,omitempty"`
+	At      string `json:"at,omitempty"`
 }
 
 // mountREST registers the human-interaction endpoint, the content-addressed
@@ -203,7 +207,7 @@ func (rs *restServer) handleInteractions(w http.ResponseWriter, r *http.Request)
 			revision++
 		}
 	}
-	payload, err := validateInteraction(&st, revision, &req.Interaction, rs.packs.Current())
+	payload, err := validateInteraction(&st, revision, &req.Interaction, rs.packs.Current(), time.Now())
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -247,7 +251,7 @@ func (rs *restServer) handleInteractions(w http.ResponseWriter, r *http.Request)
 // its viewed ids narrow to blocks the document still addresses. A
 // pack.interaction validates its payload against the block's declared
 // interaction schema in reg.
-func validateInteraction(st *state.State, revision int, it *interaction, reg *packs.Registry) (json.RawMessage, error) {
+func validateInteraction(st *state.State, revision int, it *interaction, reg *packs.Registry, now time.Time) (json.RawMessage, error) {
 	switch it.Type {
 	case EventSubmit:
 		if it.Revision < 0 || it.Revision > revision {
@@ -433,7 +437,7 @@ func validateInteraction(st *state.State, revision int, it *interaction, reg *pa
 		}
 		return mustJSON(map[string]string{"id": it.ID, "blockId": it.BlockID}), nil
 	case EventTriageDecided:
-		tr, topID, err := requireTriage(st, it.BlockID)
+		b, topID, err := findBlock(st.Doc, it.BlockID)
 		if err != nil {
 			return nil, err
 		}
@@ -443,30 +447,17 @@ func validateInteraction(st *state.State, revision int, it *interaction, reg *pa
 		if len(it.Verdicts) == 0 {
 			return nil, fmt.Errorf("triage %q requires at least one verdict", it.BlockID)
 		}
-		items := map[string]bool{}
-		for _, item := range tr.Items {
-			items[item.ID] = true
+		var out map[string]triageEntry
+		switch blk := b.(type) {
+		case *doc.Triage:
+			out, err = triageVerdicts(blk, it.Verdicts)
+		case *doc.PRGroups:
+			out, err = prGroupsVerdicts(blk, it.Verdicts, now)
+		default:
+			return nil, fmt.Errorf("block %q is a %s, not a triage or pr-groups", it.BlockID, b.BlockType())
 		}
-		out := map[string]triageEntry{}
-		for itemID, entry := range it.Verdicts {
-			if !items[itemID] {
-				return nil, fmt.Errorf("triage %q has no item %q", it.BlockID, itemID)
-			}
-			if !validVerdict[entry.Verdict] {
-				return nil, fmt.Errorf("invalid verdict %q", entry.Verdict)
-			}
-			if entry.Note != "" {
-				if entry.Verdict == "cleared" {
-					return nil, fmt.Errorf("triage %q item %q: a cleared verdict cannot carry a note", it.BlockID, itemID)
-				}
-				if !allowsNotes(tr) {
-					return nil, fmt.Errorf("triage %q does not allow notes", it.BlockID)
-				}
-				if len(entry.Note) > maxHumanTextBytes {
-					return nil, fmt.Errorf("triage %q item %q note exceeds %d bytes", it.BlockID, itemID, maxHumanTextBytes)
-				}
-			}
-			out[itemID] = triageEntry{Verdict: entry.Verdict, Note: entry.Note}
+		if err != nil {
+			return nil, err
 		}
 		return mustJSON(map[string]any{"blockId": it.BlockID, "verdicts": out}), nil
 	default:
@@ -534,16 +525,67 @@ func requireDraft(st *state.State, id string) (*doc.Draft, string, error) {
 	return dr, topID, nil
 }
 
-func requireTriage(st *state.State, id string) (*doc.Triage, string, error) {
-	b, topID, err := findBlock(st.Doc, id)
-	if err != nil {
-		return nil, "", err
+func triageVerdicts(tr *doc.Triage, verdicts map[string]triageEntry) (map[string]triageEntry, error) {
+	items := map[string]bool{}
+	for _, item := range tr.Items {
+		items[item.ID] = true
 	}
-	tr, ok := b.(*doc.Triage)
-	if !ok {
-		return nil, "", fmt.Errorf("block %q is a %s, not a triage", id, b.BlockType())
+	out := map[string]triageEntry{}
+	for itemID, entry := range verdicts {
+		if !items[itemID] {
+			return nil, fmt.Errorf("triage %q has no item %q", tr.ID, itemID)
+		}
+		if !validVerdict[entry.Verdict] {
+			return nil, fmt.Errorf("invalid verdict %q", entry.Verdict)
+		}
+		if entry.Head != "" || entry.At != "" {
+			return nil, fmt.Errorf("triage %q item %q: only a pr-groups verdict carries a head", tr.ID, itemID)
+		}
+		if entry.Note != "" {
+			if entry.Verdict == "cleared" {
+				return nil, fmt.Errorf("triage %q item %q: a cleared verdict cannot carry a note", tr.ID, itemID)
+			}
+			if !allowsNotes(tr) {
+				return nil, fmt.Errorf("triage %q does not allow notes", tr.ID)
+			}
+			if len(entry.Note) > maxHumanTextBytes {
+				return nil, fmt.Errorf("triage %q item %q note exceeds %d bytes", tr.ID, itemID, maxHumanTextBytes)
+			}
+		}
+		out[itemID] = triageEntry{Verdict: entry.Verdict, Note: entry.Note}
 	}
-	return tr, topID, nil
+	return out, nil
+}
+
+func prGroupsVerdicts(g *doc.PRGroups, verdicts map[string]triageEntry, now time.Time) (map[string]triageEntry, error) {
+	out := map[string]triageEntry{}
+	for rowID, entry := range verdicts {
+		row, ok := g.Row(rowID)
+		if !ok {
+			return nil, fmt.Errorf("pr-groups %q has no pull request %q", g.ID, rowID)
+		}
+		if !validVerdict[entry.Verdict] {
+			return nil, fmt.Errorf("invalid verdict %q", entry.Verdict)
+		}
+		if entry.At != "" {
+			return nil, fmt.Errorf("pr-groups %q #%s: the daemon stamps a verdict's time", g.ID, rowID)
+		}
+		if entry.Verdict == "cleared" {
+			if entry.Note != "" || entry.Head != "" {
+				return nil, fmt.Errorf("pr-groups %q #%s: a cleared verdict carries no note or head", g.ID, rowID)
+			}
+			out[rowID] = triageEntry{Verdict: entry.Verdict}
+			continue
+		}
+		if !doc.SameHead(entry.Head, row.Head) {
+			return nil, fmt.Errorf("pr-groups %q #%s: verdict head %q is not the row's head %q; reload the board", g.ID, rowID, entry.Head, row.Head)
+		}
+		if len(entry.Note) > maxHumanTextBytes {
+			return nil, fmt.Errorf("pr-groups %q #%s note exceeds %d bytes", g.ID, rowID, maxHumanTextBytes)
+		}
+		out[rowID] = triageEntry{Verdict: entry.Verdict, Note: entry.Note, Head: row.Head, At: now.UTC().Format(time.RFC3339)}
+	}
+	return out, nil
 }
 
 // requireCurrentRound rejects an interaction on a block whose enclosing

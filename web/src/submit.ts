@@ -12,6 +12,7 @@ const SUMMARY_NOUNS: readonly [kind: SubmitItem['kind'], one: string, many: stri
   ['approval', 'approval', 'approvals'],
   ['choice', 'choice', 'choices'],
   ['triage', 'triage list', 'triage lists'],
+  ['pr-groups', 'pull request list', 'pull request lists'],
   ['pack', 'block', 'blocks'],
 ];
 

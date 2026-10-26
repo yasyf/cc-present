@@ -178,6 +178,8 @@ export function applyEvent(state: PresentState, ev: PresentEvent): PresentState 
         }
         const decision: Decision = { verdict: entry.verdict };
         if (entry.note) decision.note = entry.note;
+        if (entry.head) decision.head = entry.head;
+        if (entry.at) decision.at = entry.at;
         block[itemId] = decision;
       }
       const triage = { ...state.interactions.triage };

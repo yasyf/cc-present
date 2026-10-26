@@ -71,9 +71,18 @@ func findPRBlock(st *state.State, id, repo string, number int) *doc.PR {
 		docs = append(docs, &doc.Doc{Blocks: st.Rounds.History[i].Blocks})
 	}
 	for _, d := range docs {
-		if loc, ok := doc.Locate(d, id); ok {
-			if pr, ok := loc.Block.(*doc.PR); ok && pr.Repo == repo && pr.Number == number {
-				return pr
+		loc, ok := doc.Locate(d, id)
+		if !ok {
+			continue
+		}
+		switch b := loc.Block.(type) {
+		case *doc.PR:
+			if b.Repo == repo && b.Number == number {
+				return b
+			}
+		case *doc.PRGroups:
+			if row, ok := b.Row(doc.RowID(number)); ok && b.Repo == repo {
+				return &doc.PR{Repo: b.Repo, Number: row.Number, Files: row.Files}
 			}
 		}
 	}

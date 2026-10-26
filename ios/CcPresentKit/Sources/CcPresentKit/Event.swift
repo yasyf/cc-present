@@ -116,24 +116,31 @@ public struct AnnotationRemovedPayload: Decodable, Equatable, Sendable {
 /// TriageVerdict is one item's decision inside a triage merge: a verdict string
 /// (approved, rejected, or cleared) with an optional note. It is the wire shape
 /// shared by the outgoing interaction and the echoed payload; an empty note is
-/// omitted on the wire (the daemon's omitempty).
+/// omitted on the wire (the daemon's omitempty). A pr-groups row's verdict also
+/// carries the head it was given at and the daemon-stamped time.
 public struct TriageVerdict: Codable, Equatable, Sendable {
     public var verdict: String
     public var note: String?
+    public var head: String?
+    public var at: String?
 
-    public init(verdict: String, note: String? = nil) {
+    public init(verdict: String, note: String? = nil, head: String? = nil, at: String? = nil) {
         self.verdict = verdict
         self.note = note
+        self.head = head
+        self.at = at
     }
 
     private enum CodingKeys: String, CodingKey {
-        case verdict, note
+        case verdict, note, head, at
     }
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         verdict = try container.decode(String.self, forKey: .verdict)
         note = try container.decodeIfPresent(String.self, forKey: .note)
+        head = try container.decodeIfPresent(String.self, forKey: .head)
+        at = try container.decodeIfPresent(String.self, forKey: .at)
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -142,6 +149,8 @@ public struct TriageVerdict: Codable, Equatable, Sendable {
         if let note, !note.isEmpty {
             try container.encode(note, forKey: .note)
         }
+        try container.encodeIfPresent(head, forKey: .head)
+        try container.encodeIfPresent(at, forKey: .at)
     }
 }
 
