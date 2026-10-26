@@ -67,7 +67,7 @@ afterEach(() => {
   draftStore.reset();
 });
 
-function render(interactions: Interactions): unknown[] {
+function render(interactions: Interactions, overrides: Partial<PresentApi> = {}): unknown[] {
   const posted: unknown[] = [];
   const present: PresentApi = {
     post: async (ev) => {
@@ -76,6 +76,7 @@ function render(interactions: Interactions): unknown[] {
     },
     closed: false,
     currentRound: 1,
+    ...overrides,
   };
   act(() =>
     root.render(
@@ -134,6 +135,20 @@ describe('PRGroups', () => {
     expect(rowEl(8).className).toContain('prg-stale');
     expect(rowEl(8).querySelector('.prg-stale')!.textContent).toMatch(/^Approved at 0001111 on .+; new head abc1234 needs your tap\.$/);
     expect(button(rowEl(8), 'Approve').getAttribute('aria-checked')).toBe('false');
+  });
+
+  it('applies a key verdict to the row holding focus', () => {
+    const posted = render(withVerdicts({}));
+    act(() => button(rowEl(9), 'Approve').dispatchEvent(new FocusEvent('focusin', { bubbles: true })));
+    act(() => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'a', bubbles: true })));
+    expect(posted).toEqual([{ type: 'triage.decided', blockId: 'pg', verdicts: { '9': { verdict: 'approved', head: 'def5678' } } }]);
+  });
+
+  it('locks every verdict once its round is over', () => {
+    render(withVerdicts({}), { roundOver: true });
+    expect(button(rowEl(8), 'Approve').disabled).toBe(true);
+    expect(button(rowEl(9), 'Hold').disabled).toBe(true);
+    expect(container.textContent).not.toContain('Approve all in this group');
   });
 
   it('expands a row in place to its full text', () => {
