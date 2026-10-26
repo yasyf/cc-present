@@ -3,36 +3,36 @@
   "schema": 1,
   "name": "cc-present",
   "kind": "release-binary",
-  "version": {"static": "0.47.3"},
+  "version": {"static": "0.48.0"},
   "platforms": {
     "macos-aarch64": {
-      "size": 9073465,
+      "size": 9094880,
       "hash": "sha256",
-      "digest": "cde7bd6dd03c2be10f0dad0414672ee9774819e8af5b13ac63dc758cf9ab64be",
+      "digest": "8362a086fc113dd277c6e111f356505b430ee11f39b698a8bb158e5899862a29",
       "format": "tar.gz",
       "path": "cc-present",
       "providers": [
-        {"type": "github-release", "repo": "yasyf/cc-present", "tag": "v0.47.3", "name": "cc-present_0.47.3_darwin_arm64.tar.gz"}
+        {"type": "github-release", "repo": "yasyf/cc-present", "tag": "v0.48.0", "name": "cc-present_0.48.0_darwin_arm64.tar.gz"}
       ]
     },
     "macos-x86_64": {
-      "size": 9631829,
+      "size": 9660586,
       "hash": "sha256",
-      "digest": "62674c89b05af6ceb7c520646018a239b414f974a2afd8c694ff3f3ff8f708e6",
+      "digest": "fe8bb2b38e7ebced2d1ef438e851007b323fe0f2093ef0451cb0b5560f7b44f2",
       "format": "tar.gz",
       "path": "cc-present",
       "providers": [
-        {"type": "github-release", "repo": "yasyf/cc-present", "tag": "v0.47.3", "name": "cc-present_0.47.3_darwin_amd64.tar.gz"}
+        {"type": "github-release", "repo": "yasyf/cc-present", "tag": "v0.48.0", "name": "cc-present_0.48.0_darwin_amd64.tar.gz"}
       ]
     },
     "linux-x86_64": {
-      "size": 9318952,
+      "size": 9348086,
       "hash": "sha256",
-      "digest": "daff663ebb39c5754f4bb8d2107ba485e39585928ef16a3ea7bdc6d8bd77f4d2",
+      "digest": "5f72ca9e7466904097b116c1c141910bb5f52216c1fdaa619d6342f75ab5a1a5",
       "format": "tar.gz",
       "path": "cc-present",
       "providers": [
-        {"type": "github-release", "repo": "yasyf/cc-present", "tag": "v0.47.3", "name": "cc-present_0.47.3_linux_amd64.tar.gz"}
+        {"type": "github-release", "repo": "yasyf/cc-present", "tag": "v0.48.0", "name": "cc-present_0.48.0_linux_amd64.tar.gz"}
       ]
     }
   }
