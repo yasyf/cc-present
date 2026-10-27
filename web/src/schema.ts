@@ -339,6 +339,7 @@ export interface PRGroups {
   type: 'pr-groups';
   repo: string;
   prompt?: string;
+  slack?: string;
   groups: PRGroup[];
 }
 

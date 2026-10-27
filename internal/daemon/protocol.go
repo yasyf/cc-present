@@ -25,6 +25,7 @@ const (
 	OpSlackCard      ccd.Op = "slack-card"
 	OpSlackCardCheck ccd.Op = "slack-card-check"
 	OpSlackAnswer    ccd.Op = "slack-answer"
+	OpSlackDecided   ccd.Op = "slack-decided"
 	OpImportVerdicts ccd.Op = "import-verdicts"
 	OpMoveVerdicts   ccd.Op = "move-verdicts"
 )
@@ -69,7 +70,7 @@ type body struct {
 	BlockIDs []string        `json:"blockIds,omitempty"` // revising
 	Note     string          `json:"note,omitempty"`     // revising
 	Round    string          `json:"round,omitempty"`    // push | upsert-block ("" | "current" | "new")
-	Answer   json.RawMessage `json:"answer,omitempty"`   // slack-answer
+	Answer   json.RawMessage `json:"answer,omitempty"`   // slack-answer | slack-decided
 	Verdicts json.RawMessage `json:"verdicts,omitempty"` // import-verdicts | move-verdicts
 	Named    bool            `json:"named,omitempty"`
 	Reopen   []string        `json:"reopen,omitempty"`

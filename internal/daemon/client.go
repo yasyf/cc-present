@@ -176,6 +176,12 @@ func (cl *Client) SlackCardCheck(ctx context.Context, session, scope string, pid
 	return err
 }
 
+// SlackDecided records a verdict tapped on a pr-groups row's Slack card.
+func (cl *Client) SlackDecided(ctx context.Context, session, scope string, pid int, decidedJSON json.RawMessage) error {
+	_, _, err := cl.do(ctx, OpSlackDecided, session, scope, pid, body{Answer: decidedJSON})
+	return err
+}
+
 // SlackAnswer records an answer given on a synced card's Slack ask card.
 func (cl *Client) SlackAnswer(ctx context.Context, session, scope string, pid int, answerJSON json.RawMessage) error {
 	_, _, err := cl.do(ctx, OpSlackAnswer, session, scope, pid, body{Answer: answerJSON})

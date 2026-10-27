@@ -195,6 +195,50 @@ func handleSlackAnswer(hc ccd.HandlerCtx) ccd.Reply {
 	return okReply(result{})
 }
 
+func handleSlackDecided(hc ccd.HandlerCtx) ccd.Reply {
+	var d slackcards.Decided
+	if err := json.Unmarshal(decodeBody(hc.Env.Body).Answer, &d); err != nil {
+		return errReply("decode row tap: " + err.Error())
+	}
+	blockID, rowID, head, verdict, err := d.Verdict()
+	if err != nil {
+		return errReply(err.Error())
+	}
+	sub, err := resolveOpen(hc)
+	if err != nil {
+		return errReply(err.Error())
+	}
+	writeMu.Lock()
+	defer writeMu.Unlock()
+	events, err := loadEvents(hc.Ctx, hc.DB, sub.ID)
+	if err != nil {
+		return errReply(err.Error())
+	}
+	st, err := state.Reduce(events)
+	if err != nil {
+		return errReply(err.Error())
+	}
+	if st.Interactions.Closed.Value {
+		return errReply("the board is closed")
+	}
+	if b, _, err := findBlock(st.Doc, blockID); err != nil || b.BlockType() != "pr-groups" {
+		return errReply(fmt.Sprintf("block %q is not a pr-groups block on this board", blockID))
+	}
+	note := st.Interactions.Triage[blockID][rowID].Note
+	it := interaction{Type: EventTriageDecided, BlockID: blockID, Verdicts: map[string]triageEntry{rowID: {Verdict: verdict, Head: head, Note: note}}}
+	payload, err := validateInteraction(&st, 0, &it, nil, time.Now())
+	if err != nil {
+		return errReply(err.Error())
+	}
+	if _, err := appendEvent(hc.Ctx, hc.Append, &ccevent.Event{
+		SubjectID: sub.ID, Origin: ccevent.OriginHuman, Type: EventTriageDecided, Payload: payload,
+		DedupKey: EventTriageDecided + ":" + blockID + ":slack:" + d.Row + ":" + d.At.Format(time.RFC3339Nano),
+	}); err != nil {
+		return errReply(err.Error())
+	}
+	return okReply(result{})
+}
+
 func syncedCard(d *doc.Doc, id string) (*doc.Card, *doc.Choice, error) {
 	loc, ok := doc.Locate(d, id)
 	if !ok || loc.Kind != doc.TopLevel {

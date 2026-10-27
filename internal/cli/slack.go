@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -147,13 +148,59 @@ type board struct {
 type sendBoard struct {
 	Doc          *doc.Doc `json:"doc"`
 	Interactions struct {
-		Choices map[string]state.Selection `json:"choices"`
-		Closed  state.Closed               `json:"closed"`
+		Choices map[string]state.Selection           `json:"choices"`
+		Triage  map[string]map[string]state.Decision `json:"triage"`
+		Closed  state.Closed                         `json:"closed"`
 	} `json:"interactions"`
 	Rounds struct {
 		Current     int            `json:"current"`
 		BlockRounds map[string]int `json:"blockRounds"`
 	} `json:"rounds"`
+}
+
+func syncGroups(ctx context.Context, cl *ccdaemon.Client, b board, w io.Writer) error {
+	raw, _, err := cl.Outcomes(ctx, b.session, b.scope, b.pid)
+	if err != nil {
+		return err
+	}
+	var st sendBoard
+	if err := json.Unmarshal(raw, &st); err != nil {
+		return fmt.Errorf("decode the board: %w", err)
+	}
+	var errs []error
+	for _, g := range slackGroups(st.Doc.Blocks) {
+		for _, group := range g.Groups {
+			card, err := json.Marshal(slackcards.GroupCard(g, group, st.Interactions.Triage[g.ID]))
+			if err != nil {
+				return err
+			}
+			out, err := slackcards.CCSlack(ctx, "dm-status", "--card", string(card), "--session", b.session, "--thread", g.Slack)
+			if err != nil {
+				errs = append(errs, fmt.Errorf("group %q: %w", group.ID, err))
+				continue
+			}
+			var posted struct {
+				Permalink string `json:"permalink"`
+			}
+			if err := json.Unmarshal(out, &posted); err != nil {
+				return fmt.Errorf("group %q: decode cc-slack reply %q: %w", group.ID, out, err)
+			}
+			_, _ = fmt.Fprintf(w, "slack: %s %s\n", group.ID, cmp.Or(posted.Permalink, "nothing open, never posted"))
+		}
+	}
+	return errors.Join(errs...)
+}
+
+func slackGroups(blocks []doc.Block) []*doc.PRGroups {
+	var found []*doc.PRGroups
+	for _, b := range blocks {
+		doc.Walk(b, func(b doc.Block) {
+			if g, ok := b.(*doc.PRGroups); ok && g.Slack != "" {
+				found = append(found, g)
+			}
+		})
+	}
+	return found
 }
 
 type question struct {
@@ -288,13 +335,13 @@ func slackThread(s string) (string, error) {
 func newSlackSyncCmd(d cmd.Deps) *cobra.Command {
 	var session, cwd string
 	c := &cobra.Command{
-		Use:    "slack-sync posted|answered",
-		Short:  "Mirror a cc-slack ask card's post or answer onto the session's board",
+		Use:    "slack-sync posted|answered|decided",
+		Short:  "Mirror a cc-slack ask card's post or answer, or a row tap on a group card, onto the session's board",
 		Hidden: true,
 		Args:   cobra.ExactArgs(1),
 		RunE: func(c *cobra.Command, args []string) error {
-			if args[0] != "posted" && args[0] != "answered" {
-				return fmt.Errorf("slack-sync takes posted or answered, not %q", args[0])
+			if !slices.Contains([]string{"posted", "answered", "decided"}, args[0]) {
+				return fmt.Errorf("slack-sync takes posted, answered, or decided, not %q", args[0])
 			}
 			raw, err := io.ReadAll(c.InOrStdin())
 			if err != nil {
@@ -310,8 +357,11 @@ func newSlackSyncCmd(d cmd.Deps) *cobra.Command {
 			}
 			defer func() { _ = cl.CloseSession() }()
 			sess, pid := artifactWindow(d, session)
-			if args[0] == "answered" {
+			switch args[0] {
+			case "answered":
 				return cl.SlackAnswer(ctx, sess, mustCwd(cwd), pid, raw)
+			case "decided":
+				return cl.SlackDecided(ctx, sess, mustCwd(cwd), pid, raw)
 			}
 			var p slackcards.Posted
 			if err := json.Unmarshal(raw, &p); err != nil {

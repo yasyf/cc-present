@@ -2,10 +2,12 @@ package cli
 
 import (
 	"encoding/json"
+	"fmt"
 	"slices"
 	"strings"
 	"testing"
 
+	"github.com/yasyf/cc-present/internal/doc"
 	"github.com/yasyf/cc-present/internal/state"
 )
 
@@ -109,5 +111,29 @@ func TestSlackThreadReadsATsOrAPermalink(t *testing.T) {
 		if _, err := slackThread(bad); err == nil {
 			t.Errorf("slackThread(%q) took a value that names no Slack message", bad)
 		}
+	}
+}
+
+func TestSlackGroupsFindsABlockInsideACard(t *testing.T) {
+	const group = `{"id":"pg","type":"pr-groups","repo":"a/b",%s"groups":[{"id":"g","title":"G","summary":"S.","prs":[{"number":8,"head":"abc1234","title":"T","change":"C.","plan":"P.","risk":"R.","review":"V.","blocker":"B."}]}]}`
+	tests := []struct {
+		name string
+		raw  string
+		want int
+	}{
+		{"top level", fmt.Sprintf(group, `"slack":"1792842193.708029",`), 1},
+		{"inside a card", `{"id":"c","type":"card","title":"Merges","children":[` + fmt.Sprintf(group, `"slack":"1792842193.708029",`) + `]}`, 1},
+		{"not asked on Slack", fmt.Sprintf(group, ""), 0},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			blk, err := doc.DecodeBlock(json.RawMessage(tt.raw))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := len(slackGroups([]doc.Block{blk})); got != tt.want {
+				t.Fatalf("found %d slack groups, want %d", got, tt.want)
+			}
+		})
 	}
 }

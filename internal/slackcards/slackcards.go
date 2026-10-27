@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/yasyf/cc-present/internal/doc"
+	"github.com/yasyf/cc-present/internal/state"
 )
 
 const (
@@ -67,6 +68,23 @@ type StatusCard struct {
 	Recommended string   `json:"recommended"`
 	Waits       string   `json:"waits"`
 	Refs        []Ref    `json:"refs,omitempty"`
+	Group       string   `json:"group,omitempty"`
+	Rows        []Row    `json:"rows,omitempty"`
+}
+
+// Row is one pull request on a group card, with the board's verdict buttons.
+type Row struct {
+	ID      string   `json:"id"`
+	Text    string   `json:"text"`
+	Buttons []string `json:"buttons"`
+}
+
+// Decided is a tap on a group card's row, as `cc-present slack-sync decided` reads it.
+type Decided struct {
+	Row       string    `json:"row"`
+	Label     string    `json:"label"`
+	At        time.Time `json:"at"`
+	Permalink string    `json:"permalink"`
 }
 
 // Ref is a pull request link the Slack card shows with its live state.
@@ -227,4 +245,112 @@ func CCSlack(ctx context.Context, args ...string) ([]byte, error) {
 		return nil, fmt.Errorf("cc-slack %s: %s", args[0], strings.TrimSpace(string(exit.Stderr)))
 	}
 	return nil, fmt.Errorf("cc-slack %s: %w", args[0], err)
+}
+
+const (
+	approveLabel = "Approve"
+	holdLabel    = "Hold"
+	shortHead    = 7
+	rowHead      = 12
+	maxRowText   = 3000
+)
+
+var rowVerdicts = map[string]string{approveLabel: "approved", holdLabel: "rejected"}
+
+var rowFacts = []struct {
+	label string
+	value func(doc.PRRow) string
+}{
+	{"What changes", func(r doc.PRRow) string { return r.Change }},
+	{"Against the plan", func(r doc.PRRow) string { return r.Plan }},
+	{"Risk", func(r doc.PRRow) string { return r.Risk }},
+	{"Review and CI", func(r doc.PRRow) string { return r.Review }},
+	{"Blocks landing", func(r doc.PRRow) string { return r.Blocker }},
+}
+
+var mrkdwnEscapes = strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;", "**", "*")
+
+// GroupCard is the cc-slack card for one group of a pr-groups block: a row for
+// each pull request whose verdict does not stand at its head, so an answered row
+// leaves the card and a row whose head moved asks again.
+func GroupCard(g *doc.PRGroups, group doc.PRGroup, verdicts map[string]state.Decision) StatusCard {
+	sc := StatusCard{Status: "done", Title: bounded(group.Title), Body: group.Summary + "\nEvery pull request here has your answer.", Group: g.ID + ":" + group.ID}
+	for _, r := range group.PRs {
+		d, decided := verdicts[doc.RowID(r.Number)]
+		if decided && r.Stands(d.Head) {
+			continue
+		}
+		sc.Rows = append(sc.Rows, Row{
+			ID:      fmt.Sprintf("%s:%d:%s", g.ID, r.Number, r.Head[:min(len(r.Head), rowHead)]),
+			Text:    rowText(g.Repo, r, d, decided),
+			Buttons: []string{approveLabel, holdLabel},
+		})
+	}
+	if len(sc.Rows) > 0 {
+		sc.Status, sc.Body = "needs_you", group.Summary
+	}
+	return sc
+}
+
+func rowText(repo string, r doc.PRRow, d state.Decision, decided bool) string {
+	_, name, _ := strings.Cut(repo, "/")
+	lines := []string{fmt.Sprintf("*<https://github.com/%s/pull/%d|%s PR %d>* %s `%s`", repo, r.Number, name, r.Number, mrkdwn(r.Title), r.Head[:shortHead])}
+	for _, f := range rowFacts {
+		lines = append(lines, "*"+f.label+":* "+mrkdwn(f.value(r)))
+	}
+	if decided {
+		lines = append(lines, "_"+staleLine(r, d)+"_")
+	}
+	text := []rune(strings.Join(lines, "\n"))
+	if len(text) <= maxRowText {
+		return string(text)
+	}
+	return string(text[:maxRowText-1]) + "…"
+}
+
+func staleLine(r doc.PRRow, d state.Decision) string {
+	word := "Held"
+	if d.Verdict == "approved" {
+		word = "Approved"
+	}
+	if d.Head != "" {
+		word += " at " + d.Head[:min(len(d.Head), shortHead)]
+	}
+	if at, err := time.Parse(time.RFC3339, d.At); err == nil {
+		word += " on " + at.Local().Format("Jan 2 3:04 PM")
+	}
+	return word + "; new head " + r.Head[:shortHead] + " needs your tap."
+}
+
+func mrkdwn(md string) string {
+	return markdownLink.ReplaceAllString(mrkdwnEscapes.Replace(md), "<$2|$1>")
+}
+
+// Verdict is the board verdict a row tap gives: the pr-groups block, the row's
+// verdict key, the head the row was asked at, and approved or rejected.
+func (d Decided) Verdict() (block, row, head, verdict string, err error) {
+	verdict, ok := rowVerdicts[d.Label]
+	if !ok {
+		return "", "", "", "", fmt.Errorf("a row tap answers %s or %s, not %q", approveLabel, holdLabel, d.Label)
+	}
+	rest, head, ok := cutLast(d.Row)
+	if !ok {
+		return "", "", "", "", fmt.Errorf("row %q is not <block>:<number>:<head>", d.Row)
+	}
+	block, row, ok = cutLast(rest)
+	if !ok || block == "" {
+		return "", "", "", "", fmt.Errorf("row %q is not <block>:<number>:<head>", d.Row)
+	}
+	if _, err := doc.ParseHead(head); err != nil {
+		return "", "", "", "", fmt.Errorf("row %q: %w", d.Row, err)
+	}
+	return block, row, head, verdict, nil
+}
+
+func cutLast(s string) (string, string, bool) {
+	i := strings.LastIndex(s, ":")
+	if i < 0 {
+		return "", "", false
+	}
+	return s[:i], s[i+1:], true
 }

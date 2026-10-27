@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	ccd "github.com/yasyf/cc-interact/daemon"
+	ccevent "github.com/yasyf/cc-interact/event"
 
 	"github.com/yasyf/cc-present/internal/doc"
 	"github.com/yasyf/cc-present/internal/slackcards"
@@ -242,5 +243,46 @@ func TestSlackCardCheckRefusesWhatTheBoardWouldBeforeAnythingIsPosted(t *testing
 	}
 	if _, found, err := h.hc(body{}).Subjects.Find(context.Background(), slackWindow(h, body{}).Window, slackWindow(h, body{}).Scope); err != nil || found {
 		t.Fatalf("check started a board: found %v, err %v", found, err)
+	}
+}
+
+func TestSlackDecidedRecordsTheBoardsOwnVerdict(t *testing.T) {
+	tests := []struct {
+		name, row, number, label string
+		want                     state.Decision
+		wantErr                  string
+	}{
+		{"approve at the head the card showed", "pg:8:abc1234", "8", "Approve", state.Decision{Verdict: "approved", Head: "abc1234"}, ""},
+		{"hold", "pg:9:def5678", "9", "Hold", state.Decision{Verdict: "rejected", Head: "def5678"}, ""},
+		{"a head that moved is refused", "pg:8:0001111", "8", "Approve", state.Decision{}, `is not the row's head "abc1234"`},
+		{"a row not on the board is refused", "pg:77:abc1234", "77", "Approve", state.Decision{}, `has no pull request "77"`},
+		{"a triage block is refused", "tr1:i1:abc1234", "i1", "Approve", state.Decision{}, `"tr1" is not a pr-groups block`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := newHarness(t)
+			start := handleStart(h.hc(body{Doc: json.RawMessage(prGroupsDoc)}), doc.NoPacks, nilDisplay)
+			if !start.OK {
+				t.Fatal(start.Error)
+			}
+			tap := `{"row":"` + tt.row + `","label":"` + tt.label + `","at":"2026-10-27T03:12:00Z","permalink":"` + slackPermalink + `"}`
+			r := handleSlackDecided(h.hc(body{Answer: json.RawMessage(tap)}))
+			if tt.wantErr != "" {
+				if r.OK || !strings.Contains(r.Error, tt.wantErr) {
+					t.Fatalf("reply = %+v, want an error with %q", r, tt.wantErr)
+				}
+				return
+			}
+			if !r.OK {
+				t.Fatal(r.Error)
+			}
+			if events := h.eventsOfType(t, start.SubjectID, EventTriageDecided); len(events) != 1 || events[0].Origin != ccevent.OriginHuman {
+				t.Fatalf("triage.decided events = %+v, want one from the human", events)
+			}
+			got := reduceSubject(t, h, start.SubjectID).Interactions.Triage["pg"][tt.number]
+			if got.Verdict != tt.want.Verdict || got.Head != tt.want.Head || got.At == "" {
+				t.Fatalf("verdict = %+v, want %+v stamped with a time", got, tt.want)
+			}
+		})
 	}
 }

@@ -14,6 +14,7 @@ import (
 	"net/url"
 	"path"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -59,6 +60,7 @@ var (
 	sourceAliasPattern = regexp.MustCompile(`^[a-z][a-z0-9-]*$`)
 	repoPattern        = regexp.MustCompile(`^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$`)
 	headPattern        = regexp.MustCompile(`^[0-9a-f]{7,40}$`)
+	slackTSPattern     = regexp.MustCompile(`^\d{10}\.\d{6}$`)
 	errEmptyBlockID    = errors.New("block id must not be empty")
 	errEmptyTitle      = errors.New("doc title must not be empty")
 )
@@ -456,6 +458,7 @@ type PRGroups struct {
 	base
 	Repo   string    `json:"repo"`
 	Prompt string    `json:"prompt,omitempty"`
+	Slack  string    `json:"slack,omitempty"`
 	Groups []PRGroup `json:"groups"`
 }
 
@@ -483,6 +486,12 @@ type PRRow struct {
 	Md      string   `json:"md,omitempty"`
 	Carried []string `json:"carried,omitempty"`
 	Files   []string `json:"files,omitempty"`
+}
+
+// Stands reports whether a verdict given at head still stands for the row: it
+// names the row's head or one the row carries.
+func (r *PRRow) Stands(head string) bool {
+	return SameHead(head, r.Head) || slices.ContainsFunc(r.Carried, func(c string) bool { return SameHead(head, c) })
 }
 
 // RowID is the verdict key of a pull request row: its number in decimal.
@@ -1435,6 +1444,9 @@ func validatePRGroups(g *PRGroups) error {
 	}
 	if isMultiline(g.Prompt) {
 		return fmt.Errorf("pr-groups %q: prompt must be a single line", g.ID)
+	}
+	if g.Slack != "" && !slackTSPattern.MatchString(g.Slack) {
+		return fmt.Errorf("pr-groups %q: slack must be the ts of a Slack DM status thread, got %q", g.ID, g.Slack)
 	}
 	if len(g.Groups) == 0 {
 		return fmt.Errorf("pr-groups %q: must have at least one group", g.ID)
