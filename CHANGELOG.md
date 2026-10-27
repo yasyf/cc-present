@@ -38,6 +38,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `cc-present reply` without `--re` answers the newest note on the block that has no reply yet, counting notes on a card's children for a card, so the board shows the reply under the note it answers. Only 3 of 66 replies on one board carried `--re`, so most replies sat under their card with nothing to say which note they answered. A block whose notes are all answered still gets a plain block reply.
 - Focus mode puts every step that asks something first and gathers the steps that only inform at the end of the deck, on the web and iOS. A board that opened on a release plan and a "nothing needs your tap" card now opens on its first question.
 - A card whose every decision has the human's answer shows its status pill as "answered" instead of "open", on the web and iOS, in board and focus mode.
 - A table shows every row on the page. Tables over 12 rows used to scroll inside a box 60% of the window tall, with the last visible row cut in half.

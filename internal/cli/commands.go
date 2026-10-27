@@ -663,7 +663,7 @@ func newReplyCmd(d cmd.Deps) *cobra.Command {
 		},
 	}
 	c.Flags().StringVar(&block, "block", "", "block id to reply under")
-	c.Flags().StringVar(&re, "re", "", "feedback id (from the feedback.created event) this reply answers; the board threads the reply under that note")
+	c.Flags().StringVar(&re, "re", "", "feedback id (from the feedback.created event) this reply answers; the board threads the reply under that note (default: the newest unanswered note on the block)")
 	c.Flags().StringVar(&bodyMd, "body", "", "reply markdown")
 	c.Flags().StringVar(&session, "session", "", "Claude session id (defaults to $CLAUDE_CODE_SESSION_ID)")
 	c.Flags().StringVar(&cwd, "cwd", "", "working directory (recorded on the request; artifacts are per-window, not resolved by directory)")

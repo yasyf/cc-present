@@ -485,7 +485,8 @@ func handleRemoveBlock(hc ccd.HandlerCtx) ccd.Reply {
 }
 
 // handleReply appends an agent reply to a block's thread, anchored under the
-// feedback entry b.Re names when set. A reply naming a block absent from the
+// feedback entry b.Re names when set, else under the newest note on the block's
+// thread that no reply answers yet. A reply naming a block absent from the
 // current document or a feedback id no human filed is rejected, as is a reply to
 // a closed artifact. There is deliberately no round check: replying to a block
 // whose round has already closed is a supported flow.
@@ -509,12 +510,18 @@ func handleReply(hc ccd.HandlerCtx) ccd.Reply {
 	if err != nil {
 		return errReply(err.Error())
 	}
-	_, top, err := findBlock(st.Doc, b.BlockID)
+	blk, top, err := findBlock(st.Doc, b.BlockID)
 	if err != nil {
 		return errReply(err.Error())
 	}
 	if b.Re != "" && !hasFeedback(st.Interactions.Feedback, b.Re) {
 		return errReply(fmt.Sprintf("no feedback %q on this artifact; --re takes the id a feedback.created event carries", b.Re))
+	}
+	re := b.Re
+	if re == "" {
+		if re, err = newestUnansweredNote(events, threadBlockIDs(blk), st.Interactions.Replies); err != nil {
+			return errReply(err.Error())
+		}
 	}
 	id := b.ID
 	if id == "" {
@@ -527,7 +534,7 @@ func handleReply(hc ccd.HandlerCtx) ccd.Reply {
 			BlockID string `json:"blockId"`
 			Md      string `json:"md"`
 			Re      string `json:"re,omitempty"`
-		}{ID: id, BlockID: b.BlockID, Md: b.Md, Re: b.Re}),
+		}{ID: id, BlockID: b.BlockID, Md: b.Md, Re: re}),
 	}); err != nil {
 		return errReply(err.Error())
 	}
@@ -536,6 +543,42 @@ func handleReply(hc ccd.HandlerCtx) ccd.Reply {
 		res.Waits = card.ID
 	}
 	return okReply(res)
+}
+
+func threadBlockIDs(blk doc.Block) []string {
+	ids := []string{blk.BlockID()}
+	if card, ok := blk.(*doc.Card); ok {
+		for _, child := range card.Children {
+			ids = append(ids, child.BlockID())
+		}
+	}
+	return ids
+}
+
+func newestUnansweredNote(events []state.Event, blockIDs []string, replies map[string][]state.Reply) (string, error) {
+	answered := map[string]bool{}
+	for _, list := range replies {
+		for _, r := range list {
+			answered[r.Re] = true
+		}
+	}
+	var newest string
+	for _, ev := range events {
+		if ev.Type != EventFeedbackCreated {
+			continue
+		}
+		var p struct {
+			ID      string `json:"id"`
+			BlockID string `json:"blockId"`
+		}
+		if err := json.Unmarshal(ev.Payload, &p); err != nil {
+			return "", err
+		}
+		if slices.Contains(blockIDs, p.BlockID) && !answered[p.ID] {
+			newest = p.ID
+		}
+	}
+	return newest, nil
 }
 
 func hasFeedback(feedback map[string][]state.Feedback, id string) bool {
