@@ -1,39 +1,49 @@
 package daemon
 
 import (
+	"compress/gzip"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"testing/fstest"
 )
 
-func TestStaticAssetsServeThePrecompressedCopyTheClientAccepts(t *testing.T) {
+func TestStaticAssetsGzipScriptsAndCacheHashedFilesAsImmutable(t *testing.T) {
 	dist := fstest.MapFS{
 		"index.html":        {Data: []byte("shell")},
 		"assets/app.js":     {Data: []byte("raw")},
-		"assets/app.js.br":  {Data: []byte("brotli")},
-		"assets/app.js.gz":  {Data: []byte("gzip")},
 		"assets/font.woff2": {Data: []byte("font")},
 	}
 	h := staticAssets(dist, http.FileServerFS(dist))
+	immutable := "public, max-age=31536000, immutable"
 	tests := []struct {
 		path, accept, body, coding, cache string
 	}{
-		{"/assets/app.js", "gzip, deflate, br", "brotli", "br", "public, max-age=31536000, immutable"},
-		{"/assets/app.js", "gzip", "gzip", "gzip", "public, max-age=31536000, immutable"},
-		{"/assets/app.js", "br;q=0, gzip", "gzip", "gzip", "public, max-age=31536000, immutable"},
-		{"/assets/app.js", "", "raw", "", "public, max-age=31536000, immutable"},
-		{"/assets/font.woff2", "br", "font", "", "public, max-age=31536000, immutable"},
-		{"/assets/missing.js", "br", "404 page not found\n", "", ""},
+		{"/assets/app.js", "gzip, deflate, br", "raw", "gzip", immutable},
+		{"/assets/app.js", "gzip;q=0", "raw", "", immutable},
+		{"/assets/app.js", "", "raw", "", immutable},
+		{"/assets/font.woff2", "gzip", "font", "", immutable},
+		{"/assets/missing.js", "gzip", "404 page not found\n", "", ""},
 	}
 	for _, tt := range tests {
 		r := httptest.NewRequest(http.MethodGet, tt.path, nil)
 		r.Header.Set("Accept-Encoding", tt.accept)
 		w := httptest.NewRecorder()
 		h.ServeHTTP(w, r)
-		if w.Body.String() != tt.body || w.Header().Get("Content-Encoding") != tt.coding || w.Header().Get("Cache-Control") != tt.cache {
+		body := w.Body.Bytes()
+		if w.Header().Get("Content-Encoding") == "gzip" {
+			zr, err := gzip.NewReader(w.Body)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if body, err = io.ReadAll(zr); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if string(body) != tt.body || w.Header().Get("Content-Encoding") != tt.coding || w.Header().Get("Cache-Control") != tt.cache {
 			t.Errorf("%s [%s] = %q encoding %q cache %q, want %q encoding %q cache %q", tt.path, tt.accept,
-				w.Body, w.Header().Get("Content-Encoding"), w.Header().Get("Cache-Control"), tt.body, tt.coding, tt.cache)
+				body, w.Header().Get("Content-Encoding"), w.Header().Get("Cache-Control"), tt.body, tt.coding, tt.cache)
 		}
 	}
 }

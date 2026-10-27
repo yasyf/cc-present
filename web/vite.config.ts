@@ -1,6 +1,4 @@
-import { readFileSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
-import { brotliCompressSync, constants, gzipSync } from 'node:zlib';
+import { writeFileSync } from 'node:fs';
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
@@ -19,18 +17,6 @@ export default defineConfig({
       name: 'restore-gitkeep',
       closeBundle() {
         writeFileSync(new URL('../internal/web/dist/.gitkeep', import.meta.url), '');
-      },
-    },
-    {
-      name: 'precompress',
-      writeBundle({ dir }, bundle) {
-        for (const name of Object.keys(bundle)) {
-          if (!/\.(js|css|svg)$/.test(name)) continue;
-          const path = join(dir!, name);
-          const raw = readFileSync(path);
-          writeFileSync(`${path}.br`, brotliCompressSync(raw, { params: { [constants.BROTLI_PARAM_QUALITY]: 11 } }));
-          writeFileSync(`${path}.gz`, gzipSync(raw, { level: 9 }));
-        }
       },
     },
   ],

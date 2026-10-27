@@ -1,7 +1,6 @@
 package daemon
 
 import (
-	"bytes"
 	"compress/gzip"
 	"context"
 	"database/sql"
@@ -107,15 +106,11 @@ func (b *reducedBoard) encode(slot *encoded, v func() (any, error)) (encoded, er
 	if err != nil {
 		return encoded{}, err
 	}
-	var gz bytes.Buffer
-	zw := gzip.NewWriter(&gz)
-	if _, err := zw.Write(body); err != nil {
+	gz, err := gzipBytes(body, gzip.DefaultCompression)
+	if err != nil {
 		return encoded{}, err
 	}
-	if err := zw.Close(); err != nil {
-		return encoded{}, err
-	}
-	*slot = encoded{seq: b.seq, body: body, gz: gz.Bytes()}
+	*slot = encoded{seq: b.seq, body: body, gz: gz}
 	return *slot, nil
 }
 

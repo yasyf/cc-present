@@ -685,7 +685,7 @@ Both routes answer gzipped when the request accepts `gzip`, with
 `Cache-Control: no-cache` and a weak `ETag` naming the daemon build and the
 board's `seq`, so a client holding the current body revalidates to a 304.
 The SPA's own content-hashed `/assets/*` files are served `immutable` for a
-year, as brotli or gzip when the request accepts either.
+year, its scripts and styles gzipped when the request accepts gzip.
 
 ## Authentication
 

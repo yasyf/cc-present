@@ -1,16 +1,24 @@
 package daemon
 
 import (
+	"bytes"
+	"compress/gzip"
 	"io/fs"
 	"mime"
 	"net/http"
 	"path"
 	"strings"
+	"sync"
 )
 
-var precompressed = []struct{ coding, ext string }{{"br", ".br"}, {"gzip", ".gz"}}
+type gzippedAsset struct {
+	once sync.Once
+	body []byte
+	err  error
+}
 
 func staticAssets(dist fs.FS, next http.Handler) http.Handler {
+	var gzipped sync.Map
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		name := strings.TrimPrefix(r.URL.Path, "/")
 		if _, err := fs.Stat(dist, name); err != nil || !strings.HasPrefix(name, "assets/") {
@@ -19,21 +27,29 @@ func staticAssets(dist fs.FS, next http.Handler) http.Handler {
 		}
 		w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
 		w.Header().Set("Vary", "Accept-Encoding")
-		for _, p := range precompressed {
-			if !accepts(r, p.coding) {
-				continue
-			}
-			body, err := fs.ReadFile(dist, name+p.ext)
-			if err != nil {
-				continue
-			}
-			w.Header().Set("Content-Type", mime.TypeByExtension(path.Ext(name)))
-			w.Header().Set("Content-Encoding", p.coding)
-			//nolint:gosec // G705: body is the embedded web build, not request-derived content.
-			_, _ = w.Write(body)
+		ext := path.Ext(name)
+		if (ext != ".js" && ext != ".css" && ext != ".svg") || !accepts(r, "gzip") {
+			next.ServeHTTP(w, r)
 			return
 		}
-		next.ServeHTTP(w, r)
+		cached, _ := gzipped.LoadOrStore(name, &gzippedAsset{})
+		asset := cached.(*gzippedAsset)
+		asset.once.Do(func() {
+			raw, err := fs.ReadFile(dist, name)
+			if err != nil {
+				asset.err = err
+				return
+			}
+			asset.body, asset.err = gzipBytes(raw, gzip.BestCompression)
+		})
+		if asset.err != nil {
+			http.Error(w, asset.err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", mime.TypeByExtension(ext))
+		w.Header().Set("Content-Encoding", "gzip")
+		//nolint:gosec // G705: body is the embedded web build, not request-derived content.
+		_, _ = w.Write(asset.body)
 	})
 }
 
@@ -45,4 +61,19 @@ func accepts(r *http.Request, coding string) bool {
 		}
 	}
 	return false
+}
+
+func gzipBytes(b []byte, level int) ([]byte, error) {
+	var buf bytes.Buffer
+	zw, err := gzip.NewWriterLevel(&buf, level)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := zw.Write(b); err != nil {
+		return nil, err
+	}
+	if err := zw.Close(); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
 }
