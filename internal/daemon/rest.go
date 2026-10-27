@@ -125,6 +125,8 @@ func mountREST(s *ccd.Server, ast *assets.Store, loader *packs.Loader, version s
 func (rs *restServer) routes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/health", rs.handleHealth)
 	mux.HandleFunc("GET /api/sessions", rs.handleSessions)
+	mux.HandleFunc("GET /api/state", rs.handleState)
+	mux.HandleFunc("GET /api/rounds", rs.handleRounds)
 	mux.HandleFunc("POST /api/interactions", rs.handleInteractions)
 	mux.HandleFunc("POST /api/assets", rs.handlePutAsset)
 	mux.HandleFunc("GET /api/packs", rs.handlePacks)

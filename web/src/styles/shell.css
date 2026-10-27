@@ -625,6 +625,10 @@ button.header-menu-item:hover {
   gap: var(--space-2);
   padding: var(--space-3) var(--space-5) var(--space-6);
 }
+.history-drawer-status {
+  margin: 0;
+  color: var(--dim);
+}
 .theme-toggle {
   display: inline-flex;
   align-items: center;

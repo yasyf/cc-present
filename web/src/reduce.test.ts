@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { applyEvent, applyInteraction, reduce } from './reduce';
 import type { Card, Doc } from './schema';
-import type { Interactions, PresentEvent, PresentState, Revising, Rounds } from './events';
+import type { Interactions, PresentEvent, PresentState, Revising, RoundRecord, Rounds } from './events';
 
 const testdataDir = fileURLToPath(new URL('../../internal/state/testdata/', import.meta.url));
 
@@ -44,7 +44,7 @@ function normalizeRounds(r: Partial<Rounds> | undefined): Rounds {
     current: r?.current ?? 1,
     currentTitle: r?.currentTitle,
     blockRounds: r?.blockRounds ?? {},
-    history: (r?.history ?? []).map((rec) => ({
+    history: ((r?.history ?? []) as RoundRecord[]).map((rec) => ({
       ...rec,
       packs: rec.packs ?? {},
       annotations: rec.annotations ?? {},

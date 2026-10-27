@@ -196,13 +196,37 @@ public struct Interactions: Decodable, Equatable, Sendable {
     }
 }
 
+/// RoundOutline is one top-level block of a stubbed closed round: its id, type,
+/// thread label, and a card's child ids. Mirrors the daemon's snapshot outline.
+public struct RoundOutline: Decodable, Equatable, Sendable {
+    public var id: String
+    public var type: String
+    public var label: String
+    public var children: [String]
+
+    private enum CodingKeys: String, CodingKey {
+        case id, type, label, children
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        type = try container.decode(String.self, forKey: .type)
+        label = try container.decode(String.self, forKey: .label)
+        children = try container.decodeIfPresent([String].self, forKey: .children) ?? []
+    }
+}
+
 /// RoundRecord is a closed round: the top-level blocks live at close (frozen
 /// copies) plus the interaction values snapshotted to those blocks' ids.
-/// SubmittedRevision is set only when the round closed on a submit.
+/// SubmittedRevision is set only when the round closed on a submit. A record
+/// from the daemon's snapshot is a stub: it carries `outline` and its feedback in
+/// place of the frozen blocks and values, which `GET /api/rounds` fills in.
 public struct RoundRecord: Decodable, Equatable, Sendable {
     public var number: Int
     public var title: String
     public var blocks: [Block]
+    public var outline: [RoundOutline]?
     public var decisions: [String: Decision]
     public var choices: [String: Selection]
     public var inputs: [String: InputValue]
@@ -241,8 +265,13 @@ public struct RoundRecord: Decodable, Equatable, Sendable {
         self.submittedRevision = submittedRevision
     }
 
+    /// isStub is true for a snapshot record whose frozen blocks are not loaded yet.
+    public var isStub: Bool {
+        outline != nil
+    }
+
     private enum CodingKeys: String, CodingKey {
-        case number, title, blocks, decisions, choices, inputs, packs, feedback, annotations, triage, viewed,
+        case number, title, blocks, outline, decisions, choices, inputs, packs, feedback, annotations, triage, viewed,
              submittedRevision
     }
 
@@ -251,6 +280,7 @@ public struct RoundRecord: Decodable, Equatable, Sendable {
         number = try container.decode(Int.self, forKey: .number)
         title = try container.decodeIfPresent(String.self, forKey: .title) ?? ""
         blocks = try container.decodeIfPresent([Block].self, forKey: .blocks) ?? []
+        outline = try container.decodeIfPresent([RoundOutline].self, forKey: .outline)
         decisions = try container.decodeIfPresent([String: Decision].self, forKey: .decisions) ?? [:]
         choices = try container.decodeIfPresent([String: Selection].self, forKey: .choices) ?? [:]
         inputs = try container.decodeIfPresent([String: InputValue].self, forKey: .inputs) ?? [:]
@@ -355,17 +385,18 @@ public struct BoardState: Decodable, Equatable, Sendable {
         revising = try container.decodeIfPresent(Revising.self, forKey: .revising) ?? Revising()
     }
 
-    static var initial: BoardState {
+    /// initial is the empty board a log reduces from.
+    public static var initial: BoardState {
         BoardState(doc: Doc(version: 1, title: "", blocks: []), interactions: Interactions(), rounds: Rounds())
     }
 }
 
-/// reduce folds the log into a BoardState in ascending seq order; present.closed
-/// is terminal, so a racing interaction never poisons replay. Framework events in
+/// reduce folds the log onto `base` in ascending seq order; present.closed is
+/// terminal, so a racing interaction never poisons replay. Framework events in
 /// the shared log — channel.changed and the agent.* lifecycle — are skipped; any
 /// other unknown event type throws.
-public func reduce(events: [Event]) throws -> BoardState {
-    var state = BoardState.initial
+public func reduce(events: [Event], from base: BoardState = .initial) throws -> BoardState {
+    var state = base
     let ordered = events.sorted { ($0.seq ?? 0) < ($1.seq ?? 0) }
     for event in ordered {
         if state.interactions.closed.value {

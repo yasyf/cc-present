@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import type { Interactions, RoundRecord } from '../events';
+import { useRoundRecords, useSubject } from '../api';
+import type { Interactions, RoundEntry } from '../events';
 import { RoundGroup } from './RoundGroup';
 
 export function HistoryDrawer({
@@ -10,11 +11,13 @@ export function HistoryDrawer({
 }: {
   open: boolean;
   onClose: () => void;
-  history: RoundRecord[];
+  history: RoundEntry[];
   interactions: Interactions;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   const [shown, setShown] = useState(false);
+  const { subject } = useSubject();
+  const { records, failed } = useRoundRecords(subject, history, shown);
 
   useEffect(() => {
     const dialog = ref.current!;
@@ -46,11 +49,20 @@ export function HistoryDrawer({
       </div>
       {shown && (
         <div className="history-drawer-rounds">
-          {history.map((record) => (
-            <div className="round-group" key={`round-${record.number}`}>
-              <RoundGroup record={record} interactions={interactions} />
+          {records ? (
+            records.map((record) => (
+              <div className="round-group" key={`round-${record.number}`}>
+                <RoundGroup record={record} interactions={interactions} />
+              </div>
+            ))
+          ) : failed ? (
+            <p className="history-drawer-status">Earlier rounds didn't load. Close and reopen to try again.</p>
+          ) : (
+            <div className="skeleton" aria-hidden>
+              <div className="skeleton-card" />
+              <div className="skeleton-card" />
             </div>
-          ))}
+          )}
         </div>
       )}
     </dialog>

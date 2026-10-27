@@ -12,9 +12,10 @@ import Foundation
 import Observation
 
 /// BoardStore holds one subject's live board. It reduces the SSE-delivered server
-/// log plus an optimistic overlay of not-yet-confirmed interactions into a single
-/// BoardState the UI renders. Loading, connection, and closed signals drive the
-/// chrome; `send` (and its typed convenience methods) submit interactions.
+/// log onto the daemon's snapshot, plus an optimistic overlay of not-yet-confirmed
+/// interactions, into a single BoardState the UI renders. Loading, connection,
+/// and closed signals drive the chrome; `send` (and its typed convenience methods)
+/// submit interactions.
 @MainActor
 @Observable
 public final class BoardStore {
@@ -22,8 +23,8 @@ public final class BoardStore {
     /// overlay applied on top.
     public private(set) var state: BoardState
 
-    /// isLoading is true until the SSE `caught-up` boundary, i.e. while the initial
-    /// log replay is still streaming.
+    /// isLoading is true until the SSE `caught-up` boundary, i.e. while the events
+    /// since the snapshot are still streaming.
     public private(set) var isLoading: Bool = true
 
     /// connectionState mirrors the transport for the UI's connectivity chrome.
@@ -51,6 +52,7 @@ public final class BoardStore {
 
     public let subject: String
     @ObservationIgnored private let transport: any InteractionPoster
+    @ObservationIgnored private var seed: BoardState = .initial
     @ObservationIgnored private var serverLog: [Event] = []
     @ObservationIgnored private var pending: [PendingInteraction] = []
     @ObservationIgnored private var messageTask: Task<Void, Never>?
@@ -72,6 +74,22 @@ public final class BoardStore {
     }
 
     // MARK: - Transport wiring
+
+    /// load seeds the store from the daemon's snapshot; the SSE connection then
+    /// resumes after `snapshot.seq` and reduces only the events since onto it.
+    public func load(_ snapshot: Snapshot) {
+        seed = snapshot.state
+        recompute()
+    }
+
+    /// fillRounds swaps each stubbed closed round for its full record from
+    /// GET /api/rounds, so the history views can render the frozen blocks.
+    public func fillRounds(_ records: [RoundRecord]) {
+        seed.rounds.history = seed.rounds.history.map { round in
+            round.isStub ? records.first { $0.number == round.number }! : round
+        }
+        recompute()
+    }
 
     /// connect consumes an SSEClient connection: message frames drive the reduction
     /// and the `caught-up` boundary flips loading; state frames drive the
@@ -250,9 +268,10 @@ public final class BoardStore {
         }
     }
 
-    /// recompute rebuilds state from the server log plus the pending overlay. Each
-    /// pending event is stamped with a seq past every server event so the reduction
-    /// orders it last — optimistic actions always sit atop confirmed state. A
+    /// recompute rebuilds state from the snapshot seed, the server log, and the
+    /// pending overlay. Each pending event is stamped with a seq past every server
+    /// event so the reduction orders it last — optimistic actions always sit atop
+    /// confirmed state. A
     /// malformed frame that fails the reduction leaves the prior state intact,
     /// matching SSEClient's drop-on-malformed handling of hostile wire input.
     private func recompute() {
@@ -263,7 +282,7 @@ public final class BoardStore {
             event.seq = base + Int64(offset) + 1
             events.append(event)
         }
-        if let next = try? reduce(events: events) {
+        if let next = try? reduce(events: events, from: seed) {
             state = next
             viewed.scope(round: next.rounds.current)
         }

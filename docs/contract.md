@@ -378,8 +378,8 @@ must match.
 
 ### Single-block mode
 
-`/p/<ref>?block=<id>` renders one block full-bleed: the same SSE replay and
-interaction REST as the board, with no board chrome. It is what the iOS client
+`/p/<ref>?block=<id>` renders one block full-bleed: the same snapshot, SSE
+stream, and interaction REST as the board, with no board chrome. It is what the iOS client
 loads in a webview per pack block. A block whose enclosing top-level block
 belongs to a closed round renders read-only, folded into the same `closed` flag
 every interactive block honors. When a `ccPresentHeight` WebKit message handler
@@ -660,6 +660,26 @@ to the log, never entering either reducer.
 gates live-only behavior on it: the SPA toasts only on frames past the marker,
 so a tab remount replays history silently. Only `caught-up` belongs to the
 cc-present stream-plane contract; clients discard other named events.
+
+### Board snapshot
+
+A client opens a board from a snapshot rather than a replay from seq 0.
+`GET /api/state?session=<ref>` returns `{seq, revision, state}`. `state` is the
+reduced state with each closed round in `rounds.history` cut to a stub of the
+form `{number, title?, submittedRevision?, outline, feedback}`. `outline` lists
+the round's top-level blocks as `{id, type, label, children?}`, where `label`
+is the thread label the margin rail shows and `children` holds a card's child
+ids. `feedback` is the round's notes. Replies stay in `state.interactions.replies`.
+`seq` is the last event folded in, so the client opens `GET /events` with
+`last_event_id=<seq>` and reduces only the events after it. `revision` is the
+count of `doc.replaced` events, which the client submits against.
+
+`GET /api/rounds?session=<ref>` returns `{history}`, every closed round with
+its frozen blocks and values, the same records `outcomes` prints. The web
+client fetches it once, when the human opens Earlier rounds or a single-block
+view names a block only a closed round holds. The iOS client fetches it when a
+closed round is expanded. A client swaps each stub for the record with the same
+`number`. An unknown `session` is a 404 on both routes.
 
 ## Authentication
 

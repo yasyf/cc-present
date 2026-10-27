@@ -305,6 +305,27 @@ export interface RoundRecord {
   submittedRevision?: number;
 }
 
+export interface RoundOutline {
+  id: string;
+  type: string;
+  label: string;
+  children?: string[];
+}
+
+export interface RoundStub {
+  number: number;
+  title?: string;
+  submittedRevision?: number;
+  outline: RoundOutline[];
+  feedback: Record<string, Feedback[]>;
+}
+
+export type RoundEntry = RoundRecord | RoundStub;
+
+export function isRoundStub(round: RoundEntry): round is RoundStub {
+  return 'outline' in round;
+}
+
 // Rounds tracks the round partition. current is 1-based; blockRounds maps a
 // top-level block id to the round of its last agent touch; history holds the
 // closed rounds in ascending order.
@@ -312,7 +333,7 @@ export interface Rounds {
   current: number;
   currentTitle?: string;
   blockRounds: Record<string, number>;
-  history: RoundRecord[];
+  history: RoundEntry[];
 }
 
 // The agent's declared revising working set. Mirrors internal/state.Revising.

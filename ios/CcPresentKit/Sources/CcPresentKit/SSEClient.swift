@@ -46,17 +46,20 @@ public actor SSEClient {
     private var retryHintMillis: Int?
 
     /// Creates a client for the subject `session` at `baseURL` (e.g.
-    /// `http://127.0.0.1:8765`). A `bearerToken` rides on the Authorization header.
+    /// `http://127.0.0.1:8765`), resuming after `lastEventID` when set. A
+    /// `bearerToken` rides on the Authorization header.
     /// A caller may supply its own `urlSession`; the default one is tuned for SSE —
     /// a per-request idle timeout comfortably above the 20s keepalive and no overall
     /// resource timeout, so a healthy stream lives indefinitely.
     public init(
         baseURL: URL,
         session: String,
+        lastEventID: Int64? = nil,
         bearerToken: String? = nil,
         urlSession: URLSession? = nil,
         requestTimeout: TimeInterval = 60
     ) {
+        self.lastEventID = lastEventID.map(String.init)
         eventsURL = baseURL
             .appending(path: "events")
             .appending(queryItems: [URLQueryItem(name: "session", value: session)])

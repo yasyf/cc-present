@@ -1,8 +1,8 @@
-import type { RoundRecord } from '../events';
+import type { RoundEntry } from '../events';
 
 // WaitingPanel fills the gap between rounds as a crop-marked frame; the subline
 // recalls how the last round closed, or notes a fresh board.
-export function WaitingPanel({ round, lastRound }: { round: number; lastRound: RoundRecord | undefined }) {
+export function WaitingPanel({ round, lastRound }: { round: number; lastRound: RoundEntry | undefined }) {
   const subline = !lastRound
     ? 'Waiting for the agent to add content'
     : lastRound.submittedRevision != null

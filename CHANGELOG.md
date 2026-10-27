@@ -38,6 +38,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Opening a board loads one snapshot of its current state instead of replaying its whole event log. `GET /api/state` returns the reduced board with each closed round cut to a stub (its number, title, block outline, labels and notes), and the page streams only the events after it. The owner's durable-agents board loads about 170 KB instead of replaying 1,434 events and 31 MB. Earlier rounds' frozen blocks load from `GET /api/rounds` when the human opens Earlier rounds. The iOS app loads from the same snapshot and fetches a closed round's blocks when the round is expanded.
+
 - `cc-present reply` without `--re` answers the newest note on the block that has no reply yet, counting notes on a card's children for a card, so the board shows the reply under the note it answers. Only 3 of 66 replies on one board carried `--re`, so most replies sat under their card with nothing to say which note they answered. A block whose notes are all answered still gets a plain block reply.
 - Focus mode puts every step that asks something first and gathers the steps that only inform at the end of the deck, on the web and iOS. A board that opened on a release plan and a "nothing needs your tap" card now opens on its first question.
 - A card whose every decision has the human's answer shows its status pill as "answered" instead of "open", on the web and iOS, in board and focus mode.
