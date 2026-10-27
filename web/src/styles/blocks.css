@@ -1534,6 +1534,9 @@ a.ref:focus-visible {
     font-size: var(--text-md);
   }
 
+  .card {
+    padding-inline: var(--space-3);
+  }
 }
 
 /* Diagram block: the client-rendered mermaid SVG, its skeleton, or an error card
