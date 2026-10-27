@@ -4,7 +4,9 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	ccd "github.com/yasyf/cc-interact/daemon"
@@ -70,6 +72,9 @@ func handleSlackCard(hc ccd.HandlerCtx, pt doc.PackTypes, display displayFunc) c
 	if err != nil {
 		return errReply(err.Error())
 	}
+	if err := admitCard(hc, sub.ID, &st, events, card); err != nil {
+		return errReply(err.Error())
+	}
 	if err := fitsBoard(st.Doc, card, pt); err != nil {
 		return errReply(err.Error())
 	}
@@ -128,10 +133,24 @@ func handleSlackCardCheck(hc ccd.HandlerCtx, pt doc.PackTypes) ccd.Reply {
 	if err != nil {
 		return errReply(err.Error())
 	}
+	if err := admitCard(hc, sub.ID, &st, events, card); err != nil {
+		return errReply(err.Error())
+	}
 	if err := fitsBoard(st.Doc, card, pt); err != nil {
 		return errReply(err.Error())
 	}
 	return okReply(result{})
+}
+
+func admitCard(hc ccd.HandlerCtx, subID string, st *state.State, events []state.Event, card *doc.Card) error {
+	gate, err := newAnswerGate(hc.Ctx, hc.DB, subID, st, events, nil)
+	if err != nil {
+		return err
+	}
+	if _, warnings := gate.strip([]doc.Block{card}); len(warnings) > 0 {
+		return errors.New(strings.Join(warnings, "; "))
+	}
+	return gate.check(card)
 }
 
 func fitsBoard(d *doc.Doc, card *doc.Card, pt doc.PackTypes) error {

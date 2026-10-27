@@ -18,6 +18,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- A block whose approval, choice, or input carries the human's answer is answered, and answered blocks never come back. `update-block`, `push`, `start --doc`, `ask`, and `send` refuse to put one back on the board or change it, naming the block and when it was answered, unless `--reopen <id>` names it. A push that leaves an answered block unchanged still keeps it.
+- `remove-block` on an answered block retires it: a later `push` or `update-block` that includes it drops it with one `warning:` line, and `outcomes` lists it under `retired`.
 - `cc-present show` refuses to replace a document that is not itself a display page, such as a board with decisions on it, and names the artifact and title it would have replaced; `--replace` still closes it and shows the file fresh.
 - `cc-present start` and `show` with a `--session` other than the caller's own never take over this window's artifact from the session that holds it. They fail naming that session, and `--new` starts a fresh artifact for the named session, so a subagent sharing the window's process can no longer rebind or overwrite its parent's board.
 - A daemon that launchd still runs but that no longer answers on its socket, such as one parked over a shutdown stage that timed out during an upgrade, is restarted through `launchctl kickstart -k` and brought up as the installed build by the next `cc-present` command or session start, instead of `cc-present status` reporting it not running and every other command timing out against it.

@@ -29,6 +29,7 @@ type StartResult struct {
 	URL          string
 	ChannelState string
 	TailnetURLs  []string
+	Warnings     []string
 }
 
 // PushResult is what a push reports back to the CLI. Round is the round the push
@@ -38,6 +39,7 @@ type PushResult struct {
 	URL         string
 	TailnetURLs []string
 	Round       int
+	Warnings    []string
 }
 
 func (cl *Client) do(ctx context.Context, op ccd.Op, session, scope string, pid int, b body) (ccd.Reply, result, error) {
@@ -90,31 +92,31 @@ const (
 
 // Start creates or resumes the window's artifact, optionally seeding it with a
 // document.
-func (cl *Client) Start(ctx context.Context, session, scope string, pid int, mode StartMode, named bool, title string, docJSON json.RawMessage) (StartResult, error) {
-	reply, res, err := cl.do(ctx, OpStart, session, scope, pid, body{New: mode == StartNew, Replace: mode == StartReplace, Named: named, Title: title, Doc: docJSON})
+func (cl *Client) Start(ctx context.Context, session, scope string, pid int, mode StartMode, named bool, reopen []string, title string, docJSON json.RawMessage) (StartResult, error) {
+	reply, res, err := cl.do(ctx, OpStart, session, scope, pid, body{New: mode == StartNew, Replace: mode == StartReplace, Named: named, Reopen: reopen, Title: title, Doc: docJSON})
 	if err != nil {
 		return StartResult{}, err
 	}
-	return StartResult{SubjectID: reply.SubjectID, URL: res.URL, ChannelState: res.ChannelState, TailnetURLs: res.TailnetURLs}, nil
+	return StartResult{SubjectID: reply.SubjectID, URL: res.URL, ChannelState: res.ChannelState, TailnetURLs: res.TailnetURLs, Warnings: res.Warnings}, nil
 }
 
 // Push replaces the document and returns the new revision, the artifact's
 // display URLs, and the round it advanced into. round is the caller's declared
 // round intent ("", "current", or "new"); roundTitle titles a newly opened round.
-func (cl *Client) Push(ctx context.Context, session, scope string, pid int, docJSON json.RawMessage, round, roundTitle string) (PushResult, error) {
-	_, res, err := cl.do(ctx, OpPush, session, scope, pid, body{Doc: docJSON, Round: round, Title: roundTitle})
+func (cl *Client) Push(ctx context.Context, session, scope string, pid int, docJSON json.RawMessage, reopen []string, round, roundTitle string) (PushResult, error) {
+	_, res, err := cl.do(ctx, OpPush, session, scope, pid, body{Doc: docJSON, Reopen: reopen, Round: round, Title: roundTitle})
 	if err != nil {
 		return PushResult{}, err
 	}
-	return PushResult{Revision: res.Revision, URL: res.URL, TailnetURLs: res.TailnetURLs, Round: res.Round}, nil
+	return PushResult{Revision: res.Revision, URL: res.URL, TailnetURLs: res.TailnetURLs, Round: res.Round, Warnings: res.Warnings}, nil
 }
 
 // UpsertBlock inserts or replaces a single block, optionally after another. round
 // is the caller's declared round intent ("", "current", or "new") and roundTitle
 // titles a newly opened round; it returns the round an advance opened (0 if none).
-func (cl *Client) UpsertBlock(ctx context.Context, session, scope string, pid int, blockJSON json.RawMessage, after, round, roundTitle string) (int, error) {
-	_, res, err := cl.do(ctx, OpUpsertBlock, session, scope, pid, body{Block: blockJSON, After: after, Round: round, Title: roundTitle})
-	return res.Round, err
+func (cl *Client) UpsertBlock(ctx context.Context, session, scope string, pid int, blockJSON json.RawMessage, reopen []string, after, round, roundTitle string) (int, []string, error) {
+	_, res, err := cl.do(ctx, OpUpsertBlock, session, scope, pid, body{Block: blockJSON, Reopen: reopen, After: after, Round: round, Title: roundTitle})
+	return res.Round, res.Warnings, err
 }
 
 // RemoveBlock removes a block by id.
@@ -152,9 +154,9 @@ func (cl *Client) Close(ctx context.Context, session, scope string, pid int, sum
 }
 
 // Outcomes returns the reduced state of the window's artifact as JSON.
-func (cl *Client) Outcomes(ctx context.Context, session, scope string, pid int) (json.RawMessage, error) {
+func (cl *Client) Outcomes(ctx context.Context, session, scope string, pid int) (json.RawMessage, []string, error) {
 	_, res, err := cl.do(ctx, OpOutcomes, session, scope, pid, body{})
-	return res.State, err
+	return res.State, res.Retired, err
 }
 
 // SlackCard puts a card synced with a Slack ask card on the window's board,

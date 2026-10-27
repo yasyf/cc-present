@@ -72,6 +72,7 @@ type body struct {
 	Answer   json.RawMessage `json:"answer,omitempty"`   // slack-answer
 	Verdicts json.RawMessage `json:"verdicts,omitempty"` // import-verdicts | move-verdicts
 	Named    bool            `json:"named,omitempty"`
+	Reopen   []string        `json:"reopen,omitempty"`
 }
 
 // result is the domain payload a handler returns in Reply.Body. Envelope-level
@@ -85,6 +86,8 @@ type result struct {
 	Round        int             `json:"round,omitempty"`        // round
 	State        json.RawMessage `json:"state,omitempty"`        // outcomes | import-verdicts
 	Waits        string          `json:"waits,omitempty"`        // reply
+	Warnings     []string        `json:"warnings,omitempty"`
+	Retired      []string        `json:"retired,omitempty"`
 }
 
 func decodeBody(raw json.RawMessage) body {

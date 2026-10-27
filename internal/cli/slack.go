@@ -94,7 +94,7 @@ func newSendCmd(d cmd.Deps) *cobra.Command {
 			defer func() { _ = cl.CloseSession() }()
 			sess, pid := artifactWindow(d, session)
 			b := board{sess, mustCwd(cwd), pid}
-			raw, err := cl.Outcomes(ctx, b.session, b.scope, b.pid)
+			raw, _, err := cl.Outcomes(ctx, b.session, b.scope, b.pid)
 			if err != nil {
 				return err
 			}

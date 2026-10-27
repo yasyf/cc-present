@@ -170,7 +170,7 @@ func dryRunReport(ctx context.Context, dd *doc.Doc, pt doc.PackTypes, root strin
 // liveSources reads the source aliases of the artifact's current document, so
 // update-block resolves alias references against the doc it lands in.
 func liveSources(ctx context.Context, cl *ccdaemon.Client, sess, scope string, pid int) (map[string]string, error) {
-	raw, err := cl.Outcomes(ctx, sess, scope, pid)
+	raw, _, err := cl.Outcomes(ctx, sess, scope, pid)
 	if err != nil {
 		return nil, err
 	}
@@ -265,6 +265,7 @@ func startMode(fresh, replace bool) ccdaemon.StartMode {
 func newStartCmd(d cmd.Deps) *cobra.Command {
 	var session, cwd, title, docPath, root string
 	var fresh, replace bool
+	var reopen []string
 	c := &cobra.Command{
 		Use:   "start",
 		Short: "Create or resume this window's cc-present artifact and print its URL",
@@ -311,11 +312,12 @@ func newStartCmd(d cmd.Deps) *cobra.Command {
 					return err
 				}
 			}
-			res, err := cl.Start(ctx, sess, scope, pid, startMode(fresh, replace), namedOther(session), title, docJSON)
+			res, err := cl.Start(ctx, sess, scope, pid, startMode(fresh, replace), namedOther(session), reopen, title, docJSON)
 			if err != nil {
 				return err
 			}
 			printStart(c, res.SubjectID, res.URL, res.TailnetURLs, res.ChannelState)
+			printWarnings(c, res.Warnings)
 			return nil
 		},
 	}
@@ -325,8 +327,33 @@ func newStartCmd(d cmd.Deps) *cobra.Command {
 	c.Flags().BoolVar(&fresh, "new", false, "start a fresh artifact; refuses while this session has an open one")
 	c.Flags().BoolVar(&replace, "replace", false, "close this session's open artifact and start a fresh one")
 	c.Flags().StringVar(&docPath, "doc", "", "seed the artifact with a document from a file (- for stdin)")
+	c.Flags().StringSliceVar(&reopen, "reopen", nil, reopenUsage)
 	c.Flags().StringVar(&root, "root", "", "checkout that code block src paths and markdown code cites resolve under (defaults to the git toplevel of the current directory)")
 	return c
+}
+
+const reopenUsage = "block id to ask again although the human already answered it (repeatable)"
+
+func printWarnings(c *cobra.Command, warnings []string) {
+	for _, w := range warnings {
+		_, _ = fmt.Fprintf(c.ErrOrStderr(), "warning: %s\n", w)
+	}
+}
+
+func withRetired(raw json.RawMessage, retired []string) (json.RawMessage, error) {
+	var m map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &m); err != nil {
+		return nil, err
+	}
+	if retired == nil {
+		retired = []string{}
+	}
+	ids, err := json.Marshal(retired)
+	if err != nil {
+		return nil, err
+	}
+	m["retired"] = ids
+	return json.Marshal(m)
 }
 
 func printStart(c *cobra.Command, subjectID, url string, tailnet []string, channel string) {
@@ -346,6 +373,7 @@ func printStart(c *cobra.Command, subjectID, url string, tailnet []string, chann
 func newPushCmd(d cmd.Deps) *cobra.Command {
 	var session, cwd, round, roundTitle, root string
 	var dryRun bool
+	var reopen []string
 	c := &cobra.Command{
 		Use:   "push <file|->",
 		Short: "Replace the artifact's document",
@@ -409,10 +437,11 @@ func newPushCmd(d cmd.Deps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			res, err := cl.Push(ctx, sess, scope, pid, docJSON, round, roundTitle)
+			res, err := cl.Push(ctx, sess, scope, pid, docJSON, reopen, round, roundTitle)
 			if err != nil {
 				return err
 			}
+			printWarnings(c, res.Warnings)
 			out := c.OutOrStdout()
 			_, _ = fmt.Fprintf(out, "revision: %d\n", res.Revision)
 			if res.Round > 0 {
@@ -434,6 +463,7 @@ func newPushCmd(d cmd.Deps) *cobra.Command {
 	c.Flags().StringVar(&session, "session", "", "Claude session id (defaults to $CLAUDE_CODE_SESSION_ID)")
 	c.Flags().StringVar(&cwd, "cwd", "", "working directory (recorded on the request; artifacts are per-window, not resolved by directory)")
 	c.Flags().BoolVar(&dryRun, "dry-run", false, "validate the document only; print every violation and exit non-zero")
+	c.Flags().StringSliceVar(&reopen, "reopen", nil, reopenUsage)
 	c.Flags().StringVar(&root, "root", "", "checkout that code block src paths and markdown code cites resolve under (defaults to the git toplevel of the current directory)")
 	c.Flags().StringVar(&round, "round", "", `round intent when a new top-level block lands in an engaged round: "current" (add to it) or "new" (close it and open the next)`)
 	c.Flags().StringVar(&roundTitle, "round-title", "", "title for the round opened by --round new")
@@ -447,6 +477,7 @@ func newPushCmd(d cmd.Deps) *cobra.Command {
 func newUpdateBlockCmd(d cmd.Deps) *cobra.Command {
 	var session, cwd, after, round, roundTitle, root string
 	var dryRun bool
+	var reopen []string
 	c := &cobra.Command{
 		Use:   "update-block <file|->",
 		Short: "Insert or replace a single block",
@@ -514,10 +545,11 @@ func newUpdateBlockCmd(d cmd.Deps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			n, err := cl.UpsertBlock(ctx, sess, scope, pid, blockJSON, after, round, roundTitle)
+			n, warnings, err := cl.UpsertBlock(ctx, sess, scope, pid, blockJSON, reopen, after, round, roundTitle)
 			if err != nil {
 				return err
 			}
+			printWarnings(c, warnings)
 			if n > 0 {
 				_, _ = fmt.Fprintf(c.OutOrStdout(), "round: %d\n", n)
 			}
@@ -534,6 +566,7 @@ func newUpdateBlockCmd(d cmd.Deps) *cobra.Command {
 	c.Flags().StringVar(&cwd, "cwd", "", "working directory (recorded on the request; artifacts are per-window, not resolved by directory)")
 	c.Flags().StringVar(&after, "after", "", "insert a new block after a top-level block, or into a card after a child (unknown ids error)")
 	c.Flags().BoolVar(&dryRun, "dry-run", false, "validate the single block only; print every violation and exit non-zero")
+	c.Flags().StringSliceVar(&reopen, "reopen", nil, reopenUsage)
 	c.Flags().StringVar(&root, "root", "", "checkout that code block src paths and markdown code cites resolve under (defaults to the git toplevel of the current directory)")
 	c.Flags().StringVar(&round, "round", "", `round intent when the block is a new top-level block in an engaged round: "current" (add to it) or "new" (close it and open the next)`)
 	c.Flags().StringVar(&roundTitle, "round-title", "", "title for the round opened by --round new")
@@ -700,8 +733,11 @@ func newOutcomesCmd(d cmd.Deps) *cobra.Command {
 			}
 			defer func() { _ = cl.CloseSession() }()
 			sess, pid := artifactWindow(d, session)
-			raw, err := cl.Outcomes(ctx, sess, mustCwd(cwd), pid)
+			raw, retired, err := cl.Outcomes(ctx, sess, mustCwd(cwd), pid)
 			if err != nil {
+				return err
+			}
+			if raw, err = withRetired(raw, retired); err != nil {
 				return err
 			}
 			if block != "" {
