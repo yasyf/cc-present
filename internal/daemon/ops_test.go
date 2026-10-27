@@ -813,6 +813,62 @@ func TestReply(t *testing.T) {
 	}
 }
 
+func TestAReplyWithoutReAnswersTheNewestUnansweredNote(t *testing.T) {
+	type note struct{ block, id string }
+	tests := []struct {
+		name     string
+		doc      string
+		notes    []note
+		answered []note
+		blockID  string
+		wantRe   string
+	}{
+		{name: "no note stays a block reply", doc: approvalDoc, blockID: "a1"},
+		{name: "newest note", doc: approvalDoc, notes: []note{{"a1", "f1"}, {"a1", "f2"}}, blockID: "a1", wantRe: "f2"},
+		{
+			name: "skips an answered note", doc: approvalDoc,
+			notes: []note{{"a1", "f1"}, {"a1", "f2"}}, answered: []note{{"a1", "f2"}}, blockID: "a1", wantRe: "f1",
+		},
+		{
+			name: "every note answered stays a block reply", doc: approvalDoc,
+			notes: []note{{"a1", "f1"}}, answered: []note{{"a1", "f1"}}, blockID: "a1",
+		},
+		{
+			name: "a card takes the newest note on its children", doc: cardDoc,
+			notes: []note{{"c1", "f1"}, {"in1", "f2"}, {"m1", "f3"}}, blockID: "c1", wantRe: "f2",
+		},
+		{name: "a note on another block is not this block's", doc: cardDoc, notes: []note{{"m1", "f1"}}, blockID: "c1"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := newHarness(t)
+			start := handleStart(h.hc(body{Doc: json.RawMessage(tt.doc)}), doc.NoPacks, nilDisplay)
+			if !start.OK {
+				t.Fatalf("start not ok: %s", start.Error)
+			}
+			for _, n := range tt.notes {
+				fileNote(t, h, start.SubjectID, n.block, n.id)
+			}
+			for _, n := range tt.answered {
+				if r := handleReply(h.hc(body{BlockID: n.block, Re: n.id, Md: "done"})); !r.OK {
+					t.Fatalf("answer %s: %s", n.id, r.Error)
+				}
+			}
+			if r := handleReply(h.hc(body{BlockID: tt.blockID, Md: "reply"})); !r.OK {
+				t.Fatalf("reply not ok: %s", r.Error)
+			}
+			got := h.eventsOfType(t, start.SubjectID, EventReplyCreated)
+			var p struct{ Re string }
+			if err := json.Unmarshal(got[len(got)-1].Payload, &p); err != nil {
+				t.Fatalf("decode reply payload: %v", err)
+			}
+			if p.Re != tt.wantRe {
+				t.Fatalf("re = %q, want %q", p.Re, tt.wantRe)
+			}
+		})
+	}
+}
+
 func TestRound(t *testing.T) {
 	tests := []struct {
 		name      string

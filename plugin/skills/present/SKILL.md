@@ -184,8 +184,8 @@ note, then redraft card-cli to fold it in>.
 Note answered: <the feedback id from feedback.created, e.g. 9f2c11ab, or none>.
 Read the block's state first: cc-present outcomes --block <blockId> --session <session-id>.
 Apply directly: cc-present reply --block <id> --re <note id> --body "..." for a word
-back, so the board threads it under that note (drop --re only when no note
-prompted it); for a redraft, write the revised block JSON to a file and cc-present update-block "$BLOCK"
+back, so the board threads it under that note (without --re the reply answers
+the newest unanswered note on the block); for a redraft, write the revised block JSON to a file and cc-present update-block "$BLOCK"
 — re-upsert the existing id (announce with cc-present revising <ids> --note "..."
 first when the rewrite reshapes steps downstream of a pick). Never add a new
 top-level block unless this job says so, and then only with the round flag it names.
@@ -195,7 +195,7 @@ asks in your report.
 Report 1-2 lines via SendMessage to the dispatching session as your last action.
 ```
 
-To reply — it renders under the block in realtime, on any block type (approvals, inputs, tables, pack blocks alike); an unknown block id is rejected. Pass `--re` with the `id` of the `feedback.created` note you answer, and the board threads the reply under that note; a reply without `--re` sits under the block itself:
+To reply — it renders under the block in realtime, on any block type (approvals, inputs, tables, pack blocks alike); an unknown block id is rejected. Pass `--re` with the `id` of the `feedback.created` note you answer, and the board threads the reply under that note. A reply without `--re` answers the newest note on the block, a card's children included, that has no reply yet, and sits under the block itself only when every note there is answered:
 
 ```bash
 cc-present reply --block <blockId> --re <feedback id> --body "Good catch — redrafting now."
