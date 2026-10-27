@@ -681,6 +681,12 @@ view names a block only a closed round holds. The iOS client fetches it when a
 closed round is expanded. A client swaps each stub for the record with the same
 `number`. An unknown `session` is a 404 on both routes.
 
+Both routes answer gzipped when the request accepts `gzip`, with
+`Cache-Control: no-cache` and a weak `ETag` naming the daemon build and the
+board's `seq`, so a client holding the current body revalidates to a 304.
+The SPA's own content-hashed `/assets/*` files are served `immutable` for a
+year, as brotli or gzip when the request accepts either.
+
 ## Authentication
 
 The HTTP plane binds per `~/.cc-present/config.json`: an absent file uses the

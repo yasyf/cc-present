@@ -1,9 +1,12 @@
 package daemon
 
 import (
+	"bytes"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/yasyf/cc-present/internal/doc"
 	"github.com/yasyf/cc-present/internal/state"
@@ -46,20 +49,20 @@ type outlineBlock struct {
 }
 
 func (rs *restServer) handleState(w http.ResponseWriter, r *http.Request) {
-	rs.serveBoard(w, r, func(b *reducedBoard) ([]byte, error) {
+	rs.serveBoard(w, r, func(b *reducedBoard) (encoded, error) {
 		return b.encode(&b.snapshot, func() (any, error) { return snapshotOf(&b.st, b.seq, b.revision) })
 	})
 }
 
 func (rs *restServer) handleRounds(w http.ResponseWriter, r *http.Request) {
-	rs.serveBoard(w, r, func(b *reducedBoard) ([]byte, error) {
+	rs.serveBoard(w, r, func(b *reducedBoard) (encoded, error) {
 		return b.encode(&b.rounds, func() (any, error) {
 			return map[string][]state.RoundRecord{"history": b.st.Rounds.History}, nil
 		})
 	})
 }
 
-func (rs *restServer) serveBoard(w http.ResponseWriter, r *http.Request, body func(*reducedBoard) ([]byte, error)) {
+func (rs *restServer) serveBoard(w http.ResponseWriter, r *http.Request, encode func(*reducedBoard) (encoded, error)) {
 	ref := r.URL.Query().Get("session")
 	id, ok, err := rs.resolve(r.Context(), ref)
 	if err != nil {
@@ -75,14 +78,22 @@ func (rs *restServer) serveBoard(w http.ResponseWriter, r *http.Request, body fu
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	b, err := body(board)
+	e, err := encode(board)
 	board.mu.Unlock()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	_, _ = w.Write(b)
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Vary", "Accept-Encoding")
+	w.Header().Set("ETag", fmt.Sprintf(`W/"%s.%d"`, rs.version, e.seq))
+	body := e.body
+	if accepts(r, "gzip") {
+		w.Header().Set("Content-Encoding", "gzip")
+		body = e.gz
+	}
+	http.ServeContent(w, r, "", time.Time{}, bytes.NewReader(body))
 }
 
 func snapshotOf(st *state.State, seq int64, revision int) (snapshot, error) {
