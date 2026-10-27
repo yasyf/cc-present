@@ -83,13 +83,13 @@
 }
 
 @media (min-width: 1100px) {
-  /* The rail hangs from the masthead's bottom (--rail-top, measured by MarginRail)
+  /* The rail hangs from the masthead's bottom (--masthead-bottom, measured by DocHeader)
      to the page foot. Its own box is the collapsed strip; the panel is an absolutely
      placed child that overhangs left when open, so hover intent reads across the whole
      expanded surface (pointerenter/leave track the subtree, not the box). */
   .margin-rail {
     position: fixed;
-    top: var(--rail-top);
+    top: var(--masthead-bottom);
     right: 0;
     bottom: 0;
     width: var(--rail-strip-w);
@@ -1313,6 +1313,9 @@ body[data-single] {
 .single-block .block-row {
   margin: 0;
 }
+.toast-stack {
+  top: calc(var(--masthead-bottom) + var(--space-2));
+}
 /* The WKWebView frame is block-height and unscrollable, so a fixed toast overlay
    would clip. Flow the stack in-tree instead: it grows the measured .single-block
    root, and the ResizeObserver reports the taller height to the native host. */
@@ -1400,4 +1403,3 @@ body[data-single] .toast-stack {
     width: 100%;
   }
 }
-

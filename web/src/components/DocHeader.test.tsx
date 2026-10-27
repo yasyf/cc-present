@@ -32,8 +32,21 @@ HTMLDialogElement.prototype.close = function close(this: HTMLDialogElement) {
 
 let container: HTMLDivElement;
 let root: Root;
+let resize: ResizeObserverCallback | null;
+
+class ResizeObserverStub {
+  constructor(callback: ResizeObserverCallback) {
+    resize = callback;
+  }
+
+  observe(): void {}
+  unobserve(): void {}
+  disconnect(): void {}
+}
 
 beforeEach(() => {
+  resize = null;
+  vi.stubGlobal('ResizeObserver', ResizeObserverStub);
   container = document.createElement('div');
   document.body.appendChild(container);
   root = createRoot(container);
@@ -41,6 +54,8 @@ beforeEach(() => {
 afterEach(() => {
   act(() => root.unmount());
   container.remove();
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
 });
 
 const title = 'Durable agents: replan after the Oct 20 incident, round one of two';
@@ -109,5 +124,28 @@ describe('DocHeader', () => {
     act(() => (menu().querySelector('.header-menu-item') as HTMLButtonElement).click());
     expect(onOpenComments).toHaveBeenCalledTimes(1);
     expect(menu().hasAttribute('open')).toBe(false);
+  });
+
+  it('tracks the visible masthead bottom on resize and scroll, clamped to the viewport, until unmounted', () => {
+    let bottom = 180;
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(() => ({ bottom }) as DOMRect);
+    const masthead = () => document.documentElement.style.getPropertyValue('--masthead-bottom');
+
+    render();
+    expect(masthead()).toBe('180px');
+
+    bottom = 230;
+    act(() => resize?.([], {} as ResizeObserver));
+    expect(masthead()).toBe('230px');
+
+    bottom = -12;
+    act(() => window.dispatchEvent(new Event('scroll')));
+    expect(masthead()).toBe('0px');
+
+    act(() => root.render(null));
+    expect(masthead()).toBe('');
+    bottom = 50;
+    act(() => window.dispatchEvent(new Event('scroll')));
+    expect(masthead()).toBe('');
   });
 });

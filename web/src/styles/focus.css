@@ -343,9 +343,7 @@ html:has(.doc-header[data-compact]) {
   padding-inline: 0;
 }
 .focus-card-body .card-summary {
-  font-size: inherit;
   color: var(--dim);
-  max-width: none;
 }
 .focus-card-body > .comment-chip-row {
   display: flex;

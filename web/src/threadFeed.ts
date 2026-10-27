@@ -85,6 +85,11 @@ function label(block: Block, top: Block): string {
   );
 }
 
+export function blockLabel(blocks: Block[], id: string): string | null {
+  const member = members(blocks, new Set()).find((m) => m.block.id === id);
+  return member ? label(member.block, member.top) : null;
+}
+
 function hasConversation(entry: ThreadEntry): boolean {
   return entry.feedback.length > 0 || entry.replies.length > 0;
 }
