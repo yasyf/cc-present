@@ -14,9 +14,10 @@ import (
 	"path"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
-	"golang.org/x/sync/errgroup"
+	"golang.org/x/sync/singleflight"
 )
 
 const maxFailing = 10
@@ -24,7 +25,7 @@ const maxFailing = 10
 const prQuery = `query($owner: String!, $name: String!, $number: Int!) {
   repository(owner: $owner, name: $name) {
     pullRequest(number: $number) {
-      title url state isDraft mergedAt
+      title url state isDraft mergedAt headRefOid
       author { login }
       baseRefName headRefName
       mergeCommit { oid }
@@ -144,6 +145,7 @@ type ghPR struct {
 	Author      *login  `json:"author"`
 	BaseRefName string  `json:"baseRefName"`
 	HeadRefName string  `json:"headRefName"`
+	HeadRefOid  string  `json:"headRefOid"`
 	MergeCommit *struct {
 		Oid string `json:"oid"`
 	} `json:"mergeCommit"`
@@ -200,49 +202,84 @@ var statusOutcomes = map[string]string{
 	"PENDING": "pending", "EXPECTED": "pending",
 }
 
+// Cache keeps each pull request's newest read: a read younger than Floor is
+// served as is, concurrent reads of one pull request share one fetch, and the
+// changed files are fetched again only when the head commit moves.
+type Cache struct {
+	Floor   time.Duration
+	mu      sync.Mutex
+	reads   map[string]*read
+	flights singleflight.Group
+}
+
+type read struct {
+	pr  *PR
+	oid string
+}
+
 // Fetch reads repo#number through run, keeping the changed files patterns
 // select; a closed, unmerged PR adds a commit search for a merge queue's squash.
-func Fetch(ctx context.Context, run Runner, repo string, number int, patterns []string, now time.Time) (*PR, error) {
+func (c *Cache) Fetch(ctx context.Context, run Runner, repo string, number int, patterns []string, now time.Time) (*PR, error) {
+	key := fmt.Sprintf("%s#%d %s", repo, number, strings.Join(patterns, "\x00"))
+	c.mu.Lock()
+	prior := c.reads[key]
+	c.mu.Unlock()
+	if prior != nil && now.Sub(prior.pr.FetchedAt) < c.Floor {
+		return prior.pr, nil
+	}
+	fresh, err, _ := c.flights.Do(key, func() (any, error) {
+		fresh, err := fetch(ctx, run, repo, number, patterns, now, prior)
+		if err != nil {
+			return nil, err
+		}
+		c.mu.Lock()
+		if c.reads == nil {
+			c.reads = map[string]*read{}
+		}
+		c.reads[key] = fresh
+		c.mu.Unlock()
+		return fresh, nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return fresh.(*read).pr, nil
+}
+
+func fetch(ctx context.Context, run Runner, repo string, number int, patterns []string, now time.Time, prior *read) (*read, error) {
 	owner, name, ok := strings.Cut(repo, "/")
 	if !ok {
 		return nil, fmt.Errorf("repo %q is not owner/name", repo)
 	}
-	var (
-		gp    ghPR
-		files []File
-	)
-	g, gctx := errgroup.WithContext(ctx)
-	g.Go(func() error {
-		out, err := run(gctx, "api", "graphql", "-f", "owner="+owner, "-f", "name="+name, "-F", "number="+strconv.Itoa(number), "-f", "query="+prQuery)
-		if err != nil {
-			return err
-		}
-		var resp struct {
-			Data struct {
-				Repository *struct {
-					PullRequest *ghPR `json:"pullRequest"`
-				} `json:"repository"`
-			} `json:"data"`
-		}
-		if err := json.Unmarshal(out, &resp); err != nil {
-			return fmt.Errorf("decode pull request: %w", err)
-		}
-		if resp.Data.Repository == nil || resp.Data.Repository.PullRequest == nil {
-			return fmt.Errorf("%s#%d not found", repo, number)
-		}
-		gp = *resp.Data.Repository.PullRequest
-		return nil
-	})
-	g.Go(func() error {
-		out, err := run(gctx, "api", "--paginate", fmt.Sprintf("repos/%s/pulls/%d/files?per_page=100", repo, number))
-		if err != nil {
-			return err
-		}
-		files, err = decodeFiles(out, patterns)
-		return err
-	})
-	if err := g.Wait(); err != nil {
+	out, err := run(ctx, "api", "graphql", "-f", "owner="+owner, "-f", "name="+name, "-F", "number="+strconv.Itoa(number), "-f", "query="+prQuery)
+	if err != nil {
 		return nil, err
+	}
+	var resp struct {
+		Data struct {
+			Repository *struct {
+				PullRequest *ghPR `json:"pullRequest"`
+			} `json:"repository"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(out, &resp); err != nil {
+		return nil, fmt.Errorf("decode pull request: %w", err)
+	}
+	if resp.Data.Repository == nil || resp.Data.Repository.PullRequest == nil {
+		return nil, fmt.Errorf("%s#%d not found", repo, number)
+	}
+	gp := *resp.Data.Repository.PullRequest
+	var files []File
+	if prior != nil && prior.oid == gp.HeadRefOid {
+		files = prior.pr.Files
+	} else {
+		out, err := run(ctx, "api", "--paginate", fmt.Sprintf("repos/%s/pulls/%d/files?per_page=100", repo, number))
+		if err != nil {
+			return nil, err
+		}
+		if files, err = decodeFiles(out, patterns); err != nil {
+			return nil, err
+		}
 	}
 	checks, err := summarizeChecks(&gp)
 	if err != nil {
@@ -286,7 +323,7 @@ func Fetch(ctx context.Context, run Runner, repo string, number int, patterns []
 	for _, l := range gp.Labels.Nodes {
 		pr.Labels = append(pr.Labels, l.Name)
 	}
-	return pr, nil
+	return &read{pr: pr, oid: gp.HeadRefOid}, nil
 }
 
 func decodeFiles(out []byte, patterns []string) ([]File, error) {

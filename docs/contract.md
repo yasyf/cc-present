@@ -792,8 +792,10 @@ choosing, and no token reaches the document or the client. A redrafted block
 whose id carries a new PR still serves its frozen version in a closed round. An
 unknown subject, or no matching `pr` block, returns 404; a `gh` failure returns
 502 with its stderr.
-Every request fetches fresh; the client caches a response for a minute and
-refetches on its refresh control.
+The daemon serves a read younger than a minute without calling GitHub, shares
+one fetch among concurrent requests for the same PR, and fetches the changed
+files again only when the PR's head commit moves. The client caches a response
+for a minute and refetches on its refresh control.
 
 ```ts
 PRLive = { repo, number, title, url, author,
