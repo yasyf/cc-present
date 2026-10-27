@@ -1,4 +1,4 @@
-import { forwardRef, useImperativeHandle, useRef } from 'react';
+import { forwardRef, useContext, useImperativeHandle, useRef } from 'react';
 import { useActiveBlock } from '../activeBlock';
 import { useDraft } from '../drafts';
 import { noteCopy } from '../threadFeed';
@@ -6,7 +6,7 @@ import type { Feedback, Reply } from '../events';
 import { CommentChip } from './CommentChip';
 import { FeedbackThread } from './FeedbackThread';
 import type { FeedbackHandle } from './FeedbackThread';
-import { useThreadHost } from './threadHost';
+import { CardThreadContext, useThreadHost } from './threadHost';
 
 export interface BlockThreadProps {
   blockId: string;
@@ -23,6 +23,7 @@ export const BlockThread = forwardRef<FeedbackHandle, BlockThreadProps>(function
   ref,
 ) {
   const rail = useThreadHost() === 'rail';
+  const cardId = useContext(CardThreadContext);
   const { pin, requestCompose } = useActiveBlock();
   const threadRef = useRef<FeedbackHandle>(null);
   const draft = useDraft<string>(blockId, 'note');
@@ -37,13 +38,14 @@ export const BlockThread = forwardRef<FeedbackHandle, BlockThreadProps>(function
           threadRef.current?.open();
           return;
         }
-        pin(blockId);
+        pin(cardId ?? blockId);
         requestCompose();
       },
     }),
-    [rail, pin, requestCompose, blockId],
+    [rail, pin, requestCompose, blockId, cardId],
   );
 
+  if (cardId !== null) return null;
   if (!rail) {
     return (
       <FeedbackThread

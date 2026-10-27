@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   autoAdvances,
   choiceShape,
+  deckHasGrid,
   factAxes,
   focusSteps,
   remaining,
@@ -107,12 +108,21 @@ describe('focusSteps', () => {
       ],
     },
     {
-      name: 'a section flushes a pending run as a standalone context step',
+      name: 'a section flushes a pending run as a standalone context step after the decisions',
       blocks: [markdown('m1'), section('s1', 'Later'), approval('a1')],
       pack: new Set(),
       expected: [
-        { id: 'm1', kind: 'context', tier: undefined, context: [], decidables: [], primary: undefined, swipeable: false },
         { id: 'a1', kind: 'decision', tier: 'Later', context: [], decidables: ['a1'], primary: 'a1', swipeable: true },
+        { id: 'm1', kind: 'context', tier: undefined, context: [], decidables: [], primary: undefined, swipeable: false },
+      ],
+    },
+    {
+      name: 'a context card ahead of a decision moves behind it',
+      blocks: [card('c0', [markdown('c0m')]), card('c1', [approval('c1a')])],
+      pack: new Set(),
+      expected: [
+        { id: 'c1', kind: 'decision', tier: undefined, context: [], decidables: ['c1a'], primary: 'c1a', swipeable: true },
+        { id: 'c0', kind: 'context', tier: undefined, context: [], decidables: [], primary: undefined, swipeable: false },
       ],
     },
     {
@@ -533,5 +543,22 @@ describe('stepFace', () => {
     const f = face([k]);
     expect(f.lede).toEqual({ md: 'for the record', inline: true });
     expect(f.hoisted.size).toBe(0);
+  });
+});
+
+describe('deckHasGrid', () => {
+  const gridChoice = (id: string): Block =>
+    ({
+      id,
+      type: 'choice',
+      options: ['A', 'B'].map((label, i) => ({ id: `${id}-o${i}`, label, facts: [{ label: 'Cost', value: label }] })),
+    }) as Block;
+
+  it('widens a deck when any step holds a compare grid, even a card child', () => {
+    expect(deckHasGrid(focusSteps([approval('a1'), card('c1', [gridChoice('g1')])], new Set()))).toBe(true);
+  });
+
+  it('keeps a deck narrow when no step holds a compare grid', () => {
+    expect(deckHasGrid(focusSteps([approval('a1'), choice('ch1')], new Set()))).toBe(false);
   });
 });

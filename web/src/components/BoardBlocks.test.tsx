@@ -180,21 +180,20 @@ describe('BoardBlocks note affordance', () => {
 
   it('gives a card row and a markdown row one Add note control in the inline host', () => {
     render(blocks, empty());
-    expect(texts(row('c1').querySelectorAll(':scope > .feedback-affordance .link-btn'))).toEqual(['Add note']);
+    expect(texts(row('c1').querySelectorAll('.feedback-affordance .link-btn'))).toEqual(['Add note']);
     expect(texts(row('m1').querySelectorAll('.feedback-affordance .link-btn'))).toEqual(['Add note']);
-    expect(texts(row('c1').querySelectorAll('.approval .feedback-affordance .link-btn'))).toEqual(['Add feedback']);
   });
 
   it('adds no second control to an approval row or a section in the inline host', () => {
     render(blocks, empty());
     expect(texts(row('a2').querySelectorAll('.feedback-affordance .link-btn'))).toEqual(['Add feedback']);
     expect(row('a2').querySelector(':scope > .feedback-affordance')).toBeNull();
-    expect(container.querySelectorAll('.feedback-affordance')).toHaveLength(4);
+    expect(container.querySelectorAll('.feedback-affordance')).toHaveLength(3);
   });
 
   it('gives a card row and a markdown row one chip in the rail host', () => {
     render(blocks, empty(), 'rail');
-    expect(texts(row('c1').querySelectorAll(':scope > .comment-chip-row .comment-chip'))).toEqual(['Add note']);
+    expect(texts(row('c1').querySelectorAll('.comment-chip'))).toEqual(['Add note']);
     expect(texts(row('m1').querySelectorAll('.comment-chip'))).toEqual(['Add note']);
   });
 
@@ -202,7 +201,7 @@ describe('BoardBlocks note affordance', () => {
     render(blocks, empty(), 'rail');
     expect(texts(row('a2').querySelectorAll('.comment-chip'))).toEqual(['Add feedback']);
     expect(row('a2').querySelector(':scope > .comment-chip-row')).toBeNull();
-    expect(container.querySelectorAll('.comment-chip')).toHaveLength(4);
+    expect(container.querySelectorAll('.comment-chip')).toHaveLength(3);
   });
 });
 

@@ -5,6 +5,7 @@ import { m, useDragControls, useIsPresent, useMotionValue, useReducedMotion, use
 import type { MotionValue, PanInfo } from 'motion/react';
 import type { FocusStep, StepLede } from '../focus';
 import { stepFace, stepHeadline, swipeVerdict } from '../focus';
+import { blockDecided } from '../decide';
 import type { Block } from '../schema';
 import type { Interaction, Interactions } from '../events';
 import { usePresent } from '../present';
@@ -270,7 +271,9 @@ export const FocusCard = forwardRef<
         {hasMeta && (
           <div className="focus-meta">
             {eyebrow !== undefined && <span className="focus-meta-eyebrow">{eyebrow}</span>}
-            {status && <StatusPill status={status} />}
+            {card?.status && (
+              <StatusPill status={card.status} answered={blockDecided(card, interactions, packInteractive)} />
+            )}
             {chips && chips.length > 0 && (
               <span className="chips">
                 {chips.map((chip, i) => (

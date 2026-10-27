@@ -2,12 +2,13 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { SyntheticEvent } from 'react';
 import { AnimatePresence, LazyMotion, MotionConfig, domMax } from 'motion/react';
 import { flatten, submitItems } from '../decide';
-import { autoAdvances, stepTitle } from '../focus';
+import { autoAdvances, deckHasGrid, stepTitle } from '../focus';
 import type { FocusStep } from '../focus';
 import { useCursor, useKeyboardApi } from '../keyboard';
 import { useActiveBlock } from '../activeBlock';
 import { revisionStore } from '../revision';
 import { useInteractivePackTypes } from '../packs/registry';
+import { useMediaQuery } from '../useMediaQuery';
 import type { Block } from '../schema';
 import type { Interactions } from '../events';
 import { FocusCard } from './FocusCard';
@@ -92,6 +93,7 @@ export function FocusDeck({
   const [advancing, setAdvancing] = useState(false);
 
   const total = steps.length;
+  const narrow = useMediaQuery('(max-width: 720px)');
   const lastIndexRef = useRef(0);
   const index = deckIndex(steps, currentId, lastIndexRef.current);
   const currentStep = index < total ? steps[index]! : undefined;
@@ -327,6 +329,7 @@ export function FocusDeck({
       <MotionConfig reducedMotion="user">
         <div
           className="focus-deck"
+          data-wide={(!narrow && deckHasGrid(steps)) || undefined}
           ref={deckRef}
           onKeyDownCapture={cancelAdvance}
           onPointerDownCapture={cancelAdvance}

@@ -336,6 +336,7 @@ struct FocusDeckView: View {
 
     @ViewBuilder
     private func card(_ step: FocusStep) -> some View {
+        let answered = stepStatus(step, interactions, packTypes).map { $0 != .undecided } ?? false
         if step.swipeable, case let .approval(approval)? = step.primary, !store.isClosed {
             SwipeableFocusCard(
                 step: step,
@@ -343,12 +344,13 @@ struct FocusDeckView: View {
                 client: client,
                 packContext: packContext,
                 revisions: revisions,
+                answered: answered,
                 approvalId: approval.id,
                 stageWidth: stageWidth,
                 reduceMotion: reduceMotion
             )
         } else {
-            FocusCardView(step: step, store: store, client: client, packContext: packContext, revisions: revisions)
+            FocusCardView(step: step, store: store, client: client, packContext: packContext, revisions: revisions, answered: answered)
         }
     }
 
@@ -677,6 +679,7 @@ struct FocusCardView: View {
     var client: APIClient?
     var packContext: PackContext?
     let revisions: RevisionState
+    let answered: Bool
 
     private let cardMaxHeight: CGFloat = 480
     @State private var contentHeight: CGFloat = 260
@@ -758,7 +761,7 @@ struct FocusCardView: View {
                         .lineLimit(1)
                 }
                 if let status, !status.isEmpty {
-                    FocusMetaStatus(status: status)
+                    StatusChipView(status: status, answered: answered)
                 }
                 Spacer(minLength: Metrics.space2)
                 if !chips.isEmpty {
@@ -823,22 +826,6 @@ func focusContextTitle(_ block: Block) -> String {
     }
 }
 
-/// FocusMetaStatus renders the hoisted card status pill in the deck meta row, tinting
-/// resolved green and the rest accent, mirroring the card head status chip.
-private struct FocusMetaStatus: View {
-    let status: String
-
-    var body: some View {
-        let tint = status == "resolved" ? BlockPalette.approve : BlockPalette.accentInk
-        Text(status)
-            .font(.caption2)
-            .foregroundStyle(tint)
-            .padding(.vertical, 2)
-            .padding(.horizontal, 8)
-            .overlay(Capsule().strokeBorder(tint.opacity(0.45)))
-    }
-}
-
 /// FocusMetaChip renders one hoisted card chip in the deck meta row, toning `flag` red,
 /// `demo` accent, and the default muted, mirroring the card head chips.
 private struct FocusMetaChip: View {
@@ -877,6 +864,7 @@ struct SwipeableFocusCard: View {
     var client: APIClient?
     var packContext: PackContext?
     let revisions: RevisionState
+    let answered: Bool
     let approvalId: String
     let stageWidth: CGFloat
     let reduceMotion: Bool
@@ -899,7 +887,7 @@ struct SwipeableFocusCard: View {
     }
 
     var body: some View {
-        FocusCardView(step: step, store: store, client: client, packContext: packContext, revisions: revisions)
+        FocusCardView(step: step, store: store, client: client, packContext: packContext, revisions: revisions, answered: answered)
             .overlay(alignment: .topLeading) {
                 verdictLabel("APPROVE", color: BlockPalette.approve, tilt: -12, magnitude: offset.width)
             }

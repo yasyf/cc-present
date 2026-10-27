@@ -3,6 +3,8 @@ import type { Card as CardBlock, CardStatus } from '../schema';
 import type { Interactions } from '../events';
 import { usePresent } from '../present';
 import { renderInlineMarkdown } from '../markdown';
+import { blockDecided } from '../decide';
+import { useInteractivePackTypes } from '../packs/registry';
 import { BlockRenderer } from './BlockRenderer';
 import { FocusStepContext } from './focusStep';
 
@@ -10,12 +12,15 @@ export function Card({ block, interactions }: { block: CardBlock; interactions: 
   // In focus mode FocusCard hoists title/status/chips into the step meta row, so
   // the in-body head would duplicate them; board mode (null context) keeps it.
   const focus = useContext(FocusStepContext);
+  const packInteractive = useInteractivePackTypes();
   return (
     <div className={`card${block.flagged ? ' flagged' : ''}`}>
       {!focus && (
         <div className="card-head">
           {block.title && <span className="card-title">{block.title}</span>}
-          {block.status && <StatusPill status={block.status} />}
+          {block.status && (
+            <StatusPill status={block.status} answered={blockDecided(block, interactions, packInteractive)} />
+          )}
           {block.chips && block.chips.length > 0 && (
             <span className="chips">
               {block.chips.map((chip, i) => (
@@ -50,8 +55,8 @@ export function Card({ block, interactions }: { block: CardBlock; interactions: 
   );
 }
 
-export function StatusPill({ status }: { status: CardStatus }) {
+export function StatusPill({ status, answered }: { status: CardStatus; answered: boolean }) {
   const { closed } = usePresent();
-  const shown = closed && status === 'open' ? 'closed' : status;
+  const shown = status !== 'open' ? status : answered ? 'answered' : closed ? 'closed' : status;
   return <span className={`status status-${shown}`}>{shown}</span>;
 }

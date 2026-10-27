@@ -144,12 +144,12 @@ The rewrite keeps a short phrase in each fact and moves the caveats to `detail`:
 
 ## Composing for focus mode
 
-A board with any decision unit opens in focus mode by default: one step at a time, in document order. The same document serves both views — these rules make it read well as a deck.
+A board with any decision unit opens in focus mode by default: one step at a time, the steps that decide something first and the read-only steps after them. The same document serves both views — these rules make it read well as a deck.
 
 - **Each card is one focus step.** "Cards are decision units" is literal: the card renders as the step body and its controls decide it.
-- **Doc order is deck order.** Order cards by decision priority — the human meets them one at a time.
+- **Doc order is deck order among decisions.** Order cards by decision priority — the human meets them one at a time. Read-only steps follow every decision, in document order.
 - **A card fits one screen.** "Write a card" above sets the budget; an overlong card splits into multiple cards, same as on the board.
-- **Context attaches forward.** A top-level run of content blocks (markdown, code, diff, diagram, image, table, progress, chart, term, filetree, record) attaches to the next card or decidable: its first markdown block is the step's lede when no card `summary` gives one, and the rest folds into Background. A trailing run is its own read-only step. Put context immediately before the decision it informs — a run cut off by a section header turns into a standalone read-only step instead of attaching.
+- **Context attaches forward.** A top-level run of content blocks (markdown, code, diff, diagram, image, table, progress, chart, term, filetree, record) attaches to the next card or decidable: its first markdown block is the step's lede when no card `summary` gives one, and the rest folds into Background. A trailing run is its own read-only step. Put context immediately before the decision it informs — a run cut off by a section header turns into a standalone read-only step at the end of the deck instead of attaching.
 - **Sections are never steps.** A section surfaces as the tier label in the deck's progress header.
 - **A lone approval swipes.** A step whose only decidable is an approval takes swipe-to-decide — right approves, left rejects. A card with several decidables decides by its controls only.
 - **Content-only boards stay boards.** A push with no decision unit opens as the classic board; set `presentation` to override either default.

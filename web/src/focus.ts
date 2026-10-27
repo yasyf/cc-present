@@ -70,7 +70,7 @@ function contextStep(run: Block[], tier: string | undefined): FocusStep {
 // pending run as a standalone context step and updates the tier; a card or
 // decidable leaf becomes a step with the pending run as its context; every other
 // block accumulates into the pending run, and a trailing run is its own context
-// step.
+// step. Decision steps lead the deck; context steps follow them in document order.
 export function focusSteps(blocks: Block[], packInteractive: ReadonlySet<string>): FocusStep[] {
   const steps: FocusStep[] = [];
   let pending: Block[] = [];
@@ -97,7 +97,7 @@ export function focusSteps(blocks: Block[], packInteractive: ReadonlySet<string>
     }
   }
   flush();
-  return steps;
+  return [...steps.filter((s) => s.kind === 'decision'), ...steps.filter((s) => s.kind === 'context')];
 }
 
 // stepTitle is the facade label FocusPeek and FocusSummary show without mounting
@@ -174,6 +174,10 @@ export function choiceShape(options: ChoiceOption[]): ChoiceShape {
   if (options.length < 2 || options.length > GRID_MAX) return 'list';
   if (!options.every((o) => o.facts && o.facts.length > 0)) return 'list';
   return factAxes(options) ? 'grid' : 'list';
+}
+
+export function deckHasGrid(steps: FocusStep[]): boolean {
+  return steps.some((step) => flatten([step.block]).some((b) => b.type === 'choice' && choiceShape(b.options) === 'grid'));
 }
 
 export interface StepLede {

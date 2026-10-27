@@ -118,3 +118,10 @@ export function wrapLabel(text: string, maxWidth: number, measure: (s: string) =
     clipped,
   };
 }
+
+const timestamp =
+  /\b(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|sept?(?:ember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\.?\s+\d{1,2}\b|\b\d{4}-\d{2}-\d{2}\b|\b\d{1,2}\/\d{1,2}\b|\b\d{1,2}:\d{2}\b/i;
+
+export function isTimestamp(when: string): boolean {
+  return timestamp.test(when);
+}

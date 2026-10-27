@@ -23,11 +23,11 @@ afterEach(() => {
   container.remove();
 });
 
-function render(status: CardStatus, closed: boolean): HTMLElement {
+function render(status: CardStatus, closed: boolean, answered = false): HTMLElement {
   act(() =>
     root.render(
       <PresentContext.Provider value={{ post: async () => true, closed, currentRound: 1 }}>
-        <StatusPill status={status} />
+        <StatusPill status={status} answered={answered} />
       </PresentContext.Provider>,
     ),
   );
@@ -49,5 +49,15 @@ describe('StatusPill', () => {
 
   it('keeps a settled status on a closed board', () => {
     expect(render('resolved', true).textContent).toBe('resolved');
+  });
+
+  it('shows an open card whose every decision is answered as answered', () => {
+    const pill = render('open', false, true);
+    expect(pill.textContent).toBe('answered');
+    expect(pill.className).toBe('status status-answered');
+  });
+
+  it('keeps a resolved card resolved once answered', () => {
+    expect(render('resolved', false, true).textContent).toBe('resolved');
   });
 });

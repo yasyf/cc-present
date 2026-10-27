@@ -30,7 +30,7 @@ import { PackBlockView } from './PackBlockView';
 import { BlockThread } from './BlockThread';
 import { ReplyThread } from './ReplyThread';
 import { FocusStepContext } from './focusStep';
-import { useThreadHost } from './threadHost';
+import { CardThreadContext, useThreadHost } from './threadHost';
 
 export interface BlockProps {
   block: Block;
@@ -76,12 +76,15 @@ const BUILTIN: { [T in BuiltinBlockType]: BuiltinRenderer<T> } = {
 export function BlockRenderer({ block, interactions, note }: BlockProps & { note?: boolean }) {
   const packInteractive = useInteractivePackTypes();
   const rail = useThreadHost() === 'rail';
-  const inner = <BlockBody block={block} interactions={interactions} />;
-  if (ownsThread(block, packInteractive)) return inner;
+  const inCardThread = useContext(CardThreadContext) !== null;
+  const body = <BlockBody block={block} interactions={interactions} />;
+  if (ownsThread(block, packInteractive) && !inCardThread) return body;
+  const inner =
+    note && block.type === 'card' ? <CardThreadContext.Provider value={block.id}>{body}</CardThreadContext.Provider> : body;
   return (
     <>
       {inner}
-      {note && <BlockNote block={block} interactions={interactions} packInteractive={packInteractive} />}
+      {note && <BlockNote block={block} interactions={interactions} />}
       <ReplyThread
         replies={interactions.replies[block.id] ?? []}
         notes={rail ? Object.values(interactions.feedback).flat() : []}
@@ -90,13 +93,13 @@ export function BlockRenderer({ block, interactions, note }: BlockProps & { note
   );
 }
 
-function BlockNote({ block, interactions, packInteractive }: BlockProps & { packInteractive: ReadonlySet<string> }) {
+function BlockNote({ block, interactions }: BlockProps) {
   const { closed } = usePresent();
   const readOnly = useGroupReadOnly();
   const rail = useThreadHost() === 'rail';
   const step = useContext(FocusStepContext) !== null;
   if (block.type === 'section') return null;
-  const turns = threadTurns(block, interactions.feedback, interactions.replies, packInteractive);
+  const turns = threadTurns(block, interactions.feedback, interactions.replies);
   return (
     <BlockThread
       blockId={block.id}

@@ -61,9 +61,12 @@ that ends in an ellipsis whose tooltip shows the full text.
 
 ## display.timeline
 
-Dated events on a vertical rail. With `autoplay`, events appear one at a time
-when the block scrolls into view; otherwise, all show and the play button
-replays them.
+Dated events on a vertical rail. When every `when` reads as a date or a clock
+time (`Sep 12`, `2026-09-12`, `9/12`, `14:03`), the timeline gets player
+controls: with `autoplay`, events appear one at a time when the block scrolls
+into view; otherwise, all show and the play button replays them. A timeline
+whose `when` values are labels, such as `Release 6`, renders as a plain ordered
+list with no player and ignores `autoplay`.
 
 | Field | Type | Required | Notes |
 |-------|------|----------|-------|
