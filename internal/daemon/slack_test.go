@@ -286,3 +286,47 @@ func TestSlackDecidedRecordsTheBoardsOwnVerdict(t *testing.T) {
 		})
 	}
 }
+
+func TestABoundPRGroupsBlockKeepsItsThreadUntilAPushUnbindsIt(t *testing.T) {
+	const thread = "1792842193.708029"
+	withSlack := func(slack string) string {
+		return strings.Replace(prGroupsDoc, `"repo":"a/b",`, `"repo":"a/b",`+slack, 1)
+	}
+	var d doc.Doc
+	if err := json.Unmarshal([]byte(prGroupsDoc), &d); err != nil {
+		t.Fatal(err)
+	}
+	unstated, err := json.Marshal(d.Blocks[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	h := newHarness(t)
+	start := handleStart(h.hc(body{Doc: json.RawMessage(withSlack(`"slack":"` + thread + `",`))}), doc.NoPacks, nilDisplay)
+	if !start.OK {
+		t.Fatal(start.Error)
+	}
+	steps := []struct {
+		name string
+		send func() ccd.Reply
+		want string
+	}{
+		{"a push stating no thread keeps it", func() ccd.Reply {
+			return handlePush(h.hc(body{Doc: json.RawMessage(prGroupsDoc)}), doc.NoPacks, nilDisplay)
+		}, thread},
+		{"an update-block stating no thread keeps it", func() ccd.Reply { return handleUpsertBlock(h.hc(body{Block: unstated}), doc.NoPacks) }, thread},
+		{"an empty slack unbinds it", func() ccd.Reply {
+			return handlePush(h.hc(body{Doc: json.RawMessage(withSlack(`"slack":"",`))}), doc.NoPacks, nilDisplay)
+		}, ""},
+		{"a later push stating no thread leaves it unbound", func() ccd.Reply {
+			return handlePush(h.hc(body{Doc: json.RawMessage(prGroupsDoc)}), doc.NoPacks, nilDisplay)
+		}, ""},
+	}
+	for _, step := range steps {
+		if r := step.send(); !r.OK {
+			t.Fatalf("%s: %s", step.name, r.Error)
+		}
+		if got := reduceSubject(t, h, start.SubjectID).Doc.Blocks[0].(*doc.PRGroups).Thread(); got != step.want {
+			t.Fatalf("%s: thread = %q, want %q", step.name, got, step.want)
+		}
+	}
+}

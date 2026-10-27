@@ -6,6 +6,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- A `pr-groups` block's `slack` binding sticks. A later `push` or `update-block` of the same block id that omits `slack` keeps the thread and keeps the Slack cards in sync. Only `"slack": ""` unbinds it, so a pusher that never knew about the binding no longer drops it.
+
 ### Added
 
 - A `pr-groups` block with `slack` set to a DM status thread's ts asks its rows on Slack too. Every `push` or `update-block` carrying it posts one cc-slack card per group, or edits the earlier one, listing the rows still waiting with their five facts and Approve and Hold buttons. A tap on Slack is recorded on the board as the same verdict a board tap gives, pinned to the head the card showed. An answered row leaves the card on the next push, and a row whose head moved asks again.
