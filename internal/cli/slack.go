@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"regexp"
 	"slices"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/yasyf/cc-interact/cmd"
@@ -95,15 +96,11 @@ func newSendCmd(d cmd.Deps) *cobra.Command {
 			defer func() { _ = cl.CloseSession() }()
 			sess, pid := artifactWindow(d, session)
 			b := board{sess, mustCwd(cwd), pid}
-			raw, _, err := cl.Outcomes(ctx, b.session, b.scope, b.pid)
+			st, err := readBoard(ctx, cl, b)
 			if err != nil {
 				return err
 			}
-			var st sendBoard
-			if err := json.Unmarshal(raw, &st); err != nil {
-				return fmt.Errorf("decode the board: %w", err)
-			}
-			questions, skipped, err := openQuestions(&st, blocks)
+			questions, skipped, err := openQuestions(st, blocks)
 			if err != nil {
 				return err
 			}
@@ -158,37 +155,56 @@ type sendBoard struct {
 	} `json:"rounds"`
 }
 
-func syncGroups(ctx context.Context, cl *ccdaemon.Client, b board, w io.Writer, ids []string) error {
+func readBoard(ctx context.Context, cl *ccdaemon.Client, b board) (*sendBoard, error) {
 	raw, _, err := cl.Outcomes(ctx, b.session, b.scope, b.pid)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	var st sendBoard
 	if err := json.Unmarshal(raw, &st); err != nil {
-		return fmt.Errorf("decode the board: %w", err)
+		return nil, fmt.Errorf("decode the board: %w", err)
+	}
+	return &st, nil
+}
+
+func boundGroups(st *sendBoard, ids []string) map[string]*doc.PRGroups {
+	bound := map[string]*doc.PRGroups{}
+	if st.Doc == nil {
+		return bound
+	}
+	for _, g := range prGroups(st.Doc.Blocks) {
+		if g.Thread() != "" && slices.Contains(ids, g.ID) {
+			bound[g.ID] = g
+		}
+	}
+	return bound
+}
+
+func groupsBefore(ctx context.Context, cl *ccdaemon.Client, b board, ids []string) (map[string]*doc.PRGroups, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	st, err := readBoard(ctx, cl, b)
+	if err != nil {
+		return nil, err
+	}
+	return boundGroups(st, ids), nil
+}
+
+func syncGroups(ctx context.Context, cl *ccdaemon.Client, b board, w io.Writer, ids []string, before map[string]*doc.PRGroups) error {
+	st, err := readBoard(ctx, cl, b)
+	if err != nil {
+		return err
 	}
 	var errs []error
-	for _, g := range prGroups(st.Doc.Blocks) {
-		if g.Thread() == "" || !slices.Contains(ids, g.ID) {
-			continue
-		}
-		for _, group := range g.Groups {
-			card, err := json.Marshal(slackcards.GroupCard(g, group, st.Interactions.Triage[g.ID]))
+	for id, g := range boundGroups(st, ids) {
+		for _, card := range slackcards.GroupCards(before[id], g, st.Interactions.Triage[id]) {
+			permalink, err := slackcards.PostGroupCard(ctx, b.session, g.Thread(), card)
 			if err != nil {
-				return err
-			}
-			out, err := slackcards.CCSlack(ctx, "dm-status", "--card", string(card), "--session", b.session, "--thread", g.Thread())
-			if err != nil {
-				errs = append(errs, fmt.Errorf("group %q: %w", group.ID, err))
+				errs = append(errs, err)
 				continue
 			}
-			var posted struct {
-				Permalink string `json:"permalink"`
-			}
-			if err := json.Unmarshal(out, &posted); err != nil {
-				return fmt.Errorf("group %q: decode cc-slack reply %q: %w", group.ID, out, err)
-			}
-			_, _ = fmt.Fprintf(w, "slack: %s %s\n", group.ID, cmp.Or(posted.Permalink, "nothing open, never posted"))
+			_, _ = fmt.Fprintf(w, "slack: %s %s\n", strings.TrimPrefix(card.Group, id+":"), cmp.Or(permalink, "nothing open, never posted"))
 		}
 	}
 	return errors.Join(errs...)

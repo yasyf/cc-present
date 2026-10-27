@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	ccd "github.com/yasyf/cc-interact/daemon"
 	ccevent "github.com/yasyf/cc-interact/event"
@@ -328,5 +329,42 @@ func TestABoundPRGroupsBlockKeepsItsThreadUntilAPushUnbindsIt(t *testing.T) {
 		if got := reduceSubject(t, h, start.SubjectID).Doc.Blocks[0].(*doc.PRGroups).Thread(); got != step.want {
 			t.Fatalf("%s: thread = %q, want %q", step.name, got, step.want)
 		}
+	}
+}
+
+func TestBoardVerdictRedrawsItsSlackGroupCard(t *testing.T) {
+	type posted struct {
+		session, thread string
+		card            slackcards.StatusCard
+	}
+	var calls []posted
+	h := newRestHarnessWith(t, strings.Replace(prGroupsDoc, `"repo":"a/b",`, `"repo":"a/b","slack":"1792842193.708029",`, 1), emptyPackLoader(t))
+	h.rs.postGroup = func(_ context.Context, session, thread string, card slackcards.StatusCard) (string, error) {
+		calls = append(calls, posted{session, thread, card})
+		return slackPermalink, nil
+	}
+	if w := h.post(t, `{"subject":"board--abcd0000","nonce":"n1","interaction":{"type":"triage.decided","blockId":"pg","verdicts":{"8":{"verdict":"approved","head":"abc1234"}}}}`); w.Code != http.StatusOK {
+		t.Fatalf("tap = %d %s", w.Code, w.Body)
+	}
+	if len(calls) != 1 || calls[0].session != "s1" || calls[0].thread != "1792842193.708029" || calls[0].card.Group != "pg:g1" {
+		t.Fatalf("cc-slack calls = %+v, want one edit of pg:g1 in the bound thread", calls)
+	}
+	card := calls[0].card
+	if len(card.Rows) != 1 || card.Rows[0].ID != "pg:9:def5678" || !strings.Contains(card.Body, "`abc1234` · Approved at abc1234") {
+		t.Fatalf("card = %+v, want row 9 still asking and row 8 approved in the body", card)
+	}
+}
+
+func TestAPRGroupsVerdictLandsAfterItsRoundCloses(t *testing.T) {
+	h := newRestHarnessWith(t, prGroupsDoc, emptyPackLoader(t))
+	st := h.reduce(t)
+	st.Rounds.Current = st.Rounds.BlockRounds["pg"] + 1
+	merge := interaction{Type: EventTriageDecided, BlockID: "pg", Verdicts: map[string]triageEntry{"8": {Verdict: "approved", Head: "abc1234"}}}
+	if _, err := validateInteraction(&st, 0, &merge, nil, time.Now()); err != nil {
+		t.Fatalf("a merge verdict pinned to its head was refused in a closed round: %v", err)
+	}
+	item := interaction{Type: EventTriageDecided, BlockID: "tr1", Verdicts: map[string]triageEntry{"i1": {Verdict: "approved"}}}
+	if _, err := validateInteraction(&st, 0, &item, nil, time.Now()); err == nil || !strings.Contains(err.Error(), "closed round") {
+		t.Fatalf("a triage verdict in a closed round = %v, want refused", err)
 	}
 }

@@ -52,6 +52,7 @@ type restServer struct {
 	packs       *packs.Loader
 	fetchPR     prFetcher
 	answerSlack slackAnswerer
+	postGroup   groupPoster
 	static      http.Handler
 	version     string
 }
@@ -106,6 +107,7 @@ func mountREST(s *ccd.Server, ast *assets.Store, loader *packs.Loader, version s
 		packs:       loader,
 		fetchPR:     ghPRFetcher,
 		answerSlack: ccSlackCardAnswer,
+		postGroup:   slackcards.PostGroupCard,
 		static:      sse.StaticHandler(web.Dist()),
 		version:     version,
 	}
@@ -225,6 +227,12 @@ func (rs *restServer) handleInteractions(w http.ResponseWriter, r *http.Request)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
+	}
+	if req.Interaction.Type == EventTriageDecided {
+		if err := rs.redrawGroupCards(context.WithoutCancel(r.Context()), id, &req.Interaction); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 	}
 	if card != nil {
 		slug, err := subjectSlug(r.Context(), rs.db(), id)
@@ -441,15 +449,15 @@ func validateInteraction(st *state.State, revision int, it *interaction, reg *pa
 		if err != nil {
 			return nil, err
 		}
-		if err := requireCurrentRound(st, it.BlockID, topID); err != nil {
-			return nil, err
-		}
 		if len(it.Verdicts) == 0 {
 			return nil, fmt.Errorf("triage %q requires at least one verdict", it.BlockID)
 		}
 		var out map[string]triageEntry
 		switch blk := b.(type) {
 		case *doc.Triage:
+			if err := requireCurrentRound(st, it.BlockID, topID); err != nil {
+				return nil, err
+			}
 			out, err = triageVerdicts(blk, it.Verdicts)
 		case *doc.PRGroups:
 			out, err = prGroupsVerdicts(blk, it.Verdicts, now)

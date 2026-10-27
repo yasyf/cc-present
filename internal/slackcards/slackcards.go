@@ -253,6 +253,7 @@ const (
 	shortHead    = 7
 	rowHead      = 12
 	maxRowText   = 3000
+	maxBody      = 2800
 )
 
 var rowVerdicts = map[string]string{approveLabel: "approved", holdLabel: "rejected"}
@@ -270,36 +271,59 @@ var rowFacts = []struct {
 
 var mrkdwnEscapes = strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;", "**", "*")
 
-// GroupCard is the cc-slack card for one group of a pr-groups block: a row for
-// each pull request whose verdict does not stand at its head, so an answered row
-// leaves the card and a row whose head moved asks again.
-func GroupCard(g *doc.PRGroups, group doc.PRGroup, verdicts map[string]state.Decision) StatusCard {
-	sc := StatusCard{Status: "done", Title: bounded(group.Title), Body: group.Summary + "\nEvery pull request here has your answer.", Group: g.ID + ":" + group.ID}
+// GroupCard is the cc-slack card for one group of a pr-groups block: a row with
+// buttons for each pull request whose verdict does not stand at its head, and a
+// line naming the verdict for each one whose verdict does. A group that left the
+// board (live false) keeps no buttons: each row is its verdict or that it left.
+func GroupCard(g *doc.PRGroups, group doc.PRGroup, verdicts map[string]state.Decision, live bool) StatusCard {
+	sc := StatusCard{Status: "done", Title: bounded(group.Title), Group: g.ID + ":" + group.ID}
+	var settled []string
 	for _, r := range group.PRs {
 		d, decided := verdicts[doc.RowID(r.Number)]
-		if decided && r.Stands(d.Head) {
-			continue
+		switch {
+		case decided && r.Stands(d.Head):
+			settled = append(settled, prLink(g.Repo, r)+" · "+verdictLine(d))
+		case !live:
+			settled = append(settled, prLink(g.Repo, r)+" · left the board")
+		default:
+			sc.Rows = append(sc.Rows, Row{
+				ID:      fmt.Sprintf("%s:%d:%s", g.ID, r.Number, r.Head[:min(len(r.Head), rowHead)]),
+				Text:    rowText(g.Repo, r, d, decided),
+				Buttons: []string{approveLabel, holdLabel},
+			})
 		}
-		sc.Rows = append(sc.Rows, Row{
-			ID:      fmt.Sprintf("%s:%d:%s", g.ID, r.Number, r.Head[:min(len(r.Head), rowHead)]),
-			Text:    rowText(g.Repo, r, d, decided),
-			Buttons: []string{approveLabel, holdLabel},
-		})
 	}
 	if len(sc.Rows) > 0 {
-		sc.Status, sc.Body = "needs_you", group.Summary
+		sc.Status = "needs_you"
 	}
+	sc.Body = groupBody(group.Summary, settled)
 	return sc
 }
 
-func rowText(repo string, r doc.PRRow, d state.Decision, decided bool) string {
+func groupBody(summary string, settled []string) string {
+	body := summary
+	for i, line := range settled {
+		more := fmt.Sprintf("\n+%d more answered", len(settled)-i)
+		if len([]rune(body+"\n"+line+more)) > maxBody {
+			return body + more
+		}
+		body += "\n" + line
+	}
+	return body
+}
+
+func prLink(repo string, r doc.PRRow) string {
 	_, name, _ := strings.Cut(repo, "/")
-	lines := []string{fmt.Sprintf("*<https://github.com/%s/pull/%d|%s PR %d>* %s `%s`", repo, r.Number, name, r.Number, mrkdwn(r.Title), r.Head[:shortHead])}
+	return fmt.Sprintf("*<https://github.com/%s/pull/%d|%s PR %d>* %s `%s`", repo, r.Number, name, r.Number, mrkdwn(r.Title), r.Head[:shortHead])
+}
+
+func rowText(repo string, r doc.PRRow, d state.Decision, decided bool) string {
+	lines := []string{prLink(repo, r)}
 	for _, f := range rowFacts {
 		lines = append(lines, "*"+f.label+":* "+mrkdwn(f.value(r)))
 	}
 	if decided {
-		lines = append(lines, "_"+staleLine(r, d)+"_")
+		lines = append(lines, "_"+verdictLine(d)+"; new head "+r.Head[:shortHead]+" needs your tap._")
 	}
 	text := []rune(strings.Join(lines, "\n"))
 	if len(text) <= maxRowText {
@@ -308,7 +332,7 @@ func rowText(repo string, r doc.PRRow, d state.Decision, decided bool) string {
 	return string(text[:maxRowText-1]) + "…"
 }
 
-func staleLine(r doc.PRRow, d state.Decision) string {
+func verdictLine(d state.Decision) string {
 	word := "Held"
 	if d.Verdict == "approved" {
 		word = "Approved"
@@ -319,7 +343,10 @@ func staleLine(r doc.PRRow, d state.Decision) string {
 	if at, err := time.Parse(time.RFC3339, d.At); err == nil {
 		word += " on " + at.Local().Format("Jan 2 3:04 PM")
 	}
-	return word + "; new head " + r.Head[:shortHead] + " needs your tap."
+	if d.Note != "" && d.Verdict != "approved" {
+		word += ": " + mrkdwn(d.Note)
+	}
+	return word
 }
 
 func mrkdwn(md string) string {
@@ -353,4 +380,45 @@ func cutLast(s string) (string, string, bool) {
 		return "", "", false
 	}
 	return s[:i], s[i+1:], true
+}
+
+// GroupCards is every card a pr-groups block's push edits: one per group it
+// carries, and a card with no buttons for each group of before that it dropped.
+func GroupCards(before, g *doc.PRGroups, verdicts map[string]state.Decision) []StatusCard {
+	cards := make([]StatusCard, 0, len(g.Groups))
+	kept := map[string]bool{}
+	for _, group := range g.Groups {
+		kept[group.ID] = true
+		cards = append(cards, GroupCard(g, group, verdicts, true))
+	}
+	if before == nil {
+		return cards
+	}
+	for _, group := range before.Groups {
+		if !kept[group.ID] {
+			cards = append(cards, GroupCard(before, group, verdicts, false))
+		}
+	}
+	return cards
+}
+
+// PostGroupCard posts or edits a group card in the DM status thread it is bound
+// to, and returns its permalink; a card cc-slack never posted and has nothing
+// to ask returns none.
+func PostGroupCard(ctx context.Context, session, thread string, card StatusCard) (string, error) {
+	raw, err := json.Marshal(card)
+	if err != nil {
+		return "", err
+	}
+	out, err := CCSlack(ctx, "dm-status", "--card", string(raw), "--session", session, "--thread", thread)
+	if err != nil {
+		return "", fmt.Errorf("group %q: %w", card.Group, err)
+	}
+	var posted struct {
+		Permalink string `json:"permalink"`
+	}
+	if err := json.Unmarshal(out, &posted); err != nil {
+		return "", fmt.Errorf("group %q: decode cc-slack reply %q: %w", card.Group, out, err)
+	}
+	return posted.Permalink, nil
 }

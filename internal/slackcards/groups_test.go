@@ -31,28 +31,38 @@ func rowIDs(sc slackcards.StatusCard) []string {
 	return ids
 }
 
+const decidedAt = "2026-10-27T00:34:57Z"
+
+var decidedClock = time.Date(2026, 10, 27, 0, 34, 57, 0, time.UTC).Local().Format("Jan 2 3:04 PM")
+
+func approvedAt(head string) state.Decision {
+	return state.Decision{Verdict: "approved", Head: head, At: decidedAt}
+}
+
 func TestGroupCardAsksOnlyRowsWhoseVerdictDoesNotStand(t *testing.T) {
-	approvedAt := func(head string) state.Decision {
-		return state.Decision{Verdict: "approved", Head: head, At: "2026-10-27T00:34:57Z"}
-	}
 	tests := []struct {
 		name     string
 		row      doc.PRRow
 		verdicts map[string]state.Decision
 		want     []string
+		wantBody string
 	}{
-		{"no verdict asks", row(41, "abc1234def"), nil, []string{"pg:41:abc1234def"}},
-		{"a verdict at the head leaves", row(41, "abc1234def"), map[string]state.Decision{"41": approvedAt("abc1234")}, nil},
-		{"a verdict at a carried head leaves", row(41, "abc1234def", "0001111"), map[string]state.Decision{"41": approvedAt("0001111")}, nil},
-		{"a verdict at an old head asks again", row(41, "abc1234def"), map[string]state.Decision{"41": approvedAt("0001111")}, []string{"pg:41:abc1234def"}},
+		{"no verdict asks", row(41, "abc1234def"), nil, []string{"pg:41:abc1234def"}, ""},
+		{"a verdict at the head reads as its verdict", row(41, "abc1234def"), map[string]state.Decision{"41": approvedAt("abc1234")}, nil, "Approved at abc1234 on " + decidedClock},
+		{"a verdict at a carried head reads as its verdict", row(41, "abc1234def", "0001111"), map[string]state.Decision{"41": approvedAt("0001111")}, nil, "Approved at 0001111 on " + decidedClock},
+		{"a hold reads with its note", row(41, "abc1234def"), map[string]state.Decision{"41": {Verdict: "rejected", Head: "abc1234", At: decidedAt, Note: "wait for **CI**"}}, nil, "Held at abc1234 on " + decidedClock + ": wait for *CI*"},
+		{"a verdict at an old head asks again", row(41, "abc1234def"), map[string]state.Decision{"41": approvedAt("0001111")}, []string{"pg:41:abc1234def"}, ""},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			g, group := merges(tt.row)
 			g.ID = "pg"
-			sc := slackcards.GroupCard(g, group, tt.verdicts)
+			sc := slackcards.GroupCard(g, group, tt.verdicts, true)
 			if got := rowIDs(sc); strings.Join(got, ",") != strings.Join(tt.want, ",") {
 				t.Fatalf("rows = %v, want %v", got, tt.want)
+			}
+			if !strings.Contains(sc.Body, tt.wantBody) {
+				t.Fatalf("body lacks %q:\n%s", tt.wantBody, sc.Body)
 			}
 			if sc.Group != "pg:login" {
 				t.Fatalf("group = %q, want pg:login", sc.Group)
@@ -68,16 +78,36 @@ func TestGroupCardAsksOnlyRowsWhoseVerdictDoesNotStand(t *testing.T) {
 func TestGroupCardRowCarriesTheFiveFactsInSlackMarkup(t *testing.T) {
 	g, group := merges(row(41, "abc1234def"))
 	g.ID = "pg"
-	stale := map[string]state.Decision{"41": {Verdict: "rejected", Head: "0001111", At: "2026-10-27T00:34:57Z"}}
-	text := slackcards.GroupCard(g, group, stale).Rows[0].Text
+	stale := map[string]state.Decision{"41": {Verdict: "rejected", Head: "0001111", At: decidedAt}}
+	text := slackcards.GroupCard(g, group, stale, true).Rows[0].Text
 	for _, want := range []string{
 		"*<https://github.com/acme/app/pull/41|app PR 41>* Fix the <https://x.test/l|login> &lt;form&gt; `abc1234`",
 		"*What changes:* Login works.", "*Against the plan:* Matches the plan.", "*Risk:* Low.",
 		"*Review and CI:* *Green*.", "*Blocks landing:* Nothing.",
-		"_Held at 0001111 on " + time.Date(2026, 10, 27, 0, 34, 57, 0, time.UTC).Local().Format("Jan 2 3:04 PM") + "; new head abc1234 needs your tap._",
+		"_Held at 0001111 on " + decidedClock + "; new head abc1234 needs your tap._",
 	} {
 		if !strings.Contains(text, want) {
 			t.Errorf("row text lacks %q:\n%s", want, text)
+		}
+	}
+}
+
+func TestGroupCardsRetireAGroupThatLeftTheBoard(t *testing.T) {
+	before, _ := merges(row(41, "abc1234def"), row(42, "fed4321abc"))
+	before.ID = "pg"
+	after := *before
+	after.Groups = []doc.PRGroup{{ID: "signup", Title: "Signup", Summary: "People can sign up.", PRs: []doc.PRRow{row(43, "0123456789")}}}
+	cards := slackcards.GroupCards(before, &after, map[string]state.Decision{"41": approvedAt("abc1234")})
+	if len(cards) != 2 || cards[0].Group != "pg:signup" || cards[1].Group != "pg:login" {
+		t.Fatalf("cards = %+v, want the signup card then the retired login card", cards)
+	}
+	retired := cards[1]
+	if len(retired.Rows) != 0 || retired.Status != "done" {
+		t.Fatalf("retired card = %+v, want no buttons and done", retired)
+	}
+	for _, want := range []string{"app PR 41>* Fix the <https://x.test/l|login> &lt;form&gt; `abc1234` · Approved at abc1234", "app PR 42>* Fix the <https://x.test/l|login> &lt;form&gt; `fed4321` · left the board"} {
+		if !strings.Contains(retired.Body, want) {
+			t.Errorf("retired body lacks %q:\n%s", want, retired.Body)
 		}
 	}
 }
