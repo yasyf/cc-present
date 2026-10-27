@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Opening a board no longer paints the documents its event log replays on the way to the current one. A board with a long history showed several earlier titles, questions, and progress counts for a few seconds before it settled; the skeleton and an empty header now hold until the replay catches up.
 - A focus-mode card with several questions keeps the context between two decisions on the card face, above the question it introduces. It used to fold into the collapsed Background, so a second question's text was hidden until the human expanded it.
 - A card with two or more choices or approvals is rejected at push unless each one has a `prompt`, naming the first that lacks one. A question written into a `record` fact or markdown block rendered as bare options with nothing above them.
 - `cc-present verdict carry` carries the recorded verdict of a row a push took off the `pr-groups` block, so the tap stands when a later push brings the row back at the carried head. It used to refuse the row as unknown.

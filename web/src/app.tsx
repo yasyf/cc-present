@@ -114,17 +114,19 @@ function PresentView({ subject }: { subject: string }) {
   const currentRound = state.rounds.current;
   const hasHistory = state.rounds.history.length > 0;
   const liveBlocks = phase.kind === 'waiting' ? [] : phase.blocks;
-  // Content the cache already holds must survive a stream-provider remount (HMR,
-  // StrictMode, subject remount) that resets caughtUp: the skeleton shows only
-  // for a genuinely empty board that has not caught up yet.
-  const hasContent = state.doc.blocks.length > 0 || hasHistory || closed;
+  // Content the cache already held at mount must survive a stream-provider remount
+  // (HMR, StrictMode, subject remount) that resets caughtUp. Content that arrives
+  // during this connection's replay waits for caughtUp, so the replay's earlier
+  // documents never paint.
+  const [heldAtMount] = useState(() => state.doc.blocks.length > 0 || hasHistory || closed);
+  const boardReady = stream.caughtUp || heldAtMount;
 
   const [connectTimedOut, setConnectTimedOut] = useState(false);
   useEffect(() => {
-    if (stream.caughtUp || hasContent) return;
+    if (boardReady || stream.connected) return;
     const timer = setTimeout(() => setConnectTimedOut(true), CONNECT_TIMEOUT_MS);
     return () => clearTimeout(timer);
-  }, [stream.caughtUp, hasContent]);
+  }, [boardReady, stream.connected]);
 
   useEffect(() => viewedStore.scope(subject, currentRound), [subject, currentRound]);
   useEffect(() => draftStore.scope(subject, currentRound), [subject, currentRound]);
@@ -254,7 +256,7 @@ function PresentView({ subject }: { subject: string }) {
             <PresentShell
               state={state}
               board={board}
-              boardReady={stream.caughtUp || hasContent}
+              boardReady={boardReady}
               connectTimedOut={connectTimedOut}
               header={{
                 doc: state.doc,
@@ -403,11 +405,13 @@ function PresentShell({
     <>
       <AppShell
         header={
-          <DocHeader
-            {...header}
-            commentCount={!isDesktop ? totalComments(projection) : undefined}
-            onOpenComments={!isDesktop ? active.openPanel : undefined}
-          />
+          boardReady && (
+            <DocHeader
+              {...header}
+              commentCount={!isDesktop ? totalComments(projection) : undefined}
+              onOpenComments={!isDesktop ? active.openPanel : undefined}
+            />
+          )
         }
         main={main}
       />
