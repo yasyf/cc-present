@@ -318,7 +318,7 @@ export interface Record {
   links?: RecordLink[];
 }
 
-// A GitHub pull request the daemon reads live through gh: repo is owner/name,
+// A GitHub pull request the daemon reads live through ccx: repo is owner/name,
 // title overrides the PR's own, files narrows the changed files to matching paths.
 export interface PR {
   id: string;

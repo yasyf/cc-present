@@ -1,5 +1,5 @@
-// Package prs reads a GitHub pull request's live state through the user's gh
-// CLI for the pr block, so the daemon never holds or forwards a token.
+// Package prs reads a GitHub pull request's live state through ccx's GitHub
+// read gateway for the pr block, so the daemon never holds or forwards a token.
 package prs
 
 import (
@@ -48,21 +48,22 @@ const prQuery = `query($owner: String!, $name: String!, $number: Int!) {
   }
 }`
 
-// Runner runs gh with args and returns its stdout.
+// Runner runs a gh command with args and returns its stdout.
 type Runner func(ctx context.Context, args ...string) ([]byte, error)
 
-// GH is the Runner for the gh binary at bin, with prompts, pagers, and update
-// checks disabled.
-func GH(bin string) Runner {
+// CCX is the Runner that reads repo through ccx's GitHub read gateway at bin,
+// which caches, budgets and charges each read to cc-present, with prompts,
+// pagers, and update checks disabled.
+func CCX(bin, repo string) Runner {
 	return func(ctx context.Context, args ...string) ([]byte, error) {
-		//nolint:gosec // G204: bin is the resolved gh binary and args never reach a shell.
-		cmd := exec.CommandContext(ctx, bin, args...)
-		cmd.Env = append(os.Environ(), "GH_PROMPT_DISABLED=1", "GH_NO_UPDATE_NOTIFIER=1", "GH_PAGER=cat", "NO_COLOR=1")
+		//nolint:gosec // G204: bin is the resolved ccx binary and args never reach a shell.
+		cmd := exec.CommandContext(ctx, bin, append([]string{"vcs", "gh", "--"}, args...)...)
+		cmd.Env = append(os.Environ(), "CCX_CALLER=cc-present", "GH_REPO="+repo, "GH_PROMPT_DISABLED=1", "GH_NO_UPDATE_NOTIFIER=1", "GH_PAGER=cat", "NO_COLOR=1")
 		var stderr bytes.Buffer
 		cmd.Stderr = &stderr
 		out, err := cmd.Output()
 		if err != nil {
-			return nil, fmt.Errorf("gh %s: %w: %s", strings.Join(args[:min(2, len(args))], " "), err, strings.TrimSpace(stderr.String()))
+			return nil, fmt.Errorf("ccx vcs gh %s: %w: %s", strings.Join(args[:min(2, len(args))], " "), err, strings.TrimSpace(stderr.String()))
 		}
 		return out, nil
 	}
