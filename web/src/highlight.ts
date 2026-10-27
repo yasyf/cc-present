@@ -92,7 +92,14 @@ function getHighlighter(langs: CodeLang[]): Promise<HighlighterCore> {
   }
   return highlighterPromise.then(async (hl) => {
     for (const lang of langs) {
-      if (!grammarLoads.has(lang)) grammarLoads.set(lang, hl.loadLanguage(GRAMMARS[lang]));
+      if (grammarLoads.has(lang)) continue;
+      grammarLoads.set(
+        lang,
+        hl.loadLanguage(GRAMMARS[lang]).catch((err: unknown) => {
+          grammarLoads.delete(lang);
+          throw err;
+        }),
+      );
     }
     await Promise.all(langs.map((lang) => grammarLoads.get(lang)));
     return hl;
