@@ -388,6 +388,13 @@ present, the page also posts `{type: "interaction", blockId}` for every
 interaction it sends except `submit`, before the REST call, so the iOS app
 counts the block as viewed. The REST call itself is unchanged.
 
+`&row=<number>` on a `pr-groups` block narrows it to that pull request's row
+and its group, so a page about one PR embeds just its verdict; a number on no
+row renders an empty state. The row keeps the block's id, so its Approve and
+Hold post the same `triage.decided` a board tap does. Inside an iframe, the
+page also posts `{type: "cc-present.height", blockId, row, px}` to its parent
+on every content resize so the embedding page can size the frame.
+
 Toasts raised in this mode (`ui.toast`, connection notices) render in-flow
 inside `.single-block`; the webview frame is block-height and unscrollable, so
 a fixed overlay would clip. A toast's appearance and dismissal each move the

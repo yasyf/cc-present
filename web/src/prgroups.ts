@@ -88,6 +88,12 @@ export function allRows(block: PRGroups): PRRow[] {
   return block.groups.flatMap((g) => g.prs);
 }
 
+export function narrowToRow(block: PRGroups, number: number): PRGroups | undefined {
+  const group = block.groups.find((g) => g.prs.some((r) => r.number === number));
+  if (!group) return undefined;
+  return { ...block, groups: [{ ...group, prs: group.prs.filter((r) => r.number === number) }] };
+}
+
 // allDecided is the submit tally: every row carries a verdict that stands.
 export function allDecided(block: PRGroups, verdicts: Record<string, Decision> | undefined): boolean {
   return allRows(block).every((row) => rowVerdict(row, verdicts?.[prRowId(row.number)]).kind === 'current');

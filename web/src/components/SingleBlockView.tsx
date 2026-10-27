@@ -1,8 +1,10 @@
 // The single-block view (contract #7): one block full-bleed at
 // /p/<ref>?block=<id>, same SSE + interaction REST, no board chrome. It is what
-// the iOS client loads in a WKWebView per pack block; a ResizeObserver reports
-// the content height to the native host so the webview sizes to its content, and
-// each interaction names its block to the host's viewed set.
+// the iOS client loads in a WKWebView per pack block, and what a web page embeds
+// in an iframe (?row= narrows a pr-groups block to one PR); a ResizeObserver
+// reports the content height to the native host or the parent frame so either
+// sizes to its content, and each interaction names its block to the host's
+// viewed set.
 
 import { useEffect, useMemo, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
@@ -11,6 +13,7 @@ import { useEventStream } from '../stream';
 import { presentKey, queryClient, usePostInteraction } from '../api';
 import { emptyState, topLevelRound } from '../reduce';
 import { flatten } from '../decide';
+import { narrowToRow } from '../prgroups';
 import { draftStore } from '../drafts';
 import { KeyboardProvider } from '../keyboard';
 import { PresentContext } from '../present';
@@ -61,7 +64,7 @@ function findBlock(state: PresentState, blockId: string): Block | undefined {
   return undefined;
 }
 
-export function SingleBlockView({ subject, blockId }: { subject: string; blockId: string }) {
+export function SingleBlockView({ subject, blockId, row }: { subject: string; blockId: string; row?: number }) {
   const stream = useEventStream();
   const { data: state } = useQuery<PresentState>({
     queryKey: presentKey(subject),
@@ -75,7 +78,8 @@ export function SingleBlockView({ subject, blockId }: { subject: string; blockId
     stream.notify({ kind: 'error', text: interactionErrorText(interaction) }),
   );
 
-  const block = findBlock(state, blockId);
+  const found = findBlock(state, blockId);
+  const block = found?.type === 'pr-groups' && row !== undefined ? narrowToRow(found, row) : found;
   const round = topLevelRound(state, blockId);
   const realClosed = state.interactions.closed.value;
   // A superseded round is read-only but not closed: roundOver disables the block,
@@ -111,20 +115,25 @@ export function SingleBlockView({ subject, blockId }: { subject: string; blockId
   }, []);
   useEffect(() => {
     const el = rootRef.current;
-    const handler = window.webkit?.messageHandlers?.ccPresentHeight;
-    if (!el || !handler) return;
-    const report = () => handler.postMessage({ type: 'height', px: Math.ceil(el.getBoundingClientRect().height) });
+    const native = window.webkit?.messageHandlers?.ccPresentHeight;
+    const framed = window.parent !== window;
+    if (!el || (!native && !framed)) return;
+    const report = () => {
+      const px = Math.ceil(el.getBoundingClientRect().height);
+      native?.postMessage({ type: 'height', px });
+      if (framed) window.parent.postMessage({ type: 'cc-present.height', blockId, row, px }, '*');
+    };
     report();
     const observer = new ResizeObserver(report);
     observer.observe(el);
     return () => observer.disconnect();
-  }, []);
+  }, [blockId, row]);
 
   const content = block ? (
     <BlockRenderer block={block} interactions={state.interactions} />
   ) : stream.caughtUp ? (
     <div className="empty-state">
-      No block <code>{blockId}</code>
+      {row === undefined ? 'No block' : `No pull request #${row} in`} <code>{blockId}</code>
     </div>
   ) : (
     <div className="skeleton" aria-hidden>
