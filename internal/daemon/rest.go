@@ -11,6 +11,7 @@ import (
 	"mime"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 	"unicode"
 	"unicode/utf8"
@@ -57,6 +58,40 @@ type restServer struct {
 	postGroup   groupPoster
 	static      http.Handler
 	version     string
+	boards      sync.Map
+}
+
+// reducedBoard is one subject's reduced state, caught up from the last seq it
+// applied, so a tap decodes only the events since the one before it instead of
+// the board's whole history.
+type reducedBoard struct {
+	mu       sync.Mutex
+	seq      int64
+	revision int
+	st       state.State
+}
+
+func (b *reducedBoard) catchUp(ctx context.Context, db *sql.DB, subID string) error {
+	events, err := loadEventsAfter(ctx, db, subID, b.seq)
+	if err != nil {
+		return err
+	}
+	if b.seq == 0 {
+		b.st, err = state.Reduce(events)
+	} else {
+		err = b.st.Apply(events)
+	}
+	if err != nil {
+		b.seq, b.revision = 0, 0
+		return err
+	}
+	for _, ev := range events {
+		if ev.Type == EventDocReplaced {
+			b.revision++
+		}
+		b.seq = ev.Seq
+	}
+	return nil
 }
 
 // interactionReq is the POST /api/interactions body: which subject, the browser
@@ -196,32 +231,26 @@ func (rs *restServer) handleInteractions(w http.ResponseWriter, r *http.Request)
 		http.Error(w, "unknown subject: "+req.Subject, http.StatusNotFound)
 		return
 	}
-	events, err := loadEvents(r.Context(), rs.db(), id)
-	if err != nil {
+	cached, _ := rs.boards.LoadOrStore(id, &reducedBoard{})
+	board := cached.(*reducedBoard)
+	board.mu.Lock()
+	defer board.mu.Unlock()
+	if err := board.catchUp(r.Context(), rs.db(), id); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	st, err := state.Reduce(events)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
+	st := &board.st
 	if st.Interactions.Closed.Value {
+		rs.boards.Delete(id)
 		http.Error(w, "presentation is closed", http.StatusConflict)
 		return
 	}
-	revision := 0
-	for _, ev := range events {
-		if ev.Type == EventDocReplaced {
-			revision++
-		}
-	}
-	payload, err := validateInteraction(&st, revision, &req.Interaction, rs.packs.Current(), time.Now())
+	payload, err := validateInteraction(st, board.revision, &req.Interaction, rs.packs.Current(), time.Now())
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	card, ch := slackQuestion(&st, &req.Interaction)
+	card, ch := slackQuestion(st, &req.Interaction)
 	if card != nil && card.Status == slackcards.Resolved {
 		http.Error(w, fmt.Sprintf("card %q is already answered", card.ID), http.StatusConflict)
 		return

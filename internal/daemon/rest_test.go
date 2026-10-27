@@ -909,3 +909,24 @@ func TestViewedIDsCap(t *testing.T) {
 		t.Fatalf("viewedIDs kept %d ids, want the first %d", len(got), maxViewedIDs)
 	}
 }
+
+func TestATapDecodesOnlyTheEventsSinceThePreviousTap(t *testing.T) {
+	h := newRestHarness(t)
+	if w := h.post(t, `{"subject":"board--abcd0000","nonce":"n1","interaction":{"type":"choice.selected","blockId":"ch1","optionIds":["o1"]}}`); w.Code != http.StatusOK {
+		t.Fatalf("first tap = %d %s", w.Code, w.Body)
+	}
+	if _, err := h.cc.DB().Exec(`UPDATE events SET payload='{' WHERE subject_id=? AND seq=1`, h.id); err != nil {
+		t.Fatal(err)
+	}
+	if w := h.post(t, `{"subject":"board--abcd0000","nonce":"n2","interaction":{"type":"choice.selected","blockId":"ch1","optionIds":["o2"]}}`); w.Code != http.StatusOK {
+		t.Fatalf("second tap = %d %s, want 200 without re-decoding the history the first tap already reduced", w.Code, w.Body)
+	}
+	if _, err := appendEvent(t.Context(), h.rs.append, &ccevent.Event{
+		SubjectID: h.id, Origin: ccevent.OriginAgent, Type: EventBlockRemoved, Payload: mustJSON(map[string]string{"id": "ch1"}),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if w := h.post(t, `{"subject":"board--abcd0000","nonce":"n3","interaction":{"type":"choice.selected","blockId":"ch1","optionIds":["o1"]}}`); w.Code != http.StatusBadRequest || !strings.Contains(w.Body.String(), "unknown block") {
+		t.Fatalf("tap on a removed block = %d %s, want 400 unknown block from the caught-up state", w.Code, w.Body)
+	}
+}

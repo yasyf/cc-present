@@ -852,8 +852,12 @@ func nextRevision(ctx context.Context, db *sql.DB, subjectID string) (int, error
 
 // loadEvents reads a subject's full log, oldest first, as reducer events.
 func loadEvents(ctx context.Context, db *sql.DB, subjectID string) ([]state.Event, error) {
+	return loadEventsAfter(ctx, db, subjectID, 0)
+}
+
+func loadEventsAfter(ctx context.Context, db *sql.DB, subjectID string, after int64) ([]state.Event, error) {
 	rows, err := db.QueryContext(ctx,
-		`SELECT origin, type, seq, payload FROM events WHERE subject_id=? ORDER BY seq ASC`, subjectID)
+		`SELECT origin, type, seq, payload FROM events WHERE subject_id=? AND seq>? ORDER BY seq ASC`, subjectID, after)
 	if err != nil {
 		return nil, fmt.Errorf("load events: %w", err)
 	}

@@ -204,15 +204,25 @@ func (s *State) UnmarshalJSON(data []byte) error {
 // any other unknown event type is an error.
 func Reduce(events []Event) (State, error) {
 	s := newState()
+	if err := s.Apply(events); err != nil {
+		return State{}, err
+	}
+	return s, nil
+}
+
+// Apply folds events that follow everything s has seen, as Reduce does, so a
+// reduce of a log's prefix followed by Apply of the rest equals a reduce of the
+// whole log. On error s holds a partial fold and must be rebuilt.
+func (s *State) Apply(events []Event) error {
 	for _, ev := range ordered(events) {
 		if s.Interactions.Closed.Value {
 			continue
 		}
 		if err := s.apply(ev); err != nil {
-			return State{}, fmt.Errorf("apply %s at seq %d: %w", ev.Type, ev.Seq, err)
+			return fmt.Errorf("apply %s at seq %d: %w", ev.Type, ev.Seq, err)
 		}
 	}
-	return s, nil
+	return nil
 }
 
 func newState() State {
