@@ -257,6 +257,7 @@ func TestValidate(t *testing.T) {
 		{"diagram multiline title", docWith(card("c1", `{"id":"dg1","type":"diagram","kind":"mermaid","source":"x","title":"a\nb"}`)), "title must be a single line"},
 
 		{"choice one recommended single-select", docWith(card("c1", `{"id":"ch1","type":"choice","options":[{"id":"o1","label":"A","recommended":true},{"id":"o2","label":"B"}]}`)), ""},
+		{"choice recommended label says recommended", docWith(card("c1", `{"id":"ch1","type":"choice","options":[{"id":"o1","label":"A (Recommended)","recommended":true},{"id":"o2","label":"B"}]}`)), "label repeats \"recommended\""},
 		{"choice two recommended single-select", docWith(card("c1", `{"id":"ch1","type":"choice","options":[{"id":"o1","label":"A","recommended":true},{"id":"o2","label":"B","recommended":true}]}`)), "at most one recommended"},
 		{"choice two recommended multi-select", docWith(card("c1", `{"id":"ch1","type":"choice","multi":true,"options":[{"id":"o1","label":"A","recommended":true},{"id":"o2","label":"B","recommended":true}]}`)), ""},
 
