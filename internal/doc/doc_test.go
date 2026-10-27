@@ -245,6 +245,8 @@ func TestValidate(t *testing.T) {
 		{"card with summary", docWith(`{"id":"c1","type":"card","summary":"One crisp line.","children":[]}`), ""},
 		{"card summary with newline", docWith(`{"id":"c1","type":"card","summary":"line1\nline2","children":[]}`), "summary must be a single line"},
 		{"card bad status", docWith(`{"id":"c1","type":"card","status":"pending","children":[]}`), "invalid status"},
+		{"card with two prompted decisions", docWith(`{"id":"c1","type":"card","children":[{"id":"a1","type":"approval","prompt":"Ship?"},{"id":"ch1","type":"choice","prompt":"Which window?","options":[{"id":"o","label":"A"}]}]}`), ""},
+		{"card with an unprompted second decision", docWith(`{"id":"c1","type":"card","children":[{"id":"a1","type":"approval","prompt":"Ship?"},{"id":"ch1","type":"choice","options":[{"id":"o","label":"A"}]}]}`), `card "c1": choice "ch1" needs a prompt`},
 		{"card bad chip tone", docWith(`{"id":"c1","type":"card","chips":[{"label":"x","tone":"loud"}],"children":[]}`), "invalid chip tone"},
 
 		{"diagram at top level", docWith(`{"id":"dg1","type":"diagram","kind":"mermaid","source":"graph TD; A-->B"}`), ""},

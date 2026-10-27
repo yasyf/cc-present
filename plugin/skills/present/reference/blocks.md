@@ -57,8 +57,9 @@ The first buries the tradeoff in a label nobody scans; the second reads at a gla
 
 ### Write a card
 
-A card is a question title, a lede, the decidable, and optional Background. The lede is the card's `summary`: at most 2 sentences, about 40 words, saying what is being decided and why it matters now. Every other content block in the card, lists and tables included, collapses into a closed Background disclosure the human opens on demand. A card whose decision depends on content the human must read, such as a list of rules, drops the `summary`, and its first markdown block becomes the lede. Plan boards are the exception to the question title: each behavior card's title is a claim, as "Present a plan" below says.
+A card is a question title, a lede, the decidable, and optional Background. The lede is the card's `summary`: at most 2 sentences, about 40 words, saying what is being decided and why it matters now. Every other content block before the first decidable or after the last, lists and tables included, collapses into a closed Background disclosure the human opens on demand; a block between two decidables stays on the card face above the next question. A card whose decision depends on content the human must read, such as a list of rules, drops the `summary`, and its first markdown block becomes the lede. Plan boards are the exception to the question title: each behavior card's title is a claim, as "Present a plan" below says.
 
+- Give every decidable in a multi-decision card its own `prompt`. The question goes in the prompt, never in a `record` fact or markdown; a push that leaves one out is rejected.
 - Never recap earlier rulings in prose. Put them in a `record` block in Background, one fact per ruling.
 - Never preview later cards or list the options in prose; the deck and the choice already show both.
 - Never use a bold sentence as a heading. Inside a card or an option body, use a markdown heading of 6 words or fewer; a `section` is top-level only.

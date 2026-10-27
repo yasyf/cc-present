@@ -30,10 +30,10 @@ Write the document JSON to a file in your **session scratchpad** and pass the pa
 
 1. A title that asks the question the card decides, in 12 words or fewer, in the form "How do the two trees stay apart on dev?"
 2. A lede in the card's `summary`, at most 2 sentences and about 40 words. It says what is being decided and why it matters now. It never recaps earlier rulings, previews later cards, or lists the options in prose; the options already say what they are.
-3. The decidable, a `choice` or an `approval`.
-4. Optional Background, which holds every other context block. Earlier rulings the card builds on go here as one `record` block, one fact per ruling.
+3. The decidable, a `choice` or an `approval`. A card with several decidables gives each one a `prompt` stating its question; a push without them is rejected. A question never lives in a `record` fact or a markdown block.
+4. Optional Background, which holds the context before the first decidable and after the last. Context between two decidables stays on the card face, above the question it introduces. Earlier rulings the card builds on go here as one `record` block, one fact per ruling.
 
-A `summary` takes the lede slot and collapses every other content child, lists and tables included, into a closed Background disclosure. When the decision depends on content the human must read, such as a list of rules, drop the `summary` so the card's first markdown block becomes the lede, or move that content into the options.
+A `summary` takes the lede slot and collapses every other content child outside the decidables, lists and tables included, into a closed Background disclosure. When the decision depends on content the human must read, such as a list of rules, drop the `summary` so the card's first markdown block becomes the lede, or move that content into the options.
 
 Quote the owner's words with obvious typos fixed. A lead markdown block runs 120 words or fewer; its evidence goes in Background.
 

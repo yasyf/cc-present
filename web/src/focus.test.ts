@@ -498,6 +498,14 @@ describe('stepFace', () => {
     expect([...f.hoisted]).toEqual(['m1', 'c1']);
   });
 
+  it('keeps the lead-in of a later question beside it on the card face', () => {
+    const k = card('k', [markdown('m1'), approval('a1'), markdown('m2'), approval('a2'), code('c1')]);
+    const f = face([k]);
+    expect(f.lede?.md).toBe('m1');
+    expect(ids(f.background)).toEqual(['c1']);
+    expect([...f.hoisted]).toEqual(['m1', 'c1']);
+  });
+
   it('takes a summary-less card lede from its own markdown child', () => {
     const f = face([card('k', [markdown('m1'), approval('a1')])]);
     expect(f.lede?.md).toBe('m1');
