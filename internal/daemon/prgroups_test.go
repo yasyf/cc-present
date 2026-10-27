@@ -342,7 +342,14 @@ func TestCarryVerdictPayload(t *testing.T) {
 		{name: "no verdict to carry", carry: VerdictCarry{Block: "pg", Row: "8", Head: "abc1234", Note: "same"}, wantErr: "no recorded verdict"},
 		{name: "a note is required", decided: map[string]state.Decision{"8": {Verdict: "approved", Head: "0001111", At: tapped}}, carry: VerdictCarry{Block: "pg", Row: "8", Head: "abc1234", Note: " "}, wantErr: "needs a note"},
 		{name: "bad head", carry: VerdictCarry{Block: "pg", Row: "8", Head: "XYZ", Note: "same"}, wantErr: "head must be"},
-		{name: "unknown row", carry: VerdictCarry{Block: "pg", Row: "77", Head: "abc1234", Note: "same"}, wantErr: `no pull request "77"`},
+		{
+			name:    "a row a push took off the board carries for when it returns",
+			decided: map[string]state.Decision{"77": {Verdict: "approved", Head: "0001111", At: tapped}},
+			carry:   VerdictCarry{Block: "pg", Row: "77", Head: "4445555", Note: "same patch"},
+			want:    `{"blockId":"pg","verdicts":{"77":{"verdict":"approved","head":"4445555","at":"2026-10-26T20:03:00Z","carriedFrom":"0001111","carryNote":"same patch"}}}`,
+			res:     CarryResult{Verdict: "approved", From: "0001111", At: tapped, To: "4445555"},
+		},
+		{name: "unknown row without a verdict", carry: VerdictCarry{Block: "pg", Row: "77", Head: "abc1234", Note: "same"}, wantErr: "no recorded verdict"},
 		{name: "not a pr-groups", carry: VerdictCarry{Block: "tr1", Row: "i1", Head: "abc1234", Note: "same"}, wantErr: "not a pr-groups"},
 	}
 	for _, tt := range tests {

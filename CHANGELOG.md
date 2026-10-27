@@ -6,6 +6,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- `cc-present verdict carry` carries the recorded verdict of a row a push took off the `pr-groups` block, so the tap stands when a later push brings the row back at the carried head. It used to refuse the row as unknown.
+- The post-release CI check dispatched on `main` no longer shares a concurrency group with `main` pushes, so a merge landing during a release no longer cancels the check and fails the release run.
+
 ### Added
 
 - `cc-present reply --re <feedback id>` threads an agent reply under the note it answers. The board shows each note with its replies indented beneath it, newest last, and folds all but the newest two behind "Show N more". A reply without `--re` still sits under the block. `outcomes` nests each such reply under its note as `replies`, and the present skill's writer template passes `--re`.

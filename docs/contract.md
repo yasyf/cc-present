@@ -840,7 +840,9 @@ first, and appends one agent-origin `triage.decided` recording it at `head`
 with the same verdict, note and `at`, plus `carriedFrom`, the head the human
 tapped (kept across repeated carries), and `carryNote`. The row then stands at
 `head`: it leaves the Slack card and the board reads
-`Your tap at <carriedFrom> on <at> carries to <head>: <carryNote>`. A verdict
+`Your tap at <carriedFrom> on <at> carries to <head>: <carryNote>`. The row need not
+be on the live block: a push that took it off keeps its verdict, and the carry
+stands once a later push brings the row back at `head`. A verdict
 that already stands at `head` writes nothing and reports `already`. A row with
 no verdict, an empty note, or a bad head is refused. A human tap on the row
 records a fresh verdict without the carry fields.

@@ -206,15 +206,11 @@ func carryVerdictPayload(st *state.State, c VerdictCarry) (json.RawMessage, Carr
 	if err := requireCurrentRound(st, c.Block, topID); err != nil {
 		return nil, CarryResult{}, err
 	}
-	row, ok := g.Row(c.Row)
-	if !ok {
-		return nil, CarryResult{}, fmt.Errorf("pr-groups %q has no pull request %q", c.Block, c.Row)
-	}
 	head, err := doc.ParseHead(c.Head)
 	if err != nil {
 		return nil, CarryResult{}, fmt.Errorf("pr-groups %q #%s: %w", c.Block, c.Row, err)
 	}
-	if doc.SameHead(head, row.Head) {
+	if row, ok := g.Row(c.Row); ok && doc.SameHead(head, row.Head) {
 		head = row.Head
 	}
 	if strings.TrimSpace(c.Note) == "" {
