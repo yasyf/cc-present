@@ -39,6 +39,7 @@ export interface ReplyCreatedPayload {
   id: string;
   blockId: string;
   md: string;
+  re?: string;
 }
 
 export interface PresentClosedPayload {
@@ -249,9 +250,11 @@ export interface Annotation {
   quote: string;
 }
 
+// re names the feedback entry the reply answers; absent for a reply to the block.
 export interface Reply {
   id: string;
   md: string;
+  re?: string;
 }
 
 export interface Submitted {

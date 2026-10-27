@@ -756,11 +756,15 @@ func TestReply(t *testing.T) {
 	tests := []struct {
 		name    string
 		doc     string // seeds start; empty starts a subject with no document
+		note    string // block a human note "f1" is filed on before the reply
 		blockID string
+		re      string
 		md      string
 		wantErr string
 	}{
 		{name: "top-level approval", doc: approvalDoc, blockID: "a1", md: "answered"},
+		{name: "answers a note", doc: approvalDoc, note: "a1", blockID: "a1", re: "f1", md: "fixed"},
+		{name: "unknown note", doc: approvalDoc, note: "a1", blockID: "a1", re: "f9", md: "x", wantErr: `no feedback "f9" on this artifact`},
 		{name: "card child input", doc: cardDoc, blockID: "in1", md: "noted"},
 		{name: "non-interactive markdown", doc: cardDoc, blockID: "m1", md: "fyi"},
 		{name: "option visual", doc: choiceVisualDoc, blockID: "v1", md: "x", wantErr: `block "v1" is the visual of option "o1" on choice "ch1"; address the choice`},
@@ -778,7 +782,10 @@ func TestReply(t *testing.T) {
 			if !start.OK {
 				t.Fatalf("start not ok: %s", start.Error)
 			}
-			reply := handleReply(h.hc(body{BlockID: tt.blockID, Md: tt.md}))
+			if tt.note != "" {
+				fileNote(t, h, start.SubjectID, tt.note, "f1")
+			}
+			reply := handleReply(h.hc(body{BlockID: tt.blockID, Re: tt.re, Md: tt.md}))
 			got := h.eventsOfType(t, start.SubjectID, EventReplyCreated)
 			if tt.wantErr != "" {
 				if reply.OK || !strings.Contains(reply.Error, tt.wantErr) {
@@ -795,12 +802,12 @@ func TestReply(t *testing.T) {
 			if len(got) != 1 {
 				t.Fatalf("got %d reply.created, want 1", len(got))
 			}
-			var p struct{ BlockID, Md string }
+			var p struct{ BlockID, Md, Re string }
 			if err := json.Unmarshal(got[0].Payload, &p); err != nil {
 				t.Fatalf("decode reply payload: %v", err)
 			}
-			if p.BlockID != tt.blockID || p.Md != tt.md {
-				t.Fatalf("reply payload = %+v, want blockId=%q md=%q", p, tt.blockID, tt.md)
+			if p.BlockID != tt.blockID || p.Md != tt.md || p.Re != tt.re {
+				t.Fatalf("reply payload = %+v, want blockId=%q md=%q re=%q", p, tt.blockID, tt.md, tt.re)
 			}
 		})
 	}
@@ -1041,6 +1048,18 @@ func engageDecision(t *testing.T, h *harness, subjectID, blockID string) {
 		Payload: injectIdentity(EventDecisionCreated, json.RawMessage(fmt.Sprintf(`{"blockId":%q,"verdict":"approved"}`, blockID))),
 	}); err != nil {
 		t.Fatalf("append decision: %v", err)
+	}
+}
+
+// fileNote records a human note id on blockID directly on the log, as the REST
+// plane would.
+func fileNote(t *testing.T, h *harness, subjectID, blockID, id string) {
+	t.Helper()
+	if _, err := h.cc.AppendEvent(context.Background(), &ccevent.Event{
+		SubjectID: subjectID, Origin: ccevent.OriginHuman, Type: EventFeedbackCreated,
+		Payload: injectIdentity(EventFeedbackCreated, json.RawMessage(fmt.Sprintf(`{"id":%q,"blockId":%q,"text":"a note"}`, id, blockID))),
+	}); err != nil {
+		t.Fatalf("append feedback: %v", err)
 	}
 }
 

@@ -15,6 +15,7 @@ import type {
   Interactions,
   PresentEvent,
   PresentState,
+  Reply,
   Revising,
   RoundRecord,
   Rounds,
@@ -106,8 +107,9 @@ export function applyEvent(state: PresentState, ev: PresentEvent): PresentState 
       return { ...state, doc: { ...state.doc, blocks }, rounds: { ...state.rounds, blockRounds }, revising };
     }
     case 'reply.created': {
-      const { blockId, id, md } = ev.payload;
-      return withInteractions(state, { replies: append(state.interactions.replies, blockId, { id, md }) });
+      const { blockId, id, md, re } = ev.payload;
+      const reply: Reply = re ? { id, md, re } : { id, md };
+      return withInteractions(state, { replies: append(state.interactions.replies, blockId, reply) });
     }
     case 'round.started': {
       const { title } = ev.payload;

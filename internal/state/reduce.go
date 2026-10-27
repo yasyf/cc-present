@@ -81,10 +81,12 @@ type Feedback struct {
 	Text string `json:"text"`
 }
 
-// Reply is one entry in a block's append-only agent reply thread.
+// Reply is one entry in a block's append-only agent reply thread. Re names the
+// feedback entry the reply answers; empty for a reply to the block itself.
 type Reply struct {
 	ID string `json:"id"`
 	Md string `json:"md"`
+	Re string `json:"re,omitempty"`
 }
 
 // Annotation is one anchored mark a human placed on a draft block. Anchor is an
@@ -319,11 +321,12 @@ func (s *State) apply(ev Event) error {
 			ID      string `json:"id"`
 			BlockID string `json:"blockId"`
 			Md      string `json:"md"`
+			Re      string `json:"re"`
 		}
 		if err := decodeEventPayload(ev, &p); err != nil {
 			return err
 		}
-		s.Interactions.Replies[p.BlockID] = append(s.Interactions.Replies[p.BlockID], Reply{ID: p.ID, Md: p.Md})
+		s.Interactions.Replies[p.BlockID] = append(s.Interactions.Replies[p.BlockID], Reply{ID: p.ID, Md: p.Md, Re: p.Re})
 		return nil
 	case "present.closed":
 		var p struct {

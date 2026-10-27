@@ -18,6 +18,7 @@ import (
 	"github.com/yasyf/cc-present/internal/doc"
 	"github.com/yasyf/cc-present/internal/packs"
 	"github.com/yasyf/cc-present/internal/slackcards"
+	"github.com/yasyf/cc-present/internal/state"
 	"github.com/yasyf/cc-present/internal/version"
 )
 
@@ -613,9 +614,10 @@ func newRemoveBlockCmd(d cmd.Deps) *cobra.Command {
 	return c
 }
 
-// newReplyCmd appends an agent reply to a block's thread.
+// newReplyCmd appends an agent reply to a block's thread, under the note --re
+// names when set.
 func newReplyCmd(d cmd.Deps) *cobra.Command {
-	var session, cwd, block, bodyMd string
+	var session, cwd, block, re, bodyMd string
 	c := &cobra.Command{
 		Use:   "reply",
 		Short: "Append an agent reply to a block's thread",
@@ -637,7 +639,7 @@ func newReplyCmd(d cmd.Deps) *cobra.Command {
 			}
 			defer func() { _ = cl.CloseSession() }()
 			sess, pid := artifactWindow(d, session)
-			waits, err := cl.Reply(ctx, sess, mustCwd(cwd), pid, block, bodyMd)
+			waits, err := cl.Reply(ctx, sess, mustCwd(cwd), pid, block, re, bodyMd)
 			if err != nil {
 				return err
 			}
@@ -653,6 +655,7 @@ func newReplyCmd(d cmd.Deps) *cobra.Command {
 		},
 	}
 	c.Flags().StringVar(&block, "block", "", "block id to reply under")
+	c.Flags().StringVar(&re, "re", "", "feedback id (from the feedback.created event) this reply answers; the board threads the reply under that note")
 	c.Flags().StringVar(&bodyMd, "body", "", "reply markdown")
 	c.Flags().StringVar(&session, "session", "", "Claude session id (defaults to $CLAUDE_CODE_SESSION_ID)")
 	c.Flags().StringVar(&cwd, "cwd", "", "working directory (recorded on the request; artifacts are per-window, not resolved by directory)")
@@ -754,6 +757,9 @@ func newOutcomesCmd(d cmd.Deps) *cobra.Command {
 			if raw, err = withRetired(raw, retired); err != nil {
 				return err
 			}
+			if raw, err = nestReplies(raw); err != nil {
+				return err
+			}
 			if block != "" {
 				raw, err = filterBlock(raw, block)
 				if err != nil {
@@ -779,6 +785,65 @@ func newOutcomesCmd(d cmd.Deps) *cobra.Command {
 	c.Flags().StringVar(&session, "session", "", "Claude session id (defaults to $CLAUDE_CODE_SESSION_ID)")
 	c.Flags().StringVar(&cwd, "cwd", "", "working directory (recorded on the request; artifacts are per-window, not resolved by directory)")
 	return c
+}
+
+type threadedNote struct {
+	state.Feedback
+	Replies []state.Reply `json:"replies,omitempty"`
+}
+
+// nestReplies moves each reply that answers a note under that note's
+// interactions.feedback entry, so the outcomes read as threads; a reply to the
+// block itself stays in interactions.replies.
+func nestReplies(raw json.RawMessage) (json.RawMessage, error) {
+	var m map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &m); err != nil {
+		return nil, err
+	}
+	var in map[string]json.RawMessage
+	if err := json.Unmarshal(m["interactions"], &in); err != nil {
+		return nil, err
+	}
+	var feedback map[string][]threadedNote
+	if err := json.Unmarshal(in["feedback"], &feedback); err != nil {
+		return nil, err
+	}
+	var replies map[string][]state.Reply
+	if err := json.Unmarshal(in["replies"], &replies); err != nil {
+		return nil, err
+	}
+	notes := map[string]*threadedNote{}
+	for _, list := range feedback {
+		for i := range list {
+			notes[list[i].ID] = &list[i]
+		}
+	}
+	for block, list := range replies {
+		var loose []state.Reply
+		for _, r := range list {
+			if note, ok := notes[r.Re]; ok {
+				note.Replies = append(note.Replies, r)
+				continue
+			}
+			loose = append(loose, r)
+		}
+		if loose == nil {
+			delete(replies, block)
+			continue
+		}
+		replies[block] = loose
+	}
+	var err error
+	if in["feedback"], err = json.Marshal(feedback); err != nil {
+		return nil, err
+	}
+	if in["replies"], err = json.Marshal(replies); err != nil {
+		return nil, err
+	}
+	if m["interactions"], err = json.Marshal(in); err != nil {
+		return nil, err
+	}
+	return json.Marshal(m)
 }
 
 // filterBlock narrows reduced-state JSON to a single block: the document and

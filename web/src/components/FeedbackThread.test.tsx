@@ -10,6 +10,7 @@ import { FeedbackThread } from './FeedbackThread';
 import type { FeedbackHandle } from './FeedbackThread';
 import { ThreadHostContext } from './threadHost';
 import type { ThreadHost } from './threadHost';
+import type { Feedback, Reply } from '../events';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -32,6 +33,7 @@ function render(
   host: ThreadHost,
   onComposingChange?: (composing: boolean) => void,
   post: PresentApi['post'] = async () => true,
+  turns: { feedback: Feedback[]; replies: Reply[] } = { feedback: [], replies: [] },
 ): React.RefObject<FeedbackHandle | null> {
   const present: PresentApi = { post, closed: false, currentRound: 1 };
   const feedbackRef = createRef<FeedbackHandle>();
@@ -42,8 +44,8 @@ function render(
           <FeedbackThread
             ref={feedbackRef}
             blockId="a1"
-            feedback={[]}
-            replies={[]}
+            feedback={turns.feedback}
+            replies={turns.replies}
             locked={false}
             addLabel="Add feedback"
             placeholder="Add feedback for the agent…"
@@ -207,5 +209,42 @@ describe('FeedbackThread imperative composer', () => {
 
     expect(document.activeElement).toBe(other);
     other.remove();
+  });
+});
+
+const reply = (id: string, re?: string): Reply => (re ? { id, md: id, re } : { id, md: id });
+
+function texts(scope: ParentNode, selector: string): string[] {
+  return [...scope.querySelectorAll(selector)].map((el) => el.textContent!.trim());
+}
+
+describe('FeedbackThread threading', () => {
+  it('hangs each reply under the note it answers and leaves the rest after the notes', () => {
+    render('rail', undefined, undefined, {
+      feedback: [
+        { id: 'f1', text: 'shorter' },
+        { id: 'f2', text: 'why?' },
+      ],
+      replies: [reply('r1', 'f2'), reply('r2'), reply('r3', 'f1'), reply('r4', 'gone')],
+    });
+    const notes = [...container.querySelectorAll('.note-thread')].map((n) => texts(n, '.thread-text'));
+    expect(notes).toEqual([
+      ['shorter', 'r3'],
+      ['why?', 'r1'],
+    ]);
+    expect(texts(container, '.thread > .reply-item .thread-text')).toEqual(['r2', 'r4']);
+  });
+
+  it('folds all but the newest two replies to a note behind Show N more', () => {
+    render('rail', undefined, undefined, {
+      feedback: [{ id: 'f1', text: 'shorter' }],
+      replies: ['r1', 'r2', 'r3', 'r4'].map((id) => reply(id, 'f1')),
+    });
+    const more = container.querySelector<HTMLButtonElement>('.note-replies-more')!;
+    expect(more.textContent).toBe('Show 2 more');
+    expect(texts(container, '.note-replies .thread-text')).toEqual(['r3', 'r4']);
+    act(() => more.click());
+    expect(container.querySelector('.note-replies-more')).toBeNull();
+    expect(texts(container, '.note-replies .thread-text')).toEqual(['r1', 'r2', 'r3', 'r4']);
   });
 });

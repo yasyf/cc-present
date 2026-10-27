@@ -47,6 +47,7 @@ public struct ReplyCreatedPayload: Decodable, Equatable, Sendable {
     public var id: String
     public var blockId: String
     public var md: String
+    public var re: String?
 }
 
 /// RoundStartedPayload titles the current round.
