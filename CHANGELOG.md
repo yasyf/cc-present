@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- A tap answers in milliseconds on a long board. The daemon keeps each board's reduced state and applies only the events since the previous tap, where it used to decode the board's whole history on every tap: 1.1 to 1.6 s on a 1,445-event, 31 MB board, which a drive dashboard showed as "Sending…".
 - A `start`, `push` or `update-block` is rejected when its `pr-groups` block binds a Slack thread another open board already binds, naming that board. A board seeded from another board's document used to redraw the first board's group cards from its own empty verdicts, marking approved rows as having left the board.
 - A verdict tapped on a `pr-groups` row is recorded and answered before its Slack group card redraws, instead of after. The redraw re-read the whole board and waited on cc-slack, so on a long board a tap from the drive dashboard sat at "Approving…" for several seconds. A failed redraw is logged by the daemon instead of failing a tap that was already recorded.
 - Toasts open below the board's header while it is on screen, so a reply toast on a phone no longer covers the Focus/Board toggle and the menu for its 12 seconds. Once the header scrolls away, toasts return to the top of the window.

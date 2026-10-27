@@ -4,6 +4,7 @@ import (
 	"embed"
 	"encoding/json"
 	"reflect"
+	"sort"
 	"strings"
 	"testing"
 
@@ -56,6 +57,18 @@ func TestFixtures(t *testing.T) {
 			}
 			initMaps(&want)
 			assertStateEqual(t, got, want)
+			events := append([]state.Event(nil), fx.Events...)
+			sort.SliceStable(events, func(i, j int) bool { return events[i].Seq < events[j].Seq })
+			for k := range events {
+				st, err := state.Reduce(events[:k])
+				if err != nil {
+					t.Fatalf("Reduce(first %d) error = %v", k, err)
+				}
+				if err := st.Apply(events[k:]); err != nil {
+					t.Fatalf("Apply(after %d) error = %v", k, err)
+				}
+				assertStateEqual(t, st, want)
+			}
 		})
 	}
 }
