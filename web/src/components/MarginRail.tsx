@@ -1,4 +1,3 @@
-import { useEffect } from 'react';
 import type { ReactNode } from 'react';
 import { useUnreadReplies } from '../revision';
 import type { ThreadProjection } from '../threadFeed';
@@ -26,24 +25,6 @@ export function MarginRail({
   railRef: (el: HTMLElement | null) => void;
   children: ReactNode;
 }) {
-  // The rail is fixed and hangs below the masthead while it is visible in the
-  // viewport, then reaches the viewport top as the masthead scrolls away.
-  useEffect(() => {
-    const header = document.querySelector('.doc-header');
-    if (!header) return;
-    const root = document.documentElement;
-    const apply = () => root.style.setProperty('--rail-top', `${Math.max(0, header.getBoundingClientRect().bottom)}px`);
-    apply();
-    const observer = new ResizeObserver(apply);
-    observer.observe(header);
-    window.addEventListener('scroll', apply, { passive: true });
-    return () => {
-      observer.disconnect();
-      window.removeEventListener('scroll', apply);
-      root.style.removeProperty('--rail-top');
-    };
-  }, []);
-
   const entries = projection.pinned ? [projection.pinned, ...projection.feed] : projection.feed;
   const unread = useUnreadReplies();
 

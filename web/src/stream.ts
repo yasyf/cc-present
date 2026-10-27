@@ -14,7 +14,7 @@ import { presentKey, revisionKey } from './api';
 import { markdownText } from './markdown';
 import { getInteractivePackTypes } from './packs/registry';
 import { revisionStore } from './revision';
-import { threadFeed } from './threadFeed';
+import { blockLabel, threadFeed } from './threadFeed';
 import { hasThreadOpener, openThread } from './threadOpen';
 import { withToken } from './token';
 import type { PresentEvent, PresentState, WireFrame } from './events';
@@ -49,14 +49,16 @@ export function inFocusMode(): boolean {
   return typeof document !== 'undefined' && document.querySelector('.focus-deck') !== null;
 }
 
-// toastFor is the per-frame toast, or null. Focus mode drops the generic
-// block.upserted toast — the per-step revision callout replaces it; board keeps it.
-export function toastFor(frame: WireFrame, state: PresentState): StreamToast | null {
+// toastFor is the per-frame toast, or null, from the states before and after the
+// frame reduced. Focus mode drops the generic block.upserted toast — the per-step
+// revision callout replaces it; board keeps it.
+export function toastFor(frame: WireFrame, before: PresentState, after: PresentState): StreamToast | null {
   const text = TOAST_TEXT[frame.type];
   if (text === null) return null;
-  if (frame.type === 'block.upserted' && inFocusMode()) return null;
+  if (frame.type === 'block.upserted') return inFocusMode() ? null : named(text, blockLabel(after.doc.blocks, frame.block.id));
+  if (frame.type === 'block.removed') return named(text, blockLabel(before.doc.blocks, frame.id));
   if (frame.type !== 'reply.created') return { kind: 'info', text };
-  const entry = threadFeed(state, frame.blockId, getInteractivePackTypes()).pinned;
+  const entry = threadFeed(after, frame.blockId, getInteractivePackTypes()).pinned;
   if (!entry) return { kind: 'info', text };
   const note = entry.feedback.at(-1)?.text;
   return {
@@ -66,6 +68,10 @@ export function toastFor(frame: WireFrame, state: PresentState): StreamToast | n
     text: `${note ? `You: ${note}\n` : ''}Agent: ${markdownText(frame.md)}`,
     onClick: hasThreadOpener() ? () => openThread(entry) : undefined,
   };
+}
+
+function named(text: string, title: string | null): StreamToast {
+  return title ? { kind: 'info', title, text } : { kind: 'info', text };
 }
 
 // frameToEvent lifts a flat self-describing wire frame into the reducer's
@@ -87,7 +93,8 @@ export const { EventStreamProvider, useEventStream } = createEventStream<WireFra
     return withToken(`/events?session=${encodeURIComponent(subject)}`);
   },
   reduce: (cache, frame) => applyEvent(cache, frameToEvent(frame)),
-  toast: (frame, ctx) => toastFor(frame, ctx.queryClient.getQueryData<PresentState>(presentKey(ctx.subject))!),
+  toast: (frame, ctx) =>
+    toastFor(frame, ctx.cache!, ctx.queryClient.getQueryData<PresentState>(presentKey(ctx.subject))!),
   // The pre-marker fallback: a threshold above every seq means no replayed frame
   // clears it, so the whole from-zero replay (and any Last-Event-ID resume) stays
   // silent. Once the caught-up marker arrives the library ignores this and gates

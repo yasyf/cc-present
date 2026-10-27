@@ -37,6 +37,22 @@ export function DocHeader({
   const ref = useRef<HTMLElement>(null);
 
   useEffect(() => {
+    const header = ref.current!;
+    const root = document.documentElement;
+    const apply = () =>
+      root.style.setProperty('--masthead-bottom', `${Math.max(0, header.getBoundingClientRect().bottom)}px`);
+    apply();
+    const observer = new ResizeObserver(apply);
+    observer.observe(header);
+    window.addEventListener('scroll', apply, { passive: true });
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('scroll', apply);
+      root.style.removeProperty('--masthead-bottom');
+    };
+  }, []);
+
+  useEffect(() => {
     if (!compact) return;
     const header = ref.current!;
     const root = document.documentElement;

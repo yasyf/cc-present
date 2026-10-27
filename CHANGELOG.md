@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Toasts open below the board's header while it is on screen, so a reply toast on a phone no longer covers the Focus/Board toggle and the menu for its 12 seconds. Once the header scrolls away, toasts return to the top of the window.
+- The "A block was updated" and "A block was removed" toasts are titled with the block they name, using the same label as the margin rail's thread rows. That is the block's prompt or title, or its card's title for an untitled child.
+- A card's summary in board mode reads as the card's lede. It is body-size text in the body color across the card's full width, instead of small gray text held to about 530 px of a 900 px card.
+- A record block's fact labels are smaller and dimmer than their values, and every value starts right under its label, so neighbouring columns line up instead of each value sinking to the bottom of its row.
 - Opening a board no longer paints the documents its event log replays on the way to the current one. A board with a long history showed several earlier titles, questions, and progress counts for a few seconds before it settled; the skeleton and an empty header now hold until the replay catches up.
 - An agent reply under a card shows the note it answers, so a board read without the margin rail open no longer lists answers to questions the reader cannot see. Past the newest two, older replies fold behind "Show N earlier", and a reply is never clamped behind "Show more".
 - A focus step's lede shows the card summary in full. It used to stop at three lines behind "Show more", which cut the context and the recommendation off the question.
