@@ -13,18 +13,23 @@ import (
 	"github.com/yasyf/cc-present/internal/toolpath"
 )
 
-const prFetchTimeout = 30 * time.Second
+const (
+	prFetchTimeout = 30 * time.Second
+	prReadFloor    = time.Minute
+)
 
 type prFetcher func(ctx context.Context, b *doc.PR) (*prs.PR, error)
 
-func ghPRFetcher(ctx context.Context, b *doc.PR) (*prs.PR, error) {
-	gh, err := toolpath.Find("gh")
-	if err != nil {
-		return nil, fmt.Errorf("pr block needs gh: %w", err)
+func ghPRFetcher(cache *prs.Cache) prFetcher {
+	return func(ctx context.Context, b *doc.PR) (*prs.PR, error) {
+		gh, err := toolpath.Find("gh")
+		if err != nil {
+			return nil, fmt.Errorf("pr block needs gh: %w", err)
+		}
+		ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), prFetchTimeout)
+		defer cancel()
+		return cache.Fetch(ctx, prs.GH(gh), b.Repo, b.Number, b.Files, time.Now())
 	}
-	ctx, cancel := context.WithTimeout(ctx, prFetchTimeout)
-	defer cancel()
-	return prs.Fetch(ctx, prs.GH(gh), b.Repo, b.Number, b.Files, time.Now())
 }
 
 // handlePR serves a pr block's live GitHub state. The requested repo and number

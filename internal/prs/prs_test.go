@@ -14,7 +14,7 @@ import (
 
 const openPR = `{"data":{"repository":{"pullRequest":{
   "title":"Add the pr block","url":"https://github.com/o/r/pull/7","state":"OPEN","isDraft":false,"mergedAt":null,
-  "author":{"login":"yasyf"},"baseRefName":"main","headRefName":"pr-block","mergeCommit":null,
+  "author":{"login":"yasyf"},"baseRefName":"main","headRefName":"pr-block","headRefOid":"h1","mergeCommit":null,
   "additions":12,"deletions":3,"changedFiles":3,"reviewDecision":"CHANGES_REQUESTED",
   "labels":{"nodes":[{"name":"web"}]},
   "latestOpinionatedReviews":{"nodes":[{"author":{"login":"rev"},"state":"CHANGES_REQUESTED"},{"author":null,"state":"APPROVED"}]},
@@ -64,7 +64,7 @@ var now = time.Date(2026, 10, 14, 21, 0, 0, 0, time.FixedZone("PDT", -7*3600))
 
 func TestFetchOpenPR(t *testing.T) {
 	f := &fakeGH{pr: openPR}
-	pr, err := prs.Fetch(t.Context(), f.run, "o/r", 7, nil, now)
+	pr, err := new(prs.Cache).Fetch(t.Context(), f.run, "o/r", 7, nil, now)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -98,9 +98,45 @@ func TestFetchOpenPR(t *testing.T) {
 	}
 }
 
+func TestCacheRefetches(t *testing.T) {
+	tests := []struct {
+		name      string
+		after     time.Duration
+		head      string
+		base      string
+		wantCalls int
+	}{
+		{"inside the floor", 30 * time.Second, "h1", "main", 0},
+		{"same head after the floor", 2 * time.Minute, "h1", "main", 1},
+		{"moved head after the floor", 2 * time.Minute, "h2", "main", 2},
+		{"retargeted base after the floor", 2 * time.Minute, "h1", "dev", 2},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := &fakeGH{pr: openPR}
+			cache := &prs.Cache{Floor: time.Minute}
+			if _, err := cache.Fetch(t.Context(), f.run, "o/r", 7, nil, now); err != nil {
+				t.Fatal(err)
+			}
+			first := len(f.calls)
+			f.pr = strings.NewReplacer(`"headRefOid":"h1"`, `"headRefOid":"`+tt.head+`"`, `"baseRefName":"main"`, `"baseRefName":"`+tt.base+`"`).Replace(openPR)
+			pr, err := cache.Fetch(t.Context(), f.run, "o/r", 7, nil, now.Add(tt.after))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := len(f.calls) - first; got != tt.wantCalls {
+				t.Fatalf("gh calls = %d, want %d", got, tt.wantCalls)
+			}
+			if len(pr.Files) != 4 {
+				t.Fatalf("files = %d, want 4", len(pr.Files))
+			}
+		})
+	}
+}
+
 func TestFetchFiltersFiles(t *testing.T) {
 	f := &fakeGH{pr: openPR}
-	pr, err := prs.Fetch(t.Context(), f.run, "o/r", 7, []string{"web/src", "*.mod"}, now)
+	pr, err := new(prs.Cache).Fetch(t.Context(), f.run, "o/r", 7, []string{"web/src", "*.mod"}, now)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -129,7 +165,7 @@ func TestFetchLandedThroughQueue(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			f := &fakeGH{pr: closedPR, search: tt.search}
-			pr, err := prs.Fetch(t.Context(), f.run, "o/r", 9, nil, now)
+			pr, err := new(prs.Cache).Fetch(t.Context(), f.run, "o/r", 9, nil, now)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -155,7 +191,7 @@ func TestFetchErrors(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			f := &fakeGH{pr: tt.pr}
-			_, err := prs.Fetch(t.Context(), f.run, "o/r", 7, nil, now)
+			_, err := new(prs.Cache).Fetch(t.Context(), f.run, "o/r", 7, nil, now)
 			if err == nil || !strings.Contains(err.Error(), tt.want) {
 				t.Fatalf("err = %v, want %q", err, tt.want)
 			}

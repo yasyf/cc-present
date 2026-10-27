@@ -24,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- The daemon's `GET /api/pr` spends less of the user's GitHub quota. A read younger than a minute is served without calling GitHub, concurrent requests for one PR share one fetch, and the changed-file list is fetched again only when the head commit or the base moves. A board of 100 PR rows opened in three tabs costs 100 GraphQL calls, not 300 GraphQL calls plus the paginated file lists.
 - A `pr-groups` block's `slack` binding sticks. A later `push` or `update-block` of the same block id that omits `slack` keeps the thread and keeps the Slack cards in sync. Only `"slack": ""` unbinds it, so a pusher that never knew about the binding no longer drops it.
 
 ### Added

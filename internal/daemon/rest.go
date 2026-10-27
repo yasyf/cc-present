@@ -22,6 +22,7 @@ import (
 	"github.com/yasyf/cc-present/internal/assets"
 	"github.com/yasyf/cc-present/internal/doc"
 	"github.com/yasyf/cc-present/internal/packs"
+	"github.com/yasyf/cc-present/internal/prs"
 	"github.com/yasyf/cc-present/internal/slackcards"
 	"github.com/yasyf/cc-present/internal/state"
 	"github.com/yasyf/cc-present/internal/web"
@@ -108,7 +109,7 @@ func mountREST(s *ccd.Server, ast *assets.Store, loader *packs.Loader, version s
 		resolve:     s.ResolveSubject,
 		assets:      ast,
 		packs:       loader,
-		fetchPR:     ghPRFetcher,
+		fetchPR:     ghPRFetcher(&prs.Cache{Floor: prReadFloor}),
 		answerSlack: ccSlackCardAnswer,
 		postGroup:   slackcards.PostGroupCard,
 		static:      sse.StaticHandler(web.Dist()),
