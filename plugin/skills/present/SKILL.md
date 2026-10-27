@@ -28,7 +28,7 @@ Write the document JSON to a file in your **session scratchpad** and pass the pa
 
 **A card has four parts.** The human reads the title and the lede, then decides; Background and option details wait behind a click.
 
-1. A title that asks the question the card decides, in 12 words or fewer, in the form "How do the two trees stay apart on dev?"
+1. A title that asks the question the card decides, in 12 words or fewer, in the form "How do the two trees stay apart on dev?" A card with nothing to decide states what it shows, such as "Nine pull requests are being fixed; none needs you", and never asks a question.
 2. A lede in the card's `summary`, at most 2 sentences and about 40 words. It says what is being decided and why it matters now. It never recaps earlier rulings, previews later cards, or lists the options in prose; the options already say what they are.
 3. The decidable, a `choice` or an `approval`. A card with several decidables gives each one a `prompt` stating its question; a push without them is rejected. A question never lives in a `record` fact or a markdown block.
 4. Optional Background, which holds the context before the first decidable and after the last. Context between two decidables stays on the card face, above the question it introduces. Earlier rulings the card builds on go here as one `record` block, one fact per ruling.
@@ -46,7 +46,7 @@ In Background and option bodies, a bold sentence is never a heading: use a markd
 - A fact value is a number or a phrase of about 6 words, such as "~733 lines deleted" or "+6–15 min per landing", so it reads at a glance. Caveats and how it works go in the option's `detail`, never in a fact. `reference/blocks.md` "Options" shows a sentence-long value and its rewrite.
 - Set a `tone` only on the one or two values that decide the pick; leave every other value untoned.
 - `detail` (`pros`, `cons`, a longer `md`) is optional. Add it when an option needs more than its hint and facts; leave it out otherwise.
-- Recommend at most one option — set `recommended: true` on your suggested pick (one per single-select choice) and it renders a stamp badge, replacing the old "Recommended —" `hint` prefix.
+- Recommend at most one option — set `recommended: true` on your suggested pick (one per single-select choice) and it renders a stamp badge, replacing the old "Recommended —" `hint` prefix. Keep the word out of the label: a recommended option whose label says "recommended" is rejected.
 - Never author an escape hatch: every choice already carries a write-in and a note thread as chrome, so don't add an "Other" option or promise a notes field. Every card and top-level block carries an Add note thread too, and approvals and interactive pack blocks keep their own. They come back in `outcomes`: a write-in as `other` on the choice, a note as `feedback` keyed to the block id, which may be a card or a content block.
 
 **A visual only where it beats words.** Attach one when a picture shows the difference faster than a sentence: a `diagram` for a flow that differs between options, `code` for the shape an option produces, a `chart` for magnitudes. Put option visuals (`option.visual`) on every option of a choice or on none. A picture that holds for every option, such as today's flow, goes once in Background. A decision that a label and a hint settle needs no visual. See `reference/blocks.md` for the visual types and the mermaid style rules.

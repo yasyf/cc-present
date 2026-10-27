@@ -1088,6 +1088,9 @@ func validateChoice(c *Choice) error {
 		}
 		if o.Recommended {
 			recommended++
+			if strings.Contains(strings.ToLower(o.Label), "recommended") {
+				return fmt.Errorf("choice %q: option %q label repeats \"recommended\"; the recommended flag already renders the badge", c.ID, o.ID)
+			}
 		}
 	}
 	if !c.Multi && recommended > 1 {

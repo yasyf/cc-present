@@ -117,6 +117,7 @@ Reference links.
   at decode time. A visual carries its own doc-unique block id, so it is addressable
   in single-block mode.
 - A single-select choice (`multi` unset or false) has at most one `recommended` option.
+- A `recommended` option's label does not contain the word "recommended"; the flag renders the badge.
 - The serialized document is at most **1 MiB**.
 
 ### Code grounding
