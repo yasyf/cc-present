@@ -460,3 +460,33 @@ markdown "m1": md must not be empty`,
 		})
 	}
 }
+
+func TestNestReplies(t *testing.T) {
+	in := `{"doc":{},"interactions":{
+	  "feedback":{"ap1":[{"id":"f1","text":"shorter"},{"id":"f2","text":"why?"}]},
+	  "replies":{"ap1":[
+	    {"id":"r1","md":"cut","re":"f1"},
+	    {"id":"r2","md":"general"},
+	    {"id":"r3","md":"cut more","re":"f1"},
+	    {"id":"r4","md":"lost","re":"f9"}
+	  ],"m1":[{"id":"r5","md":"on f2","re":"f2"}]}}}`
+	want := `{"feedback":{"ap1":[` +
+		`{"id":"f1","text":"shorter","replies":[{"id":"r1","md":"cut","re":"f1"},{"id":"r3","md":"cut more","re":"f1"}]},` +
+		`{"id":"f2","text":"why?","replies":[{"id":"r5","md":"on f2","re":"f2"}]}]},` +
+		`"replies":{"ap1":[{"id":"r2","md":"general"},{"id":"r4","md":"lost","re":"f9"}]}}`
+	got, err := nestReplies(json.RawMessage(in))
+	if err != nil {
+		t.Fatalf("nestReplies() error = %v", err)
+	}
+	var m map[string]json.RawMessage
+	if err := json.Unmarshal(got, &m); err != nil {
+		t.Fatalf("unmarshal state: %v", err)
+	}
+	var buf bytes.Buffer
+	if err := json.Compact(&buf, m["interactions"]); err != nil {
+		t.Fatalf("compact interactions: %v", err)
+	}
+	if buf.String() != want {
+		t.Fatalf("interactions = %s, want %s", buf.String(), want)
+	}
+}

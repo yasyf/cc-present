@@ -74,10 +74,12 @@ public struct Feedback: Decodable, Equatable, Sendable {
 public struct Reply: Decodable, Equatable, Sendable {
     public var id: String
     public var md: String
+    public var re: String?
 
-    public init(id: String, md: String) {
+    public init(id: String, md: String, re: String? = nil) {
         self.id = id
         self.md = md
+        self.re = re
     }
 }
 
@@ -412,7 +414,7 @@ private extension BoardState {
             }
             revisingOnRemove(location.topID)
         case let .replyCreated(payload):
-            interactions.replies[payload.blockId, default: []].append(Reply(id: payload.id, md: payload.md))
+            interactions.replies[payload.blockId, default: []].append(Reply(id: payload.id, md: payload.md, re: payload.re))
         case let .presentClosed(payload):
             interactions.closed = Closed(value: true, summary: payload.summary)
         case let .decisionCreated(payload):

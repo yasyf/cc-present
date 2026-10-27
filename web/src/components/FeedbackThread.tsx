@@ -25,7 +25,8 @@ export interface FeedbackThreadProps {
 
 // FeedbackThread is the shared note channel for approvals, choices, and interactive
 // pack blocks: an inline composer behind an "Add …" affordance, then the append-only
-// thread of sent notes and the agent's replies. It reports composing to the host only while the draft
+// thread of sent notes, each with the agent's replies to it beneath, then the
+// replies that answer no note in this thread. It reports composing to the host only while the draft
 // holds text — an open, empty composer must not latch the rail — while the
 // data-composing attribute tracks the open composer for the deck's advance guard.
 export const FeedbackThread = forwardRef<FeedbackHandle, FeedbackThreadProps>(function FeedbackThread(
@@ -72,6 +73,7 @@ export const FeedbackThread = forwardRef<FeedbackHandle, FeedbackThreadProps>(fu
   }, [open]);
 
   const stillPending = pending.filter((p) => !feedback.some((f) => f.id === p.id));
+  const loose = replies.filter((r) => !feedback.some((f) => f.id === r.re));
 
   async function send() {
     const body = text.trim();
@@ -140,10 +142,7 @@ export const FeedbackThread = forwardRef<FeedbackHandle, FeedbackThreadProps>(fu
       {(feedback.length > 0 || stillPending.length > 0 || replies.length > 0) && (
         <div className="thread">
           {feedback.map((f) => (
-            <div key={f.id} className="thread-item feedback-item">
-              <span className="thread-who">you</span>
-              <span className="thread-text">{f.text}</span>
-            </div>
+            <NoteThread key={f.id} note={f} replies={replies.filter((r) => r.re === f.id)} />
           ))}
           {stillPending.map((p) => (
             <div key={p.id} className="thread-item feedback-item pending">
@@ -152,7 +151,7 @@ export const FeedbackThread = forwardRef<FeedbackHandle, FeedbackThreadProps>(fu
               <span className="thread-status">sending…</span>
             </div>
           ))}
-          {replies.map((r) => (
+          {loose.map((r) => (
             <ReplyItem key={r.id} reply={r} />
           ))}
         </div>
@@ -160,3 +159,32 @@ export const FeedbackThread = forwardRef<FeedbackHandle, FeedbackThreadProps>(fu
     </>
   );
 });
+
+const SHOWN_REPLIES = 2;
+
+// NoteThread is one sent note with the agent's replies to it indented beneath,
+// newest last; past two replies the older ones fold behind a "Show N more".
+function NoteThread({ note, replies }: { note: Feedback; replies: Reply[] }) {
+  const [expanded, setExpanded] = useState(false);
+  const hidden = expanded ? 0 : Math.max(0, replies.length - SHOWN_REPLIES);
+  return (
+    <div className="note-thread">
+      <div className="thread-item feedback-item">
+        <span className="thread-who">you</span>
+        <span className="thread-text">{note.text}</span>
+      </div>
+      {replies.length > 0 && (
+        <div className="note-replies">
+          {hidden > 0 && (
+            <button type="button" className="link-btn note-replies-more" onClick={() => setExpanded(true)}>
+              Show {hidden} more
+            </button>
+          )}
+          {replies.slice(hidden).map((r) => (
+            <ReplyItem key={r.id} reply={r} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}

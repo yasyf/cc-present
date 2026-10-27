@@ -6,6 +6,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `cc-present reply --re <feedback id>` threads an agent reply under the note it answers. The board shows each note with its replies indented beneath it, newest last, and folds all but the newest two behind "Show N more". A reply without `--re` still sits under the block. `outcomes` nests each such reply under its note as `replies`, and the present skill's writer template passes `--re`.
+
 ### Changed
 
 - A `pr-groups` block's `slack` binding sticks. A later `push` or `update-block` of the same block id that omits `slack` keeps the thread and keeps the Slack cards in sync. Only `"slack": ""` unbinds it, so a pusher that never knew about the binding no longer drops it.

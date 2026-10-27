@@ -181,9 +181,11 @@ You are a writer for a live cc-present board. Session: <session-id> — pass it 
 "${CLAUDE_PLUGIN_ROOT}/bin/cc-present".
 Job: <one sentence — e.g. reply under cli-approval acknowledging the exit-code
 note, then redraft card-cli to fold it in>.
+Note answered: <the feedback id from feedback.created, e.g. 9f2c11ab, or none>.
 Read the block's state first: cc-present outcomes --block <blockId> --session <session-id>.
-Apply directly: cc-present reply --block <id> --body "..." for a word back; for a
-redraft, write the revised block JSON to a file and cc-present update-block "$BLOCK"
+Apply directly: cc-present reply --block <id> --re <note id> --body "..." for a word
+back, so the board threads it under that note (drop --re only when no note
+prompted it); for a redraft, write the revised block JSON to a file and cc-present update-block "$BLOCK"
 — re-upsert the existing id (announce with cc-present revising <ids> --note "..."
 first when the rewrite reshapes steps downstream of a pick). Never add a new
 top-level block unless this job says so, and then only with the round flag it names.
@@ -193,10 +195,10 @@ asks in your report.
 Report 1-2 lines via SendMessage to the dispatching session as your last action.
 ```
 
-To reply — it renders under the block in realtime, on any block type (approvals, inputs, tables, pack blocks alike); an unknown block id is rejected:
+To reply — it renders under the block in realtime, on any block type (approvals, inputs, tables, pack blocks alike); an unknown block id is rejected. Pass `--re` with the `id` of the `feedback.created` note you answer, and the board threads the reply under that note; a reply without `--re` sits under the block itself:
 
 ```bash
-cc-present reply --block <blockId> --body "Good catch — redrafting now."
+cc-present reply --block <blockId> --re <feedback id> --body "Good catch — redrafting now."
 ```
 
 To redraft, write the revised block JSON to the scratchpad and upsert it:

@@ -48,10 +48,10 @@ choice:opener-choice — picked "punchy" → none
 feedback:4c1d02e7 on card-fill — "also run the migration on prod" → ask-user
 ```
 
-Then the terminal owed list — only the lanes that need work, or `owed: none`:
+Then the terminal owed list — only the lanes that need work, each carrying its `feedback:<id>` key when a note prompted it so the writer can thread its reply under that note, or `owed: none`:
 
 ```
-owed: card-cli redraft · opener-approval redraft · card-fill ask-user
+owed: card-cli redraft feedback:9f2c11ab · opener-approval redraft · card-fill ask-user feedback:4c1d02e7
 ```
 
 When something unexpected changes the job's shape — `outcomes` errors, the board is closed, the envelope is malformed — stop and report what you found with the drain output's relevant lines. The main session decides; you never improvise a detour.

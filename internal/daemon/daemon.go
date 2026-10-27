@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"sync"
 
@@ -473,10 +474,11 @@ func handleRemoveBlock(hc ccd.HandlerCtx) ccd.Reply {
 	return okReply(result{})
 }
 
-// handleReply appends an agent reply to a block's thread. A reply naming a block
-// absent from the current document is rejected, as is a reply to a closed
-// artifact. There is deliberately no round check: replying to a block whose
-// round has already closed is a supported flow.
+// handleReply appends an agent reply to a block's thread, anchored under the
+// feedback entry b.Re names when set. A reply naming a block absent from the
+// current document or a feedback id no human filed is rejected, as is a reply to
+// a closed artifact. There is deliberately no round check: replying to a block
+// whose round has already closed is a supported flow.
 func handleReply(hc ccd.HandlerCtx) ccd.Reply {
 	b := decodeBody(hc.Env.Body)
 	if b.BlockID == "" {
@@ -501,13 +503,21 @@ func handleReply(hc ccd.HandlerCtx) ccd.Reply {
 	if err != nil {
 		return errReply(err.Error())
 	}
+	if b.Re != "" && !hasFeedback(st.Interactions.Feedback, b.Re) {
+		return errReply(fmt.Sprintf("no feedback %q on this artifact; --re takes the id a feedback.created event carries", b.Re))
+	}
 	id := b.ID
 	if id == "" {
 		id = randomHex(4)
 	}
 	if _, err := appendEvent(hc.Ctx, hc.Append, &ccevent.Event{
 		SubjectID: sub.ID, Origin: ccevent.OriginAgent, Type: EventReplyCreated,
-		Payload: mustJSON(map[string]string{"id": id, "blockId": b.BlockID, "md": b.Md}),
+		Payload: mustJSON(struct {
+			ID      string `json:"id"`
+			BlockID string `json:"blockId"`
+			Md      string `json:"md"`
+			Re      string `json:"re,omitempty"`
+		}{ID: id, BlockID: b.BlockID, Md: b.Md, Re: b.Re}),
 	}); err != nil {
 		return errReply(err.Error())
 	}
@@ -516,6 +526,15 @@ func handleReply(hc ccd.HandlerCtx) ccd.Reply {
 		res.Waits = card.ID
 	}
 	return okReply(res)
+}
+
+func hasFeedback(feedback map[string][]state.Feedback, id string) bool {
+	for _, list := range feedback {
+		if slices.ContainsFunc(list, func(f state.Feedback) bool { return f.ID == id }) {
+			return true
+		}
+	}
+	return false
 }
 
 // handleRound appends an agent round.started, then re-reduces to report the

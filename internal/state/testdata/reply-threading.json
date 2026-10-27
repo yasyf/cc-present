@@ -19,7 +19,7 @@
       }
     },
     { "origin": "human", "type": "feedback.created", "seq": 2, "payload": { "schemaVersion": 1, "type": "feedback.created", "id": "f1", "blockId": "a1", "text": "please shorten" } },
-    { "origin": "agent", "type": "reply.created", "seq": 3, "payload": { "schemaVersion": 1, "type": "reply.created", "id": "r1", "blockId": "a1", "md": "shortened" } },
+    { "origin": "agent", "type": "reply.created", "seq": 3, "payload": { "schemaVersion": 1, "type": "reply.created", "id": "r1", "blockId": "a1", "md": "shortened", "re": "f1" } },
     { "origin": "agent", "type": "reply.created", "seq": 4, "payload": { "schemaVersion": 1, "type": "reply.created", "id": "r2", "blockId": "a1", "md": "and clarified" } }
   ],
   "expected": {
@@ -35,7 +35,7 @@
       "feedback": { "a1": [{ "id": "f1", "text": "please shorten" }] },
       "replies": {
         "a1": [
-          { "id": "r1", "md": "shortened" },
+          { "id": "r1", "md": "shortened", "re": "f1" },
           { "id": "r2", "md": "and clarified" }
         ]
       }

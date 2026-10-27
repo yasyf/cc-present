@@ -66,6 +66,7 @@ type body struct {
 	ID       string          `json:"id,omitempty"`       // remove-block | reply
 	BlockID  string          `json:"blockId,omitempty"`  // reply
 	Md       string          `json:"md,omitempty"`       // reply
+	Re       string          `json:"re,omitempty"`       // reply
 	Summary  string          `json:"summary,omitempty"`  // close
 	BlockIDs []string        `json:"blockIds,omitempty"` // revising
 	Note     string          `json:"note,omitempty"`     // revising
