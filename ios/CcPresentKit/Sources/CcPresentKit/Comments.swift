@@ -44,17 +44,26 @@ public func commentDocBlocks(_ doc: Doc) -> [Block] {
 }
 
 /// commentBlockTitle is the feed-row and pinned-header label for a block: its own prompt,
-/// title, or label, falling back to a humanized type name.
-public func commentBlockTitle(_ block: Block) -> String {
+/// title, or label, then its enclosing card's title, falling back to a humanized type name.
+/// Mirrors the web threadFeed label.
+public func commentBlockTitle(_ doc: Doc, _ block: Block) -> String {
+    if let own = ownCommentTitle(block) { return own }
+    for case let .card(card) in doc.blocks where card.children.contains(where: { $0.id == block.id }) {
+        if let title = card.title { return title }
+    }
+    return block.type.capitalized
+}
+
+private func ownCommentTitle(_ block: Block) -> String? {
     switch block {
-    case let .approval(approval): approval.prompt ?? "Approval"
-    case let .choice(choice): choice.prompt ?? "Choice"
+    case let .approval(approval): approval.prompt
+    case let .choice(choice): choice.prompt
     case let .input(input): input.label
-    case let .draft(draft): draft.title ?? "Draft"
-    case let .triage(triage): triage.prompt ?? "Triage"
-    case let .card(card): card.title ?? "Card"
+    case let .draft(draft): draft.title
+    case let .triage(triage): triage.prompt
+    case let .card(card): card.title
     case let .section(section): section.title
-    default: block.type.capitalized
+    default: nil
     }
 }
 
@@ -102,7 +111,7 @@ public func commentFeed(_ doc: Doc, _ interactions: Interactions, activeId: Stri
         guard feedback + replies > 0 else { return nil }
         return CommentFeedEntry(
             blockId: block.id,
-            title: commentBlockTitle(block),
+            title: commentBlockTitle(doc, block),
             feedbackCount: feedback,
             replyCount: replies
         )

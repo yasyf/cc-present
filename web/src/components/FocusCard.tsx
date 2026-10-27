@@ -14,7 +14,6 @@ import { useExpandAll } from '../expand';
 import { renderInlineMarkdown, renderMarkdown } from '../markdown';
 import { useInteractivePackTypes } from '../packs/registry';
 import { BlockRenderer } from './BlockRenderer';
-import { Clamped } from './Clamped';
 import { StatusPill } from './Card';
 import { StatsBar } from './StatsBar';
 import { FocusLeadContext, FocusStepContext } from './focusStep';
@@ -22,10 +21,7 @@ import { cardVariants } from './focusMotion';
 
 function FocusLede({ lede }: { lede: StepLede }) {
   const html = lede.inline ? renderInlineMarkdown(lede.md) : renderMarkdown(lede.md);
-  if (html.includes('<table')) {
-    return <div className="prose focus-lede" dangerouslySetInnerHTML={{ __html: html }} />;
-  }
-  return <Clamped html={html} lines={3} className="prose focus-lede" />;
+  return <div className="prose focus-lede" dangerouslySetInnerHTML={{ __html: html }} />;
 }
 
 function FocusBackground({

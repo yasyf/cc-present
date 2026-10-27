@@ -288,7 +288,7 @@ describe('FocusCard question-first anatomy', () => {
     renderStep([markdown('m1', 'Lead-in'), code('code1'), card('k1', 'Transport choice', [staged('c1')])], 0, 'rail');
     const body = container.querySelector('.focus-card-body')!;
     expect([...body.children].map((child) => child.classList[0])).toEqual([
-      'clamped',
+      'prose',
       'card',
       'comment-chip-row',
       'focus-background',
@@ -296,19 +296,12 @@ describe('FocusCard question-first anatomy', () => {
     expect(body.querySelector(':scope > .card .choice')).not.toBeNull();
   });
 
-  it('clamps the lede to three lines', () => {
+  it('shows the whole lede, never behind a Show more', () => {
     renderStep([markdown('m1', 'lead-in prose'), approval('a1', 'Ship it?')]);
-    const lede = container.querySelector('.focus-lede') as HTMLElement;
-    expect(lede.textContent?.trim()).toBe('lead-in prose');
-    expect(lede.style.getPropertyValue('--clamp-lines')).toBe('3');
-    expect(container.querySelector('.focus-background')).toBeNull();
-  });
-
-  it('leaves a lede carrying a table unclamped', () => {
-    renderStep([markdown('m1', '| PR | Verdict |\n| --- | --- |\n| #1 | keep |'), approval('a1', 'Ship it?')]);
     const lede = container.querySelector('.focus-lede')!;
-    expect(lede.querySelector('table')).not.toBeNull();
+    expect(lede.textContent?.trim()).toBe('lead-in prose');
     expect(lede.closest('.clamped')).toBeNull();
+    expect(container.querySelector('.focus-background')).toBeNull();
   });
 
   it('leads with the card summary and moves the card context into Background', () => {
