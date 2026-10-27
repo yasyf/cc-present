@@ -221,7 +221,11 @@ func handleSlackDecided(hc ccd.HandlerCtx) ccd.Reply {
 	if st.Interactions.Closed.Value {
 		return errReply("the board is closed")
 	}
-	it := interaction{Type: EventTriageDecided, BlockID: blockID, Verdicts: map[string]triageEntry{rowID: {Verdict: verdict, Head: head}}}
+	if b, _, err := findBlock(st.Doc, blockID); err != nil || b.BlockType() != "pr-groups" {
+		return errReply(fmt.Sprintf("block %q is not a pr-groups block on this board", blockID))
+	}
+	note := st.Interactions.Triage[blockID][rowID].Note
+	it := interaction{Type: EventTriageDecided, BlockID: blockID, Verdicts: map[string]triageEntry{rowID: {Verdict: verdict, Head: head, Note: note}}}
 	payload, err := validateInteraction(&st, 0, &it, nil, time.Now())
 	if err != nil {
 		return errReply(err.Error())

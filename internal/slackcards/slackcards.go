@@ -251,6 +251,7 @@ const (
 	approveLabel = "Approve"
 	holdLabel    = "Hold"
 	shortHead    = 7
+	rowHead      = 12
 	maxRowText   = 3000
 )
 
@@ -280,7 +281,7 @@ func GroupCard(g *doc.PRGroups, group doc.PRGroup, verdicts map[string]state.Dec
 			continue
 		}
 		sc.Rows = append(sc.Rows, Row{
-			ID:      fmt.Sprintf("%s:%d:%s", g.ID, r.Number, r.Head[:shortHead]),
+			ID:      fmt.Sprintf("%s:%d:%s", g.ID, r.Number, r.Head[:min(len(r.Head), rowHead)]),
 			Text:    rowText(g.Repo, r, d, decided),
 			Buttons: []string{approveLabel, holdLabel},
 		})
@@ -339,6 +340,9 @@ func (d Decided) Verdict() (block, row, head, verdict string, err error) {
 	block, row, ok = cutLast(rest)
 	if !ok || block == "" {
 		return "", "", "", "", fmt.Errorf("row %q is not <block>:<number>:<head>", d.Row)
+	}
+	if _, err := doc.ParseHead(head); err != nil {
+		return "", "", "", "", fmt.Errorf("row %q: %w", d.Row, err)
 	}
 	return block, row, head, verdict, nil
 }

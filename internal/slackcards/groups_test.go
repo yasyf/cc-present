@@ -23,7 +23,7 @@ func merges(rows ...doc.PRRow) (*doc.PRGroups, doc.PRGroup) {
 }
 
 func rowIDs(sc slackcards.StatusCard) []string {
-	var ids []string
+	ids := make([]string, 0, len(sc.Rows))
 	for _, r := range sc.Rows {
 		ids = append(ids, r.ID)
 	}
@@ -40,10 +40,10 @@ func TestGroupCardAsksOnlyRowsWhoseVerdictDoesNotStand(t *testing.T) {
 		verdicts map[string]state.Decision
 		want     []string
 	}{
-		{"no verdict asks", row(41, "abc1234def"), nil, []string{"pg:41:abc1234"}},
+		{"no verdict asks", row(41, "abc1234def"), nil, []string{"pg:41:abc1234def"}},
 		{"a verdict at the head leaves", row(41, "abc1234def"), map[string]state.Decision{"41": approvedAt("abc1234")}, nil},
 		{"a verdict at a carried head leaves", row(41, "abc1234def", "0001111"), map[string]state.Decision{"41": approvedAt("0001111")}, nil},
-		{"a verdict at an old head asks again", row(41, "abc1234def"), map[string]state.Decision{"41": approvedAt("0001111")}, []string{"pg:41:abc1234"}},
+		{"a verdict at an old head asks again", row(41, "abc1234def"), map[string]state.Decision{"41": approvedAt("0001111")}, []string{"pg:41:abc1234def"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -105,6 +105,7 @@ func TestDecidedNamesTheBoardVerdict(t *testing.T) {
 		"another label": {Row: "pg:41:abc1234", Label: "Merge"},
 		"no head":       {Row: "41", Label: "Approve"},
 		"no block":      {Row: ":41:abc1234", Label: "Approve"},
+		"a short head":  {Row: "pg:41:a", Label: "Approve"},
 	} {
 		if _, _, _, _, err := d.Verdict(); err == nil {
 			t.Errorf("%s: Verdict accepted %+v", name, d)

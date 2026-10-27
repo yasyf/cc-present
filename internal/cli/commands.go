@@ -457,7 +457,7 @@ func newPushCmd(d cmd.Deps) *cobra.Command {
 			if hint := unresolvedRefsHint(unresolved); hint != "" {
 				_, _ = fmt.Fprintln(c.ErrOrStderr(), hint)
 			}
-			if !slackGroups(dd.Blocks) {
+			if len(slackGroups(dd.Blocks)) == 0 {
 				return nil
 			}
 			if err := syncGroups(ctx, cl, board{sess, scope, pid}, out); err != nil {
@@ -565,7 +565,7 @@ func newUpdateBlockCmd(d cmd.Deps) *cobra.Command {
 			if hint := unresolvedRefsHint(unresolved); hint != "" {
 				_, _ = fmt.Fprintln(c.ErrOrStderr(), hint)
 			}
-			if !slackGroups([]doc.Block{blk}) {
+			if len(slackGroups([]doc.Block{blk})) == 0 {
 				return nil
 			}
 			if err := syncGroups(ctx, cl, board{sess, scope, pid}, c.OutOrStdout()); err != nil {
