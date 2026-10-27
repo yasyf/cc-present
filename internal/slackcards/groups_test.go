@@ -98,10 +98,10 @@ func TestGroupCardsRetireAGroupThatLeftTheBoard(t *testing.T) {
 	after := *before
 	after.Groups = []doc.PRGroup{{ID: "signup", Title: "Signup", Summary: "People can sign up.", PRs: []doc.PRRow{row(43, "0123456789")}}}
 	cards := slackcards.GroupCards(before, &after, map[string]state.Decision{"41": approvedAt("abc1234")})
-	if len(cards) != 2 || cards[0].Group != "pg:signup" || cards[1].Group != "pg:login" {
-		t.Fatalf("cards = %+v, want the signup card then the retired login card", cards)
+	if len(cards) != 2 || cards[0].Group != "pg:login" || cards[1].Group != "pg:signup" {
+		t.Fatalf("cards = %+v, want the retired login card then the signup card", cards)
 	}
-	retired := cards[1]
+	retired := cards[0]
 	if len(retired.Rows) != 0 || retired.Status != "done" {
 		t.Fatalf("retired card = %+v, want no buttons and done", retired)
 	}

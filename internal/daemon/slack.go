@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	ccd "github.com/yasyf/cc-interact/daemon"
@@ -339,7 +340,11 @@ func (rs *restServer) answerOnSlack(ctx context.Context, subID string, card *doc
 	}
 }
 
+var redrawMu sync.Mutex
+
 func (rs *restServer) redrawGroupCards(ctx context.Context, subID string, it *interaction) error {
+	redrawMu.Lock()
+	defer redrawMu.Unlock()
 	events, err := loadEvents(ctx, rs.db(), subID)
 	if err != nil {
 		return err

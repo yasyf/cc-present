@@ -254,6 +254,7 @@ const (
 	rowHead      = 12
 	maxRowText   = 3000
 	maxBody      = 2800
+	maxMore      = 32
 )
 
 var rowVerdicts = map[string]string{approveLabel: "approved", holdLabel: "rejected"}
@@ -301,7 +302,7 @@ func GroupCard(g *doc.PRGroups, group doc.PRGroup, verdicts map[string]state.Dec
 }
 
 func groupBody(summary string, settled []string) string {
-	body := summary
+	body := string([]rune(summary)[:min(len([]rune(summary)), maxBody-maxMore)])
 	for i, line := range settled {
 		more := fmt.Sprintf("\n+%d more answered", len(settled)-i)
 		if len([]rune(body+"\n"+line+more)) > maxBody {
@@ -382,22 +383,23 @@ func cutLast(s string) (string, string, bool) {
 	return s[:i], s[i+1:], true
 }
 
-// GroupCards is every card a pr-groups block's push edits: one per group it
-// carries, and a card with no buttons for each group of before that it dropped.
+// GroupCards is every card a pr-groups block's push edits: a card with no
+// buttons for each group of before that it dropped, then one per group it carries.
 func GroupCards(before, g *doc.PRGroups, verdicts map[string]state.Decision) []StatusCard {
-	cards := make([]StatusCard, 0, len(g.Groups))
 	kept := map[string]bool{}
 	for _, group := range g.Groups {
 		kept[group.ID] = true
-		cards = append(cards, GroupCard(g, group, verdicts, true))
 	}
-	if before == nil {
-		return cards
-	}
-	for _, group := range before.Groups {
-		if !kept[group.ID] {
-			cards = append(cards, GroupCard(before, group, verdicts, false))
+	var cards []StatusCard
+	if before != nil {
+		for _, group := range before.Groups {
+			if !kept[group.ID] {
+				cards = append(cards, GroupCard(before, group, verdicts, false))
+			}
 		}
+	}
+	for _, group := range g.Groups {
+		cards = append(cards, GroupCard(g, group, verdicts, true))
 	}
 	return cards
 }

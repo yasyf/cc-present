@@ -167,45 +167,61 @@ func readBoard(ctx context.Context, cl *ccdaemon.Client, b board) (*sendBoard, e
 	return &st, nil
 }
 
-func boundGroups(st *sendBoard, ids []string) map[string]*doc.PRGroups {
-	bound := map[string]*doc.PRGroups{}
-	if st.Doc == nil {
-		return bound
+func groupsBefore(ctx context.Context, cl *ccdaemon.Client, b board) ([]*doc.PRGroups, error) {
+	st, err := readBoard(ctx, cl, b)
+	if err != nil {
+		return nil, err
 	}
+	return boundGroups(st), nil
+}
+
+func boundGroups(st *sendBoard) []*doc.PRGroups {
+	if st.Doc == nil {
+		return nil
+	}
+	var bound []*doc.PRGroups
 	for _, g := range prGroups(st.Doc.Blocks) {
-		if g.Thread() != "" && slices.Contains(ids, g.ID) {
-			bound[g.ID] = g
+		if g.Thread() != "" {
+			bound = append(bound, g)
 		}
 	}
 	return bound
 }
 
-func groupsBefore(ctx context.Context, cl *ccdaemon.Client, b board, ids []string) (map[string]*doc.PRGroups, error) {
-	if len(ids) == 0 {
-		return nil, nil
-	}
-	st, err := readBoard(ctx, cl, b)
-	if err != nil {
-		return nil, err
-	}
-	return boundGroups(st, ids), nil
-}
-
-func syncGroups(ctx context.Context, cl *ccdaemon.Client, b board, w io.Writer, ids []string, before map[string]*doc.PRGroups) error {
+func syncGroups(ctx context.Context, cl *ccdaemon.Client, b board, w io.Writer, ids []string, before []*doc.PRGroups) error {
 	st, err := readBoard(ctx, cl, b)
 	if err != nil {
 		return err
 	}
+	after := boundGroups(st)
 	var errs []error
-	for id, g := range boundGroups(st, ids) {
-		for _, card := range slackcards.GroupCards(before[id], g, st.Interactions.Triage[id]) {
+	post := func(g *doc.PRGroups, cards []slackcards.StatusCard) {
+		for _, card := range cards {
 			permalink, err := slackcards.PostGroupCard(ctx, b.session, g.Thread(), card)
 			if err != nil {
 				errs = append(errs, err)
 				continue
 			}
-			_, _ = fmt.Fprintf(w, "slack: %s %s\n", strings.TrimPrefix(card.Group, id+":"), cmp.Or(permalink, "nothing open, never posted"))
+			_, _ = fmt.Fprintf(w, "slack: %s %s\n", strings.TrimPrefix(card.Group, g.ID+":"), cmp.Or(permalink, "nothing open, never posted"))
 		}
+	}
+	for _, prev := range before {
+		if !slices.ContainsFunc(after, func(g *doc.PRGroups) bool { return g.ID == prev.ID }) {
+			gone := *prev
+			gone.Groups = nil
+			post(prev, slackcards.GroupCards(prev, &gone, st.Interactions.Triage[prev.ID]))
+		}
+	}
+	for _, g := range after {
+		if !slices.Contains(ids, g.ID) {
+			continue
+		}
+		i := slices.IndexFunc(before, func(p *doc.PRGroups) bool { return p.ID == g.ID })
+		var prev *doc.PRGroups
+		if i >= 0 {
+			prev = before[i]
+		}
+		post(g, slackcards.GroupCards(prev, g, st.Interactions.Triage[g.ID]))
 	}
 	return errors.Join(errs...)
 }

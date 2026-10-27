@@ -439,7 +439,7 @@ func newPushCmd(d cmd.Deps) *cobra.Command {
 				return err
 			}
 			ids := prGroupIDs(dd.Blocks)
-			before, err := groupsBefore(ctx, cl, board{sess, scope, pid}, ids)
+			before, err := groupsBefore(ctx, cl, board{sess, scope, pid})
 			if err != nil {
 				return err
 			}
@@ -463,7 +463,7 @@ func newPushCmd(d cmd.Deps) *cobra.Command {
 			if hint := unresolvedRefsHint(unresolved); hint != "" {
 				_, _ = fmt.Fprintln(c.ErrOrStderr(), hint)
 			}
-			if len(ids) == 0 {
+			if len(ids) == 0 && len(before) == 0 {
 				return nil
 			}
 			if err := syncGroups(ctx, cl, board{sess, scope, pid}, out, ids, before); err != nil {
@@ -558,7 +558,7 @@ func newUpdateBlockCmd(d cmd.Deps) *cobra.Command {
 				return err
 			}
 			ids := prGroupIDs([]doc.Block{blk})
-			before, err := groupsBefore(ctx, cl, board{sess, scope, pid}, ids)
+			before, err := groupsBefore(ctx, cl, board{sess, scope, pid})
 			if err != nil {
 				return err
 			}
@@ -576,7 +576,7 @@ func newUpdateBlockCmd(d cmd.Deps) *cobra.Command {
 			if hint := unresolvedRefsHint(unresolved); hint != "" {
 				_, _ = fmt.Fprintln(c.ErrOrStderr(), hint)
 			}
-			if len(ids) == 0 {
+			if len(ids) == 0 && len(before) == 0 {
 				return nil
 			}
 			if err := syncGroups(ctx, cl, board{sess, scope, pid}, c.OutOrStdout(), ids, before); err != nil {
