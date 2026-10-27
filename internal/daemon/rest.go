@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"mime"
 	"net/http"
 	"strings"
@@ -233,10 +234,11 @@ func (rs *restServer) handleInteractions(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	if req.Interaction.Type == EventTriageDecided {
-		if err := rs.redrawGroupCards(context.WithoutCancel(r.Context()), id, &req.Interaction); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
+		go func(ctx context.Context, it interaction) {
+			if err := rs.redrawGroupCards(ctx, id, &it); err != nil {
+				slog.Error("redraw pr-groups slack cards", "subject", id, "block", it.BlockID, "err", err)
+			}
+		}(context.WithoutCancel(r.Context()), req.Interaction)
 	}
 	if card != nil {
 		slug, err := subjectSlug(r.Context(), rs.db(), id)

@@ -13,6 +13,7 @@ import (
 
 	ccd "github.com/yasyf/cc-interact/daemon"
 	ccevent "github.com/yasyf/cc-interact/event"
+	"github.com/yasyf/cc-interact/subject"
 
 	"github.com/yasyf/cc-present/internal/doc"
 	"github.com/yasyf/cc-present/internal/slackcards"
@@ -332,26 +333,72 @@ func TestABoundPRGroupsBlockKeepsItsThreadUntilAPushUnbindsIt(t *testing.T) {
 	}
 }
 
-func TestBoardVerdictRedrawsItsSlackGroupCard(t *testing.T) {
+func TestABoardCannotBindASlackThreadAnotherOpenBoardDrives(t *testing.T) {
+	bound := json.RawMessage(strings.Replace(prGroupsDoc, `"repo":"a/b",`, `"repo":"a/b","slack":"1792842193.708029",`, 1))
+	h := newHarness(t)
+	if r := handleStart(h.hc(body{Doc: bound}), doc.NoPacks, nilDisplay); !r.OK {
+		t.Fatal(r.Error)
+	}
+	other := func(b body) ccd.HandlerCtx {
+		hc := h.hc(b)
+		hc.Env.Session, hc.Env.ClaudePID = "s2", 200
+		hc.Window = subject.Window{Session: "s2", ClaudePID: 200}
+		return hc
+	}
+	if r := handleStart(other(body{Doc: bound}), doc.NoPacks, nilDisplay); r.OK || !strings.Contains(r.Error, "belongs to the open board") {
+		t.Fatalf("seeding a second board with the bound thread = %+v, want refused", r)
+	}
+	if r := handlePush(other(body{Doc: bound}), doc.NoPacks, nilDisplay); r.OK || !strings.Contains(r.Error, "belongs to the open board") {
+		t.Fatalf("pushing the bound thread to a second board = %+v, want refused", r)
+	}
+	if r := handlePush(h.hc(body{Doc: bound}), doc.NoPacks, nilDisplay); !r.OK {
+		t.Fatalf("the owning board re-pushing its own thread: %s", r.Error)
+	}
+	if r := handleClose(h.hc(body{}), h.assets); !r.OK {
+		t.Fatal(r.Error)
+	}
+	if r := handlePush(other(body{Doc: bound}), doc.NoPacks, nilDisplay); !r.OK {
+		t.Fatalf("binding the thread once its board closed: %s", r.Error)
+	}
+}
+
+func TestBoardVerdictAnswersBeforeItsSlackGroupCardRedraws(t *testing.T) {
 	type posted struct {
 		session, thread string
 		card            slackcards.StatusCard
 	}
-	var calls []posted
+	calls := make(chan posted, 1)
+	release := make(chan struct{})
 	h := newRestHarnessWith(t, strings.Replace(prGroupsDoc, `"repo":"a/b",`, `"repo":"a/b","slack":"1792842193.708029",`, 1), emptyPackLoader(t))
 	h.rs.postGroup = func(_ context.Context, session, thread string, card slackcards.StatusCard) (string, error) {
-		calls = append(calls, posted{session, thread, card})
+		<-release
+		calls <- posted{session, thread, card}
 		return slackPermalink, nil
 	}
-	if w := h.post(t, `{"subject":"board--abcd0000","nonce":"n1","interaction":{"type":"triage.decided","blockId":"pg","verdicts":{"8":{"verdict":"approved","head":"abc1234"}}}}`); w.Code != http.StatusOK {
-		t.Fatalf("tap = %d %s", w.Code, w.Body)
+	tapped := make(chan int, 1)
+	go func() {
+		tapped <- h.post(t, `{"subject":"board--abcd0000","nonce":"n1","interaction":{"type":"triage.decided","blockId":"pg","verdicts":{"8":{"verdict":"approved","head":"abc1234"}}}}`).Code
+	}()
+	select {
+	case code := <-tapped:
+		if code != http.StatusOK {
+			t.Fatalf("tap = %d, want 200", code)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("the tap waited on the Slack card redraw")
 	}
-	if len(calls) != 1 || calls[0].session != "s1" || calls[0].thread != "1792842193.708029" || calls[0].card.Group != "pg:g1" {
-		t.Fatalf("cc-slack calls = %+v, want one edit of pg:g1 in the bound thread", calls)
+	close(release)
+	var call posted
+	select {
+	case call = <-calls:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the Slack card never redrew after the tap")
 	}
-	card := calls[0].card
-	if len(card.Rows) != 1 || card.Rows[0].ID != "pg:9:def5678" || !strings.Contains(card.Body, "`abc1234` · Approved at abc1234") {
-		t.Fatalf("card = %+v, want row 9 still asking and row 8 approved in the body", card)
+	if call.session != "s1" || call.thread != "1792842193.708029" || call.card.Group != "pg:g1" {
+		t.Fatalf("cc-slack call = %+v, want an edit of pg:g1 in the bound thread", call)
+	}
+	if len(call.card.Rows) != 1 || call.card.Rows[0].ID != "pg:9:def5678" || !strings.Contains(call.card.Body, "`abc1234` · Approved at abc1234") {
+		t.Fatalf("card = %+v, want row 9 still asking and row 8 approved in the body", call.card)
 	}
 }
 

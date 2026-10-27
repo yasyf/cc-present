@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- A `start`, `push` or `update-block` is rejected when its `pr-groups` block binds a Slack thread another open board already binds, naming that board. A board seeded from another board's document used to redraw the first board's group cards from its own empty verdicts, marking approved rows as having left the board.
+- A verdict tapped on a `pr-groups` row is recorded and answered before its Slack group card redraws, instead of after. The redraw re-read the whole board and waited on cc-slack, so on a long board a tap from the drive dashboard sat at "Approving…" for several seconds. A failed redraw is logged by the daemon instead of failing a tap that was already recorded.
 - Toasts open below the board's header while it is on screen, so a reply toast on a phone no longer covers the Focus/Board toggle and the menu for its 12 seconds. Once the header scrolls away, toasts return to the top of the window.
 - The "A block was updated" and "A block was removed" toasts are titled with the block they name, using the same label as the margin rail's thread rows. That is the block's prompt or title, or its card's title for an untitled child.
 - A card's summary in board mode reads as the card's lede. It is body-size text in the body color across the card's full width, instead of small gray text held to about 530 px of a 900 px card.
