@@ -3,13 +3,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import type { Root } from 'react-dom/client';
+import { QueryClientProvider } from '@tanstack/react-query';
+import { SubjectProvider, queryClient } from '../api';
 import { PresentContext } from '../present';
 import type { PresentApi } from '../present';
 import { KeyboardProvider } from '../keyboard';
 import { ActiveBlockProvider, useActiveBlock } from '../activeBlock';
 import { focusSteps, remaining } from '../focus';
 import { emptyState } from '../reduce';
-import type { Interactions, RoundRecord } from '../events';
+import type { Interactions, RoundEntry, RoundRecord } from '../events';
 import type { Block } from '../schema';
 import { StepJump, progressLabel } from './StepJump';
 
@@ -60,6 +62,8 @@ beforeEach(() => {
 afterEach(() => {
   act(() => root.unmount());
   container.remove();
+  queryClient.clear();
+  vi.unstubAllGlobals();
 });
 
 function RevealButton({ blockId }: { blockId: string }) {
@@ -67,25 +71,29 @@ function RevealButton({ blockId }: { blockId: string }) {
   return <button type="button" data-testid="reveal" onClick={() => revealBlock(blockId)} />;
 }
 
-function render(blocks: Block[], history: RoundRecord[]): void {
+function render(blocks: Block[], history: RoundEntry[]): void {
   const steps = focusSteps(blocks, new Set());
   const present: PresentApi = { post: async () => true, closed: false, currentRound: history.length + 1 };
   act(() =>
     root.render(
-      <PresentContext.Provider value={present}>
-        <KeyboardProvider blocks={blocks} interactions={empty()} closed={false} round={history.length + 1}>
-          <ActiveBlockProvider>
-            <StepJump
-              steps={steps}
-              progress={remaining(steps, empty(), new Set())}
-              interactions={empty()}
-              packInteractive={new Set()}
-              history={history}
-            />
-            <RevealButton blockId="old" />
-          </ActiveBlockProvider>
-        </KeyboardProvider>
-      </PresentContext.Provider>,
+      <QueryClientProvider client={queryClient}>
+        <SubjectProvider value={{ subject: 'board', scope: undefined }}>
+          <PresentContext.Provider value={present}>
+            <KeyboardProvider blocks={blocks} interactions={empty()} closed={false} round={history.length + 1}>
+              <ActiveBlockProvider>
+                <StepJump
+                  steps={steps}
+                  progress={remaining(steps, empty(), new Set())}
+                  interactions={empty()}
+                  packInteractive={new Set()}
+                  history={history}
+                />
+                <RevealButton blockId="old" />
+              </ActiveBlockProvider>
+            </KeyboardProvider>
+          </PresentContext.Provider>
+        </SubjectProvider>
+      </QueryClientProvider>,
     ),
   );
 }
@@ -135,6 +143,17 @@ describe('StepJump history drawer', () => {
     expect(container.querySelector('.step-jump')?.textContent).toBe('Earlier rounds');
     click('.step-jump');
     expect(drawer()!.hasAttribute('open')).toBe(true);
+  });
+
+  it('fetches a stubbed round once, when the drawer opens', async () => {
+    const fetch = vi.fn(async (_url: string) => new Response(JSON.stringify({ history })));
+    vi.stubGlobal('fetch', fetch);
+    render([], [{ number: 1, outline: [{ id: 'old', type: 'approval', label: 'Earlier ask' }], feedback: {} }]);
+    expect(fetch).not.toHaveBeenCalled();
+    click('.step-jump');
+    await vi.waitFor(() => expect(drawer()!.querySelector('.round-title')?.textContent).toContain('Round 1'));
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(fetch.mock.calls[0]![0]).toContain('/api/rounds?session=board');
   });
 
   it('opens the drawer on the revealed round when a thread jumps to an old block', () => {
