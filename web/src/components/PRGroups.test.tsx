@@ -137,6 +137,31 @@ describe('PRGroups', () => {
     expect(button(rowEl(8), 'Approve').getAttribute('aria-checked')).toBe('false');
   });
 
+  it('moves a row answered at its head out of the tap list into the collapsed answered list', () => {
+    render(withVerdicts({ pg: { '8': { verdict: 'approved', head: 'abc1234', at: '2026-10-26T20:03:00Z' } } }));
+    const answered = container.querySelector<HTMLDetailsElement>('details.prg-answered')!;
+    expect(answered.open).toBe(false);
+    expect(answered.querySelector('summary')!.textContent).toBe('1 approved, landing');
+    expect(answered.contains(rowEl(8))).toBe(true);
+    expect(button(rowEl(8), 'Approve')).toBeUndefined();
+    expect(container.querySelectorAll('.prg-rows .prg-row')).toHaveLength(1);
+    expect(container.querySelector('.prg-group-count')!.textContent).toBe('1 waiting on you');
+  });
+
+  it('hides a group with nothing waiting and shows a carried tap with its reason', () => {
+    render(
+      withVerdicts({
+        pg: {
+          '8': { verdict: 'approved', head: 'abc1234', at: '2026-10-26T20:03:00Z' },
+          '9': { verdict: 'approved', head: 'def5678', at: '2026-10-26T20:03:00Z', carriedFrom: '0001111', carryNote: 'patch-identical replay' },
+        },
+      }),
+    );
+    expect(container.querySelector('.prg-group')).toBeNull();
+    expect(container.querySelector('.prg-verdicts')).toBeNull();
+    expect(rowEl(9).querySelector('.prg-given')!.textContent).toMatch(/^Your tap at 0001111 on .+ carries to def5678: patch-identical replay$/);
+  });
+
   it('applies a key verdict to the row holding focus', () => {
     const posted = render(withVerdicts({}));
     act(() => button(rowEl(9), 'Approve').dispatchEvent(new FocusEvent('focusin', { bubbles: true })));

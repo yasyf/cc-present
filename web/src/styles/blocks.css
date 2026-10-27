@@ -2653,6 +2653,30 @@ a.ref:focus-visible {
   font-family: var(--font-mono);
   font-size: var(--text-2xs);
 }
+.prg-answered {
+  border-top: 1px solid var(--line);
+  padding-top: var(--space-3);
+}
+.prg-answered-summary {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  color: var(--dim);
+  font-weight: 600;
+  cursor: pointer;
+}
+.prg-answered-rows {
+  display: grid;
+  gap: var(--space-3);
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  list-style: none;
+}
+.prg-answered-row {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+}
 .prg-verdicts {
   margin-top: 0;
 }
