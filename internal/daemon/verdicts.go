@@ -1,10 +1,12 @@
 package daemon
 
 import (
+	"cmp"
 	"encoding/json"
 	"fmt"
 	"slices"
 	"sort"
+	"strings"
 	"time"
 
 	ccd "github.com/yasyf/cc-interact/daemon"
@@ -17,21 +19,26 @@ import (
 // PriorVerdict is a verdict the human gave on an earlier board, carried onto a
 // pr-groups row so they are not asked again. Head defaults to the row's head; a
 // different head records the verdict at that commit, which the board shows as
-// needing a fresh tap.
+// needing a fresh tap. CarriedFrom names the head the human tapped when it
+// differs from Head, and CarryNote says why the tap still stands there.
 type PriorVerdict struct {
-	Block   string    `json:"block"`
-	Row     string    `json:"row"`
-	Verdict string    `json:"verdict"`
-	At      time.Time `json:"at"`
-	Note    string    `json:"note,omitempty"`
-	Head    string    `json:"head,omitempty"`
+	Block       string    `json:"block"`
+	Row         string    `json:"row"`
+	Verdict     string    `json:"verdict"`
+	At          time.Time `json:"at"`
+	Note        string    `json:"note,omitempty"`
+	Head        string    `json:"head,omitempty"`
+	CarriedFrom string    `json:"carriedFrom,omitempty"`
+	CarryNote   string    `json:"carryNote,omitempty"`
 }
 
-// ImportResult counts what the import-verdicts op recorded and what it left alone
-// because the row already carried a verdict.
+// ImportResult counts what the import-verdicts op recorded, the rows it left
+// alone because they already carried a verdict, and, under replace, the rows
+// whose verdict it overwrote.
 type ImportResult struct {
 	Imported int      `json:"imported"`
 	Skipped  []string `json:"skipped,omitempty"`
+	Replaced []string `json:"replaced,omitempty"`
 }
 
 func handleImportVerdicts(hc ccd.HandlerCtx) ccd.Reply {
@@ -54,7 +61,7 @@ func handleImportVerdicts(hc ccd.HandlerCtx) ccd.Reply {
 	if err != nil {
 		return errReply(err.Error())
 	}
-	payloads, res, err := priorVerdictPayloads(&st, priors)
+	payloads, res, err := priorVerdictPayloads(&st, priors, b.Replace)
 	if err != nil {
 		return errReply(err.Error())
 	}
@@ -69,7 +76,7 @@ func handleImportVerdicts(hc ccd.HandlerCtx) ccd.Reply {
 	return okReply(result{State: raw})
 }
 
-func priorVerdictPayloads(st *state.State, priors []PriorVerdict) ([]json.RawMessage, ImportResult, error) {
+func priorVerdictPayloads(st *state.State, priors []PriorVerdict, replace bool) ([]json.RawMessage, ImportResult, error) {
 	byBlock := map[string]map[string]triageEntry{}
 	var res ImportResult
 	for _, p := range priors {
@@ -97,17 +104,31 @@ func priorVerdictPayloads(st *state.State, priors []PriorVerdict) ([]json.RawMes
 		if _, err := doc.ParseHead(head); err != nil {
 			return nil, res, fmt.Errorf("pr-groups %q #%s: %w", p.Block, p.Row, err)
 		}
-		if len(p.Note) > maxHumanTextBytes {
+		if (p.CarriedFrom == "") != (p.CarryNote == "") {
+			return nil, res, fmt.Errorf("pr-groups %q #%s: carriedFrom and carryNote come together", p.Block, p.Row)
+		}
+		if p.CarriedFrom != "" {
+			if _, err := doc.ParseHead(p.CarriedFrom); err != nil {
+				return nil, res, fmt.Errorf("pr-groups %q #%s carriedFrom: %w", p.Block, p.Row, err)
+			}
+		}
+		if len(p.Note) > maxHumanTextBytes || len(p.CarryNote) > maxHumanTextBytes {
 			return nil, res, fmt.Errorf("pr-groups %q #%s note exceeds %d bytes", p.Block, p.Row, maxHumanTextBytes)
 		}
 		if _, decided := st.Interactions.Triage[p.Block][p.Row]; decided {
-			res.Skipped = append(res.Skipped, p.Block+"/"+p.Row)
-			continue
+			if !replace {
+				res.Skipped = append(res.Skipped, p.Block+"/"+p.Row)
+				continue
+			}
+			res.Replaced = append(res.Replaced, p.Block+"/"+p.Row)
 		}
 		if byBlock[p.Block] == nil {
 			byBlock[p.Block] = map[string]triageEntry{}
 		}
-		byBlock[p.Block][p.Row] = triageEntry{Verdict: p.Verdict, Note: p.Note, Head: head, At: p.At.UTC().Format(time.RFC3339)}
+		byBlock[p.Block][p.Row] = triageEntry{
+			Verdict: p.Verdict, Note: p.Note, Head: head, At: p.At.UTC().Format(time.RFC3339),
+			CarriedFrom: p.CarriedFrom, CarryNote: p.CarryNote,
+		}
 		res.Imported++
 	}
 	blocks := make([]string, 0, len(byBlock))
@@ -120,6 +141,100 @@ func priorVerdictPayloads(st *state.State, priors []PriorVerdict) ([]json.RawMes
 		payloads = append(payloads, mustJSON(map[string]any{"blockId": id, "verdicts": byBlock[id]}))
 	}
 	return payloads, res, nil
+}
+
+// VerdictCarry moves a pr-groups row's recorded verdict to Head, a commit the
+// agent judged the same change as the one the human tapped, with Note saying why.
+type VerdictCarry struct {
+	Block string `json:"block"`
+	Row   string `json:"row"`
+	Head  string `json:"head"`
+	Note  string `json:"note"`
+}
+
+// CarryResult is what the carry-verdict op recorded: the verdict, the head the
+// human tapped, when, and the head it now stands at. Already reports a verdict
+// that stood at Head before the carry, which leaves the log untouched.
+type CarryResult struct {
+	Verdict string `json:"verdict"`
+	From    string `json:"from"`
+	At      string `json:"at"`
+	To      string `json:"to"`
+	Already bool   `json:"already,omitempty"`
+}
+
+func handleCarryVerdict(hc ccd.HandlerCtx) ccd.Reply {
+	b := decodeBody(hc.Env.Body)
+	var c VerdictCarry
+	if err := json.Unmarshal(b.Verdicts, &c); err != nil {
+		return errReply("decode carry: " + err.Error())
+	}
+	sub, err := resolveOpen(hc)
+	if err != nil {
+		return errReply(err.Error())
+	}
+	writeMu.Lock()
+	defer writeMu.Unlock()
+	events, err := loadEvents(hc.Ctx, hc.DB, sub.ID)
+	if err != nil {
+		return errReply(err.Error())
+	}
+	st, err := state.Reduce(events)
+	if err != nil {
+		return errReply(err.Error())
+	}
+	payload, res, err := carryVerdictPayload(&st, c)
+	if err != nil {
+		return errReply(err.Error())
+	}
+	if payload != nil {
+		if _, err := appendEvent(hc.Ctx, hc.Append, &ccevent.Event{
+			SubjectID: sub.ID, Origin: ccevent.OriginAgent, Type: EventTriageDecided, Payload: payload,
+		}); err != nil {
+			return errReply(err.Error())
+		}
+	}
+	raw, _ := json.Marshal(res)
+	return okReply(result{State: raw})
+}
+
+func carryVerdictPayload(st *state.State, c VerdictCarry) (json.RawMessage, CarryResult, error) {
+	g, topID, err := requirePRGroups(st, c.Block)
+	if err != nil {
+		return nil, CarryResult{}, err
+	}
+	if err := requireCurrentRound(st, c.Block, topID); err != nil {
+		return nil, CarryResult{}, err
+	}
+	row, ok := g.Row(c.Row)
+	if !ok {
+		return nil, CarryResult{}, fmt.Errorf("pr-groups %q has no pull request %q", c.Block, c.Row)
+	}
+	head, err := doc.ParseHead(c.Head)
+	if err != nil {
+		return nil, CarryResult{}, fmt.Errorf("pr-groups %q #%s: %w", c.Block, c.Row, err)
+	}
+	if doc.SameHead(head, row.Head) {
+		head = row.Head
+	}
+	if strings.TrimSpace(c.Note) == "" {
+		return nil, CarryResult{}, fmt.Errorf("pr-groups %q #%s: a carry needs a note saying why the tap still stands", c.Block, c.Row)
+	}
+	if len(c.Note) > maxHumanTextBytes {
+		return nil, CarryResult{}, fmt.Errorf("pr-groups %q #%s note exceeds %d bytes", c.Block, c.Row, maxHumanTextBytes)
+	}
+	d, ok := recordedVerdict(st, VerdictRef{Block: c.Block, Row: c.Row})
+	if !ok {
+		return nil, CarryResult{}, fmt.Errorf("pr-groups %q #%s has no recorded verdict to carry", c.Block, c.Row)
+	}
+	tapped := cmp.Or(d.CarriedFrom, d.Head)
+	res := CarryResult{Verdict: d.Verdict, From: tapped, At: d.At, To: head}
+	if doc.SameHead(d.Head, head) {
+		res.Already = true
+		return nil, res, nil
+	}
+	entry := triageEntry{Verdict: d.Verdict, Note: d.Note, Head: head, At: d.At, CarriedFrom: tapped, CarryNote: c.Note}
+	return mustJSON(map[string]any{"blockId": c.Block, "verdicts": map[string]triageEntry{c.Row: entry}}), res, nil
 }
 
 func requirePRGroups(st *state.State, id string) (*doc.PRGroups, string, error) {
@@ -254,7 +369,7 @@ func movedEntry(st *state.State, to VerdictRef, d state.Decision, now time.Time)
 		if at == "" {
 			at = now.UTC().Format(time.RFC3339)
 		}
-		return triageEntry{Verdict: d.Verdict, Note: d.Note, Head: head, At: at}, nil
+		return triageEntry{Verdict: d.Verdict, Note: d.Note, Head: head, At: at, CarriedFrom: d.CarriedFrom, CarryNote: d.CarryNote}, nil
 	default:
 		return triageEntry{}, fmt.Errorf("block %q is a %s, not a triage or pr-groups", to.Block, b.BlockType())
 	}

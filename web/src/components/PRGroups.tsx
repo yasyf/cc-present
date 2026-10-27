@@ -9,14 +9,12 @@ import { renderInlineMarkdown, renderMarkdown } from '../markdown';
 import {
   allRows,
   approveGroup,
+  givenLine,
   prRowId,
   rowVerdict,
-  shortHead,
   staleLine,
   tally,
   toggleEntry,
-  formatAt,
-  verdictWord,
   type RowVerdict,
   type VerdictEntry,
 } from '../prgroups';
@@ -224,11 +222,7 @@ function Row({ block, row, decision, locked, expanded, cursored, onFocus, onTogg
         </p>
       )}
       {v.kind === 'current' && (
-        <p className="prg-given">
-          {verdictWord(v.decision.verdict)} at {shortHead(v.decision.head ?? row.head)}
-          {v.decision.at ? ` on ${formatAt(v.decision.at)}` : ''}
-          {v.carried ? `; the agent carried it to ${shortHead(row.head)}` : ''}
-        </p>
+        <p className="prg-given">{givenLine(v, row)}</p>
       )}
 
       <div className="decision-bar prg-verdicts" role="radiogroup" aria-label={`#${row.number} ${row.title}`}>

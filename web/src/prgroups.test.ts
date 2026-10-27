@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { allDecided, approveGroup, rowVerdict, sameHead, staleLine, tally, toggleEntry } from './prgroups';
+import { allDecided, approveGroup, givenLine, rowVerdict, sameHead, staleLine, tally, toggleEntry } from './prgroups';
 import type { PRGroups, PRRow } from './schema';
 
 const row = (number: number, head: string, over: Partial<PRRow> = {}): PRRow => ({
@@ -63,6 +63,20 @@ describe('staleLine', () => {
   it('names the old head, the time, and the new head', () => {
     const line = staleLine(block.groups[0]!.prs[0]!, { verdict: 'approved', head: '9999999aaaa', at: '2026-10-26T21:03:00Z' });
     expect(line).toMatch(/^Approved at 9999999 on .+; new head abc1234 needs your tap\.$/);
+  });
+});
+
+describe('givenLine', () => {
+  const r = block.groups[0]!.prs[0]!;
+  it('names the head a standing verdict was given at', () => {
+    const line = givenLine({ kind: 'current', decision: { verdict: 'approved', head: 'abc1234', at: '2026-10-26T21:03:00Z' }, carried: false }, r);
+    expect(line).toMatch(/^Approved at abc1234 on .+$/);
+  });
+  it('names the tapped head and the reason for an agent carry', () => {
+    const decision = { verdict: 'approved', head: 'abc1234', at: '2026-10-26T21:03:00Z', carriedFrom: '9999999aaaa', carryNote: 'patch-identical replay' } as const;
+    const v = rowVerdict(r, decision);
+    expect(v.kind).toBe('current');
+    expect(givenLine(v as Extract<typeof v, { kind: 'current' }>, r)).toMatch(/^Your tap at 9999999 on .+ carries to abc1234: patch-identical replay$/);
   });
 });
 

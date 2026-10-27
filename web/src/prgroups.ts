@@ -54,6 +54,18 @@ export function staleLine(row: PRRow, decision: Decision): string {
   return `${verdictWord(decision.verdict)}${given} on ${formatAt(decision.at)}; new head ${shortHead(row.head)} needs your tap.`;
 }
 
+// givenLine says where a standing verdict was given; a verdict the agent carried
+// to a new head names the head the human tapped and the agent's reason.
+export function givenLine(v: Extract<RowVerdict, { kind: 'current' }>, row: PRRow): string {
+  const { decision } = v;
+  const at = decision.at ? ` on ${formatAt(decision.at)}` : '';
+  if (decision.carriedFrom) {
+    return `Your tap at ${shortHead(decision.carriedFrom)}${at} carries to ${shortHead(decision.head ?? row.head)}: ${decision.carryNote ?? ''}`;
+  }
+  const carried = v.carried ? `; the agent carried it to ${shortHead(row.head)}` : '';
+  return `${verdictWord(decision.verdict)} at ${shortHead(decision.head ?? row.head)}${at}${carried}`;
+}
+
 export interface Tally {
   approved: number;
   held: number;

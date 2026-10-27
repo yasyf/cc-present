@@ -826,9 +826,24 @@ on an earlier board onto a live `pr-groups` block, as the agent-side
 `{block, row, verdict, at, note?, head?}`: `block` is the `pr-groups` id, `row`
 the PR number in decimal, `verdict` `approved` or `rejected`, `at` the RFC 3339
 time it was given. `head` defaults to the row's current head; an older head is
-recorded as given and reads as stale. The op appends one agent-origin
-`triage.decided` per block, refuses the whole file on any invalid entry, and
-leaves a row that already carries a verdict untouched, reporting it as kept.
+recorded as given and reads as stale. An entry may add `carriedFrom`, the head
+the human tapped, with `carryNote`, why the tap stands at `head`; the two come
+together. The op appends one agent-origin `triage.decided` per block, refuses
+the whole file on any invalid entry, and leaves a row that already carries a
+verdict untouched, reporting it as kept, unless `--replace` (body `replace`)
+overwrites it, reporting it as replaced.
+
+`cc-present verdict carry --block <id> --row <n> --head <sha> --note <why>`
+runs the agent-side `carry-verdict` op over `{block, row, head, note}`. It reads
+the row's verdict from the live interactions, then from closed rounds newest
+first, and appends one agent-origin `triage.decided` recording it at `head`
+with the same verdict, note and `at`, plus `carriedFrom`, the head the human
+tapped (kept across repeated carries), and `carryNote`. The row then stands at
+`head`: it leaves the Slack card and the board reads
+`Your tap at <carriedFrom> on <at> carries to <head>: <carryNote>`. A verdict
+that already stands at `head` writes nothing and reports `already`. A row with
+no verdict, an empty note, or a bad head is refused. A human tap on the row
+records a fresh verdict without the carry fields.
 
 `cc-present verdict move` and `verdict copy` run the agent-side
 `move-verdicts` op over `[{from: {block, row}, to: {block, row}, keep?}]`. Each

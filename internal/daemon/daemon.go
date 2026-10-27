@@ -119,6 +119,7 @@ func BuildServer(ctx context.Context, p paths.Paths, spec daemonkit.Daemon, runt
 	s.Register(OpSlackDecided, handleSlackDecided)
 	s.Register(OpImportVerdicts, handleImportVerdicts)
 	s.Register(OpMoveVerdicts, handleMoveVerdicts)
+	s.Register(OpCarryVerdict, handleCarryVerdict)
 	mountREST(s, ast, loader, runtimeBuild)
 	return s, nil
 }

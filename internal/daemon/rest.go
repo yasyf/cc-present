@@ -85,12 +85,15 @@ type interaction struct {
 
 // triageEntry is one item's verdict in a triage.decided interaction, mirrored
 // into the appended payload with an empty note omitted. On a pr-groups row the
-// human names the head they decided at, and the daemon stamps At.
+// human names the head they decided at, and the daemon stamps At; only the
+// agent's carry sets CarriedFrom and CarryNote.
 type triageEntry struct {
-	Verdict string `json:"verdict"`
-	Note    string `json:"note,omitempty"`
-	Head    string `json:"head,omitempty"`
-	At      string `json:"at,omitempty"`
+	Verdict     string `json:"verdict"`
+	Note        string `json:"note,omitempty"`
+	Head        string `json:"head,omitempty"`
+	At          string `json:"at,omitempty"`
+	CarriedFrom string `json:"carriedFrom,omitempty"`
+	CarryNote   string `json:"carryNote,omitempty"`
 }
 
 // mountREST registers the human-interaction endpoint, the content-addressed

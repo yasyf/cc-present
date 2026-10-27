@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - `cc-present reply --re <feedback id>` threads an agent reply under the note it answers. The board shows each note with its replies indented beneath it, newest last, and folds all but the newest two behind "Show N more". A reply without `--re` still sits under the block. `outcomes` nests each such reply under its note as `replies`, and the present skill's writer template passes `--re`.
+- `cc-present verdict carry --block <id> --row <n> --head <sha> --note <why>` moves the human's verdict on a `pr-groups` row to a new head the agent judged the same change, such as a patch-identical replay. The row keeps the head and time the human tapped, leaves the Slack card's tap list, and reads "Your tap at <old> on <time> carries to <new>: <note>" on the board. The original tap stays in the board's history.
+- `cc-present verdict import --replace` overwrites a row's existing verdict instead of keeping it, and each entry may name `carriedFrom` and `carryNote` to record a carry in bulk.
 
 ### Changed
 

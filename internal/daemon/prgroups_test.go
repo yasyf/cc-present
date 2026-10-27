@@ -122,12 +122,14 @@ func TestHandlePRServesPRGroupsRow(t *testing.T) {
 func TestPriorVerdictPayloads(t *testing.T) {
 	at := time.Date(2026, 10, 26, 20, 3, 0, 0, time.UTC)
 	tests := []struct {
-		name    string
-		priors  []PriorVerdict
-		decided map[string]state.Decision
-		want    string
-		skipped []string
-		wantErr string
+		name     string
+		priors   []PriorVerdict
+		decided  map[string]state.Decision
+		replace  bool
+		want     string
+		skipped  []string
+		replaced []string
+		wantErr  string
 	}{
 		{
 			name:   "defaults the head to the row's",
@@ -146,6 +148,16 @@ func TestPriorVerdictPayloads(t *testing.T) {
 			want:    `{"blockId":"pg","verdicts":{"9":{"verdict":"approved","head":"def5678","at":"2026-10-26T20:03:00Z"}}}`,
 			skipped: []string{"pg/8"},
 		},
+		{
+			name:     "replace overwrites a tap and records the carry",
+			priors:   []PriorVerdict{{Block: "pg", Row: "8", Verdict: "approved", At: at, CarriedFrom: "0001111", CarryNote: "patch-identical replay"}},
+			decided:  map[string]state.Decision{"8": {Verdict: "approved", Head: "0001111"}},
+			replace:  true,
+			want:     `{"blockId":"pg","verdicts":{"8":{"verdict":"approved","head":"abc1234","at":"2026-10-26T20:03:00Z","carriedFrom":"0001111","carryNote":"patch-identical replay"}}}`,
+			replaced: []string{"pg/8"},
+		},
+		{name: "carry note without its head", priors: []PriorVerdict{{Block: "pg", Row: "8", Verdict: "approved", At: at, CarryNote: "same"}}, wantErr: "come together"},
+		{name: "bad carried head", priors: []PriorVerdict{{Block: "pg", Row: "8", Verdict: "approved", At: at, CarriedFrom: "XYZ", CarryNote: "same"}}, wantErr: "carriedFrom: head must be"},
 		{name: "unknown row", priors: []PriorVerdict{{Block: "pg", Row: "77", Verdict: "approved", At: at}}, wantErr: `no pull request "77"`},
 		{name: "not a pr-groups", priors: []PriorVerdict{{Block: "tr1", Row: "8", Verdict: "approved", At: at}}, wantErr: "not a pr-groups"},
 		{name: "cleared is not a prior verdict", priors: []PriorVerdict{{Block: "pg", Row: "8", Verdict: "cleared", At: at}}, wantErr: "approved or rejected"},
@@ -166,7 +178,7 @@ func TestPriorVerdictPayloads(t *testing.T) {
 			if tt.decided != nil {
 				st.Interactions.Triage["pg"] = tt.decided
 			}
-			payloads, res, err := priorVerdictPayloads(&st, tt.priors)
+			payloads, res, err := priorVerdictPayloads(&st, tt.priors, tt.replace)
 			if tt.wantErr != "" {
 				if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
 					t.Fatalf("err = %v, want %q", err, tt.wantErr)
@@ -181,6 +193,9 @@ func TestPriorVerdictPayloads(t *testing.T) {
 			}
 			if strings.Join(res.Skipped, ",") != strings.Join(tt.skipped, ",") {
 				t.Fatalf("skipped = %v, want %v", res.Skipped, tt.skipped)
+			}
+			if strings.Join(res.Replaced, ",") != strings.Join(tt.replaced, ",") {
+				t.Fatalf("replaced = %v, want %v", res.Replaced, tt.replaced)
 			}
 			var p struct {
 				Verdicts map[string]json.RawMessage `json:"verdicts"`
@@ -274,6 +289,87 @@ func TestMoveVerdictPayloads(t *testing.T) {
 			}
 			if strings.Join(got, "\n") != strings.Join(tt.want, "\n") {
 				t.Fatalf("payloads =\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(tt.want, "\n"))
+			}
+		})
+	}
+}
+
+func TestCarryVerdictPayload(t *testing.T) {
+	const tapped = "2026-10-26T20:03:00Z"
+	tests := []struct {
+		name    string
+		decided map[string]state.Decision
+		history map[string]state.Decision
+		carry   VerdictCarry
+		want    string
+		res     CarryResult
+		wantErr string
+	}{
+		{
+			name:    "a tap at an old head stands at the row's head",
+			decided: map[string]state.Decision{"8": {Verdict: "approved", Note: "ship it", Head: "0001111", At: tapped}},
+			carry:   VerdictCarry{Block: "pg", Row: "8", Head: "abc1234ffff", Note: "patch-identical replay"},
+			want:    `{"blockId":"pg","verdicts":{"8":{"verdict":"approved","note":"ship it","head":"abc1234","at":"2026-10-26T20:03:00Z","carriedFrom":"0001111","carryNote":"patch-identical replay"}}}`,
+			res:     CarryResult{Verdict: "approved", From: "0001111", At: tapped, To: "abc1234"},
+		},
+		{
+			name:    "a second carry names the head the human tapped",
+			decided: map[string]state.Decision{"8": {Verdict: "rejected", Head: "2223333", At: tapped, CarriedFrom: "0001111", CarryNote: "rebase"}},
+			carry:   VerdictCarry{Block: "pg", Row: "8", Head: "abc1234", Note: "restack"},
+			want:    `{"blockId":"pg","verdicts":{"8":{"verdict":"rejected","head":"abc1234","at":"2026-10-26T20:03:00Z","carriedFrom":"0001111","carryNote":"restack"}}}`,
+			res:     CarryResult{Verdict: "rejected", From: "0001111", At: tapped, To: "abc1234"},
+		},
+		{
+			name:    "a tap from a closed round carries",
+			history: map[string]state.Decision{"9": {Verdict: "approved", Head: "0001111", At: tapped}},
+			carry:   VerdictCarry{Block: "pg", Row: "9", Head: "def5678", Note: "same patch"},
+			want:    `{"blockId":"pg","verdicts":{"9":{"verdict":"approved","head":"def5678","at":"2026-10-26T20:03:00Z","carriedFrom":"0001111","carryNote":"same patch"}}}`,
+			res:     CarryResult{Verdict: "approved", From: "0001111", At: tapped, To: "def5678"},
+		},
+		{
+			name:    "a verdict already at the head writes nothing",
+			decided: map[string]state.Decision{"8": {Verdict: "approved", Head: "abc1234", At: tapped}},
+			carry:   VerdictCarry{Block: "pg", Row: "8", Head: "abc1234", Note: "same"},
+			res:     CarryResult{Verdict: "approved", From: "abc1234", At: tapped, To: "abc1234", Already: true},
+		},
+		{name: "no verdict to carry", carry: VerdictCarry{Block: "pg", Row: "8", Head: "abc1234", Note: "same"}, wantErr: "no recorded verdict"},
+		{name: "a note is required", decided: map[string]state.Decision{"8": {Verdict: "approved", Head: "0001111", At: tapped}}, carry: VerdictCarry{Block: "pg", Row: "8", Head: "abc1234", Note: " "}, wantErr: "needs a note"},
+		{name: "bad head", carry: VerdictCarry{Block: "pg", Row: "8", Head: "XYZ", Note: "same"}, wantErr: "head must be"},
+		{name: "unknown row", carry: VerdictCarry{Block: "pg", Row: "77", Head: "abc1234", Note: "same"}, wantErr: `no pull request "77"`},
+		{name: "not a pr-groups", carry: VerdictCarry{Block: "tr1", Row: "i1", Head: "abc1234", Note: "same"}, wantErr: "not a pr-groups"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := newRestHarnessWith(t, prGroupsDoc, emptyPackLoader(t))
+			events, err := loadEvents(t.Context(), h.cc.DB(), h.id)
+			if err != nil {
+				t.Fatal(err)
+			}
+			st, err := state.Reduce(events)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if tt.decided != nil {
+				st.Interactions.Triage["pg"] = tt.decided
+			}
+			if tt.history != nil {
+				st.Rounds.History = append(st.Rounds.History, state.RoundRecord{Triage: map[string]map[string]state.Decision{"pg": tt.history}})
+			}
+			payload, res, err := carryVerdictPayload(&st, tt.carry)
+			if tt.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+					t.Fatalf("err = %v, want %q", err, tt.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if string(payload) != tt.want {
+				t.Fatalf("payload = %s, want %s", payload, tt.want)
+			}
+			if res != tt.res {
+				t.Fatalf("result = %+v, want %+v", res, tt.res)
 			}
 		})
 	}

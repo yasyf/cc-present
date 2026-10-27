@@ -213,6 +213,9 @@ export interface Decision {
   // A pr-groups row's verdict: the head it was given at and the daemon's stamp.
   head?: string;
   at?: string;
+  // An agent carry: the head the human tapped and why the tap stands at head.
+  carriedFrom?: string;
+  carryNote?: string;
 }
 
 export interface Selection {

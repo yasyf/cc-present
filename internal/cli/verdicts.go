@@ -12,29 +12,33 @@ import (
 	ccdaemon "github.com/yasyf/cc-present/internal/daemon"
 )
 
-// newVerdictCmd groups the agent-side verdict verbs: carrying verdicts from an
-// earlier board onto pr-groups rows, and moving or copying a recorded verdict
-// to another row so a regrouped board keeps the human's taps.
+// newVerdictCmd groups the agent-side verdict verbs: importing verdicts from an
+// earlier board onto pr-groups rows, carrying a row's verdict to a new head that
+// is the same change, and moving or copying a recorded verdict to another row so
+// a regrouped board keeps the human's taps.
 func newVerdictCmd(d cmd.Deps) *cobra.Command {
 	c := &cobra.Command{
 		Use:   "verdict",
-		Short: "Import, move, or copy the human's recorded verdicts",
+		Short: "Import, carry, move, or copy the human's recorded verdicts",
 		Args:  cobra.NoArgs,
 	}
-	c.AddCommand(newVerdictImportCmd(d), newVerdictMoveCmd(d, false), newVerdictMoveCmd(d, true))
+	c.AddCommand(newVerdictImportCmd(d), newVerdictCarryCmd(d), newVerdictMoveCmd(d, false), newVerdictMoveCmd(d, true))
 	return c
 }
 
 func newVerdictImportCmd(d cmd.Deps) *cobra.Command {
 	var session, cwd, file string
+	var replace bool
 	c := &cobra.Command{
 		Use:   "import",
 		Short: "Carry verdicts from an earlier board onto pr-groups rows",
-		Long: `Reads a JSON array of {block, row, verdict, at, note?, head?} and records each
-as the row's verdict: block is the pr-groups block id, row the PR number,
-verdict "approved" or "rejected" (Hold), at the RFC 3339 time it was given.
-head defaults to the row's current head; an older head shows on the board as
-needing a fresh tap. A row that already has a verdict keeps it.`,
+		Long: `Reads a JSON array of {block, row, verdict, at, note?, head?, carriedFrom?,
+carryNote?} and records each as the row's verdict: block is the pr-groups block
+id, row the PR number, verdict "approved" or "rejected" (Hold), at the RFC 3339
+time it was given. head defaults to the row's current head; an older head shows
+on the board as needing a fresh tap. carriedFrom names the head the human
+tapped when it differs from head, and carryNote says why the tap still stands.
+A row that already has a verdict keeps it unless --replace is set.`,
 		Args: cobra.NoArgs,
 		RunE: func(c *cobra.Command, _ []string) error {
 			if file == "" {
@@ -52,7 +56,7 @@ needing a fresh tap. A row that already has a verdict keeps it.`,
 				return err
 			}
 			defer done()
-			res, err := cl.ImportVerdicts(c.Context(), sess, mustCwd(cwd), pid, raw)
+			res, err := cl.ImportVerdicts(c.Context(), sess, mustCwd(cwd), pid, raw, replace)
 			if err != nil {
 				return err
 			}
@@ -60,10 +64,55 @@ needing a fresh tap. A row that already has a verdict keeps it.`,
 			if len(res.Skipped) > 0 {
 				_, _ = fmt.Fprintf(c.OutOrStdout(), "kept existing: %s\n", strings.Join(res.Skipped, " "))
 			}
+			if len(res.Replaced) > 0 {
+				_, _ = fmt.Fprintf(c.OutOrStdout(), "replaced: %s\n", strings.Join(res.Replaced, " "))
+			}
 			return nil
 		},
 	}
 	c.Flags().StringVar(&file, "file", "", "JSON array of prior verdicts, or - for stdin")
+	c.Flags().BoolVar(&replace, "replace", false, "overwrite a row's existing verdict instead of keeping it")
+	verdictFlags(c, &session, &cwd)
+	return c
+}
+
+func newVerdictCarryCmd(d cmd.Deps) *cobra.Command {
+	var session, cwd string
+	var carry ccdaemon.VerdictCarry
+	c := &cobra.Command{
+		Use:   "carry",
+		Short: "Carry a pr-groups row's verdict to a new head that is the same change",
+		Long: `Records the verdict the human gave on a pr-groups row as standing at --head,
+for a new commit the agent judged the same change (a patch-identical replay or
+restack). The row keeps the head and time the human tapped, and the board shows
+"your tap at <old> carries to <new>: <note>" instead of asking again. The
+original tap stays in the board's history.`,
+		Args: cobra.NoArgs,
+		RunE: func(c *cobra.Command, _ []string) error {
+			cl, sess, pid, done, err := verdictClient(c, d, session)
+			if err != nil {
+				return err
+			}
+			defer done()
+			res, err := cl.CarryVerdict(c.Context(), sess, mustCwd(cwd), pid, carry)
+			if err != nil {
+				return err
+			}
+			if res.Already {
+				_, _ = fmt.Fprintf(c.OutOrStdout(), "%s/%s: already stands at %s\n", carry.Block, carry.Row, res.To)
+				return nil
+			}
+			_, _ = fmt.Fprintf(c.OutOrStdout(), "%s/%s: %s at %s (%s) carries to %s\n", carry.Block, carry.Row, res.Verdict, res.From, res.At, res.To)
+			return nil
+		},
+	}
+	c.Flags().StringVar(&carry.Block, "block", "", "pr-groups block id")
+	c.Flags().StringVar(&carry.Row, "row", "", "pull request number")
+	c.Flags().StringVar(&carry.Head, "head", "", "the new head the verdict stands at")
+	c.Flags().StringVar(&carry.Note, "note", "", "why the tap still stands at the new head")
+	for _, f := range []string{"block", "row", "head", "note"} {
+		_ = c.MarkFlagRequired(f)
+	}
 	verdictFlags(c, &session, &cwd)
 	return c
 }
