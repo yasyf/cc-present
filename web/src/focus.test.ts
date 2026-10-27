@@ -498,7 +498,7 @@ describe('stepFace', () => {
     expect([...f.hoisted]).toEqual(['m1', 'c1']);
   });
 
-  it('keeps a later question's lead-in beside it on the card face', () => {
+  it('keeps the lead-in of a later question beside it on the card face', () => {
     const k = card('k', [markdown('m1'), approval('a1'), markdown('m2'), approval('a2'), code('c1')]);
     const f = face([k]);
     expect(f.lede?.md).toBe('m1');
