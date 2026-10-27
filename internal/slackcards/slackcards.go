@@ -276,14 +276,14 @@ var mrkdwnEscapes = strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;", 
 // GroupCard is the cc-slack card for one group of a pr-groups block: a row with
 // buttons for each pull request whose verdict does not stand at its head, and a
 // line naming the verdict for each one whose verdict does. A group that left the
-// board (live false) keeps no buttons: each row is its verdict or that it left.
+// board (live false) keeps no buttons: each row is its last verdict or that it left.
 func GroupCard(g *doc.PRGroups, group doc.PRGroup, verdicts map[string]state.Decision, live bool) StatusCard {
 	sc := StatusCard{Status: "done", Title: bounded(group.Title), Group: g.ID + ":" + group.ID}
 	var settled []string
 	for _, r := range group.PRs {
 		d, decided := verdicts[doc.RowID(r.Number)]
 		switch {
-		case decided && r.Stands(d.Head):
+		case decided && (r.Stands(d.Head) || !live):
 			settled = append(settled, prLink(g.Repo, r)+" · "+verdictLine(d))
 		case !live:
 			settled = append(settled, prLink(g.Repo, r)+" · left the board")

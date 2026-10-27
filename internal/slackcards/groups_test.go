@@ -97,7 +97,7 @@ func TestGroupCardsRetireAGroupThatLeftTheBoard(t *testing.T) {
 	before.ID = "pg"
 	after := *before
 	after.Groups = []doc.PRGroup{{ID: "signup", Title: "Signup", Summary: "People can sign up.", PRs: []doc.PRRow{row(43, "0123456789")}}}
-	cards := slackcards.GroupCards(before, &after, map[string]state.Decision{"41": approvedAt("abc1234")})
+	cards := slackcards.GroupCards(before, &after, map[string]state.Decision{"41": approvedAt("0001111")})
 	if len(cards) != 2 || cards[0].Group != "pg:login" || cards[1].Group != "pg:signup" {
 		t.Fatalf("cards = %+v, want the retired login card then the signup card", cards)
 	}
@@ -105,7 +105,7 @@ func TestGroupCardsRetireAGroupThatLeftTheBoard(t *testing.T) {
 	if len(retired.Rows) != 0 || retired.Status != "done" {
 		t.Fatalf("retired card = %+v, want no buttons and done", retired)
 	}
-	for _, want := range []string{"app PR 41>* Fix the <https://x.test/l|login> &lt;form&gt; `abc1234` · Approved at abc1234", "app PR 42>* Fix the <https://x.test/l|login> &lt;form&gt; `fed4321` · left the board"} {
+	for _, want := range []string{"app PR 41>* Fix the <https://x.test/l|login> &lt;form&gt; `abc1234` · Approved at 0001111", "app PR 42>* Fix the <https://x.test/l|login> &lt;form&gt; `fed4321` · left the board"} {
 		if !strings.Contains(retired.Body, want) {
 			t.Errorf("retired body lacks %q:\n%s", want, retired.Body)
 		}
