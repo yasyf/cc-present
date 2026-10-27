@@ -129,6 +129,12 @@ function render(props: DeckProps): void {
   act(() => root.render(<Deck {...props} />));
 }
 
+async function loadMotionFeatures(): Promise<void> {
+  await act(async () => {
+    await vi.dynamicImportSettled();
+  });
+}
+
 // AnimatePresence keeps the outgoing card mounted (marked data-exiting) while it
 // flies off, so every current-card query targets the live, non-exiting card.
 const currentPrompt = (): string | undefined =>
@@ -716,11 +722,12 @@ describe('FocusDeck SubmitBar progress', () => {
 });
 
 describe('FocusDeck churn exit direction', () => {
-  it('flies a churn-removed card out on the nav variant, not a stale verdict fly-off', () => {
-    vi.useFakeTimers();
+  it('flies a churn-removed card out on the nav variant, not a stale verdict fly-off', async () => {
     const variants = focusMotion.cardVariants as unknown as { exit: (c: { kind: string }) => unknown };
     const exitSpy = vi.spyOn(variants, 'exit');
     render({ blocks: three, interactions: empty() });
+    await loadMotionFeatures();
+    vi.useFakeTimers();
     // approve a1 -> auto-advance to a2 leaves exitCustom holding a verdict fly-off
     render({ blocks: three, interactions: withVerdict('a1', 'approved') });
     act(() => vi.advanceTimersByTime(AUTO_ADVANCE_MS));
@@ -736,8 +743,9 @@ describe('FocusDeck churn exit direction', () => {
 });
 
 describe('FocusDeck summary presence key', () => {
-  it('keeps the review distinct from a block literally named "summary"', () => {
+  it('keeps the review distinct from a block literally named "summary"', async () => {
     render({ blocks: [approval('summary', 'Ship summary')], interactions: empty() });
+    await loadMotionFeatures();
     clickNext();
     // the review renders past the last step...
     expect(container.querySelector('.focus-summary')).not.toBeNull();
