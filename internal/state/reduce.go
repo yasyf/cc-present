@@ -44,12 +44,16 @@ type Event struct {
 }
 
 // Decision is a human's last-write-wins verdict on a block, with an optional
-// note. A pr-groups row's verdict also records the head it was given at and when.
+// note. A pr-groups row's verdict also records the head it stands at and when
+// the human gave it; an agent carry names the head the human tapped and why
+// the tap still stands at Head.
 type Decision struct {
-	Verdict string `json:"verdict"`
-	Note    string `json:"note,omitempty"`
-	Head    string `json:"head,omitempty"`
-	At      string `json:"at,omitempty"`
+	Verdict     string `json:"verdict"`
+	Note        string `json:"note,omitempty"`
+	Head        string `json:"head,omitempty"`
+	At          string `json:"at,omitempty"`
+	CarriedFrom string `json:"carriedFrom,omitempty"`
+	CarryNote   string `json:"carryNote,omitempty"`
 }
 
 // Selection is a human's last-write-wins option selection on a choice block.

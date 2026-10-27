@@ -190,9 +190,10 @@ func (cl *Client) SlackAnswer(ctx context.Context, session, scope string, pid in
 }
 
 // ImportVerdicts carries verdicts given on an earlier board onto the window's
-// pr-groups rows, leaving any row that already has a verdict untouched.
-func (cl *Client) ImportVerdicts(ctx context.Context, session, scope string, pid int, verdictsJSON json.RawMessage) (ImportResult, error) {
-	_, res, err := cl.do(ctx, OpImportVerdicts, session, scope, pid, body{Verdicts: verdictsJSON})
+// pr-groups rows, leaving any row that already has a verdict untouched unless
+// replace overwrites it.
+func (cl *Client) ImportVerdicts(ctx context.Context, session, scope string, pid int, verdictsJSON json.RawMessage, replace bool) (ImportResult, error) {
+	_, res, err := cl.do(ctx, OpImportVerdicts, session, scope, pid, body{Verdicts: verdictsJSON, Replace: replace})
 	if err != nil {
 		return ImportResult{}, err
 	}
@@ -208,4 +209,22 @@ func (cl *Client) ImportVerdicts(ctx context.Context, session, scope string, pid
 func (cl *Client) MoveVerdicts(ctx context.Context, session, scope string, pid int, movesJSON json.RawMessage) error {
 	_, _, err := cl.do(ctx, OpMoveVerdicts, session, scope, pid, body{Verdicts: movesJSON})
 	return err
+}
+
+// CarryVerdict moves a pr-groups row's recorded verdict to a new head the agent
+// judged the same change, keeping the head and time the human tapped.
+func (cl *Client) CarryVerdict(ctx context.Context, session, scope string, pid int, carry VerdictCarry) (CarryResult, error) {
+	raw, err := json.Marshal(carry)
+	if err != nil {
+		return CarryResult{}, err
+	}
+	_, res, err := cl.do(ctx, OpCarryVerdict, session, scope, pid, body{Verdicts: raw})
+	if err != nil {
+		return CarryResult{}, err
+	}
+	var out CarryResult
+	if err := json.Unmarshal(res.State, &out); err != nil {
+		return CarryResult{}, fmt.Errorf("decode carry result: %w", err)
+	}
+	return out, nil
 }

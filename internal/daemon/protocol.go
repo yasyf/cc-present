@@ -28,6 +28,7 @@ const (
 	OpSlackDecided   ccd.Op = "slack-decided"
 	OpImportVerdicts ccd.Op = "import-verdicts"
 	OpMoveVerdicts   ccd.Op = "move-verdicts"
+	OpCarryVerdict   ccd.Op = "carry-verdict"
 )
 
 // Event types appended to a subject's log. The agent-side ops append the agent
@@ -58,7 +59,7 @@ const (
 // envelope itself.
 type body struct {
 	New      bool            `json:"new,omitempty"`      // start
-	Replace  bool            `json:"replace,omitempty"`  // start
+	Replace  bool            `json:"replace,omitempty"`  // start | import-verdicts
 	Title    string          `json:"title,omitempty"`    // start | round | push,upsert-block round-title
 	Doc      json.RawMessage `json:"doc,omitempty"`      // start | push
 	Block    json.RawMessage `json:"block,omitempty"`    // upsert-block
@@ -72,7 +73,7 @@ type body struct {
 	Note     string          `json:"note,omitempty"`     // revising
 	Round    string          `json:"round,omitempty"`    // push | upsert-block ("" | "current" | "new")
 	Answer   json.RawMessage `json:"answer,omitempty"`   // slack-answer | slack-decided
-	Verdicts json.RawMessage `json:"verdicts,omitempty"` // import-verdicts | move-verdicts
+	Verdicts json.RawMessage `json:"verdicts,omitempty"` // import-verdicts | move-verdicts | carry-verdict
 	Named    bool            `json:"named,omitempty"`
 	Reopen   []string        `json:"reopen,omitempty"`
 }
@@ -86,7 +87,7 @@ type result struct {
 	ChannelState string          `json:"channelState,omitempty"` // start
 	Revision     int             `json:"revision,omitempty"`     // push
 	Round        int             `json:"round,omitempty"`        // round
-	State        json.RawMessage `json:"state,omitempty"`        // outcomes | import-verdicts
+	State        json.RawMessage `json:"state,omitempty"`        // outcomes | import-verdicts | carry-verdict
 	Waits        string          `json:"waits,omitempty"`        // reply
 	Warnings     []string        `json:"warnings,omitempty"`
 	Retired      []string        `json:"retired,omitempty"`

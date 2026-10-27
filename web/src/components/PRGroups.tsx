@@ -9,19 +9,15 @@ import { renderInlineMarkdown, renderMarkdown } from '../markdown';
 import {
   allRows,
   approveGroup,
+  givenLine,
   prRowId,
   rowVerdict,
-  shortHead,
   staleLine,
   tally,
   toggleEntry,
-  formatAt,
-  verdictWord,
-  type RowVerdict,
   type VerdictEntry,
 } from '../prgroups';
 import { Button } from './Button';
-import { Mark } from './Mark';
 import { PRView } from './PRView';
 
 const ROW_NOTES = 'row-notes';
@@ -34,17 +30,23 @@ const FIELDS: readonly { key: 'change' | 'plan' | 'risk' | 'review' | 'blocker';
   { key: 'blocker', label: 'Blocks landing' },
 ];
 
-// PRGroups renders pull requests grouped by what they change, one column at any
-// width. Each row shows its five merge facts and an Approve or Hold verdict pinned
-// to the row's head; a tap on the row expands its full text and the live PR in
-// place. A verdict given at an older head stays visible and asks for a new tap.
+// PRGroups renders the pull requests still waiting on the human, grouped by what
+// they change, one column at any width. Each row shows its five merge facts and an
+// Approve or Hold verdict pinned to the row's head; a tap on the row expands its
+// full text and the live PR in place. A verdict given at an older head asks for a
+// new tap. A row whose verdict stands at its head leaves the groups for the
+// collapsed answered list at the bottom.
 export function PRGroups({ block, interactions }: { block: PRGroupsBlock; interactions: Interactions }) {
   const { post, closed, roundOver } = usePresent();
   const readOnly = useGroupReadOnly();
   const locked = closed || readOnly || (roundOver ?? false);
   const verdicts = interactions.triage[block.id] ?? {};
-  const rows = allRows(block);
-  const total = tally(rows, verdicts);
+  const all = allRows(block);
+  const total = tally(all, verdicts);
+  const waiting = (row: PRRow) => rowVerdict(row, verdicts[prRowId(row.number)]).kind !== 'current';
+  const rows = all.filter(waiting);
+  const groups = block.groups.map((g) => ({ ...g, prs: g.prs.filter(waiting) })).filter((g) => g.prs.length > 0);
+  const answered = all.filter((row) => !waiting(row));
   const [open, setOpen] = useState<ReadonlySet<string>>(new Set());
   const [rowCursor, setRowCursor] = useState(0);
 
@@ -91,7 +93,7 @@ export function PRGroups({ block, interactions }: { block: PRGroupsBlock; intera
           {total.open > 0 && <span className="prg-tally-open">{total.open} waiting on you</span>}
         </p>
       </div>
-      {block.groups.map((group) => (
+      {groups.map((group) => (
         <Group
           key={group.id}
           block={block}
@@ -105,7 +107,50 @@ export function PRGroups({ block, interactions }: { block: PRGroupsBlock; intera
           send={send}
         />
       ))}
+      {answered.length > 0 && <Answered block={block} rows={answered} verdicts={verdicts} locked={locked} send={send} />}
     </div>
+  );
+}
+
+function Answered({
+  block,
+  rows,
+  verdicts,
+  locked,
+  send,
+}: {
+  block: PRGroupsBlock;
+  rows: PRRow[];
+  verdicts: Record<string, Decision>;
+  locked: boolean;
+  send: (merge: Record<string, VerdictEntry>) => Promise<boolean>;
+}) {
+  const t = tally(rows, verdicts);
+  const summary = [`${t.approved} approved, landing`, ...(t.held > 0 ? [`${t.held} held`] : [])].join(' · ');
+  return (
+    <details className="prg-answered">
+      <summary className="prg-answered-summary">{summary}</summary>
+      <ul className="prg-answered-rows">
+        {rows.map((row) => {
+          const id = prRowId(row.number);
+          const v = rowVerdict(row, verdicts[id]);
+          if (v.kind !== 'current') return null;
+          const state = v.decision.verdict === 'approved' ? 'approved' : 'held';
+          return (
+            <li key={id} className={`prg-answered-row prg-${state}`} data-row={id}>
+              <span className="prg-row-line">
+                <span className="prg-num">#{row.number}</span>
+                <span className={`prg-state prg-state-${state}`}>{STATE_LABEL[state]}</span>
+              </span>
+              <span className="prg-title">{row.title}</span>
+              <p className="prg-given">{givenLine(v, row)}</p>
+              {v.decision.note && <p className="prg-note">{v.decision.note}</p>}
+              {!locked && <RowNote block={block} row={row} decision={v.decision} send={send} />}
+            </li>
+          );
+        })}
+      </ul>
+    </details>
   );
 }
 
@@ -122,8 +167,6 @@ interface GroupProps {
 }
 
 function Group({ block, group, verdicts, locked, open, cursorId, onFocusRow, onToggle, send }: GroupProps) {
-  const t = tally(group.prs, verdicts);
-  const pending = Object.keys(approveGroup(group, verdicts)).length;
   return (
     <section className="prg-group" aria-labelledby={`${block.id}-${group.id}`}>
       <header className="prg-group-head">
@@ -132,10 +175,8 @@ function Group({ block, group, verdicts, locked, open, cursorId, onFocusRow, onT
         </h3>
         <p className="prg-group-summary" dangerouslySetInnerHTML={{ __html: renderInlineMarkdown(group.summary) }} />
         <div className="prg-group-bar">
-          <span className="prg-group-count">
-            {t.approved} of {group.prs.length} approved
-          </span>
-          {!locked && pending > 0 && (
+          <span className="prg-group-count">{group.prs.length} waiting on you</span>
+          {!locked && (
             <Button variant="secondary" className="prg-approve-all" onClick={() => void send(approveGroup(group, verdicts))}>
               Approve all in this group
             </Button>
@@ -177,19 +218,13 @@ interface RowProps {
   send: (merge: Record<string, VerdictEntry>) => Promise<boolean>;
 }
 
-function rowState(v: RowVerdict): 'approved' | 'held' | 'stale' | 'open' {
-  if (v.kind === 'none') return 'open';
-  if (v.kind === 'stale') return 'stale';
-  return v.decision.verdict === 'approved' ? 'approved' : 'held';
-}
 
 const STATE_LABEL = { approved: 'Approved', held: 'Held', stale: 'Needs your tap', open: 'Waiting on you' } as const;
 
 function Row({ block, row, decision, locked, expanded, cursored, onFocus, onToggle, send }: RowProps) {
   const id = prRowId(row.number);
   const v = rowVerdict(row, decision);
-  const state = rowState(v);
-  const active = v.kind === 'current' ? v.decision.verdict : undefined;
+  const state = v.kind === 'stale' ? 'stale' : 'open';
   const detailId = `${block.id}-row-${id}`;
 
   function decide(target: 'approved' | 'rejected') {
@@ -223,38 +258,31 @@ function Row({ block, row, decision, locked, expanded, cursored, onFocus, onTogg
           {staleLine(row, v.decision)}
         </p>
       )}
-      {v.kind === 'current' && (
-        <p className="prg-given">
-          {verdictWord(v.decision.verdict)} at {shortHead(v.decision.head ?? row.head)}
-          {v.decision.at ? ` on ${formatAt(v.decision.at)}` : ''}
-          {v.carried ? `; the agent carried it to ${shortHead(row.head)}` : ''}
-        </p>
-      )}
 
       <div className="decision-bar prg-verdicts" role="radiogroup" aria-label={`#${row.number} ${row.title}`}>
         <Button
           variant="ghost"
           role="radio"
-          aria-checked={active === 'approved'}
+          aria-checked={false}
           disabled={locked}
-          className={`verdict verdict-approve${active === 'approved' ? ' active' : ''}`}
+          className="verdict verdict-approve"
           onClick={() => decide('approved')}
         >
           <span className="verdict-glyph" aria-hidden>
-            {active === 'approved' ? <Mark kind="check" /> : '✓'}
+            ✓
           </span>
           Approve
         </Button>
         <Button
           variant="ghost"
           role="radio"
-          aria-checked={active === 'rejected'}
+          aria-checked={false}
           disabled={locked}
-          className={`verdict verdict-hold${active === 'rejected' ? ' active' : ''}`}
+          className="verdict verdict-hold"
           onClick={() => decide('rejected')}
         >
           <span className="verdict-glyph" aria-hidden>
-            {active === 'rejected' ? <Mark kind="cross" /> : '‖'}
+            ‖
           </span>
           Hold
         </Button>
@@ -265,7 +293,6 @@ function Row({ block, row, decision, locked, expanded, cursored, onFocus, onTogg
       {expanded && (
         <div className="prg-detail" id={detailId}>
           {row.md && <div className="prose markdown-block prg-md" dangerouslySetInnerHTML={{ __html: renderMarkdown(row.md) }} />}
-          {!locked && v.kind === 'current' && <RowNote block={block} row={row} decision={v.decision} send={send} />}
           <PRView block={{ id: block.id, type: 'pr', repo: block.repo, number: row.number, files: row.files }} />
         </div>
       )}

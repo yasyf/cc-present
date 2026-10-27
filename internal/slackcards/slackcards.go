@@ -3,6 +3,7 @@
 package slackcards
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -338,8 +339,8 @@ func verdictLine(d state.Decision) string {
 	if d.Verdict == "approved" {
 		word = "Approved"
 	}
-	if d.Head != "" {
-		word += " at " + d.Head[:min(len(d.Head), shortHead)]
+	if tapped := cmp.Or(d.CarriedFrom, d.Head); tapped != "" {
+		word += " at " + tapped[:min(len(tapped), shortHead)]
 	}
 	if at, err := time.Parse(time.RFC3339, d.At); err == nil {
 		word += " on " + at.Local().Format("Jan 2 3:04 PM")
