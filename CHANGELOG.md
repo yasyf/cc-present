@@ -15,7 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- A tap on a `pr-groups` row on the board now edits that group's Slack card at once, instead of waiting for the next push. An answered row stays on its card as one line naming the verdict, the head and the time, with no buttons. A group a push drops gets a last edit with no buttons. A row tap on Slack lands even after a newer round froze the block, because the verdict is pinned to its head.
+- A tap on a `pr-groups` row on the board now edits that group's Slack card at once, instead of waiting for the next push. An answered row stays on its card as one line naming the verdict, the head and the time, with no buttons. A group a push drops gets a last edit with no buttons, showing each row's last verdict even when it was given at an earlier head. A row tap on Slack lands even after a newer round froze the block, because the verdict is pinned to its head.
 
 ### Changed
 
