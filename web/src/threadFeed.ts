@@ -70,12 +70,19 @@ function members(blocks: Block[], packInteractive: ReadonlySet<string>): Member[
   );
 }
 
-function label(block: Block): string {
+function heading(block: Block): string | undefined {
   const fields = block as { prompt?: unknown; question?: unknown; title?: unknown; label?: unknown };
-  const heading = [fields.prompt, fields.question, fields.title, fields.label].find(
+  return [fields.prompt, fields.question, fields.title, fields.label].find(
     (v): v is string => typeof v === 'string' && v.trim() !== '',
   );
-  return heading ?? (isPackBlock(block) ? block.type : block.type.charAt(0).toUpperCase() + block.type.slice(1));
+}
+
+function label(block: Block, top: Block): string {
+  return (
+    heading(block) ??
+    heading(top) ??
+    (isPackBlock(block) ? block.type : block.type.charAt(0).toUpperCase() + block.type.slice(1))
+  );
 }
 
 function hasConversation(entry: ThreadEntry): boolean {
@@ -119,7 +126,7 @@ export function threadFeed(
     all.push({
       blockId: block.id,
       type: block.type,
-      label: label(block),
+      label: label(block, top),
       ...turns,
       locked,
       live: isLive,

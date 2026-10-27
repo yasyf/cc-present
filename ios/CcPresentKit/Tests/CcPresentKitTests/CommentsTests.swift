@@ -78,10 +78,18 @@ struct CommentsTests {
 
     @Test("block titles fall back through prompt, title, and label")
     func titles() {
-        let blocks = commentDocBlocks(fixtureDoc())
-        #expect(commentBlockTitle(blocks[0]) == "Ship it?")
-        #expect(commentBlockTitle(blocks[2]) == "Card A")
-        #expect(commentBlockTitle(blocks[4]) == "Name")
+        let doc = fixtureDoc()
+        let blocks = commentDocBlocks(doc)
+        #expect(commentBlockTitle(doc, blocks[0]) == "Ship it?")
+        #expect(commentBlockTitle(doc, blocks[2]) == "Card A")
+        #expect(commentBlockTitle(doc, blocks[4]) == "Name")
+    }
+
+    @Test("a card choice with no prompt takes its card's title")
+    func cardChoiceTitle() {
+        let choice = Block.choice(.init(id: "ch2", options: []))
+        let doc = Doc(title: "Review", blocks: [.card(.init(id: "card2", title: "How deep may forks go?", children: [choice]))])
+        #expect(commentBlockTitle(doc, choice) == "How deep may forks go?")
     }
 
     @Test("the composer latch holds while focused or holding non-whitespace text")

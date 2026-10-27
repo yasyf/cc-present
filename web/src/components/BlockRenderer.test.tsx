@@ -16,7 +16,7 @@ import type { Approval, Block, Card, ChildBlock, Input, Markdown, PackBlock } fr
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
-// jsdom ships no ResizeObserver; Clamped (used by every reply row) constructs one
+// jsdom ships no ResizeObserver; Clamped (the markdown block's body) constructs one
 // on mount, so stub the boundary the layout effect measures against.
 class ResizeObserverStub {
   observe(): void {}
@@ -189,5 +189,33 @@ describe('BlockRenderer note channel', () => {
     };
     render([cardBlock('k1', [markdownBlock('m1', 'hi')])], interactions, true, { host: 'rail' });
     expect(container.querySelector('.comment-chip')?.textContent).toBe('2 comments');
+  });
+
+  it('shows the note each inline reply answers under the rail, once per note', () => {
+    const interactions: Interactions = {
+      ...withReplies({
+        k1: [
+          { id: 'r1', md: 'first answer', re: 'f1' },
+          { id: 'r2', md: 'correction', re: 'f1' },
+        ],
+      }),
+      feedback: { m1: [{ id: 'f1', text: 'what is a link slot?' }] },
+    };
+    render([cardBlock('k1', [markdownBlock('m1', 'hi')])], interactions, true, { host: 'rail' });
+    const exchanges = [...container.querySelectorAll('.thread .note-thread')].map((n) =>
+      [...n.querySelectorAll('.thread-text')].map((t) => t.textContent!.trim()),
+    );
+    expect(exchanges).toEqual([['what is a link slot?', 'first answer'], ['correction']]);
+  });
+
+  it('folds all but the newest two inline replies behind Show N earlier', () => {
+    const replies = ['r1', 'r2', 'r3', 'r4'].map((id) => ({ id, md: id }));
+    render([markdownBlock('m1', 'hi')], withReplies({ m1: replies }), true, { host: 'rail' });
+    const texts = () => [...container.querySelectorAll('.reply-item .thread-text')].map((t) => t.textContent!.trim());
+    expect(texts()).toEqual(['r3', 'r4']);
+    const more = container.querySelector('.note-replies-more') as HTMLElement;
+    expect(more.textContent).toBe('Show 2 earlier');
+    act(() => more.click());
+    expect(texts()).toEqual(['r1', 'r2', 'r3', 'r4']);
   });
 });

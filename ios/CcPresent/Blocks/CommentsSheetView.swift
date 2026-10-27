@@ -141,7 +141,7 @@ struct CommentsSheetView: View {
             let block = commentDocBlocks(doc).first { $0.id == activeId }
             VStack(alignment: .leading, spacing: Metrics.space3) {
                 if let block {
-                    Text(commentBlockTitle(block))
+                    Text(commentBlockTitle(doc, block))
                         .voice(.stamp, size: 11, weight: .semibold)
                         .foregroundStyle(BlockPalette.muted)
                         .frame(maxWidth: .infinity, alignment: .leading)

@@ -71,16 +71,21 @@ const BUILTIN: { [T in BuiltinBlockType]: BuiltinRenderer<T> } = {
 // BlockRenderer dispatches on the block's type, then threads the agent's replies
 // beneath it. A block that owns its thread renders its own replies beside the
 // note channel, so it is returned bare; every other block gets the shared
-// ReplyThread, after the note channel when `note` asks for one.
+// ReplyThread, after the note channel when `note` asks for one. Under the rail,
+// whose composer holds the notes, each reply carries the note it answers.
 export function BlockRenderer({ block, interactions, note }: BlockProps & { note?: boolean }) {
   const packInteractive = useInteractivePackTypes();
+  const rail = useThreadHost() === 'rail';
   const inner = <BlockBody block={block} interactions={interactions} />;
   if (ownsThread(block, packInteractive)) return inner;
   return (
     <>
       {inner}
       {note && <BlockNote block={block} interactions={interactions} packInteractive={packInteractive} />}
-      <ReplyThread replies={interactions.replies[block.id] ?? []} />
+      <ReplyThread
+        replies={interactions.replies[block.id] ?? []}
+        notes={rail ? Object.values(interactions.feedback).flat() : []}
+      />
     </>
   );
 }
