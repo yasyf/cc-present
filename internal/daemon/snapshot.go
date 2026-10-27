@@ -46,59 +46,46 @@ type outlineBlock struct {
 }
 
 func (rs *restServer) handleState(w http.ResponseWriter, r *http.Request) {
-	st, events, ok := rs.reduceSubject(w, r)
-	if !ok {
-		return
-	}
-	snap, err := snapshotOf(&st, events)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	writeJSON(w, http.StatusOK, snap)
+	rs.serveBoard(w, r, func(b *reducedBoard) ([]byte, error) {
+		return b.encode(&b.snapshot, func() (any, error) { return snapshotOf(&b.st, b.seq, b.revision) })
+	})
 }
 
 func (rs *restServer) handleRounds(w http.ResponseWriter, r *http.Request) {
-	st, _, ok := rs.reduceSubject(w, r)
-	if !ok {
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string][]state.RoundRecord{"history": st.Rounds.History})
+	rs.serveBoard(w, r, func(b *reducedBoard) ([]byte, error) {
+		return b.encode(&b.rounds, func() (any, error) {
+			return map[string][]state.RoundRecord{"history": b.st.Rounds.History}, nil
+		})
+	})
 }
 
-func (rs *restServer) reduceSubject(w http.ResponseWriter, r *http.Request) (state.State, []state.Event, bool) {
+func (rs *restServer) serveBoard(w http.ResponseWriter, r *http.Request, body func(*reducedBoard) ([]byte, error)) {
 	ref := r.URL.Query().Get("session")
 	id, ok, err := rs.resolve(r.Context(), ref)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return state.State{}, nil, false
+		return
 	}
 	if !ok {
 		http.Error(w, "unknown subject: "+ref, http.StatusNotFound)
-		return state.State{}, nil, false
+		return
 	}
-	events, err := loadEvents(r.Context(), rs.db(), id)
+	board, err := rs.caughtUp(r.Context(), id)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return state.State{}, nil, false
+		return
 	}
-	st, err := state.Reduce(events)
+	b, err := body(board)
+	board.mu.Unlock()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return state.State{}, nil, false
+		return
 	}
-	return st, events, true
+	w.Header().Set("Content-Type", "application/json")
+	_, _ = w.Write(b)
 }
 
-func snapshotOf(st *state.State, events []state.Event) (snapshot, error) {
-	var seq int64
-	revision := 0
-	for _, ev := range events {
-		seq = ev.Seq
-		if ev.Type == EventDocReplaced {
-			revision++
-		}
-	}
+func snapshotOf(st *state.State, seq int64, revision int) (snapshot, error) {
 	history := make([]roundStub, len(st.Rounds.History))
 	for i, record := range st.Rounds.History {
 		outline := make([]outlineBlock, len(record.Blocks))

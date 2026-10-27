@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"slices"
+	"strings"
 	"testing"
 
 	ccevent "github.com/yasyf/cc-interact/event"
@@ -117,5 +118,40 @@ func TestSnapshotRoutesRejectAnUnknownSubject(t *testing.T) {
 		if w := h.get(t, path); w.Code != http.StatusNotFound {
 			t.Errorf("%s: status = %d, want 404", path, w.Code)
 		}
+	}
+}
+
+func TestStateServesTheCachedBoardCaughtUpWithNewEvents(t *testing.T) {
+	h := newRestHarness(t)
+	if w := h.get(t, "/api/state?session=board--abcd0000"); w.Code != http.StatusOK {
+		t.Fatalf("first load = %d %s", w.Code, w.Body)
+	}
+	if _, err := h.cc.DB().Exec(`UPDATE events SET payload='{' WHERE subject_id=? AND seq=1`, h.id); err != nil {
+		t.Fatal(err)
+	}
+	seq, err := appendEvent(t.Context(), h.rs.append, &ccevent.Event{
+		SubjectID: h.id, Origin: ccevent.OriginAgent, Type: EventBlockRemoved, Payload: mustJSON(map[string]string{"id": "a1"}),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if w := h.get(t, "/api/rounds?session=board--abcd0000"); w.Code != http.StatusOK {
+		t.Fatalf("rounds = %d %s, want 200 without re-decoding the history the first load reduced", w.Code, w.Body)
+	}
+	w := h.get(t, "/api/state?session=board--abcd0000")
+	if w.Code != http.StatusOK {
+		t.Fatalf("second load = %d %s, want 200 without re-decoding the history the first load reduced", w.Code, w.Body)
+	}
+	var got struct {
+		Seq   int64 `json:"seq"`
+		State struct {
+			Doc json.RawMessage `json:"doc"`
+		} `json:"state"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	if got.Seq != seq || strings.Contains(string(got.State.Doc), `"a1"`) {
+		t.Fatalf("seq=%d doc=%s, want seq %d without the removed a1", got.Seq, got.State.Doc, seq)
 	}
 }

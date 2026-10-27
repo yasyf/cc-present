@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- A board opens without waiting on its history. `/api/state`, `/api/rounds` and `/api/pr` read the reduced state the daemon keeps per board, caught up with only the events since the previous read, and reuse the encoded body until a new event lands. On a 1,571-event, 31 MB board `/api/state` answered in 1.3 to 3.0 s on every load; it now answers in about 2 ms after the first load since the daemon started.
 - A tap answers in milliseconds on a long board. The daemon keeps each board's reduced state and applies only the events since the previous tap, where it used to decode the board's whole history on every tap: 1.1 to 1.6 s on a 1,445-event, 31 MB board, which a drive dashboard showed as "Sending…".
 - A `start`, `push` or `update-block` is rejected when its `pr-groups` block binds a Slack thread another open board already binds, naming that board. A board seeded from another board's document used to redraw the first board's group cards from its own empty verdicts, marking approved rows as having left the board.
 - A verdict tapped on a `pr-groups` row is recorded and answered before its Slack group card redraws, instead of after. The redraw re-read the whole board and waited on cc-slack, so on a long board a tap from the drive dashboard sat at "Approving…" for several seconds. A failed redraw is logged by the daemon instead of failing a tap that was already recorded.
