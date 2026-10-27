@@ -114,16 +114,15 @@ func TestSlackThreadReadsATsOrAPermalink(t *testing.T) {
 	}
 }
 
-func TestSlackGroupsFindsABlockInsideACard(t *testing.T) {
+func TestPRGroupIDsFindsEveryBlockAPushCarries(t *testing.T) {
 	const group = `{"id":"pg","type":"pr-groups","repo":"a/b",%s"groups":[{"id":"g","title":"G","summary":"S.","prs":[{"number":8,"head":"abc1234","title":"T","change":"C.","plan":"P.","risk":"R.","review":"V.","blocker":"B."}]}]}`
 	tests := []struct {
 		name string
 		raw  string
-		want int
 	}{
-		{"top level", fmt.Sprintf(group, `"slack":"1792842193.708029",`), 1},
-		{"inside a card", `{"id":"c","type":"card","title":"Merges","children":[` + fmt.Sprintf(group, `"slack":"1792842193.708029",`) + `]}`, 1},
-		{"not asked on Slack", fmt.Sprintf(group, ""), 0},
+		{"top level", fmt.Sprintf(group, `"slack":"1792842193.708029",`)},
+		{"inside a card", `{"id":"c","type":"card","title":"Merges","children":[` + fmt.Sprintf(group, "") + `]}`},
+		{"stating no thread, so the board's binding decides", fmt.Sprintf(group, "")},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -131,8 +130,8 @@ func TestSlackGroupsFindsABlockInsideACard(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if got := len(slackGroups([]doc.Block{blk})); got != tt.want {
-				t.Fatalf("found %d slack groups, want %d", got, tt.want)
+			if got := prGroupIDs([]doc.Block{blk}); !slices.Equal(got, []string{"pg"}) {
+				t.Fatalf("ids = %v, want [pg]", got)
 			}
 		})
 	}

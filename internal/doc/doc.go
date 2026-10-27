@@ -458,7 +458,7 @@ type PRGroups struct {
 	base
 	Repo   string    `json:"repo"`
 	Prompt string    `json:"prompt,omitempty"`
-	Slack  string    `json:"slack,omitempty"`
+	Slack  *string   `json:"slack,omitempty"`
 	Groups []PRGroup `json:"groups"`
 }
 
@@ -486,6 +486,38 @@ type PRRow struct {
 	Md      string   `json:"md,omitempty"`
 	Carried []string `json:"carried,omitempty"`
 	Files   []string `json:"files,omitempty"`
+}
+
+// Thread is the Slack DM status thread the block's rows are asked in, or ""
+// when the block is not bound to one.
+func (g *PRGroups) Thread() string {
+	if g.Slack == nil {
+		return ""
+	}
+	return *g.Slack
+}
+
+// KeepSlack gives every incoming pr-groups block that states no slack the
+// thread its namesake in cur is bound to, so a binding holds until a push
+// states an empty slack. It reports whether it bound any block.
+func KeepSlack(cur *Doc, blocks []Block) bool {
+	kept := false
+	for _, b := range blocks {
+		Walk(b, func(b Block) {
+			g, ok := b.(*PRGroups)
+			if !ok || g.Slack != nil {
+				return
+			}
+			loc, found := Locate(cur, g.ID)
+			if !found {
+				return
+			}
+			if prev, ok := loc.Block.(*PRGroups); ok && prev.Thread() != "" {
+				g.Slack, kept = prev.Slack, true
+			}
+		})
+	}
+	return kept
 }
 
 // Stands reports whether a verdict given at head still stands for the row: it
@@ -1445,8 +1477,8 @@ func validatePRGroups(g *PRGroups) error {
 	if isMultiline(g.Prompt) {
 		return fmt.Errorf("pr-groups %q: prompt must be a single line", g.ID)
 	}
-	if g.Slack != "" && !slackTSPattern.MatchString(g.Slack) {
-		return fmt.Errorf("pr-groups %q: slack must be the ts of a Slack DM status thread, got %q", g.ID, g.Slack)
+	if t := g.Thread(); t != "" && !slackTSPattern.MatchString(t) {
+		return fmt.Errorf("pr-groups %q: slack must be the ts of a Slack DM status thread, or empty to unbind, got %q", g.ID, t)
 	}
 	if len(g.Groups) == 0 {
 		return fmt.Errorf("pr-groups %q: must have at least one group", g.ID)

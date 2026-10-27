@@ -158,7 +158,7 @@ type sendBoard struct {
 	} `json:"rounds"`
 }
 
-func syncGroups(ctx context.Context, cl *ccdaemon.Client, b board, w io.Writer) error {
+func syncGroups(ctx context.Context, cl *ccdaemon.Client, b board, w io.Writer, ids []string) error {
 	raw, _, err := cl.Outcomes(ctx, b.session, b.scope, b.pid)
 	if err != nil {
 		return err
@@ -168,13 +168,16 @@ func syncGroups(ctx context.Context, cl *ccdaemon.Client, b board, w io.Writer) 
 		return fmt.Errorf("decode the board: %w", err)
 	}
 	var errs []error
-	for _, g := range slackGroups(st.Doc.Blocks) {
+	for _, g := range prGroups(st.Doc.Blocks) {
+		if g.Thread() == "" || !slices.Contains(ids, g.ID) {
+			continue
+		}
 		for _, group := range g.Groups {
 			card, err := json.Marshal(slackcards.GroupCard(g, group, st.Interactions.Triage[g.ID]))
 			if err != nil {
 				return err
 			}
-			out, err := slackcards.CCSlack(ctx, "dm-status", "--card", string(card), "--session", b.session, "--thread", g.Slack)
+			out, err := slackcards.CCSlack(ctx, "dm-status", "--card", string(card), "--session", b.session, "--thread", g.Thread())
 			if err != nil {
 				errs = append(errs, fmt.Errorf("group %q: %w", group.ID, err))
 				continue
@@ -191,16 +194,25 @@ func syncGroups(ctx context.Context, cl *ccdaemon.Client, b board, w io.Writer) 
 	return errors.Join(errs...)
 }
 
-func slackGroups(blocks []doc.Block) []*doc.PRGroups {
+func prGroups(blocks []doc.Block) []*doc.PRGroups {
 	var found []*doc.PRGroups
 	for _, b := range blocks {
 		doc.Walk(b, func(b doc.Block) {
-			if g, ok := b.(*doc.PRGroups); ok && g.Slack != "" {
+			if g, ok := b.(*doc.PRGroups); ok {
 				found = append(found, g)
 			}
 		})
 	}
 	return found
+}
+
+func prGroupIDs(blocks []doc.Block) []string {
+	groups := prGroups(blocks)
+	ids := make([]string, 0, len(groups))
+	for _, g := range groups {
+		ids = append(ids, g.ID)
+	}
+	return ids
 }
 
 type question struct {

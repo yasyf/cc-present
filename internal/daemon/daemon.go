@@ -288,6 +288,11 @@ func handlePush(hc ccd.HandlerCtx, pt doc.PackTypes, display displayFunc) ccd.Re
 	if err != nil {
 		return errReply(err.Error())
 	}
+	if doc.KeepSlack(st.Doc, d.Blocks) {
+		if b.Doc, err = json.Marshal(d); err != nil {
+			return errReply(err.Error())
+		}
+	}
 	gate, err := newAnswerGate(hc.Ctx, hc.DB, sub.ID, &st, events, b.Reopen)
 	if err != nil {
 		return errReply(err.Error())
@@ -357,6 +362,11 @@ func handleUpsertBlock(hc ccd.HandlerCtx, pt doc.PackTypes) ccd.Reply {
 	}
 	if loc, ok := doc.Locate(st.Doc, blk.BlockID()); ok && loc.Visual() {
 		return errReply(pointingError(blk.BlockID(), loc).Error())
+	}
+	if doc.KeepSlack(st.Doc, []doc.Block{blk}) {
+		if b.Block, err = json.Marshal(blk); err != nil {
+			return errReply(err.Error())
+		}
 	}
 	gate, err := newAnswerGate(hc.Ctx, hc.DB, sub.ID, &st, events, b.Reopen)
 	if err != nil {

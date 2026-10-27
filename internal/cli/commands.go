@@ -457,10 +457,11 @@ func newPushCmd(d cmd.Deps) *cobra.Command {
 			if hint := unresolvedRefsHint(unresolved); hint != "" {
 				_, _ = fmt.Fprintln(c.ErrOrStderr(), hint)
 			}
-			if len(slackGroups(dd.Blocks)) == 0 {
+			ids := prGroupIDs(dd.Blocks)
+			if len(ids) == 0 {
 				return nil
 			}
-			if err := syncGroups(ctx, cl, board{sess, scope, pid}, out); err != nil {
+			if err := syncGroups(ctx, cl, board{sess, scope, pid}, out, ids); err != nil {
 				return fmt.Errorf("pushed revision %d, but its Slack group cards did not all update: %w", res.Revision, err)
 			}
 			return nil
@@ -565,10 +566,11 @@ func newUpdateBlockCmd(d cmd.Deps) *cobra.Command {
 			if hint := unresolvedRefsHint(unresolved); hint != "" {
 				_, _ = fmt.Fprintln(c.ErrOrStderr(), hint)
 			}
-			if len(slackGroups([]doc.Block{blk})) == 0 {
+			ids := prGroupIDs([]doc.Block{blk})
+			if len(ids) == 0 {
 				return nil
 			}
-			if err := syncGroups(ctx, cl, board{sess, scope, pid}, c.OutOrStdout()); err != nil {
+			if err := syncGroups(ctx, cl, board{sess, scope, pid}, c.OutOrStdout(), ids); err != nil {
 				return fmt.Errorf("updated %q, but its Slack group cards did not all update: %w", blk.BlockID(), err)
 			}
 			return nil

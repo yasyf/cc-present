@@ -19,7 +19,8 @@ func row(number int, head string, carried ...string) doc.PRRow {
 
 func merges(rows ...doc.PRRow) (*doc.PRGroups, doc.PRGroup) {
 	group := doc.PRGroup{ID: "login", Title: "Login", Summary: "People can sign in again.", PRs: rows}
-	return &doc.PRGroups{Repo: "acme/app", Slack: "1792842193.708029", Groups: []doc.PRGroup{group}}, group
+	thread := "1792842193.708029"
+	return &doc.PRGroups{Repo: "acme/app", Slack: &thread, Groups: []doc.PRGroup{group}}, group
 }
 
 func rowIDs(sc slackcards.StatusCard) []string {
