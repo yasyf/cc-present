@@ -207,8 +207,9 @@ func prGroups(blocks []doc.Block) []*doc.PRGroups {
 }
 
 func prGroupIDs(blocks []doc.Block) []string {
-	var ids []string
-	for _, g := range prGroups(blocks) {
+	groups := prGroups(blocks)
+	ids := make([]string, 0, len(groups))
+	for _, g := range groups {
 		ids = append(ids, g.ID)
 	}
 	return ids
