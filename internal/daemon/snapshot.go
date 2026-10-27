@@ -93,6 +93,7 @@ func (rs *restServer) serveBoard(w http.ResponseWriter, r *http.Request, encode 
 		w.Header().Set("Content-Encoding", "gzip")
 		body = e.gz
 	}
+	r.Header.Del("Range")
 	http.ServeContent(w, r, "", time.Time{}, bytes.NewReader(body))
 }
 

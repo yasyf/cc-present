@@ -39,9 +39,9 @@ func staticAssets(dist fs.FS, next http.Handler) http.Handler {
 
 func accepts(r *http.Request, coding string) bool {
 	for part := range strings.SplitSeq(r.Header.Get("Accept-Encoding"), ",") {
-		name, _, _ := strings.Cut(part, ";")
+		name, params, _ := strings.Cut(part, ";")
 		if strings.TrimSpace(name) == coding {
-			return true
+			return strings.ReplaceAll(params, " ", "") != "q=0"
 		}
 	}
 	return false

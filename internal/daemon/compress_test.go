@@ -21,6 +21,7 @@ func TestStaticAssetsServeThePrecompressedCopyTheClientAccepts(t *testing.T) {
 	}{
 		{"/assets/app.js", "gzip, deflate, br", "brotli", "br", "public, max-age=31536000, immutable"},
 		{"/assets/app.js", "gzip", "gzip", "gzip", "public, max-age=31536000, immutable"},
+		{"/assets/app.js", "br;q=0, gzip", "gzip", "gzip", "public, max-age=31536000, immutable"},
 		{"/assets/app.js", "", "raw", "", "public, max-age=31536000, immutable"},
 		{"/assets/font.woff2", "br", "font", "", "public, max-age=31536000, immutable"},
 		{"/assets/missing.js", "br", "404 page not found\n", "", ""},
