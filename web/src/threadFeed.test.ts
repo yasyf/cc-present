@@ -307,6 +307,11 @@ describe('threadFeed pack blocks', () => {
     expect(threadFeed(s, 'k2', interactive).pinned).toMatchObject({ blockId: 'c1', feedback: [fb('f2', 'stray')] });
   });
 
+  it('labels a card choice with no prompt by its card title', () => {
+    const s = state({ blocks: [card('k1', [choice('c1')], 'How deep may forks go?')], feedback: { c1: [fb('f1', 'why')] } });
+    expect(threadFeed(s, 'c1', NO_PACKS).pinned?.label).toBe('How deep may forks go?');
+  });
+
   it('labels a pack block with no heading field by its dotted type', () => {
     const s = state({ blocks: [pack('k1', 'dd.fork')] });
     expect(threadFeed(s, 'k1', interactive).pinned?.label).toBe('dd.fork');
