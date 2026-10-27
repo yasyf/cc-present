@@ -244,6 +244,9 @@ func appendSeedDoc(hc ccd.HandlerCtx, subID string, raw json.RawMessage, d *doc.
 	if err != nil {
 		return nil, err
 	}
+	if err := claimThreads(hc.Ctx, hc.DB, subID, st.Doc, d.Blocks); err != nil {
+		return nil, err
+	}
 	gate, err := newAnswerGate(hc.Ctx, hc.DB, subID, &st, events, reopen)
 	if err != nil {
 		return nil, err
@@ -294,6 +297,9 @@ func handlePush(hc ccd.HandlerCtx, pt doc.PackTypes, display displayFunc) ccd.Re
 		if b.Doc, err = json.Marshal(d); err != nil {
 			return errReply(err.Error())
 		}
+	}
+	if err := claimThreads(hc.Ctx, hc.DB, sub.ID, st.Doc, d.Blocks); err != nil {
+		return errReply(err.Error())
 	}
 	gate, err := newAnswerGate(hc.Ctx, hc.DB, sub.ID, &st, events, b.Reopen)
 	if err != nil {
@@ -369,6 +375,9 @@ func handleUpsertBlock(hc ccd.HandlerCtx, pt doc.PackTypes) ccd.Reply {
 		if b.Block, err = json.Marshal(blk); err != nil {
 			return errReply(err.Error())
 		}
+	}
+	if err := claimThreads(hc.Ctx, hc.DB, sub.ID, st.Doc, []doc.Block{blk}); err != nil {
+		return errReply(err.Error())
 	}
 	gate, err := newAnswerGate(hc.Ctx, hc.DB, sub.ID, &st, events, b.Reopen)
 	if err != nil {

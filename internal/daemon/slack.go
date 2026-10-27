@@ -384,3 +384,37 @@ func subjectSlug(ctx context.Context, db *sql.DB, subID string) (string, error) 
 	}
 	return slug, nil
 }
+
+// claimThreads refuses a pr-groups block that newly binds a Slack thread an
+// open board other than subID already binds, so a board seeded from another
+// board's document cannot redraw that board's group cards.
+func claimThreads(ctx context.Context, db *sql.DB, subID string, cur *doc.Doc, blocks []doc.Block) error {
+	var err error
+	for _, b := range blocks {
+		doc.Walk(b, func(b doc.Block) {
+			g, ok := b.(*doc.PRGroups)
+			if !ok || err != nil || g.Thread() == "" {
+				return
+			}
+			if cur != nil {
+				if loc, found := doc.Locate(cur, g.ID); found {
+					if prev, ok := loc.Block.(*doc.PRGroups); ok && prev.Thread() == g.Thread() {
+						return
+					}
+				}
+			}
+			var slug string
+			qerr := db.QueryRowContext(ctx, `SELECT s.slug FROM events e JOIN subjects s ON s.id = e.subject_id
+				WHERE e.subject_id != ? AND s.status = ? AND e.type IN (?, ?) AND instr(e.payload, ?) > 0 LIMIT 1`,
+				subID, statusOpen, EventDocReplaced, EventBlockUpserted, `"slack":"`+g.Thread()+`"`).Scan(&slug)
+			switch {
+			case errors.Is(qerr, sql.ErrNoRows):
+			case qerr != nil:
+				err = fmt.Errorf("find boards bound to slack thread %s: %w", g.Thread(), qerr)
+			default:
+				err = fmt.Errorf("pr-groups %q: slack thread %s belongs to the open board %s; a board drives only its own thread, so drop slack from this block or close that board", g.ID, g.Thread(), slug)
+			}
+		})
+	}
+	return err
+}
