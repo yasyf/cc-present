@@ -62,13 +62,50 @@ type restServer struct {
 }
 
 // reducedBoard is one subject's reduced state, caught up from the last seq it
-// applied, so a tap decodes only the events since the one before it instead of
-// the board's whole history.
+// applied, so a tap or a page load decodes only the events since the previous
+// one instead of the board's whole history.
 type reducedBoard struct {
 	mu       sync.Mutex
 	seq      int64
 	revision int
 	st       state.State
+	snapshot encoded
+	rounds   encoded
+}
+
+type encoded struct {
+	seq  int64
+	body []byte
+}
+
+func (rs *restServer) caughtUp(ctx context.Context, id string) (*reducedBoard, error) {
+	cached, _ := rs.boards.LoadOrStore(id, &reducedBoard{})
+	board := cached.(*reducedBoard)
+	board.mu.Lock()
+	if err := board.catchUp(ctx, rs.db(), id); err != nil {
+		board.mu.Unlock()
+		return nil, err
+	}
+	if board.st.Interactions.Closed.Value {
+		rs.boards.Delete(id)
+	}
+	return board, nil
+}
+
+func (b *reducedBoard) encode(slot *encoded, v func() (any, error)) ([]byte, error) {
+	if slot.body != nil && slot.seq == b.seq {
+		return slot.body, nil
+	}
+	val, err := v()
+	if err != nil {
+		return nil, err
+	}
+	body, err := json.Marshal(val)
+	if err != nil {
+		return nil, err
+	}
+	*slot = encoded{seq: b.seq, body: body}
+	return body, nil
 }
 
 func (b *reducedBoard) catchUp(ctx context.Context, db *sql.DB, subID string) error {
@@ -231,17 +268,14 @@ func (rs *restServer) handleInteractions(w http.ResponseWriter, r *http.Request)
 		http.Error(w, "unknown subject: "+req.Subject, http.StatusNotFound)
 		return
 	}
-	cached, _ := rs.boards.LoadOrStore(id, &reducedBoard{})
-	board := cached.(*reducedBoard)
-	board.mu.Lock()
-	defer board.mu.Unlock()
-	if err := board.catchUp(r.Context(), rs.db(), id); err != nil {
+	board, err := rs.caughtUp(r.Context(), id)
+	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	defer board.mu.Unlock()
 	st := &board.st
 	if st.Interactions.Closed.Value {
-		rs.boards.Delete(id)
 		http.Error(w, "presentation is closed", http.StatusConflict)
 		return
 	}

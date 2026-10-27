@@ -46,23 +46,21 @@ func (rs *restServer) handlePR(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "unknown subject: "+q.Get("subject"), http.StatusNotFound)
 		return
 	}
-	events, err := loadEvents(r.Context(), rs.db(), id)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	st, err := state.Reduce(events)
+	board, err := rs.caughtUp(r.Context(), id)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	number, _ := strconv.Atoi(q.Get("number"))
-	block := findPRBlock(&st, q.Get("block"), q.Get("repo"), number)
+	block := findPRBlock(&board.st, q.Get("block"), q.Get("repo"), number)
 	if block == nil {
+		board.mu.Unlock()
 		http.Error(w, fmt.Sprintf("no pr block %s for %s#%s", q.Get("block"), q.Get("repo"), q.Get("number")), http.StatusNotFound)
 		return
 	}
-	pr, err := rs.fetchPR(r.Context(), block)
+	found := *block
+	board.mu.Unlock()
+	pr, err := rs.fetchPR(r.Context(), &found)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadGateway)
 		return
