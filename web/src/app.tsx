@@ -73,13 +73,15 @@ export function App() {
       </div>
     );
   }
-  const blockId = new URLSearchParams(window.location.search).get('block');
+  const params = new URLSearchParams(window.location.search);
+  const blockId = params.get('block');
+  const row = params.has('row') ? Number(params.get('row')) : undefined;
   return (
     <SubjectProvider value={{ subject, scope: undefined }}>
       <EventStreamProvider subject={subject}>
         <ExpandAllProvider>
           {blockId ? (
-            <SingleBlockView subject={subject} blockId={blockId} />
+            <SingleBlockView subject={subject} blockId={blockId} row={row} />
           ) : (
             <PresentView subject={subject} />
           )}

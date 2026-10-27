@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { allDecided, approveGroup, givenLine, rowVerdict, sameHead, staleLine, tally, toggleEntry } from './prgroups';
+import { allDecided, approveGroup, givenLine, narrowToRow, rowVerdict, sameHead, staleLine, tally, toggleEntry } from './prgroups';
 import type { PRGroups, PRRow } from './schema';
 
 const row = (number: number, head: string, over: Partial<PRRow> = {}): PRRow => ({
@@ -121,5 +121,17 @@ describe('tally and allDecided', () => {
     expect(tally(block.groups.flatMap((g) => g.prs), verdicts)).toEqual({ approved: 1, held: 1, open: 1 });
     expect(allDecided(block, verdicts)).toBe(false);
     expect(allDecided(block, { ...verdicts, '10': { verdict: 'approved', head: '1112223' } })).toBe(true);
+  });
+});
+
+describe('narrowToRow', () => {
+  it('keeps only the row and its group, under the block id verdicts are keyed by', () => {
+    const narrowed = narrowToRow(block, 9);
+    expect(narrowed?.id).toBe('pg');
+    expect(narrowed?.groups).toEqual([{ id: 'g1', title: 'G1', summary: 'S.', prs: [row(9, 'def5678')] }]);
+  });
+
+  it('is undefined for a number on no row', () => {
+    expect(narrowToRow(block, 11)).toBeUndefined();
   });
 });
