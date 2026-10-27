@@ -6,7 +6,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	ccd "github.com/yasyf/cc-interact/daemon"
@@ -18,6 +20,8 @@ import (
 )
 
 const slackBoardTitle = "Questions for you"
+
+type groupPoster func(ctx context.Context, session, thread string, card slackcards.StatusCard) (string, error)
 
 type slackAnswerer func(ctx context.Context, waits, card, label string, other bool, via string) (slackcards.SlackAnswer, error)
 
@@ -334,6 +338,43 @@ func (rs *restServer) answerOnSlack(ctx context.Context, subID string, card *doc
 		ids, written := slackcards.Selection(currentCh, res.Label, res.Other)
 		return settleCard(ctx, rs.append, subID, current, currentCh, ids, written, fmt.Sprintf("The [Slack card](%s) was answered first: **%s**. This pick did not count.", card.Slack.URL, res.Label))
 	}
+}
+
+var redrawMu sync.Mutex
+
+func (rs *restServer) redrawGroupCards(ctx context.Context, subID string, it *interaction) error {
+	redrawMu.Lock()
+	defer redrawMu.Unlock()
+	events, err := loadEvents(ctx, rs.db(), subID)
+	if err != nil {
+		return err
+	}
+	st, err := state.Reduce(events)
+	if err != nil {
+		return err
+	}
+	b, _, err := findBlock(st.Doc, it.BlockID)
+	if err != nil {
+		return err
+	}
+	g, ok := b.(*doc.PRGroups)
+	if !ok || g.Thread() == "" {
+		return nil
+	}
+	var session sql.NullString
+	if err := rs.db().QueryRowContext(ctx, `SELECT session_id FROM subjects WHERE id=?`, subID).Scan(&session); err != nil {
+		return fmt.Errorf("read subject session: %w", err)
+	}
+	var errs []error
+	for _, group := range g.Groups {
+		if !slices.ContainsFunc(group.PRs, func(r doc.PRRow) bool { _, ok := it.Verdicts[doc.RowID(r.Number)]; return ok }) {
+			continue
+		}
+		if _, err := rs.postGroup(ctx, session.String, g.Thread(), slackcards.GroupCard(g, group, st.Interactions.Triage[g.ID], true)); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	return errors.Join(errs...)
 }
 
 func subjectSlug(ctx context.Context, db *sql.DB, subID string) (string, error) {
