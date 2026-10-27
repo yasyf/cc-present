@@ -50,7 +50,8 @@ export function formatAt(iso: string | undefined): string {
 }
 
 export function staleLine(row: PRRow, decision: Decision): string {
-  const given = decision.head ? ` at ${shortHead(decision.head)}` : '';
+  const tapped = decision.carriedFrom ?? decision.head;
+  const given = tapped ? ` at ${shortHead(tapped)}` : '';
   return `${verdictWord(decision.verdict)}${given} on ${formatAt(decision.at)}; new head ${shortHead(row.head)} needs your tap.`;
 }
 

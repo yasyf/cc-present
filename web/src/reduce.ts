@@ -182,6 +182,8 @@ export function applyEvent(state: PresentState, ev: PresentEvent): PresentState 
         if (entry.note) decision.note = entry.note;
         if (entry.head) decision.head = entry.head;
         if (entry.at) decision.at = entry.at;
+        if (entry.carriedFrom) decision.carriedFrom = entry.carriedFrom;
+        if (entry.carryNote) decision.carryNote = entry.carryNote;
         block[itemId] = decision;
       }
       const triage = { ...state.interactions.triage };

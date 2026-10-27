@@ -327,6 +327,13 @@ func TestCarryVerdictPayload(t *testing.T) {
 			res:     CarryResult{Verdict: "approved", From: "0001111", At: tapped, To: "def5678"},
 		},
 		{
+			name:    "a cleared row's closed-round tap at the head is restored",
+			history: map[string]state.Decision{"9": {Verdict: "approved", Head: "def5678", At: tapped}},
+			carry:   VerdictCarry{Block: "pg", Row: "9", Head: "def5678", Note: "same patch"},
+			want:    `{"blockId":"pg","verdicts":{"9":{"verdict":"approved","head":"def5678","at":"2026-10-26T20:03:00Z"}}}`,
+			res:     CarryResult{Verdict: "approved", From: "def5678", At: tapped, To: "def5678"},
+		},
+		{
 			name:    "a verdict already at the head writes nothing",
 			decided: map[string]state.Decision{"8": {Verdict: "approved", Head: "abc1234", At: tapped}},
 			carry:   VerdictCarry{Block: "pg", Row: "8", Head: "abc1234", Note: "same"},

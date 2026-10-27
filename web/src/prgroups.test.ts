@@ -64,6 +64,10 @@ describe('staleLine', () => {
     const line = staleLine(block.groups[0]!.prs[0]!, { verdict: 'approved', head: '9999999aaaa', at: '2026-10-26T21:03:00Z' });
     expect(line).toMatch(/^Approved at 9999999 on .+; new head abc1234 needs your tap\.$/);
   });
+  it('names the head the human tapped for a carried verdict', () => {
+    const line = staleLine(block.groups[0]!.prs[0]!, { verdict: 'approved', head: '8888888', carriedFrom: '9999999', carryNote: 'replay', at: '2026-10-26T21:03:00Z' });
+    expect(line).toMatch(/^Approved at 9999999 on .+; new head abc1234 needs your tap\.$/);
+  });
 });
 
 describe('givenLine', () => {

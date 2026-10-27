@@ -229,11 +229,14 @@ func carryVerdictPayload(st *state.State, c VerdictCarry) (json.RawMessage, Carr
 	}
 	tapped := cmp.Or(d.CarriedFrom, d.Head)
 	res := CarryResult{Verdict: d.Verdict, From: tapped, At: d.At, To: head}
-	if doc.SameHead(d.Head, head) {
+	if live, ok := st.Interactions.Triage[c.Block][c.Row]; ok && doc.SameHead(live.Head, head) {
 		res.Already = true
 		return nil, res, nil
 	}
-	entry := triageEntry{Verdict: d.Verdict, Note: d.Note, Head: head, At: d.At, CarriedFrom: tapped, CarryNote: c.Note}
+	entry := triageEntry{Verdict: d.Verdict, Note: d.Note, Head: head, At: d.At}
+	if !doc.SameHead(tapped, head) {
+		entry.CarriedFrom, entry.CarryNote = tapped, c.Note
+	}
 	return mustJSON(map[string]any{"blockId": c.Block, "verdicts": map[string]triageEntry{c.Row: entry}}), res, nil
 }
 
