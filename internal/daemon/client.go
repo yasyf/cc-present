@@ -90,8 +90,8 @@ const (
 
 // Start creates or resumes the window's artifact, optionally seeding it with a
 // document.
-func (cl *Client) Start(ctx context.Context, session, scope string, pid int, mode StartMode, title string, docJSON json.RawMessage) (StartResult, error) {
-	reply, res, err := cl.do(ctx, OpStart, session, scope, pid, body{New: mode == StartNew, Replace: mode == StartReplace, Title: title, Doc: docJSON})
+func (cl *Client) Start(ctx context.Context, session, scope string, pid int, mode StartMode, named bool, title string, docJSON json.RawMessage) (StartResult, error) {
+	reply, res, err := cl.do(ctx, OpStart, session, scope, pid, body{New: mode == StartNew, Replace: mode == StartReplace, Named: named, Title: title, Doc: docJSON})
 	if err != nil {
 		return StartResult{}, err
 	}

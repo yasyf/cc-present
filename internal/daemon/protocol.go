@@ -71,6 +71,7 @@ type body struct {
 	Round    string          `json:"round,omitempty"`    // push | upsert-block ("" | "current" | "new")
 	Answer   json.RawMessage `json:"answer,omitempty"`   // slack-answer
 	Verdicts json.RawMessage `json:"verdicts,omitempty"` // import-verdicts | move-verdicts
+	Named    bool            `json:"named,omitempty"`
 }
 
 // result is the domain payload a handler returns in Reply.Body. Envelope-level

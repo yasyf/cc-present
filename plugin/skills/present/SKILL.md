@@ -74,7 +74,7 @@ Strikes and pin comments are optional: they never hold back "All answered", so r
 
 **Presenting a plan.** When the user asks for a plan, RFC, or design before you build, present it as a plan board. It opens on a Why card in their words, gives each behavior one card with one exhibit and the decision it carries, and ends on Shared and Not changing. "Present a plan" in `reference/blocks.md` has the shape, the word rules, and a skeleton.
 
-To show one HTML, SVG, or Markdown file without writing a document, run `cc-present show <file>`. It resumes this window's artifact, replaces its document, and prints the URL like `start`; `--new` opens a fresh artifact and `--replace` closes the open one first, `--title` names it, and `--height` pins an HTML or SVG frame.
+To show one HTML, SVG, or Markdown file without writing a document, run `cc-present show <file>`. It resumes this window's artifact, replaces its document, and prints the URL like `start`, but refuses to replace a board or any document that is not itself a display page; `--new` opens a fresh artifact and `--replace` closes the open one first, `--title` names it, and `--height` pins an HTML or SVG frame.
 
 Validate offline before starting (no daemon needed):
 

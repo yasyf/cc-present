@@ -38,6 +38,10 @@ func sessionOr(s string) string {
 	return os.Getenv("CLAUDE_CODE_SESSION_ID")
 }
 
+func namedOther(session string) bool {
+	return session != "" && session != os.Getenv("CLAUDE_CODE_SESSION_ID")
+}
+
 func artifactWindow(d cmd.Deps, session string) (string, int) {
 	if session != "" {
 		return session, 0
@@ -307,7 +311,7 @@ func newStartCmd(d cmd.Deps) *cobra.Command {
 					return err
 				}
 			}
-			res, err := cl.Start(ctx, sess, scope, pid, startMode(fresh, replace), title, docJSON)
+			res, err := cl.Start(ctx, sess, scope, pid, startMode(fresh, replace), namedOther(session), title, docJSON)
 			if err != nil {
 				return err
 			}
