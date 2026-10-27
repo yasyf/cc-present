@@ -1154,7 +1154,7 @@ func TestUpsertBlockRoundIntent(t *testing.T) {
 		h := newHarness(t)
 		start := handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks, nilDisplay)
 		engageDecision(t, h, start.SubjectID, "a1")
-		reply := handleUpsertBlock(h.hc(body{Block: json.RawMessage(`{"id":"a1","type":"markdown","md":"replaced"}`)}), doc.NoPacks)
+		reply := handleUpsertBlock(h.hc(body{Block: json.RawMessage(`{"id":"a1","type":"markdown","md":"replaced"}`), Reopen: []string{"a1"}}), doc.NoPacks)
 		if !reply.OK {
 			t.Fatalf("re-upsert of existing id not ok: %s", reply.Error)
 		}
@@ -1302,7 +1302,7 @@ func TestPushRoundIntent(t *testing.T) {
 		h := newHarness(t)
 		start := handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks, nilDisplay)
 		engageDecision(t, h, start.SubjectID, "a1")
-		if reply := push(h, sameIDDoc, "", ""); !reply.OK {
+		if reply := handlePush(h.hc(body{Doc: json.RawMessage(sameIDDoc), Reopen: []string{"a1"}}), doc.NoPacks, nilDisplay); !reply.OK {
 			t.Fatalf("same-id push not ok: %s", reply.Error)
 		}
 	})
@@ -1321,7 +1321,7 @@ func TestPushRoundIntent(t *testing.T) {
 				h := newHarness(t)
 				start := handleStart(h.hc(body{Doc: json.RawMessage(childApprovalDoc)}), doc.NoPacks, nilDisplay)
 				engageDecision(t, h, start.SubjectID, "a1")
-				reply := push(h, promotedChildDoc, tt.round, "")
+				reply := handlePush(h.hc(body{Doc: json.RawMessage(promotedChildDoc), Round: tt.round, Reopen: []string{"a1"}}), doc.NoPacks, nilDisplay)
 				if reply.OK != tt.wantOK {
 					t.Fatalf("push: ok=%v err=%q, want ok=%v", reply.OK, reply.Error, tt.wantOK)
 				}

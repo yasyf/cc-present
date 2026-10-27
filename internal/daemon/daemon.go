@@ -186,13 +186,14 @@ func handleStart(hc ccd.HandlerCtx, pt doc.PackTypes, display displayFunc) ccd.R
 	if err != nil {
 		return errReply(err.Error())
 	}
+	var warnings []string
 	if d != nil {
-		if err := appendSeedDoc(hc, sub.ID, b.Doc, d); err != nil {
+		if warnings, err = appendSeedDoc(hc, sub.ID, b.Doc, d, b.Reopen); err != nil {
 			return errReply(err.Error())
 		}
 	}
 	cs := channelState(hc.Activity, sub.ID, hc.Scope, hc.Window.ClaudePID)
-	res := result{URL: artifactURL(hc.HTTPPort, sub.Slug), TailnetURLs: display(hc.Ctx, sub.Slug, hc.HTTPPort), Slug: sub.Slug, ChannelState: cs}
+	res := result{URL: artifactURL(hc.HTTPPort, sub.Slug), TailnetURLs: display(hc.Ctx, sub.Slug, hc.HTTPPort), Slug: sub.Slug, ChannelState: cs, Warnings: warnings}
 	raw, _ := json.Marshal(res)
 	return ccd.Reply{OK: true, SubjectID: sub.ID, HTTPPort: hc.HTTPPort, Body: raw}
 }
@@ -229,26 +230,34 @@ func displayPage(d *doc.Doc) bool {
 // top-level block to a round the human has engaged, an unspecified round intent
 // is rejected; --round new closes the dirty round into history and opens the
 // next before the replacement lands.
-func appendSeedDoc(hc ccd.HandlerCtx, subID string, raw json.RawMessage, d *doc.Doc) error {
+func appendSeedDoc(hc ccd.HandlerCtx, subID string, raw json.RawMessage, d *doc.Doc, reopen []string) ([]string, error) {
 	writeMu.Lock()
 	defer writeMu.Unlock()
 	events, err := loadEvents(hc.Ctx, hc.DB, subID)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	st, err := state.Reduce(events)
 	if err != nil {
-		return err
+		return nil, err
+	}
+	gate, err := newAnswerGate(hc.Ctx, hc.DB, subID, &st, events, reopen)
+	if err != nil {
+		return nil, err
+	}
+	raw, warnings, err := gate.admitDoc(d, raw)
+	if err != nil {
+		return nil, err
 	}
 	rev, err := nextRevision(hc.Ctx, hc.DB, subID)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	_, err = appendEvent(hc.Ctx, hc.Append, &ccevent.Event{
 		SubjectID: subID, Origin: ccevent.OriginAgent, Type: EventDocReplaced,
 		Payload: docReplacedPayload(raw, rev, retainedTopIDs(&st, d)),
 	})
-	return err
+	return warnings, err
 }
 
 func handlePush(hc ccd.HandlerCtx, pt doc.PackTypes, display displayFunc) ccd.Reply {
@@ -278,6 +287,14 @@ func handlePush(hc ccd.HandlerCtx, pt doc.PackTypes, display displayFunc) ccd.Re
 	if err != nil {
 		return errReply(err.Error())
 	}
+	gate, err := newAnswerGate(hc.Ctx, hc.DB, sub.ID, &st, events, b.Reopen)
+	if err != nil {
+		return errReply(err.Error())
+	}
+	raw, warnings, err := gate.admitDoc(d, b.Doc)
+	if err != nil {
+		return errReply(err.Error())
+	}
 	if err := roundGuard(&st, intent, "push", newTopIDs(&st, d)); err != nil {
 		return errReply(err.Error())
 	}
@@ -298,11 +315,11 @@ func handlePush(hc ccd.HandlerCtx, pt doc.PackTypes, display displayFunc) ccd.Re
 	}
 	if _, err := appendEvent(hc.Ctx, hc.Append, &ccevent.Event{
 		SubjectID: sub.ID, Origin: ccevent.OriginAgent, Type: EventDocReplaced,
-		Payload: docReplacedPayload(b.Doc, rev, retained),
+		Payload: docReplacedPayload(raw, rev, retained),
 	}); err != nil {
 		return errReply(err.Error())
 	}
-	return okReply(result{Revision: rev, URL: artifactURL(hc.HTTPPort, sub.Slug), TailnetURLs: display(hc.Ctx, sub.Slug, hc.HTTPPort), Round: round})
+	return okReply(result{Revision: rev, URL: artifactURL(hc.HTTPPort, sub.Slug), TailnetURLs: display(hc.Ctx, sub.Slug, hc.HTTPPort), Round: round, Warnings: warnings})
 }
 
 // handleUpsertBlock inserts or replaces a single block. An unknown type, a block
@@ -340,6 +357,24 @@ func handleUpsertBlock(hc ccd.HandlerCtx, pt doc.PackTypes) ccd.Reply {
 	if loc, ok := doc.Locate(st.Doc, blk.BlockID()); ok && loc.Visual() {
 		return errReply(pointingError(blk.BlockID(), loc).Error())
 	}
+	gate, err := newAnswerGate(hc.Ctx, hc.DB, sub.ID, &st, events, b.Reopen)
+	if err != nil {
+		return errReply(err.Error())
+	}
+	kept, warnings := gate.strip([]doc.Block{blk})
+	if len(kept) == 0 {
+		return okReply(result{Warnings: warnings})
+	}
+	blockJSON := b.Block
+	if len(warnings) > 0 {
+		blk = kept[0]
+		if blockJSON, err = json.Marshal(blk); err != nil {
+			return errReply(err.Error())
+		}
+	}
+	if err := gate.check(blk); err != nil {
+		return errReply(err.Error())
+	}
 	if b.After != "" {
 		loc, ok := doc.Locate(st.Doc, b.After)
 		if !ok {
@@ -373,11 +408,11 @@ func handleUpsertBlock(hc ccd.HandlerCtx, pt doc.PackTypes) ccd.Reply {
 	}
 	if _, err := appendEvent(hc.Ctx, hc.Append, &ccevent.Event{
 		SubjectID: sub.ID, Origin: ccevent.OriginAgent, Type: EventBlockUpserted,
-		Payload: blockUpsertedPayload(b.Block, b.After),
+		Payload: blockUpsertedPayload(blockJSON, b.After),
 	}); err != nil {
 		return errReply(err.Error())
 	}
-	return okReply(result{Round: round})
+	return okReply(result{Round: round, Warnings: warnings})
 }
 
 // upsertedDoc returns the document the upsert of blk (after `after`) produces
@@ -601,11 +636,15 @@ func handleOutcomes(hc ccd.HandlerCtx) ccd.Reply {
 	if err != nil {
 		return errReply(err.Error())
 	}
+	gate, err := newAnswerGate(hc.Ctx, hc.DB, sub.ID, &st, events, nil)
+	if err != nil {
+		return errReply(err.Error())
+	}
 	raw, err := json.Marshal(st)
 	if err != nil {
 		return errReply(err.Error())
 	}
-	return okReply(result{State: raw})
+	return okReply(result{State: raw, Retired: gate.retiredIDs()})
 }
 
 // NoArtifact is the error every artifact command returns when session resolves

@@ -197,7 +197,20 @@ func (s *State) UnmarshalJSON(data []byte) error {
 // the shared log — channel.changed and the agent.* lifecycle — are skipped;
 // any other unknown event type is an error.
 func Reduce(events []Event) (State, error) {
-	s := State{
+	s := newState()
+	for _, ev := range ordered(events) {
+		if s.Interactions.Closed.Value {
+			continue
+		}
+		if err := s.apply(ev); err != nil {
+			return State{}, fmt.Errorf("apply %s at seq %d: %w", ev.Type, ev.Seq, err)
+		}
+	}
+	return s, nil
+}
+
+func newState() State {
+	return State{
 		SchemaVersion: SchemaVersion,
 		Doc:           &doc.Doc{Version: 1, Blocks: []doc.Block{}},
 		Interactions: Interactions{
@@ -218,18 +231,12 @@ func Reduce(events []Event) (State, error) {
 		},
 		Revising: Revising{BlockIDs: []string{}},
 	}
-	ordered := append([]Event(nil), events...)
-	sort.SliceStable(ordered, func(i, j int) bool { return ordered[i].Seq < ordered[j].Seq })
+}
 
-	for _, ev := range ordered {
-		if s.Interactions.Closed.Value {
-			continue
-		}
-		if err := s.apply(ev); err != nil {
-			return State{}, fmt.Errorf("apply %s at seq %d: %w", ev.Type, ev.Seq, err)
-		}
-	}
-	return s, nil
+func ordered(events []Event) []Event {
+	out := append([]Event(nil), events...)
+	sort.SliceStable(out, func(i, j int) bool { return out[i].Seq < out[j].Seq })
+	return out
 }
 
 func (s *State) apply(ev Event) error {

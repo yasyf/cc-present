@@ -115,7 +115,7 @@ func TestArtifactResolutionIsCwdIndependent(t *testing.T) {
 
 	t.Run("mutations resolve across cwds to one subject", func(t *testing.T) {
 		cl := startTestDaemon(ctx, t)
-		start, err := cl.Start(ctx, "s1", "/repo-root", 0, StartResume, false, "", json.RawMessage(approvalDoc))
+		start, err := cl.Start(ctx, "s1", "/repo-root", 0, StartResume, false, nil, "", json.RawMessage(approvalDoc))
 		if err != nil {
 			t.Fatalf("start: %v", err)
 		}
@@ -127,10 +127,10 @@ func TestArtifactResolutionIsCwdIndependent(t *testing.T) {
 		if _, err := cl.Round(ctx, "s1", "/plugin/cache/elsewhere", 0, "Round Two"); err != nil {
 			t.Fatalf("round from a foreign cwd: %v", err)
 		}
-		if _, err := cl.UpsertBlock(ctx, "s1", "/tmp/other", 0, json.RawMessage(markdownBlock), "", "", ""); err != nil {
+		if _, _, err := cl.UpsertBlock(ctx, "s1", "/tmp/other", 0, json.RawMessage(markdownBlock), nil, "", "", ""); err != nil {
 			t.Fatalf("upsert-block from a foreign cwd: %v", err)
 		}
-		if _, err := cl.Outcomes(ctx, "s1", "/yet/another", 0); err != nil {
+		if _, _, err := cl.Outcomes(ctx, "s1", "/yet/another", 0); err != nil {
 			t.Fatalf("outcomes from a foreign cwd: %v", err)
 		}
 		got, _, err := cl.Resolve(ctx, "s1", "/fifth/cwd", 0)
@@ -147,7 +147,7 @@ func TestArtifactResolutionIsCwdIndependent(t *testing.T) {
 
 	t.Run("pid fallback across cwd", func(t *testing.T) {
 		cl := startTestDaemon(ctx, t)
-		start, err := cl.Start(ctx, "s1", "/a", 4242, StartResume, false, "T", nil)
+		start, err := cl.Start(ctx, "s1", "/a", 4242, StartResume, false, nil, "T", nil)
 		if err != nil {
 			t.Fatalf("start: %v", err)
 		}
@@ -164,7 +164,7 @@ func TestArtifactResolutionIsCwdIndependent(t *testing.T) {
 
 	t.Run("another window cannot adopt", func(t *testing.T) {
 		cl := startTestDaemon(ctx, t)
-		if _, err := cl.Start(ctx, "s1", "/repo-root", 0, StartResume, false, "T", nil); err != nil {
+		if _, err := cl.Start(ctx, "s1", "/repo-root", 0, StartResume, false, nil, "T", nil); err != nil {
 			t.Fatalf("start: %v", err)
 		}
 		// A second session with no matching pid owns nothing here, even at the
@@ -186,11 +186,11 @@ func TestStartResumesAcrossCwd(t *testing.T) {
 	ctx := context.Background()
 	cl := startTestDaemon(ctx, t)
 
-	first, err := cl.Start(ctx, "s1", "/a", 0, StartResume, false, "T", nil)
+	first, err := cl.Start(ctx, "s1", "/a", 0, StartResume, false, nil, "T", nil)
 	if err != nil {
 		t.Fatalf("first start: %v", err)
 	}
-	resume, err := cl.Start(ctx, "s1", "/b", 0, StartResume, false, "T", nil)
+	resume, err := cl.Start(ctx, "s1", "/b", 0, StartResume, false, nil, "T", nil)
 	if err != nil {
 		t.Fatalf("resume start: %v", err)
 	}
@@ -198,10 +198,10 @@ func TestStartResumesAcrossCwd(t *testing.T) {
 		t.Fatalf("resume from a new cwd = %q, want %q (same artifact)", resume.SubjectID, first.SubjectID)
 	}
 
-	if _, err := cl.Start(ctx, "s1", "/c", 0, StartNew, false, "T", nil); err == nil || !strings.Contains(err.Error(), "--replace") {
+	if _, err := cl.Start(ctx, "s1", "/c", 0, StartNew, false, nil, "T", nil); err == nil || !strings.Contains(err.Error(), "--replace") {
 		t.Fatalf("new start over an open artifact: err = %v, want a refusal naming --replace", err)
 	}
-	fresh, err := cl.Start(ctx, "s1", "/c", 0, StartReplace, false, "T", nil)
+	fresh, err := cl.Start(ctx, "s1", "/c", 0, StartReplace, false, nil, "T", nil)
 	if err != nil {
 		t.Fatalf("replace start: %v", err)
 	}
