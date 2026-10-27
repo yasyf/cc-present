@@ -204,7 +204,7 @@ var statusOutcomes = map[string]string{
 
 // Cache keeps each pull request's newest read: a read younger than Floor is
 // served as is, concurrent reads of one pull request share one fetch, and the
-// changed files are fetched again only when the head commit moves.
+// changed files are fetched again only when the head commit or the base moves.
 type Cache struct {
 	Floor   time.Duration
 	mu      sync.Mutex
@@ -270,7 +270,7 @@ func fetch(ctx context.Context, run Runner, repo string, number int, patterns []
 	}
 	gp := *resp.Data.Repository.PullRequest
 	var files []File
-	if prior != nil && prior.oid == gp.HeadRefOid {
+	if prior != nil && prior.oid == gp.HeadRefOid && prior.pr.Base == gp.BaseRefName {
 		files = prior.pr.Files
 	} else {
 		out, err := run(ctx, "api", "--paginate", fmt.Sprintf("repos/%s/pulls/%d/files?per_page=100", repo, number))

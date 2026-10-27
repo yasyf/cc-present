@@ -794,7 +794,7 @@ unknown subject, or no matching `pr` block, returns 404; a `gh` failure returns
 502 with its stderr.
 The daemon serves a read younger than a minute without calling GitHub, shares
 one fetch among concurrent requests for the same PR, and fetches the changed
-files again only when the PR's head commit moves. The client caches a response
+files again only when the PR's head commit or base moves. The client caches a response
 for a minute and refetches on its refresh control.
 
 ```ts

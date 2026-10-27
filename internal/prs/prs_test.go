@@ -103,11 +103,13 @@ func TestCacheRefetches(t *testing.T) {
 		name      string
 		after     time.Duration
 		head      string
+		base      string
 		wantCalls int
 	}{
-		{"inside the floor", 30 * time.Second, "h1", 0},
-		{"same head after the floor", 2 * time.Minute, "h1", 1},
-		{"moved head after the floor", 2 * time.Minute, "h2", 2},
+		{"inside the floor", 30 * time.Second, "h1", "main", 0},
+		{"same head after the floor", 2 * time.Minute, "h1", "main", 1},
+		{"moved head after the floor", 2 * time.Minute, "h2", "main", 2},
+		{"retargeted base after the floor", 2 * time.Minute, "h1", "dev", 2},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -117,7 +119,7 @@ func TestCacheRefetches(t *testing.T) {
 				t.Fatal(err)
 			}
 			first := len(f.calls)
-			f.pr = strings.Replace(openPR, `"headRefOid":"h1"`, `"headRefOid":"`+tt.head+`"`, 1)
+			f.pr = strings.NewReplacer(`"headRefOid":"h1"`, `"headRefOid":"`+tt.head+`"`, `"baseRefName":"main"`, `"baseRefName":"`+tt.base+`"`).Replace(openPR)
 			pr, err := cache.Fetch(t.Context(), f.run, "o/r", 7, nil, now.Add(tt.after))
 			if err != nil {
 				t.Fatal(err)
