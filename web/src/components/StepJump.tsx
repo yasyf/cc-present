@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { FocusStep, Remaining } from '../focus';
-import type { Interactions, RoundRecord } from '../events';
+import type { Interactions, RoundEntry } from '../events';
 import { useKeyboardApi } from '../keyboard';
 import { useActiveBlock } from '../activeBlock';
 import { StepReceipt } from './FocusSummary';
@@ -12,7 +12,7 @@ export interface StepJumpProps {
   progress: Remaining;
   interactions: Interactions;
   packInteractive: ReadonlySet<string>;
-  history: RoundRecord[];
+  history: RoundEntry[];
 }
 
 export function progressLabel({ left, total }: Remaining, steps: number): string {

@@ -2,17 +2,17 @@
 // cache through the shared reducer. The SSE plane delivers each event as a flat,
 // self-describing wire frame (the payload with its `type` embedded); this module
 // lifts that frame into the reducer's PresentEvent envelope. Toasts fire only for
-// live agent activity: the SSE plane replays the whole log on connect, then emits
-// a `caught-up` marker at the replay/live boundary. The library tracks that marker
-// per connection and toasts only frames past it — until the marker lands the
-// highWaterSeq fallback below treats every frame as replay history and stays silent.
+// live agent activity: the stream resumes after the snapshot's seq, replays the
+// events since, then emits a `caught-up` marker at the replay/live boundary. The
+// library tracks that marker per connection and toasts only frames past it — until
+// the marker lands the highWaterSeq fallback below treats every frame as replay
+// history and stays silent.
 
 import { createEventStream } from '@cc-interact/react';
 import type { StreamToast } from '@cc-interact/react';
 import { applyEvent } from './reduce';
-import { presentKey, revisionKey } from './api';
+import { presentKey, queryClient, revisionKey, snapshotKey } from './api';
 import { markdownText } from './markdown';
-import { getInteractivePackTypes } from './packs/registry';
 import { revisionStore } from './revision';
 import { blockLabel, threadFeed } from './threadFeed';
 import { hasThreadOpener, openThread } from './threadOpen';
@@ -58,7 +58,7 @@ export function toastFor(frame: WireFrame, before: PresentState, after: PresentS
   if (frame.type === 'block.upserted') return inFocusMode() ? null : named(text, blockLabel(after.doc.blocks, frame.block.id));
   if (frame.type === 'block.removed') return named(text, blockLabel(before.doc.blocks, frame.id));
   if (frame.type !== 'reply.created') return { kind: 'info', text };
-  const entry = threadFeed(after, frame.blockId, getInteractivePackTypes()).pinned;
+  const entry = threadFeed(after, frame.blockId).pinned;
   if (!entry) return { kind: 'info', text };
   const note = entry.feedback.at(-1)?.text;
   return {
@@ -84,13 +84,15 @@ function frameToEvent(frame: WireFrame): PresentEvent {
 
 export const { EventStreamProvider, useEventStream } = createEventStream<WireFrame, PresentState>({
   queryKey: (subject) => presentKey(subject),
-  // Mirror the library's default `/events?session=<subject>`, then carry the page
-  // token so an off-loopback EventSource authenticates; loopback stays byte-identical.
+  // Mirror the library's default `/events?session=<subject>`, resume after the
+  // snapshot's seq, then carry the page token so an off-loopback EventSource
+  // authenticates.
   url: (subject) => {
     // Called just before each (re)connection, where the library resets its
     // caught-up seq: close the revision store's live gate for the coming replay.
     revisionStore.beginConnection();
-    return withToken(`/events?session=${encodeURIComponent(subject)}`);
+    const seq = queryClient.getQueryData<number>(snapshotKey(subject))!;
+    return withToken(`/events?session=${encodeURIComponent(subject)}&last_event_id=${seq}`);
   },
   reduce: (cache, frame) => applyEvent(cache, frameToEvent(frame)),
   toast: (frame, ctx) =>

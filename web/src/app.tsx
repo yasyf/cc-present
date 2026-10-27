@@ -9,7 +9,7 @@ import { useQuery } from '@tanstack/react-query';
 import { AppShell, ToastStack, useFlip } from '@cc-interact/react';
 import { EventStreamProvider, useEventStream } from './stream';
 import { usePackToastSink } from './packs/toasts';
-import { SubjectProvider, presentKey, queryClient, usePostInteraction } from './api';
+import { SubjectProvider, loadSnapshot, presentKey, queryClient, snapshotKey, usePostInteraction } from './api';
 import { emptyState } from './reduce';
 import { boardPhase } from './lifecycle';
 import { focusSteps, remaining } from './focus';
@@ -78,18 +78,32 @@ export function App() {
   const row = params.has('row') ? Number(params.get('row')) : undefined;
   return (
     <SubjectProvider value={{ subject, scope: undefined }}>
-      <EventStreamProvider subject={subject}>
-        <ExpandAllProvider>
-          {blockId ? (
-            <SingleBlockView subject={subject} blockId={blockId} row={row} />
-          ) : (
-            <PresentView subject={subject} />
-          )}
-          <RefPopover />
-        </ExpandAllProvider>
-      </EventStreamProvider>
+      <SnapshotGate subject={subject}>
+        <EventStreamProvider subject={subject}>
+          <ExpandAllProvider>
+            {blockId ? (
+              <SingleBlockView subject={subject} blockId={blockId} row={row} />
+            ) : (
+              <PresentView subject={subject} />
+            )}
+            <RefPopover />
+          </ExpandAllProvider>
+        </EventStreamProvider>
+      </SnapshotGate>
     </SubjectProvider>
   );
+}
+
+function SnapshotGate({ subject, children }: { subject: string; children: ReactNode }) {
+  const snapshot = useQuery({
+    queryKey: snapshotKey(subject),
+    queryFn: () => loadSnapshot(subject),
+    staleTime: Infinity,
+    gcTime: Infinity,
+  });
+  if (snapshot.isError) return <ConnectError />;
+  if (snapshot.isPending) return <BoardSkeleton />;
+  return children;
 }
 
 function PresentView({ subject }: { subject: string }) {
@@ -97,7 +111,7 @@ function PresentView({ subject }: { subject: string }) {
   usePackToastSink(stream.notify);
   const { data: state } = useQuery<PresentState>({
     queryKey: presentKey(subject),
-    // No get-document endpoint exists; the cache is built by the SSE replay. A
+    // SnapshotGate seeds the cache from /api/state and the stream patches it. A
     // refetch just returns the current reduced state so it never wipes it.
     queryFn: () => queryClient.getQueryData<PresentState>(presentKey(subject)) ?? emptyState(),
     initialData: emptyState,
@@ -355,8 +369,7 @@ function PresentShell({
     setPinnedOpen(true);
   });
   const isDesktop = useMediaQuery('(min-width: 1100px)');
-  const packInteractive = useInteractivePackTypes();
-  const projection = threadFeed(state, active.activeId, packInteractive);
+  const projection = threadFeed(state, active.activeId);
   const rail = useRailOpen({
     pinnedOpen: active.pinnedOpen,
     composing: active.composing,

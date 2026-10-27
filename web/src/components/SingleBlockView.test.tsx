@@ -12,7 +12,7 @@ import { SingleBlockView } from './SingleBlockView';
 import { packToast, setPackToastSink } from '../packs/toasts';
 import { markPacksLoaded, registerPack, resetPacksForTest } from '../packs/registry';
 import type { PackComponent, PackComponentProps } from '../packs/registry';
-import type { PresentEvent, PresentState } from '../events';
+import type { PresentEvent, PresentState, RoundRecord } from '../events';
 import type { Doc, Markdown } from '../schema';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -84,7 +84,7 @@ describe('SingleBlockView closed-round fallback', () => {
   it('renders a block that survives only in a closed round, with its reply thread', () => {
     const state = historyState();
     expect(state.doc.blocks.some((b) => b.id === 'h1')).toBe(false);
-    expect(state.rounds.history[0]?.blocks.some((b) => b.id === 'h1')).toBe(true);
+    expect((state.rounds.history[0] as RoundRecord).blocks.some((b) => b.id === 'h1')).toBe(true);
 
     render('s', 'h1', state);
 

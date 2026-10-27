@@ -10,7 +10,7 @@ import { useEffect, useMemo, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { ToastStack } from '@cc-interact/react';
 import { useEventStream } from '../stream';
-import { presentKey, queryClient, usePostInteraction } from '../api';
+import { presentKey, queryClient, usePostInteraction, useRoundRecords } from '../api';
 import { emptyState, topLevelRound } from '../reduce';
 import { flatten } from '../decide';
 import { narrowToRow } from '../prgroups';
@@ -19,7 +19,7 @@ import { KeyboardProvider } from '../keyboard';
 import { PresentContext } from '../present';
 import { usePackToastSink } from '../packs/toasts';
 import type { PresentApi } from '../present';
-import type { PresentState } from '../events';
+import type { PresentState, RoundRecord } from '../events';
 import type { Block } from '../schema';
 import { interactionErrorText } from '../interactionError';
 import { BlockRenderer } from './BlockRenderer';
@@ -54,11 +54,9 @@ function findIn(blocks: Block[], blockId: string): Block | undefined {
 // iOS client loads this view for a historical pack block whose id a later
 // doc.replaced dropped, and its agent replies must still render somewhere. Fall
 // back to the frozen blocks of closed rounds, newest first.
-function findBlock(state: PresentState, blockId: string): Block | undefined {
-  const live = findIn(state.doc.blocks, blockId);
-  if (live) return live;
-  for (let i = state.rounds.history.length - 1; i >= 0; i--) {
-    const frozen = findIn(state.rounds.history[i]!.blocks, blockId);
+function findFrozen(history: RoundRecord[], blockId: string): Block | undefined {
+  for (let i = history.length - 1; i >= 0; i--) {
+    const frozen = findIn(history[i]!.blocks, blockId);
     if (frozen) return frozen;
   }
   return undefined;
@@ -78,7 +76,9 @@ export function SingleBlockView({ subject, blockId, row }: { subject: string; bl
     stream.notify({ kind: 'error', text: interactionErrorText(interaction) }),
   );
 
-  const found = findBlock(state, blockId);
+  const live = findIn(state.doc.blocks, blockId);
+  const frozen = useRoundRecords(subject, state.rounds.history, live === undefined);
+  const found = live ?? findFrozen(frozen.records ?? [], blockId);
   const block = found?.type === 'pr-groups' && row !== undefined ? narrowToRow(found, row) : found;
   const round = topLevelRound(state, blockId);
   const realClosed = state.interactions.closed.value;
@@ -131,7 +131,7 @@ export function SingleBlockView({ subject, blockId, row }: { subject: string; bl
 
   const content = block ? (
     <BlockRenderer block={block} interactions={state.interactions} />
-  ) : stream.caughtUp ? (
+  ) : stream.caughtUp && (frozen.records !== undefined || frozen.failed) ? (
     <div className="empty-state">
       {row === undefined ? 'No block' : `No pull request #${row} in`} <code>{blockId}</code>
     </div>

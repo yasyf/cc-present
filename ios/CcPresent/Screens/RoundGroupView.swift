@@ -15,14 +15,22 @@ struct RoundGroupView: View {
     let record: RoundRecord
     var client: APIClient?
     var packContext: PackContext?
+    let loadRounds: () async throws -> Void
 
     @State private var store: BoardStore
     @State private var expanded = false
+    @State private var loadFailed = false
 
-    init(record: RoundRecord, client: APIClient? = nil, packContext: PackContext? = nil) {
+    init(
+        record: RoundRecord,
+        client: APIClient? = nil,
+        packContext: PackContext? = nil,
+        loadRounds: @escaping () async throws -> Void = {}
+    ) {
         self.record = record
         self.client = client
         self.packContext = packContext
+        self.loadRounds = loadRounds
         _store = State(initialValue: RoundGroupView.seed(record))
     }
 
@@ -32,19 +40,48 @@ struct RoundGroupView: View {
 
     var body: some View {
         DisclosureGroup(isExpanded: $expanded) {
-            VStack(alignment: .leading, spacing: 16) {
-                ForEach(record.blocks, id: \.id) { block in
-                    BlockView(block: block, store: store, client: client, packContext: packContext)
+            if record.isStub {
+                frozenLoading
+            } else {
+                VStack(alignment: .leading, spacing: 16) {
+                    ForEach(record.blocks, id: \.id) { block in
+                        BlockView(block: block, store: store, client: client, packContext: packContext)
+                    }
                 }
+                .padding(.top, 12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .disabled(true)
+                .opacity(0.55)
             }
-            .padding(.top, 12)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .disabled(true)
-            .opacity(0.55)
         } label: {
             header
         }
         .tint(BlockPalette.muted)
+        .onChange(of: record) { _, next in
+            store = RoundGroupView.seed(next)
+        }
+    }
+
+    @ViewBuilder
+    private var frozenLoading: some View {
+        if loadFailed {
+            Text("Earlier rounds didn't load. Collapse and expand to try again.")
+                .font(.caption)
+                .foregroundStyle(BlockPalette.muted)
+                .padding(.top, 12)
+                .onDisappear { loadFailed = false }
+        } else {
+            ProgressView()
+                .padding(.top, 12)
+                .frame(maxWidth: .infinity)
+                .task {
+                    do {
+                        try await loadRounds()
+                    } catch {
+                        loadFailed = true
+                    }
+                }
+        }
     }
 
     private var header: some View {
@@ -78,7 +115,7 @@ struct RoundGroupView: View {
         if !record.title.isEmpty {
             title += " · \(record.title)"
         }
-        title += " · \(record.blocks.count) blocks"
+        title += " · \(record.outline?.count ?? record.blocks.count) blocks"
         if record.submittedRevision != nil {
             title += " · submitted"
         }

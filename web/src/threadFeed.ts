@@ -6,7 +6,8 @@ import { markdownText } from './markdown';
 import { topLevelRound } from './reduce';
 import { isPackBlock } from './schema';
 import type { Block } from './schema';
-import type { Feedback, PresentState, Reply } from './events';
+import { isRoundStub } from './events';
+import type { Feedback, PresentState, Reply, RoundOutline } from './events';
 
 export interface ThreadEntry {
   blockId: string;
@@ -52,20 +53,19 @@ export function threadTurns(
   feedback: Record<string, Feedback[]>,
   replies: Record<string, Reply[]>,
 ): { feedback: Feedback[]; replies: Reply[] } {
-  const ids = [block, ...(block.type === 'card' ? block.children : [])].map((b) => b.id);
-  return { feedback: ids.flatMap((id) => feedback[id] ?? []), replies: ids.flatMap((id) => replies[id] ?? []) };
-}
-
-interface Member {
-  block: Block;
-  top: Block;
-  owns: boolean;
-}
-
-function members(blocks: Block[], packInteractive: ReadonlySet<string>): Member[] {
-  return blocks.flatMap((top) =>
-    flatten([top]).map((block) => ({ block, top, owns: block === top && ownsThread(block, packInteractive) })),
+  return turnsOf(
+    flatten([block]).map((b) => b.id),
+    feedback,
+    replies,
   );
+}
+
+function turnsOf(
+  ids: string[],
+  feedback: Record<string, Feedback[]>,
+  replies: Record<string, Reply[]>,
+): { feedback: Feedback[]; replies: Reply[] } {
+  return { feedback: ids.flatMap((id) => feedback[id] ?? []), replies: ids.flatMap((id) => replies[id] ?? []) };
 }
 
 function heading(block: Block): string | undefined {
@@ -83,9 +83,25 @@ function label(block: Block, top: Block): string {
   );
 }
 
+export function outlineOf(blocks: Block[]): RoundOutline[] {
+  return blocks.map((top) => ({
+    id: top.id,
+    type: top.type,
+    label: label(top, top),
+    children: top.type === 'card' ? top.children.map((child) => child.id) : undefined,
+  }));
+}
+
+function outlineIds(top: RoundOutline): string[] {
+  return [top.id, ...(top.children ?? [])];
+}
+
 export function blockLabel(blocks: Block[], id: string): string | null {
-  const member = members(blocks, new Set()).find((m) => m.block.id === id);
-  return member ? label(member.block, member.top) : null;
+  for (const top of blocks) {
+    const block = flatten([top]).find((b) => b.id === id);
+    if (block) return label(block, top);
+  }
+  return null;
 }
 
 function hasConversation(entry: ThreadEntry): boolean {
@@ -105,48 +121,43 @@ function lastComment(feedback: Feedback[], replies: Reply[]): string | null {
 // threadFeed splits the conversation-bearing blocks into the pinned thread (the
 // one the rail addresses, always rendered so its composer stays reachable) and the
 // feed of every other block that has at least one note or reply.
-export function threadFeed(
-  state: PresentState,
-  activeId: string | null,
-  packInteractive: ReadonlySet<string>,
-): ThreadProjection {
+export function threadFeed(state: PresentState, activeId: string | null): ThreadProjection {
   const replies = state.interactions.replies;
   const closed = state.interactions.closed.value;
-  const live = members(state.doc.blocks, packInteractive);
-  const past = state.rounds.history.map((round) => ({ round, members: members(round.blocks, packInteractive) }));
+  const live = outlineOf(state.doc.blocks);
+  const past = state.rounds.history.map((round) => ({
+    feedback: round.feedback,
+    outline: isRoundStub(round) ? round.outline : outlineOf(round.blocks),
+  }));
 
   const all: ThreadEntry[] = [];
   const seen = new Set<string>();
-  const admit = (
-    { block, top, owns }: Member,
-    feedback: Record<string, Feedback[]>,
-    locked: boolean,
-    isLive: boolean,
-  ) => {
-    if ((!owns && block !== top) || seen.has(block.id)) return;
-    seen.add(block.id);
-    const turns = threadTurns(block, feedback, replies);
+  const admit = (top: RoundOutline, feedback: Record<string, Feedback[]>, locked: boolean, isLive: boolean) => {
+    if (seen.has(top.id)) return;
+    seen.add(top.id);
+    const turns = turnsOf(outlineIds(top), feedback, replies);
     all.push({
-      blockId: block.id,
-      type: block.type,
-      label: label(block, top),
+      blockId: top.id,
+      type: top.type,
+      label: top.label,
       ...turns,
       locked,
       live: isLive,
       lastComment: lastComment(turns.feedback, turns.replies),
     });
   };
-  for (const member of live) {
-    const stale = topLevelRound(state, member.top.id) !== state.rounds.current;
-    admit(member, state.interactions.feedback, closed || stale, !stale);
+  for (const top of live) {
+    const stale = topLevelRound(state, top.id) !== state.rounds.current;
+    admit(top, state.interactions.feedback, closed || stale, !stale);
   }
-  for (const { round, members: frozen } of past) {
-    for (const member of frozen) admit(member, round.feedback, true, false);
+  for (const round of past) {
+    for (const top of round.outline) admit(top, round.feedback, true, false);
   }
 
-  const holder = [...live, ...past.flatMap((p) => p.members)].find((m) => m.block.id === activeId);
-  const owner = holder && (holder.owns ? holder.block.id : holder.top.id);
-  const pinned = all.find((e) => e.blockId === owner) ?? null;
+  const holder = [...live, ...past.flatMap((p) => p.outline)].find(
+    (top) => activeId !== null && outlineIds(top).includes(activeId),
+  );
+  const pinned = all.find((e) => e.blockId === holder?.id) ?? null;
   const feed = all.filter((e) => e !== pinned && hasConversation(e));
   return { pinned, feed };
 }

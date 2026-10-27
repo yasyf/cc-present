@@ -10,11 +10,13 @@ import {
   scopedKey,
   useOptimisticMutation,
 } from '@cc-interact/react';
+import { useQuery } from '@tanstack/react-query';
 import type { UseMutationResult } from '@tanstack/react-query';
 import { applyInteraction } from './reduce';
 import { withToken } from './token';
 import { uuid } from './uuid';
-import type { Interaction, PresentState } from './events';
+import { isRoundStub } from './events';
+import type { Interaction, PresentState, RoundEntry, RoundRecord } from './events';
 
 export const queryClient = createQueryClient();
 
@@ -28,6 +30,48 @@ export function presentKey(subject: string) {
 
 export function revisionKey(subject: string) {
   return scopedKey('present-revision', subject, undefined);
+}
+
+export function snapshotKey(subject: string) {
+  return scopedKey('present-snapshot', subject, undefined);
+}
+
+function roundsKey(subject: string) {
+  return scopedKey('present-rounds', subject, undefined);
+}
+
+export async function loadSnapshot(subject: string): Promise<number> {
+  const snapshot = await request<{ seq: number; revision: number; state: PresentState }>(
+    withToken(`/api/state?session=${encodeURIComponent(subject)}`),
+  );
+  queryClient.setQueryData(presentKey(subject), snapshot.state);
+  queryClient.setQueryData(revisionKey(subject), snapshot.revision);
+  return snapshot.seq;
+}
+
+export interface RoundRecords {
+  records?: RoundRecord[];
+  failed: boolean;
+}
+
+export function useRoundRecords(subject: string, history: RoundEntry[], enabled: boolean): RoundRecords {
+  const stubbed = history.some(isRoundStub);
+  const { data, isError } = useQuery({
+    queryKey: roundsKey(subject),
+    queryFn: () =>
+      request<{ history: RoundRecord[] }>(withToken(`/api/rounds?session=${encodeURIComponent(subject)}`)).then(
+        (res) => res.history,
+      ),
+    enabled: enabled && stubbed,
+    staleTime: Infinity,
+    gcTime: Infinity,
+  });
+  if (!stubbed) return { records: history.filter((entry): entry is RoundRecord => !isRoundStub(entry)), failed: false };
+  if (!data) return { failed: isError };
+  return {
+    records: history.map((entry) => (isRoundStub(entry) ? data.find((r) => r.number === entry.number)! : entry)),
+    failed: false,
+  };
 }
 
 export function usePostInteraction(

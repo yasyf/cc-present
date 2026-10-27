@@ -18,6 +18,7 @@ struct BoardScreen: View {
     @State private var preferenceError: String?
     @State private var packManifest: PacksResponse?
     @State private var commentsModel = CommentsModel()
+    @State private var loadError: String?
     private let client: APIClient
     private let bearerToken: String?
 
@@ -88,9 +89,20 @@ struct BoardScreen: View {
                 CommentsSheetView(store: store, comments: commentsModel)
             }
             .task {
-                let sse = SSEClient(baseURL: machine.baseURL, session: subject, bearerToken: bearerToken)
-                let connection = await sse.connect()
-                store.connect(connection)
+                do {
+                    let snapshot = try await client.snapshot(subject: subject)
+                    store.load(snapshot)
+                    let sse = SSEClient(
+                        baseURL: machine.baseURL,
+                        session: subject,
+                        lastEventID: snapshot.seq,
+                        bearerToken: bearerToken
+                    )
+                    let connection = await sse.connect()
+                    store.connect(connection)
+                } catch {
+                    loadError = error.localizedDescription
+                }
             }
             .task {
                 if let response = try? await client.packs() {
@@ -106,6 +118,12 @@ struct BoardScreen: View {
                 "Preferences Unavailable",
                 systemImage: "exclamationmark.triangle",
                 description: Text(preferenceError)
+            )
+        } else if let loadError {
+            ContentUnavailableView(
+                "Board Unavailable",
+                systemImage: "wifi.exclamationmark",
+                description: Text(loadError)
             )
         } else if store.isLoading, !hasContent {
             BoardSkeletonView()
@@ -133,7 +151,9 @@ struct BoardScreen: View {
                     ClosedBannerView(summary: state.interactions.closed.summary)
                 }
                 ForEach(state.rounds.history, id: \.number) { record in
-                    RoundGroupView(record: record, client: client, packContext: packContext)
+                    RoundGroupView(record: record, client: client, packContext: packContext) {
+                        try await store.fillRounds(client.rounds(subject: subject))
+                    }
                 }
                 if !currentBlocks.isEmpty, hasHistory || !state.rounds.currentTitle.isEmpty {
                     currentRoundHeader

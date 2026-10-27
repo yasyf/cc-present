@@ -236,6 +236,29 @@ public struct APIClient: InteractionPoster {
         return try JSONDecoder().decode(PacksResponse.self, from: data)
     }
 
+    /// snapshot GETs /api/state, the subject's reduced board with each closed round
+    /// stubbed, plus the seq of the last event it folds in, where the stream resumes.
+    public func snapshot(subject: String) async throws -> Snapshot {
+        try await get("api/state", subject: subject)
+    }
+
+    /// rounds GETs /api/rounds, every closed round with its frozen blocks.
+    public func rounds(subject: String) async throws -> [RoundRecord] {
+        try await (get("api/rounds", subject: subject) as RoundsResponse).history
+    }
+
+    private func get<T: Decodable>(_ path: String, subject: String) async throws -> T {
+        var request = URLRequest(
+            url: baseURL.appending(path: path).appending(queryItems: [URLQueryItem(name: "session", value: subject)])
+        )
+        request.httpMethod = "GET"
+        authorize(&request)
+
+        let (data, response) = try await urlSession.data(for: request)
+        try APIClient.check(response, data: data)
+        return try JSONDecoder().decode(T.self, from: data)
+    }
+
     /// assetRequest builds an authorized GET for /assets/<sha>. SwiftUI's
     /// AsyncImage cannot attach headers, so the app hands it this pre-decorated
     /// request instead of a bare URL.
@@ -273,4 +296,15 @@ private struct InteractionRequest: Encodable {
 /// SeqResponse is the daemon's reply to an accepted interaction: the assigned seq.
 private struct SeqResponse: Decodable {
     let seq: Int64
+}
+
+/// Snapshot is the daemon's GET /api/state reply: the reduced board and the seq of
+/// the last event folded into it.
+public struct Snapshot: Decodable, Sendable {
+    public let seq: Int64
+    public let state: BoardState
+}
+
+private struct RoundsResponse: Decodable {
+    let history: [RoundRecord]
 }

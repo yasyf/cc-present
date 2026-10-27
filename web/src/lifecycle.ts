@@ -4,11 +4,11 @@
 // blocks so a mid-round close renders them read-only.
 
 import type { Block } from './schema';
-import type { PresentState, RoundRecord } from './events';
+import type { PresentState, RoundEntry } from './events';
 
 export type BoardPhase =
   | { kind: 'live'; blocks: Block[] }
-  | { kind: 'waiting'; lastRound: RoundRecord | undefined }
+  | { kind: 'waiting'; lastRound: RoundEntry | undefined }
   | { kind: 'closed'; blocks: Block[]; summary?: string };
 
 // boardPhase reads the current round's live blocks off the reduced state.

@@ -1,0 +1,121 @@
+package daemon
+
+import (
+	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"slices"
+	"testing"
+
+	ccevent "github.com/yasyf/cc-interact/event"
+)
+
+const snapshotDoc = `{"version":1,"title":"T","blocks":[
+  {"id":"k1","type":"card","title":"Rollout","children":[{"id":"ka1","type":"approval","prompt":"Ship it?"},{"id":"km1","type":"markdown","md":"why"}]},
+  {"id":"m1","type":"markdown","md":"top"},
+  {"id":"p1","type":"example.callout","tone":"warn"}
+]}`
+
+func closedRoundHarness(t *testing.T) (*restHarness, int64) {
+	t.Helper()
+	h := newRestHarnessWith(t, snapshotDoc, emptyPackLoader(t))
+	if w := h.post(t, `{"subject":"board--abcd0000","nonce":"fb","interaction":{"type":"feedback.created","id":"f1","blockId":"ka1","text":"why now?"}}`); w.Code != http.StatusOK {
+		t.Fatalf("feedback: %d %s", w.Code, w.Body.String())
+	}
+	seq, err := h.cc.AppendEvent(context.Background(), &ccevent.Event{
+		SubjectID: h.id, Origin: ccevent.OriginAgent, Type: EventRoundStarted,
+		Payload: injectIdentity(EventRoundStarted, json.RawMessage(`{"title":"Next"}`)),
+	})
+	if err != nil {
+		t.Fatalf("append round.started: %v", err)
+	}
+	return h, seq
+}
+
+func (h *restHarness) get(t *testing.T, path string) *httptest.ResponseRecorder {
+	t.Helper()
+	w := httptest.NewRecorder()
+	h.mux().ServeHTTP(w, httptest.NewRequest(http.MethodGet, path, nil))
+	return w
+}
+
+func TestStateSnapshotStubsClosedRounds(t *testing.T) {
+	h, seq := closedRoundHarness(t)
+	w := h.get(t, "/api/state?session=board--abcd0000")
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d (%s)", w.Code, w.Body.String())
+	}
+	var got struct {
+		Seq      int64 `json:"seq"`
+		Revision int   `json:"revision"`
+		State    struct {
+			Doc    json.RawMessage `json:"doc"`
+			Rounds struct {
+				Current int                          `json:"current"`
+				History []map[string]json.RawMessage `json:"history"`
+			} `json:"rounds"`
+		} `json:"state"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &got); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if got.Seq != seq || got.Revision != 1 || got.State.Rounds.Current != 2 {
+		t.Fatalf("seq=%d revision=%d current=%d, want %d, 1, 2", got.Seq, got.Revision, got.State.Rounds.Current, seq)
+	}
+	if len(got.State.Rounds.History) != 1 {
+		t.Fatalf("history has %d rounds, want 1", len(got.State.Rounds.History))
+	}
+	stub := got.State.Rounds.History[0]
+	if _, ok := stub["blocks"]; ok {
+		t.Fatalf("stub carries frozen blocks: %s", stub["blocks"])
+	}
+	var outline []outlineBlock
+	if err := json.Unmarshal(stub["outline"], &outline); err != nil {
+		t.Fatalf("decode outline: %v", err)
+	}
+	want := []outlineBlock{
+		{ID: "k1", Type: "card", Label: "Rollout", Children: []string{"ka1", "km1"}},
+		{ID: "m1", Type: "markdown", Label: "Markdown"},
+		{ID: "p1", Type: "example.callout", Label: "example.callout"},
+	}
+	if !slices.EqualFunc(outline, want, func(a, b outlineBlock) bool {
+		return a.ID == b.ID && a.Type == b.Type && a.Label == b.Label && slices.Equal(a.Children, b.Children)
+	}) {
+		t.Fatalf("outline = %+v, want %+v", outline, want)
+	}
+	if string(stub["feedback"]) != `{"ka1":[{"id":"f1","text":"why now?"}]}` {
+		t.Fatalf("feedback = %s", stub["feedback"])
+	}
+}
+
+func TestRoundsServesFrozenBlocks(t *testing.T) {
+	h, _ := closedRoundHarness(t)
+	w := h.get(t, "/api/rounds?session=board--abcd0000")
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d (%s)", w.Code, w.Body.String())
+	}
+	var got struct {
+		History []struct {
+			Number int `json:"number"`
+			Blocks []struct {
+				ID string `json:"id"`
+			} `json:"blocks"`
+		} `json:"history"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &got); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(got.History) != 1 || got.History[0].Number != 1 || len(got.History[0].Blocks) != 3 {
+		t.Fatalf("history = %+v, want round 1 with 3 frozen blocks", got.History)
+	}
+}
+
+func TestSnapshotRoutesRejectAnUnknownSubject(t *testing.T) {
+	h := newRestHarness(t)
+	for _, path := range []string{"/api/state?session=nope", "/api/rounds?session=nope"} {
+		if w := h.get(t, path); w.Code != http.StatusNotFound {
+			t.Errorf("%s: status = %d, want 404", path, w.Code)
+		}
+	}
+}
