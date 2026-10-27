@@ -619,6 +619,9 @@ html:has(.doc-header[data-compact]) {
   }
 }
 @media (max-width: 440px) {
+  .wizard-progress {
+    max-width: none;
+  }
   .focus-dot {
     padding: 8px;
   }

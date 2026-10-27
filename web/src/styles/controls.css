@@ -121,6 +121,9 @@
 .wizard-bar > :last-child {
   justify-self: end;
 }
+.wizard-bar .btn {
+  white-space: nowrap;
+}
 .wizard-bar .btn-ghost {
   border-color: var(--line);
   color: color-mix(in srgb, var(--text) 80%, transparent);
@@ -161,5 +164,13 @@ textarea::placeholder {
 @media (max-width: 720px) {
   .btn {
     min-height: 44px;
+  }
+}
+@media (max-width: 440px) {
+  .wizard-bar {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+  .wizard-bar .btn-lg {
+    padding: 0 var(--space-4);
   }
 }
