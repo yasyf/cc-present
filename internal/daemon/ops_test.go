@@ -107,6 +107,25 @@ func fakeDisplay(_ context.Context, slug string, _ int) []string {
 	return []string{"https://host.ts.net:8080/p/" + slug}
 }
 
+const displayDoc = `{"version":1,"title":"probe.html","blocks":[{"id":"artifact","type":"display.artifact","kind":"html","source":"probe"}]}`
+
+type displayPacks struct{}
+
+func (displayPacks) ValidateBlock(typeName string, _ json.RawMessage) error {
+	if strings.HasPrefix(typeName, displayPackPrefix) {
+		return nil
+	}
+	return fmt.Errorf("pack block type %q is not installed", typeName)
+}
+
+func (displayPacks) Interactive(string) bool { return false }
+
+func childOf(h *harness, b body, session string) ccd.HandlerCtx {
+	hc := h.hc(b)
+	hc.Env.Session, hc.Window.Session = session, session
+	return hc
+}
+
 func TestStart(t *testing.T) {
 	t.Run("fresh start reports url and inactive channel", func(t *testing.T) {
 		h := newHarness(t)
@@ -217,6 +236,86 @@ func TestStart(t *testing.T) {
 		}
 		if second.SubjectID == first.SubjectID {
 			t.Fatal("start after close resumed the closed subject instead of creating fresh")
+		}
+	})
+
+	t.Run("display page refuses to replace a board document", func(t *testing.T) {
+		h := newHarness(t)
+		board := handleStart(h.hc(body{Doc: json.RawMessage(twoApprovalDoc)}), displayPacks{}, nilDisplay)
+		reply := handleStart(h.hc(body{Doc: json.RawMessage(displayDoc)}), displayPacks{}, nilDisplay)
+		if reply.OK {
+			t.Fatal("display page replaced the board document")
+		}
+		sub, _, err := h.resolver.Find(context.Background(), h.hc(body{}).Window, scopeSentinel)
+		if err != nil {
+			t.Fatalf("find: %v", err)
+		}
+		for _, want := range []string{sub.Slug, `"Board"`, board.SubjectID, "--replace"} {
+			if !strings.Contains(reply.Error, want) {
+				t.Fatalf("refusal %q does not name %q", reply.Error, want)
+			}
+		}
+		if got := h.eventsOfType(t, board.SubjectID, EventDocReplaced); len(got) != 1 {
+			t.Fatalf("board has %d doc.replaced, want only its seed", len(got))
+		}
+		replaced := handleStart(h.hc(body{Doc: json.RawMessage(displayDoc), Replace: true}), displayPacks{}, nilDisplay)
+		if !replaced.OK || replaced.SubjectID == board.SubjectID {
+			t.Fatalf("replace show = %+v, want a fresh artifact", replaced)
+		}
+		again := handleStart(h.hc(body{Doc: json.RawMessage(displayDoc)}), displayPacks{}, nilDisplay)
+		if !again.OK || again.SubjectID != replaced.SubjectID {
+			t.Fatalf("display over display = %+v, want a resume of %q", again, replaced.SubjectID)
+		}
+	})
+
+	t.Run("start naming another session never rebinds the window's artifact", func(t *testing.T) {
+		h := newHarness(t)
+		parent := handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), displayPacks{}, nilDisplay)
+		reply := handleStart(childOf(h, body{Title: "Probe", Named: true}, "s2"), displayPacks{}, nilDisplay)
+		if reply.OK {
+			t.Fatal("named start rebound the parent's artifact")
+		}
+		for _, want := range []string{"s1", "s2", parent.SubjectID, "--new"} {
+			if !strings.Contains(reply.Error, want) {
+				t.Fatalf("refusal %q does not name %q", reply.Error, want)
+			}
+		}
+		owned, ok, err := h.resolver.Store.FindBySessionScope(context.Background(), "s1", scopeSentinel)
+		if err != nil || !ok || owned.ID != parent.SubjectID {
+			t.Fatalf("s1 binds %q (ok=%v err=%v), want %q", owned.ID, ok, err, parent.SubjectID)
+		}
+		fresh := handleStart(childOf(h, body{Title: "Probe", Named: true, New: true}, "s2"), displayPacks{}, nilDisplay)
+		if !fresh.OK || fresh.SubjectID == parent.SubjectID {
+			t.Fatalf("named --new = %+v, want a fresh artifact", fresh)
+		}
+		mine, ok, err := h.resolver.Store.FindBySessionScope(context.Background(), "s2", scopeSentinel)
+		if err != nil || !ok || mine.ID != fresh.SubjectID {
+			t.Fatalf("s2 binds %q (ok=%v err=%v), want %q", mine.ID, ok, err, fresh.SubjectID)
+		}
+	})
+
+	t.Run("subagent show under its own session leaves the parent's board intact", func(t *testing.T) {
+		h := newHarness(t)
+		parent := handleStart(h.hc(body{Doc: json.RawMessage(twoApprovalDoc)}), displayPacks{}, nilDisplay)
+		reply := handleStart(childOf(h, body{Doc: json.RawMessage(displayDoc), Named: true}, "probe"), displayPacks{}, nilDisplay)
+		if reply.OK {
+			t.Fatal("subagent show took over the parent's board")
+		}
+		prior, err := h.resolver.Store.Get(context.Background(), parent.SubjectID)
+		if err != nil || prior.SessionID != "s1" || prior.Status != statusOpen {
+			t.Fatalf("parent = %+v (err %v), want open and bound to s1", prior, err)
+		}
+		if got := h.eventsOfType(t, parent.SubjectID, EventDocReplaced); len(got) != 1 {
+			t.Fatalf("parent has %d doc.replaced, want only its seed", len(got))
+		}
+	})
+
+	t.Run("rotated session resumes the window's artifact", func(t *testing.T) {
+		h := newHarness(t)
+		parent := handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), displayPacks{}, nilDisplay)
+		reply := handleStart(childOf(h, body{Title: "Again"}, "s2"), displayPacks{}, nilDisplay)
+		if !reply.OK || reply.SubjectID != parent.SubjectID {
+			t.Fatalf("rotated start = %+v, want a resume of %q", reply, parent.SubjectID)
 		}
 	})
 

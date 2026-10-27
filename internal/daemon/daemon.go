@@ -32,6 +32,8 @@ const (
 	statusOpen   = "open"
 	statusClosed = "closed"
 
+	displayPackPrefix = "display."
+
 	// channelConsumer is the stream-consumer name the channel server registers
 	// under; channelState keys presence to it.
 	channelConsumer = "channel"
@@ -167,10 +169,16 @@ func handleStart(hc ccd.HandlerCtx, pt doc.PackTypes, display displayFunc) ccd.R
 	}
 	fresh := b.New || b.Replace
 	if !fresh {
-		if cur, ok, err := hc.Subjects.Find(hc.Ctx, hc.Window, hc.Scope); err != nil {
+		cur, ok, err := hc.Subjects.Find(hc.Ctx, hc.Window, hc.Scope)
+		switch {
+		case err != nil:
 			return errReply(err.Error())
-		} else if ok && cur.Status == statusClosed {
+		case ok && cur.Status == statusClosed:
 			fresh = true
+		case ok:
+			if err := resumeGuard(hc, cur, b.Named, d); err != nil {
+				return errReply(err.Error())
+			}
 		}
 	}
 	slug := slugify(titleBase) + "--" + randomHex(4)
@@ -187,6 +195,33 @@ func handleStart(hc ccd.HandlerCtx, pt doc.PackTypes, display displayFunc) ccd.R
 	res := result{URL: artifactURL(hc.HTTPPort, sub.Slug), TailnetURLs: display(hc.Ctx, sub.Slug, hc.HTTPPort), Slug: sub.Slug, ChannelState: cs}
 	raw, _ := json.Marshal(res)
 	return ccd.Reply{OK: true, SubjectID: sub.ID, HTTPPort: hc.HTTPPort, Body: raw}
+}
+
+func resumeGuard(hc ccd.HandlerCtx, cur subject.Subject, named bool, seed *doc.Doc) error {
+	if named && cur.SessionID != hc.Window.Session {
+		return fmt.Errorf("session %s has no artifact, and this window's artifact %s (subject %s) belongs to session %s; start will not rebind it, pass --new to start a fresh artifact for session %s",
+			hc.Window.Session, cur.Slug, cur.ID, cur.SessionID, hc.Window.Session)
+	}
+	if !displayPage(seed) {
+		return nil
+	}
+	events, err := loadEvents(hc.Ctx, hc.DB, cur.ID)
+	if err != nil {
+		return err
+	}
+	st, err := state.Reduce(events)
+	if err != nil {
+		return err
+	}
+	if st.Doc == nil || len(st.Doc.Blocks) == 0 || displayPage(st.Doc) {
+		return nil
+	}
+	return fmt.Errorf("refusing to replace artifact %s %q (subject %s, %d blocks) with a display page; pass --replace to close it and show this file in a fresh artifact",
+		cur.Slug, st.Doc.Title, cur.ID, len(st.Doc.Blocks))
+}
+
+func displayPage(d *doc.Doc) bool {
+	return d != nil && len(d.Blocks) == 1 && strings.HasPrefix(d.Blocks[0].BlockType(), displayPackPrefix)
 }
 
 // handlePush validates the document, then replaces it with an incremented

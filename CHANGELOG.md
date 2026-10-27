@@ -18,6 +18,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `cc-present show` refuses to replace a document that is not itself a display page, such as a board with decisions on it, and names the artifact and title it would have replaced; `--replace` still closes it and shows the file fresh.
+- `cc-present start` and `show` with a `--session` other than the caller's own never take over this window's artifact from the session that holds it. They fail naming that session, and `--new` starts a fresh artifact for the named session, so a subagent sharing the window's process can no longer rebind or overwrite its parent's board.
 - A daemon that launchd still runs but that no longer answers on its socket, such as one parked over a shutdown stage that timed out during an upgrade, is restarted through `launchctl kickstart -k` and brought up as the installed build by the next `cc-present` command or session start, instead of `cc-present status` reporting it not running and every other command timing out against it.
 - `cc-present ask` and `send` check each card against the board's rules before posting its Slack card, so a card the board would refuse, such as one with a multi-line summary, fails with nothing posted to Slack.
 - `cc-present send` cuts a card title over 140 characters to 139 and an ellipsis on its Slack card, so a long question no longer fails, and prints `sent: <id> ts=<ts> <permalink>` or `failed: <id>: <error>` for each card.
