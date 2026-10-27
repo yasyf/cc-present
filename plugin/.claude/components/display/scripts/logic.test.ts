@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import example from '../examples/system.json';
-import { artifactDocument, panelProblems, splitMermaid, stepCount, wrapLabel } from '../src/logic';
+import { artifactDocument, isTimestamp, panelProblems, splitMermaid, stepCount, wrapLabel } from '../src/logic';
 import { validate } from '../src/system-map.js';
 import type { SystemMap } from '../src/system-map.js';
 import dense from './fixtures/dense.json';
@@ -152,4 +152,14 @@ describe('system map validate', () => {
       expect(validate(m)).toEqual([sentence]);
     });
   }
+});
+
+describe('isTimestamp', () => {
+  test.each(['Sep 12', 'Oct 3, 2026', '2026-09-12 14:03 PT', '9/12', '14:03', 'March 4'])('reads %p as a timestamp', (when) => {
+    expect(isTimestamp(when)).toBe(true);
+  });
+
+  test.each(['Release 6', 'Step 2', 'Marketing 3', 'v0.52'])('reads %p as a label', (when) => {
+    expect(isTimestamp(when)).toBe(false);
+  });
 });

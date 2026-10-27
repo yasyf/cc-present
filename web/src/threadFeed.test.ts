@@ -126,39 +126,37 @@ describe('threadFeed ownership', () => {
     const { feed } = threadFeed(state({ blocks, feedback: noted }), null, NO_PACKS);
     expect(feed.map((e) => [e.blockId, e.type, e.label])).toEqual([
       ['k1', 'card', 'Rollout'],
-      ['a1', 'approval', 'Ship'],
       ['m2', 'markdown', 'Markdown'],
       ['i2', 'input', 'Your name'],
     ]);
   });
 
-  it('gives a card child that owns no thread no entry of its own', () => {
+  it('gives a card child no entry of its own, a decision included', () => {
     const { feed } = threadFeed(state({ blocks, feedback: noted }), null, NO_PACKS);
-    expect(feed.some((e) => e.blockId === 'm1' || e.blockId === 'i1')).toBe(false);
+    expect(feed.some((e) => ['m1', 'a1', 'i1'].includes(e.blockId))).toBe(false);
   });
 
-  it('pins the card for a child that owns no thread, and the child itself when it does', () => {
+  it('pins the card for every child, and a top-level block itself', () => {
     const s = state({ blocks });
     expect(threadFeed(s, 'm1', NO_PACKS).pinned?.blockId).toBe('k1');
     expect(threadFeed(s, 'i1', NO_PACKS).pinned?.blockId).toBe('k1');
-    expect(threadFeed(s, 'a1', NO_PACKS).pinned?.blockId).toBe('a1');
+    expect(threadFeed(s, 'a1', NO_PACKS).pinned?.blockId).toBe('k1');
     expect(threadFeed(s, 'i2', NO_PACKS).pinned?.blockId).toBe('i2');
   });
 
-  it('folds the notes and replies on a card child that owns no thread into the card, in document order', () => {
+  it('folds the notes and replies on every card child into the card, in document order', () => {
     const s = state({
       blocks,
       feedback: noted,
       replies: { i1: [reply('r3', 'on the input')], k1: [reply('r1', 'on the card')], m1: [reply('r2', 'on the prose')] },
     });
-    const { pinned, feed } = threadFeed(s, 'k1', NO_PACKS);
-    expect(pinned?.feedback).toEqual([fb('f-k1', 'k1'), fb('f-m1', 'm1'), fb('f-i1', 'i1')]);
+    const { pinned } = threadFeed(s, 'k1', NO_PACKS);
+    expect(pinned?.feedback).toEqual([fb('f-k1', 'k1'), fb('f-m1', 'm1'), fb('f-a1', 'a1'), fb('f-i1', 'i1')]);
     expect(pinned?.replies).toEqual([reply('r1', 'on the card'), reply('r2', 'on the prose'), reply('r3', 'on the input')]);
     expect(pinned?.lastComment).toBe('on the input');
-    expect(feed.find((e) => e.blockId === 'a1')?.feedback).toEqual([fb('f-a1', 'a1')]);
   });
 
-  it('lists a card whose only conversation sits on a child that owns no thread', () => {
+  it('lists a card whose only conversation sits on a child', () => {
     const s = state({ blocks, replies: { m1: [reply('r1', 'about the prose')] } });
     expect(threadFeed(s, null, NO_PACKS).feed.map((e) => [e.blockId, e.lastComment])).toEqual([['k1', 'about the prose']]);
   });
@@ -220,7 +218,6 @@ describe('threadFeed order', () => {
     });
     expect(threadFeed(s, null, NO_PACKS).feed.map((e) => [e.blockId, e.live])).toEqual([
       ['k1', false],
-      ['a1', false],
       ['a2', true],
     ]);
   });
@@ -298,13 +295,16 @@ describe('threadFeed pack blocks', () => {
     expect(feed).toEqual([]);
   });
 
-  it('threads a nested pack block only when it is interactive', () => {
+  it('folds a nested pack block into its card, interactive or not', () => {
     const s = state({
       blocks: [card('c1', [pack('k1', 'dd.fork'), pack('k2', 'dd.callout')])],
       feedback: { k1: [fb('f1', 'neither')], k2: [fb('f2', 'stray')] },
     });
-    expect(threadFeed(s, null, interactive).feed.map((e) => e.blockId)).toEqual(['c1', 'k1']);
-    expect(threadFeed(s, 'k2', interactive).pinned).toMatchObject({ blockId: 'c1', feedback: [fb('f2', 'stray')] });
+    expect(threadFeed(s, null, interactive).feed.map((e) => e.blockId)).toEqual(['c1']);
+    expect(threadFeed(s, 'k1', interactive).pinned).toMatchObject({
+      blockId: 'c1',
+      feedback: [fb('f1', 'neither'), fb('f2', 'stray')],
+    });
   });
 
   it('labels a card choice with no prompt by its card title', () => {

@@ -63,7 +63,8 @@
   color: var(--accent);
   border-color: color-mix(in srgb, var(--accent) 45%, transparent);
 }
-.status-resolved {
+.status-resolved,
+.status-answered {
   color: var(--approve);
   border-color: color-mix(in srgb, var(--approve) 45%, transparent);
 }
@@ -1193,19 +1194,6 @@ a.ref:focus-visible {
 
 .table-block {
   overflow-x: auto;
-}
-/* A tall table (>12 rows) caps at 60vh and scrolls vertically under a header
-   pinned to the paper surface; the horizontal-scroll mask still applies. */
-.table-block.table-capped {
-  max-height: 60vh;
-  overflow-y: auto;
-}
-.table-block.table-capped thead th {
-  position: sticky;
-  top: 0;
-  z-index: 1;
-  background: var(--paper);
-  box-shadow: inset 0 -1px 0 var(--border-strong);
 }
 /* Edge fades cue horizontal overflow: a column stays clipped behind a soft edge
    until the scroller reaches that end. Toggled from useScrollEdges. */

@@ -51,10 +51,8 @@ export function threadTurns(
   block: Block,
   feedback: Record<string, Feedback[]>,
   replies: Record<string, Reply[]>,
-  packInteractive: ReadonlySet<string>,
 ): { feedback: Feedback[]; replies: Reply[] } {
-  const folded = block.type === 'card' ? block.children.filter((child) => !ownsThread(child, packInteractive)) : [];
-  const ids = [block, ...folded].map((b) => b.id);
+  const ids = [block, ...(block.type === 'card' ? block.children : [])].map((b) => b.id);
   return { feedback: ids.flatMap((id) => feedback[id] ?? []), replies: ids.flatMap((id) => replies[id] ?? []) };
 }
 
@@ -66,7 +64,7 @@ interface Member {
 
 function members(blocks: Block[], packInteractive: ReadonlySet<string>): Member[] {
   return blocks.flatMap((top) =>
-    flatten([top]).map((block) => ({ block, top, owns: ownsThread(block, packInteractive) })),
+    flatten([top]).map((block) => ({ block, top, owns: block === top && ownsThread(block, packInteractive) })),
   );
 }
 
@@ -127,7 +125,7 @@ export function threadFeed(
   ) => {
     if ((!owns && block !== top) || seen.has(block.id)) return;
     seen.add(block.id);
-    const turns = threadTurns(block, feedback, replies, packInteractive);
+    const turns = threadTurns(block, feedback, replies);
     all.push({
       blockId: block.id,
       type: block.type,

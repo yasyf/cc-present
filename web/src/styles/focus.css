@@ -471,7 +471,8 @@ html:has(.doc-header[data-compact]) {
   flex-direction: column;
   gap: var(--space-3);
 }
-.app:has(.choice-compare) {
+.app:has(.choice-compare),
+.app:has(.focus-deck[data-wide]) {
   --shell-max: min(var(--shell-wide), 100vw - 2 * var(--rail-strip-w));
 }
 

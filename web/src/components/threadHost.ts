@@ -13,3 +13,5 @@ export const ThreadHostContext = createContext<ThreadHost>('inline');
 export function useThreadHost(): ThreadHost {
   return useContext(ThreadHostContext);
 }
+
+export const CardThreadContext = createContext<string | null>(null);

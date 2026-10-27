@@ -53,15 +53,10 @@ function setMetrics(el: HTMLElement, scrollLeft: number, scrollWidth: number, cl
 
 const wrapper = (): HTMLElement => container.querySelector('.table-block') as HTMLElement;
 
-describe('TableView row cap', () => {
-  it('leaves a 12-row table uncapped (no sticky header)', () => {
-    render(table(12));
-    expect(wrapper().classList.contains('table-capped')).toBe(false);
-  });
-
-  it('caps past 12 rows, gating the sticky header', () => {
-    render(table(13));
-    expect(wrapper().classList.contains('table-capped')).toBe(true);
+describe('TableView rows', () => {
+  it('renders every row of a long table on the page', () => {
+    render(table(40));
+    expect(container.querySelectorAll('tbody tr')).toHaveLength(40);
   });
 });
 

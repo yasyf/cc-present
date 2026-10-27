@@ -13,6 +13,7 @@ struct CardView: View {
     var packContext: PackContext?
 
     @Environment(\.inFocusCard) private var inFocusCard
+    @Environment(\.receiptReceded) private var answered
 
     private var flagged: Bool {
         block.flagged == true
@@ -57,7 +58,7 @@ struct CardView: View {
                         .foregroundStyle(BlockPalette.ink)
                 }
                 if let status = block.status, !status.isEmpty {
-                    StatusChipView(status: status)
+                    StatusChipView(status: status, answered: answered)
                 }
                 Spacer(minLength: 8)
                 if let chips = block.chips, !chips.isEmpty {
@@ -117,13 +118,19 @@ struct CardView: View {
 }
 
 /// StatusChipView renders a card's agent-owned status pill (`open`, `resolved`,
-/// `redrafted`), tinting resolved green and the rest accent, per the web
-/// `.status-*` treatment.
-private struct StatusChipView: View {
+/// `redrafted`), reading `answered` for an open card whose every decision is
+/// answered, and tinting resolved and answered green and the rest accent, per the
+/// web `StatusPill` and `.status-*` treatment.
+struct StatusChipView: View {
     let status: String
+    let answered: Bool
+
+    private var shown: String {
+        status == "open" && answered ? "answered" : status
+    }
 
     var body: some View {
-        Text(status)
+        Text(shown)
             .font(.caption2)
             .foregroundStyle(tint)
             .padding(.vertical, 2)
@@ -134,7 +141,7 @@ private struct StatusChipView: View {
     }
 
     private var tint: Color {
-        status == "resolved" ? BlockPalette.approve : BlockPalette.accentInk
+        shown == "resolved" || shown == "answered" ? BlockPalette.approve : BlockPalette.accentInk
     }
 }
 

@@ -92,7 +92,8 @@ private func contextStep(last block: Block, context: [Block], tier: String?) -> 
 /// pending run as a standalone context step and updates the tier; a card or
 /// decidable leaf becomes a step with the pending run as its context; every other
 /// block accumulates into the pending run, and a trailing run is its own context
-/// step. A pure mirror of web/src/focus.ts `focusSteps`.
+/// step. Decision steps lead the deck; context steps follow them in document order.
+/// A pure mirror of web/src/focus.ts `focusSteps`.
 func focusSteps(_ blocks: [Block], _ packInteractive: Set<String>) -> [FocusStep] {
     var steps: [FocusStep] = []
     var pending: [Block] = []
@@ -118,7 +119,7 @@ func focusSteps(_ blocks: [Block], _ packInteractive: Set<String>) -> [FocusStep
         }
     }
     flush()
-    return steps
+    return steps.filter { $0.kind == .decision } + steps.filter { $0.kind == .context }
 }
 
 /// stepTitle is the facade label FocusPeekView and FocusSummaryView show without

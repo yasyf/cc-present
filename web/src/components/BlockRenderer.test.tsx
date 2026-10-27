@@ -191,6 +191,16 @@ describe('BlockRenderer note channel', () => {
     expect(container.querySelector('.comment-chip')?.textContent).toBe('2 comments');
   });
 
+  it('gives a card decision no note control of its own and counts its notes on the card chip', () => {
+    const interactions: Interactions = {
+      ...emptyState().interactions,
+      feedback: { a1: [{ id: 'f1', text: 'on the decision' }] },
+    };
+    render([cardBlock('k1', [approvalBlock('a1')])], interactions, true, { host: 'rail' });
+    expect([...container.querySelectorAll('.comment-chip')].map((chip) => chip.textContent)).toEqual(['1 comment']);
+    expect(container.querySelector('.approval .comment-chip')).toBeNull();
+  });
+
   it('shows the note each inline reply answers under the rail, once per note', () => {
     const interactions: Interactions = {
       ...withReplies({

@@ -3,8 +3,6 @@ import type { Column, Table as TableBlock } from '../schema';
 import { renderInlineMarkdown } from '../markdown';
 import { useScrollEdges } from '../useScrollEdges';
 
-const ROW_CAP = 12;
-
 function cellStyle(col: Column): CSSProperties {
   return {
     textAlign: col.align ?? 'left',
@@ -15,7 +13,6 @@ function cellStyle(col: Column): CSSProperties {
 export function TableView({ block }: { block: TableBlock }) {
   const { ref, edges } = useScrollEdges<HTMLDivElement>('x');
   const cls = ['table-block'];
-  if (block.rows.length > ROW_CAP) cls.push('table-capped');
   if (!edges.atStart) cls.push('fade-start');
   if (!edges.atEnd) cls.push('fade-end');
   return (

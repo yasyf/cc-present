@@ -38,6 +38,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Focus mode puts every step that asks something first and gathers the steps that only inform at the end of the deck, on the web and iOS. A board that opened on a release plan and a "nothing needs your tap" card now opens on its first question.
+- A card whose every decision has the human's answer shows its status pill as "answered" instead of "open", on the web and iOS, in board and focus mode.
+- A table shows every row on the page. Tables over 12 rows used to scroll inside a box 60% of the window tall, with the last visible row cut in half.
+- A card has one note control, on the card. An approval, choice or interactive pack block inside a card no longer adds its own "Note on this decision" or "Add feedback" control; its notes fold into the card's thread. A decision standing alone at the top level keeps its own.
+- A `display.timeline` shows its Restart, Play and Next controls only when every event's `when` reads as a date or a clock time. A timeline of labels, such as "Release 6", renders as a plain ordered list.
+- The focus frame keeps one width for the whole deck, widening for every step when any step holds a comparison grid, so the header and footer no longer jump sideways between steps.
 - The daemon's `GET /api/pr` spends less of the user's GitHub quota. A read younger than a minute is served without calling GitHub, concurrent requests for one PR share one fetch, and the changed-file list is fetched again only when the head commit or the base moves. A board of 100 PR rows opened in three tabs costs 100 GraphQL calls, not 300 GraphQL calls plus the paginated file lists.
 - A `pr-groups` block's `slack` binding sticks. A later `push` or `update-block` of the same block id that omits `slack` keeps the thread and keeps the Slack cards in sync. Only `"slack": ""` unbinds it, so a pusher that never knew about the binding no longer drops it.
 

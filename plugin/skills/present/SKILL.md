@@ -47,7 +47,7 @@ In Background and option bodies, a bold sentence is never a heading: use a markd
 - Set a `tone` only on the one or two values that decide the pick; leave every other value untoned.
 - `detail` (`pros`, `cons`, a longer `md`) is optional. Add it when an option needs more than its hint and facts; leave it out otherwise.
 - Recommend at most one option — set `recommended: true` on your suggested pick (one per single-select choice) and it renders a stamp badge, replacing the old "Recommended —" `hint` prefix. Keep the word out of the label: a recommended option whose label says "recommended" is rejected.
-- Never author an escape hatch: every choice already carries a write-in and a note thread as chrome, so don't add an "Other" option or promise a notes field. Every card and top-level block carries an Add note thread too, and approvals and interactive pack blocks keep their own. They come back in `outcomes`: a write-in as `other` on the choice, a note as `feedback` keyed to the block id, which may be a card or a content block.
+- Never author an escape hatch: every choice already carries a write-in and a note thread as chrome, so don't add an "Other" option or promise a notes field. Every card and top-level block carries one Add note thread too: a top-level approval, choice, or interactive pack block keeps its own, and inside a card they share the card's. They come back in `outcomes`: a write-in as `other` on the choice, a note as `feedback` keyed to the block id, which may be a card or a content block.
 
 **A visual only where it beats words.** Attach one when a picture shows the difference faster than a sentence: a `diagram` for a flow that differs between options, `code` for the shape an option produces, a `chart` for magnitudes. Put option visuals (`option.visual`) on every option of a choice or on none. A picture that holds for every option, such as today's flow, goes once in Background. A decision that a label and a hint settle needs no visual. See `reference/blocks.md` for the visual types and the mermaid style rules.
 
@@ -59,7 +59,7 @@ In Background and option bodies, a bold sentence is never a heading: use a markd
 
 - `display.page`: long-form Markdown whose ```` ```mermaid ```` fences render as diagrams.
 - `display.sequence`: one to three side-by-side panels of actors and messages, stepped in lockstep with play and pause, for an old flow next to a new one.
-- `display.timeline`: dated events revealed one by one, for a history of PRs or deploys.
+- `display.timeline`: dated events revealed one by one, for a history of PRs or deploys. Events whose `when` is a label, such as `Release 6`, render as a plain ordered list with no player.
 - `display.compare`: options as columns, criteria as rows, toned cells.
 - `display.artifact`: your own HTML or SVG in a sandboxed frame.
 - `display.system`: a hand-drawn system map with a main path, stories, and click-to-look-inside; read its section in the display fragment first.

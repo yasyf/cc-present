@@ -100,12 +100,21 @@ private let stepsCases: [StepsCase] = [
         ]
     ),
     StepsCase(
-        name: "a section flushes a pending run as a standalone context step",
+        name: "a section flushes a pending run as a standalone context step after the decisions",
         blocks: [markdown("m1"), section("s1", "Later"), approval("a1")],
         pack: [],
         expected: [
-            Projected(id: "m1", kind: .context, tier: nil, context: [], decidables: [], primary: nil, swipeable: false),
             Projected(id: "a1", kind: .decision, tier: "Later", context: [], decidables: ["a1"], primary: "a1", swipeable: true),
+            Projected(id: "m1", kind: .context, tier: nil, context: [], decidables: [], primary: nil, swipeable: false),
+        ]
+    ),
+    StepsCase(
+        name: "a context card ahead of a decision moves behind it",
+        blocks: [card("c0", [markdown("c0m")]), card("c1", [approval("c1a")])],
+        pack: [],
+        expected: [
+            Projected(id: "c1", kind: .decision, tier: nil, context: [], decidables: ["c1a"], primary: "c1a", swipeable: true),
+            Projected(id: "c0", kind: .context, tier: nil, context: [], decidables: [], primary: nil, swipeable: false),
         ]
     ),
     StepsCase(

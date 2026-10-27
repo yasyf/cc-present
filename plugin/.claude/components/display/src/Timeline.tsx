@@ -1,6 +1,7 @@
 import { useRef } from 'react';
 import { renderMarkdown } from './host/present';
 import type { PackComponentProps } from './host/present';
+import { isTimestamp } from './logic';
 import { Controls, usePlayer } from './player';
 
 interface TimelineEvent {
@@ -22,7 +23,8 @@ interface TimelineBlock {
 export function Timeline({ block }: PackComponentProps) {
   const b = block as unknown as TimelineBlock;
   const root = useRef<HTMLElement>(null);
-  const player = usePlayer(b.events.length, b.intervalMs ?? 1200, b.autoplay ?? false, root);
+  const timed = b.events.every((e) => isTimestamp(e.when));
+  const player = usePlayer(b.events.length, b.intervalMs ?? 1200, timed && (b.autoplay ?? false), root);
   return (
     <section className="ccpd-frame" ref={root}>
       {b.title && <header className="ccpd-title">{b.title}</header>}
@@ -45,7 +47,7 @@ export function Timeline({ block }: PackComponentProps) {
           </li>
         ))}
       </ol>
-      {b.events.length > 1 && <Controls player={player} unit="Event" />}
+      {timed && b.events.length > 1 && <Controls player={player} unit="Event" />}
     </section>
   );
 }
