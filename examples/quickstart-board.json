@@ -17,6 +17,7 @@
         {
           "id": "strategy",
           "type": "choice",
+          "prompt": "Which backoff?",
           "options": [
             { "id": "jitter", "label": "Full jitter", "hint": "spreads load", "md": "Randomize each delay — smooths thundering herds." },
             { "id": "fixed", "label": "Fixed steps", "hint": "deterministic", "md": "1s, 2s, 4s — predictable, easier to test." }

@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- A focus-mode card with several questions keeps the context between two decisions on the card face, above the question it introduces. It used to fold into the collapsed Background, so a second question's text was hidden until the human expanded it.
+- A card with two or more choices or approvals is rejected at push unless each one has a `prompt`, naming the first that lacks one. A question written into a `record` fact or markdown block rendered as bare options with nothing above them.
 - `cc-present verdict carry` carries the recorded verdict of a row a push took off the `pr-groups` block, so the tap stands when a later push brings the row back at the carried head. It used to refuse the row as unknown.
 - The post-release CI check dispatched on `main` no longer shares a concurrency group with `main` pushes, so a merge landing during a release no longer cancels the check and fails the release run.
 

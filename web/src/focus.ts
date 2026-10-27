@@ -193,7 +193,9 @@ export function stepFace(step: FocusStep, packInteractive: ReadonlySet<string>):
   const summary = card?.summary ? { md: card.summary, inline: true } : null;
   if (step.kind === 'context') return { prelude: step.context, lede: summary, background: [], hoisted: new Set() };
   const decides = (b: Block) => decidableIds([b], packInteractive).length > 0;
-  const moved = card?.children.filter((child) => !decides(child)) ?? [];
+  const children = card?.children ?? [];
+  const decisionAt = children.flatMap((child, i) => (decides(child) ? [i] : []));
+  const moved = children.filter((child, i) => !decides(child) && (i < decisionAt[0]! || i > decisionAt.at(-1)!));
   const aside = [...step.context, ...moved];
   const ledeBlock = summary ? undefined : aside.find((b): b is Markdown => b.type === 'markdown' && !b.struck);
   return {

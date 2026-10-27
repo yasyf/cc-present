@@ -878,7 +878,31 @@ func validateCard(c *Card) error {
 			return fmt.Errorf("card %q: %w", c.ID, err)
 		}
 	}
-	return nil
+	return validateCardPrompts(c)
+}
+
+func validateCardPrompts(c *Card) error {
+	var unprompted Block
+	decisions := 0
+	for _, child := range c.Children {
+		var prompt string
+		switch b := child.(type) {
+		case *Choice:
+			prompt = b.Prompt
+		case *Approval:
+			prompt = b.Prompt
+		default:
+			continue
+		}
+		decisions++
+		if prompt == "" && unprompted == nil {
+			unprompted = child
+		}
+	}
+	if decisions < 2 || unprompted == nil {
+		return nil
+	}
+	return fmt.Errorf("card %q: %s %q needs a prompt — a card with several decisions states each question in its own prompt, not in a record", c.ID, unprompted.BlockType(), unprompted.BlockID())
 }
 
 func validateChip(c Chip) error {
