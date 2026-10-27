@@ -14,7 +14,7 @@ on:
 # PRs only: cancel-in-progress on main kills a slow run mid-flight and leaves
 # the commit with no CI verdict.
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.ref }}${{ github.event_name == 'workflow_dispatch' && format('-{0}', inputs.commit) || '' }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
