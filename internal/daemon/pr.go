@@ -15,26 +15,26 @@ import (
 
 const (
 	prFetchTimeout = 30 * time.Second
-	prReadFloor    = time.Minute
+	prReadFloor    = 5 * time.Minute
 )
 
 type prFetcher func(ctx context.Context, b *doc.PR) (*prs.PR, error)
 
 func ghPRFetcher(cache *prs.Cache) prFetcher {
 	return func(ctx context.Context, b *doc.PR) (*prs.PR, error) {
-		gh, err := toolpath.Find("gh")
+		ccx, err := toolpath.Find("ccx")
 		if err != nil {
-			return nil, fmt.Errorf("pr block needs gh: %w", err)
+			return nil, fmt.Errorf("pr block needs ccx: %w", err)
 		}
 		ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), prFetchTimeout)
 		defer cancel()
-		return cache.Fetch(ctx, prs.GH(gh), b.Repo, b.Number, b.Files, time.Now())
+		return cache.Fetch(ctx, prs.CCX(ccx, b.Repo), b.Repo, b.Number, b.Files, time.Now())
 	}
 }
 
 // handlePR serves a pr block's live GitHub state. The requested repo and number
 // must match a pr block the agent wrote into the subject's document, so a client
-// can never point the user's gh credentials at a PR of its choosing.
+// can never point the user's GitHub credentials at a PR of its choosing.
 func (rs *restServer) handlePR(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	id, ok, err := rs.resolve(r.Context(), q.Get("subject"))

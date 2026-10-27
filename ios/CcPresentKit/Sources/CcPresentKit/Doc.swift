@@ -589,7 +589,7 @@ public enum Block: Codable, Equatable, Sendable {
         }
     }
 
-    /// PR is a GitHub pull request the daemon reads live through gh; `repo` is
+    /// PR is a GitHub pull request the daemon reads live through ccx; `repo` is
     /// owner/name, `title` overrides the PR's own, `files` narrows its changed files.
     public struct PR: Codable, Equatable, Sendable {
         public var id: String
