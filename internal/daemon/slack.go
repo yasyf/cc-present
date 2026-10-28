@@ -77,7 +77,7 @@ func handleSlackCard(hc ccd.HandlerCtx, pt doc.PackTypes, display displayFunc) c
 	if err := admitCard(hc, sub.ID, st, board.retired, card); err != nil {
 		return errReply(err.Error())
 	}
-	if err := fitsBoard(st.Doc, card, pt); err != nil {
+	if err := fitsBoard(st.Doc, card); err != nil {
 		return errReply(err.Error())
 	}
 	if st.Doc.Title == "" && len(st.Doc.Blocks) == 0 {
@@ -138,7 +138,7 @@ func handleSlackCardCheck(hc ccd.HandlerCtx, pt doc.PackTypes) ccd.Reply {
 	if err := admitCard(hc, sub.ID, st, retired, card); err != nil {
 		return errReply(err.Error())
 	}
-	if err := fitsBoard(st.Doc, card, pt); err != nil {
+	if err := fitsBoard(st.Doc, card); err != nil {
 		return errReply(err.Error())
 	}
 	return okReply(result{})
@@ -152,11 +152,11 @@ func admitCard(hc ccd.HandlerCtx, subID string, st *state.State, retired map[str
 	return gate.check(card)
 }
 
-func fitsBoard(d *doc.Doc, card *doc.Card, pt doc.PackTypes) error {
+func fitsBoard(d *doc.Doc, card *doc.Card) error {
 	if loc, ok := doc.Locate(d, card.ID); ok && loc.Kind != doc.TopLevel {
 		return fmt.Errorf("block %q already sits inside card %q; a Slack card's id is its own", card.ID, loc.TopID)
 	}
-	return upsertedDoc(d, card, "").Validate(pt)
+	return upsertedDoc(d, card, "").ValidateLayout()
 }
 
 func handleSlackAnswer(hc ccd.HandlerCtx) ccd.Reply {

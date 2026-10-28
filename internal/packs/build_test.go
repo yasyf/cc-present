@@ -275,6 +275,31 @@ func TestLoaderBuildsScaffoldedPack(t *testing.T) {
 	}
 }
 
+func TestLoaderSettledWaitsForPendingBuild(t *testing.T) {
+	requireBun(t)
+	t.Setenv("CLAUDE_CONFIG_DIR", t.TempDir())
+	dir := filepath.Join(t.TempDir(), "scaffolded")
+	if _, err := Scaffold(dir, "scaffolded", examples.ExamplePack, examples.ExamplePackRoot); err != nil {
+		t.Fatal(err)
+	}
+
+	l := NewLoader(t.Context(), []string{dir}, nil)
+	if !hasDropReason(l.Current(), dir, "building") {
+		t.Fatalf("first scan dropped = %+v, want building", l.Current().Dropped)
+	}
+	reg := l.Settled(t.Context())
+	if names := packNames(reg); len(names) != 1 || names[0] != "scaffolded" {
+		t.Fatalf("Settled() packs = %v, dropped = %+v, want scaffolded", names, reg.Dropped)
+	}
+	if _, ok := reg.Type("scaffolded.callout"); !ok {
+		t.Fatalf("Settled() types missing scaffolded.callout; packs = %v", packNames(reg))
+	}
+	if l.Current() != reg {
+		t.Fatal("Current() after Settled() did not return the settled registry")
+	}
+	l.builds.wg.Wait()
+}
+
 func TestFailedBuildKeepsPreviousBundle(t *testing.T) {
 	requireBun(t)
 	t.Setenv("CLAUDE_CONFIG_DIR", t.TempDir())

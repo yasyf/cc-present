@@ -96,3 +96,9 @@ func (noPacks) ValidateBlock(typeName string, _ json.RawMessage) error {
 }
 
 func (noPacks) Interactive(string) bool { return false }
+
+type storedPacks struct{}
+
+func (storedPacks) ValidateBlock(string, json.RawMessage) error { return nil }
+
+func (storedPacks) Interactive(string) bool { return false }

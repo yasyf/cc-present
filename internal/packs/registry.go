@@ -3,6 +3,7 @@ package packs
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -67,9 +68,10 @@ type DroppedPack struct {
 // Registry is an immutable snapshot of the installed packs. It implements
 // doc.PackTypes so authoring edges validate pack blocks against it.
 type Registry struct {
-	Dropped []DroppedPack
-	packs   []*Pack
-	byType  map[string]*BlockType
+	Dropped  []DroppedPack
+	packs    []*Pack
+	byType   map[string]*BlockType
+	building bool
 }
 
 // Type returns the block type for a dotted wire type, if installed.
@@ -141,6 +143,7 @@ func buildRegistry(roots []packRoot, dropped []DroppedPack, disabled []string, b
 	for _, root := range roots {
 		p, err := buildPack(root.dir, b)
 		if err != nil {
+			r.building = r.building || errors.Is(err, errBuilding)
 			r.drop(root.dir, err.Error())
 			slog.Warn("dropped pack", "dir", root.dir, "reason", err.Error())
 			continue
