@@ -256,6 +256,7 @@ const (
 	maxRowText   = 3000
 	maxBody      = 2800
 	maxMore      = 32
+	maxGroupRows = 20
 )
 
 var rowVerdicts = map[string]string{approveLabel: "approved", holdLabel: "rejected"}
@@ -273,12 +274,14 @@ var rowFacts = []struct {
 
 var mrkdwnEscapes = strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;", "**", "*")
 
-// GroupCard is the cc-slack card for one group of a pr-groups block: a row with
-// buttons for each pull request whose verdict does not stand at its head, and a
-// line naming the verdict for each one whose verdict does. A group that left the
-// board (live false) keeps no buttons: each row is its last verdict or that it left.
-func GroupCard(g *doc.PRGroups, group doc.PRGroup, verdicts map[string]state.Decision, live bool) StatusCard {
-	sc := StatusCard{Status: "done", Title: bounded(group.Title), Group: g.ID + ":" + group.ID}
+// GroupCard is the cc-slack cards for one group of a pr-groups block, one per
+// maxGroupRows rows: a row with buttons for each pull request whose verdict does
+// not stand at its head, and a line naming the verdict for each one whose verdict
+// does. A group that left the board (live false) keeps no buttons: each row is its
+// last verdict or that it left. A page the group's rows or its held rows from the
+// last push could fill but its rows no longer reach settles with no buttons.
+func GroupCard(g *doc.PRGroups, group doc.PRGroup, verdicts map[string]state.Decision, live bool, held int) []StatusCard {
+	var rows []Row
 	var settled []string
 	for _, r := range group.PRs {
 		d, decided := verdicts[doc.RowID(r.Number)]
@@ -288,18 +291,32 @@ func GroupCard(g *doc.PRGroups, group doc.PRGroup, verdicts map[string]state.Dec
 		case !live:
 			settled = append(settled, prLink(g.Repo, r)+" · left the board")
 		default:
-			sc.Rows = append(sc.Rows, Row{
+			rows = append(rows, Row{
 				ID:      fmt.Sprintf("%s:%d:%s", g.ID, r.Number, r.Head[:min(len(r.Head), rowHead)]),
 				Text:    rowText(g.Repo, r, d, decided),
 				Buttons: []string{approveLabel, holdLabel},
 			})
 		}
 	}
-	if len(sc.Rows) > 0 {
-		sc.Status = "needs_you"
+	pages := slices.Collect(slices.Chunk(rows, maxGroupRows))
+	key := g.ID + ":" + group.ID
+	cards := make([]StatusCard, max(1, len(pages), (max(len(group.PRs), held)+maxGroupRows-1)/maxGroupRows))
+	for i := range cards {
+		cards[i] = StatusCard{Status: "done", Title: bounded(group.Title), Group: key}
+		if i > 0 {
+			cards[i].Group = fmt.Sprintf("%s:%d", key, i+1)
+		}
+		if i >= len(pages) {
+			cards[i].Body = "No row on this card waits on you now."
+			continue
+		}
+		cards[i].Rows, cards[i].Status = pages[i], "needs_you"
+		if len(pages) > 1 {
+			cards[i].Title = bounded(fmt.Sprintf("%s (%d of %d)", group.Title, i+1, len(pages)))
+		}
 	}
-	sc.Body = groupBody(group.Summary, settled)
-	return sc
+	cards[0].Body = groupBody(group.Summary, settled)
+	return cards
 }
 
 func groupBody(summary string, settled []string) string {
@@ -395,12 +412,18 @@ func GroupCards(before, g *doc.PRGroups, verdicts map[string]state.Decision) []S
 	if before != nil {
 		for _, group := range before.Groups {
 			if !kept[group.ID] {
-				cards = append(cards, GroupCard(before, group, verdicts, false))
+				cards = append(cards, GroupCard(before, group, verdicts, false, 0)...)
 			}
 		}
 	}
 	for _, group := range g.Groups {
-		cards = append(cards, GroupCard(g, group, verdicts, true))
+		held := 0
+		if before != nil {
+			if i := slices.IndexFunc(before.Groups, func(b doc.PRGroup) bool { return b.ID == group.ID }); i >= 0 {
+				held = len(before.Groups[i].PRs)
+			}
+		}
+		cards = append(cards, GroupCard(g, group, verdicts, true, held)...)
 	}
 	return cards
 }
