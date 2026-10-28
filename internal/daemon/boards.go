@@ -25,7 +25,8 @@ type boardKey struct {
 // previous one instead of the board's whole history. Every read of st and every
 // load-derive-append against the board holds mu. A tap holds answering from its
 // validation until a Slack-synced card has its answer, so a second pick on the
-// card sees it resolved, while mu is free for the Slack answer to land.
+// card sees it resolved, while mu is free for the Slack answer to land. Only an
+// op under writeMu locks a second board's mu while holding its own.
 type reducedBoard struct {
 	answering sync.Mutex
 	mu        sync.Mutex
