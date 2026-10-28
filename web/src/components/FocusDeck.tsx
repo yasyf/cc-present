@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { SyntheticEvent } from 'react';
-import { AnimatePresence, LazyMotion, MotionConfig, domMax } from 'motion/react';
+import { AnimatePresence, LazyMotion, MotionConfig } from 'motion/react';
 import { flatten, submitItems } from '../decide';
 import { autoAdvances, deckHasGrid, stepTitle } from '../focus';
 import type { FocusStep } from '../focus';
@@ -325,7 +325,7 @@ export function FocusDeck({
     clamped && exitCustom.kind === 'verdict' ? { dir: 1, kind: 'nav' } : exitCustom;
 
   return (
-    <LazyMotion features={domMax} strict>
+    <LazyMotion features={() => import('../motionFeatures').then((mod) => mod.default)} strict>
       <MotionConfig reducedMotion="user">
         <div
           className="focus-deck"

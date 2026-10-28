@@ -5,26 +5,10 @@
 
 import { createHighlighterCore } from 'shiki/core';
 import { createJavaScriptRegexEngine } from 'shiki/engine/javascript';
-import type { HighlighterCore, ThemedToken } from 'shiki/core';
+import type { HighlighterCore, LanguageInput, ThemedToken } from 'shiki/core';
 import { sanitizeForSgr } from './ansi';
 import githubDark from '@shikijs/themes/github-dark';
 import githubLight from '@shikijs/themes/github-light';
-import bash from '@shikijs/langs/bash';
-import css from '@shikijs/langs/css';
-import diff from '@shikijs/langs/diff';
-import go from '@shikijs/langs/go';
-import html from '@shikijs/langs/html';
-import javascript from '@shikijs/langs/javascript';
-import json from '@shikijs/langs/json';
-import markdown from '@shikijs/langs/markdown';
-import python from '@shikijs/langs/python';
-import rust from '@shikijs/langs/rust';
-import sql from '@shikijs/langs/sql';
-import swift from '@shikijs/langs/swift';
-import toml from '@shikijs/langs/toml';
-import tsx from '@shikijs/langs/tsx';
-import typescript from '@shikijs/langs/typescript';
-import yaml from '@shikijs/langs/yaml';
 
 export const CODE_LANGS = [
   'typescript',
@@ -77,38 +61,59 @@ export function langFromPath(path: string): CodeLang | null {
   return resolveLang(base.slice(dot + 1));
 }
 
-let highlighterPromise: Promise<HighlighterCore> | null = null;
+const GRAMMARS: Record<CodeLang, LanguageInput> = {
+  typescript: () => import('@shikijs/langs/typescript'),
+  tsx: () => import('@shikijs/langs/tsx'),
+  javascript: () => import('@shikijs/langs/javascript'),
+  go: () => import('@shikijs/langs/go'),
+  python: () => import('@shikijs/langs/python'),
+  rust: () => import('@shikijs/langs/rust'),
+  bash: () => import('@shikijs/langs/bash'),
+  json: () => import('@shikijs/langs/json'),
+  yaml: () => import('@shikijs/langs/yaml'),
+  html: () => import('@shikijs/langs/html'),
+  css: () => import('@shikijs/langs/css'),
+  sql: () => import('@shikijs/langs/sql'),
+  swift: () => import('@shikijs/langs/swift'),
+  toml: () => import('@shikijs/langs/toml'),
+  diff: () => import('@shikijs/langs/diff'),
+  markdown: () => import('@shikijs/langs/markdown'),
+};
 
-export function getHighlighter(): Promise<HighlighterCore> {
+let highlighterPromise: Promise<HighlighterCore> | null = null;
+const grammarLoads = new Map<CodeLang, Promise<void>>();
+
+function getHighlighter(langs: CodeLang[]): Promise<HighlighterCore> {
   if (!highlighterPromise) {
     highlighterPromise = createHighlighterCore({
       engine: createJavaScriptRegexEngine({ forgiving: true }),
       themes: [githubLight, githubDark],
-      langs: [
-        typescript,
-        tsx,
-        javascript,
-        go,
-        python,
-        rust,
-        bash,
-        json,
-        yaml,
-        html,
-        css,
-        sql,
-        swift,
-        toml,
-        diff,
-        markdown,
-      ],
     });
   }
-  return highlighterPromise;
+  return highlighterPromise.then(async (hl) => {
+    for (const lang of langs) {
+      if (grammarLoads.has(lang)) continue;
+      grammarLoads.set(
+        lang,
+        hl.loadLanguage(GRAMMARS[lang]).catch((err: unknown) => {
+          grammarLoads.delete(lang);
+          throw err;
+        }),
+      );
+    }
+    await Promise.all(langs.map((lang) => grammarLoads.get(lang)));
+    return hl;
+  });
+}
+
+function grammarsFor(code: string, lang: CodeLang): CodeLang[] {
+  if (lang !== 'markdown') return [lang];
+  const fenced = [...code.matchAll(/^\s*(?:`{3,}|~{3,})\s*([\w+#-]+)/gm)].flatMap((m) => resolveLang(m[1]!) ?? []);
+  return [lang, ...fenced];
 }
 
 export function highlight(code: string, lang: CodeLang): Promise<string> {
-  return getHighlighter().then((hl) =>
+  return getHighlighter(grammarsFor(code, lang)).then((hl) =>
     hl.codeToHtml(code, { lang, themes: { light: 'github-light', dark: 'github-dark' } }),
   );
 }
@@ -118,7 +123,7 @@ export function highlight(code: string, lang: CodeLang): Promise<string> {
 // stays out of CODE_LANGS/resolveLang — a special language, not a grammar a code
 // block may claim.
 export function highlightAnsi(output: string): Promise<string> {
-  return getHighlighter().then((hl) =>
+  return getHighlighter([]).then((hl) =>
     hl.codeToHtml(sanitizeForSgr(output), {
       lang: 'ansi',
       themes: { light: 'github-light', dark: 'github-dark' },
@@ -130,7 +135,7 @@ export function highlightAnsi(output: string): Promise<string> {
 // the Diff and Draft blocks; each token's htmlStyle carries the light color +
 // --shiki-dark var, which blocks.css swaps in dark mode.
 export function tokenizeLines(code: string, lang: CodeLang): Promise<ThemedToken[][]> {
-  return getHighlighter().then(
+  return getHighlighter(grammarsFor(code, lang)).then(
     (hl) =>
       hl.codeToTokens(code, { lang, themes: { light: 'github-light', dark: 'github-dark' } })
         .tokens,
