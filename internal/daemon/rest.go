@@ -1,6 +1,7 @@
 package daemon
 
 import (
+	"compress/gzip"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -76,6 +77,7 @@ type reducedBoard struct {
 type encoded struct {
 	seq  int64
 	body []byte
+	gz   []byte
 }
 
 func (rs *restServer) caughtUp(ctx context.Context, id string) (*reducedBoard, error) {
@@ -92,20 +94,24 @@ func (rs *restServer) caughtUp(ctx context.Context, id string) (*reducedBoard, e
 	return board, nil
 }
 
-func (b *reducedBoard) encode(slot *encoded, v func() (any, error)) ([]byte, error) {
+func (b *reducedBoard) encode(slot *encoded, v func() (any, error)) (encoded, error) {
 	if slot.body != nil && slot.seq == b.seq {
-		return slot.body, nil
+		return *slot, nil
 	}
 	val, err := v()
 	if err != nil {
-		return nil, err
+		return encoded{}, err
 	}
 	body, err := json.Marshal(val)
 	if err != nil {
-		return nil, err
+		return encoded{}, err
 	}
-	*slot = encoded{seq: b.seq, body: body}
-	return body, nil
+	gz, err := gzipBytes(body, gzip.DefaultCompression)
+	if err != nil {
+		return encoded{}, err
+	}
+	*slot = encoded{seq: b.seq, body: body, gz: gz}
+	return *slot, nil
 }
 
 func (b *reducedBoard) catchUp(ctx context.Context, db *sql.DB, subID string) error {
@@ -185,7 +191,7 @@ func mountREST(s *ccd.Server, ast *assets.Store, loader *packs.Loader, version s
 		fetchPR:     ghPRFetcher(&prs.Cache{Floor: prReadFloor}),
 		answerSlack: ccSlackCardAnswer,
 		postGroup:   slackcards.PostGroupCard,
-		static:      sse.StaticHandler(web.Dist()),
+		static:      staticAssets(web.Dist(), sse.StaticHandler(web.Dist())),
 		version:     version,
 	}
 	rs.routes(s.Mux())
