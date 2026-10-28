@@ -466,6 +466,26 @@ func TestUpsertBlockDocValidation(t *testing.T) {
 		}
 	})
 
+	t.Run("untouched pack block whose pack is unresolvable does not block an update", func(t *testing.T) {
+		h := newHarness(t)
+		seed := `{"version":1,"title":"Board","blocks":[{"id":"card-merge-triage","type":"card","title":"Merge triage","children":[{"id":"page","type":"display.page","source":"triage"}]}]}`
+		start := handleStart(h.hc(body{Doc: json.RawMessage(seed)}), displayPacks{}, nilDisplay)
+		if !start.OK {
+			t.Fatalf("seed start not ok: %s", start.Error)
+		}
+		reply := handleUpsertBlock(h.hc(body{Block: json.RawMessage(`{"id":"m1","type":"markdown","md":"row"}`)}), doc.NoPacks)
+		if !reply.OK {
+			t.Fatalf("upsert beside an unresolvable pack block not ok: %s", reply.Error)
+		}
+		if got := h.eventsOfType(t, start.SubjectID, EventBlockUpserted); len(got) != 1 {
+			t.Fatalf("got %d block.upserted, want 1", len(got))
+		}
+		submitted := handleUpsertBlock(h.hc(body{Block: json.RawMessage(`{"id":"page2","type":"display.page","source":"triage"}`)}), doc.NoPacks)
+		if submitted.OK || !strings.Contains(submitted.Error, `pack block type "display.page" is not installed`) {
+			t.Fatalf("submitted unresolvable pack block: ok=%v err=%q, want not-installed rejection", submitted.OK, submitted.Error)
+		}
+	})
+
 	t.Run("same-id replacement upsert still passes", func(t *testing.T) {
 		h := newHarness(t)
 		start := handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks, nilDisplay)

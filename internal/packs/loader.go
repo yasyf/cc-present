@@ -11,7 +11,8 @@ const scanTTL = 2 * time.Second
 // Loader scans for packs eagerly at construction, then re-scans on access after a
 // short TTL so installing a pack and pushing a doc that uses it just works. A
 // source pack whose bundle is stale builds in the background and reads as
-// dropped with reason "building" until it finishes. It is safe for concurrent use.
+// dropped with reason "building" until it finishes; Settled waits for it instead.
+// It is safe for concurrent use.
 type Loader struct {
 	devDirs   []string
 	disabled  []string
@@ -57,6 +58,21 @@ func (l *Loader) Current() *Registry {
 		l.scanLocked()
 	}
 	return l.current
+}
+
+// Settled returns the latest registry for an authoring request, waiting for any
+// pack the current scan dropped as building: it re-scans with synchronous builds,
+// which queue on the build lock behind the running build. ctx bounds those builds.
+func (l *Loader) Settled(ctx context.Context) *Registry {
+	if reg := l.Current(); !reg.building {
+		return reg
+	}
+	roots, dropped := discoverRoots(l.devDirs, l.configDir)
+	reg := buildRegistry(roots, dropped, l.disabled, syncBuilds{ctx: ctx})
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.current, l.scannedAt = reg, time.Now()
+	return reg
 }
 
 func (l *Loader) scanLocked() {

@@ -845,6 +845,11 @@ func (d *Doc) Validate(pt PackTypes) error {
 	return errors.Join(errs...)
 }
 
+// ValidateLayout is Validate with every pack block's payload accepted as stored.
+// Pack data outlives its pack, so a document already on the board keeps its ids,
+// nesting, built-in rules, and size checked without resolving a pack it carries.
+func (d *Doc) ValidateLayout() error { return d.Validate(storedPacks{}) }
+
 func registerID(seen map[string]bool, id string) error {
 	if id == "" {
 		return errEmptyBlockID

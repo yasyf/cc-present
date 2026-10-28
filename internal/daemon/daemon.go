@@ -110,17 +110,17 @@ func BuildServer(ctx context.Context, p paths.Paths, spec daemonkit.Daemon, runt
 	display := displayFunc(func(ctx context.Context, slug string, port int) []string {
 		return tn.URLs(ctx, port, "/p/"+slug)
 	})
-	s.Register(OpStart, func(hc ccd.HandlerCtx) ccd.Reply { return handleStart(hc, loader.Current(), display) })
-	s.Register(OpPush, func(hc ccd.HandlerCtx) ccd.Reply { return handlePush(hc, loader.Current(), display) })
-	s.Register(OpUpsertBlock, func(hc ccd.HandlerCtx) ccd.Reply { return handleUpsertBlock(hc, loader.Current()) })
+	s.Register(OpStart, func(hc ccd.HandlerCtx) ccd.Reply { return handleStart(hc, loader.Settled(hc.Ctx), display) })
+	s.Register(OpPush, func(hc ccd.HandlerCtx) ccd.Reply { return handlePush(hc, loader.Settled(hc.Ctx), display) })
+	s.Register(OpUpsertBlock, func(hc ccd.HandlerCtx) ccd.Reply { return handleUpsertBlock(hc, loader.Settled(hc.Ctx)) })
 	s.Register(OpRemoveBlock, handleRemoveBlock)
 	s.Register(OpReply, handleReply)
 	s.Register(OpRound, handleRound)
 	s.Register(OpRevising, handleRevising)
 	s.Register(OpClose, func(hc ccd.HandlerCtx) ccd.Reply { return handleClose(hc, ast) })
 	s.Register(OpOutcomes, handleOutcomes)
-	s.Register(OpSlackCard, func(hc ccd.HandlerCtx) ccd.Reply { return handleSlackCard(hc, loader.Current(), display) })
-	s.Register(OpSlackCardCheck, func(hc ccd.HandlerCtx) ccd.Reply { return handleSlackCardCheck(hc, loader.Current()) })
+	s.Register(OpSlackCard, func(hc ccd.HandlerCtx) ccd.Reply { return handleSlackCard(hc, loader.Settled(hc.Ctx), display) })
+	s.Register(OpSlackCardCheck, func(hc ccd.HandlerCtx) ccd.Reply { return handleSlackCardCheck(hc, loader.Settled(hc.Ctx)) })
 	s.Register(OpSlackAnswer, handleSlackAnswer)
 	s.Register(OpSlackDecided, handleSlackDecided)
 	s.Register(OpImportVerdicts, handleImportVerdicts)
@@ -395,7 +395,7 @@ func handleUpsertBlock(hc ccd.HandlerCtx, pt doc.PackTypes) ccd.Reply {
 			return errReply(pointingError(b.After, loc).Error())
 		}
 	}
-	if err := upsertedDoc(st.Doc, blk, b.After).Validate(pt); err != nil {
+	if err := upsertedDoc(st.Doc, blk, b.After).ValidateLayout(); err != nil {
 		return errReply(err.Error())
 	}
 	var newTops []string
