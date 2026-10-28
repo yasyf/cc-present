@@ -154,9 +154,24 @@ func (cl *Client) Close(ctx context.Context, session, scope string, pid int, sum
 	return res.Slug, err
 }
 
-// Outcomes returns the reduced state of the window's artifact as JSON.
-func (cl *Client) Outcomes(ctx context.Context, session, scope string, pid int) (json.RawMessage, []string, error) {
-	_, res, err := cl.do(ctx, OpOutcomes, session, scope, pid, body{})
+// OutcomeView is how much of the reduced state an outcomes read returns.
+type OutcomeView string
+
+const (
+	// OutcomeFull is the whole reduced state.
+	OutcomeFull OutcomeView = ""
+	// OutcomeNoDoc drops the document and cuts each closed round's frozen blocks
+	// to a blockIds list, the shape outcomes --no-doc prints.
+	OutcomeNoDoc OutcomeView = "no-doc"
+	// OutcomeLive drops the closed rounds, keeping the current document, the
+	// interactions and the current round.
+	OutcomeLive OutcomeView = "live"
+)
+
+// Outcomes returns the reduced state of the window's artifact as JSON, cut to
+// view.
+func (cl *Client) Outcomes(ctx context.Context, session, scope string, pid int, view OutcomeView) (json.RawMessage, []string, error) {
+	_, res, err := cl.do(ctx, OpOutcomes, session, scope, pid, body{View: view})
 	return res.State, res.Retired, err
 }
 

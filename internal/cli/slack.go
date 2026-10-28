@@ -156,7 +156,7 @@ type sendBoard struct {
 }
 
 func readBoard(ctx context.Context, cl *ccdaemon.Client, b board) (*sendBoard, error) {
-	raw, _, err := cl.Outcomes(ctx, b.session, b.scope, b.pid)
+	raw, _, err := cl.Outcomes(ctx, b.session, b.scope, b.pid, ccdaemon.OutcomeLive)
 	if err != nil {
 		return nil, err
 	}
