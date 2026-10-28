@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/yasyf/cc-interact/channel"
@@ -58,11 +59,13 @@ func NewClient(_ context.Context) (*ccd.Client, error) {
 	return l.NewClient()
 }
 
+var stableProgram = sync.OnceValues(daemonkit.Stable)
+
 // daemonSpec is the one daemon identity the launcher and the daemon half both
 // read: socket, state dir, and service all derive from its Label, and
 // daemonTrust supplies the platform's trust lanes.
 func daemonSpec() (daemonkit.Daemon, error) {
-	program, err := daemonkit.Stable()
+	program, err := stableProgram()
 	if err != nil {
 		return daemonkit.Daemon{}, fmt.Errorf("resolve stable cc-present program: %w", err)
 	}
