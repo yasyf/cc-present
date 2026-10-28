@@ -700,11 +700,62 @@ func handleOutcomes(hc ccd.HandlerCtx) ccd.Reply {
 	defer board.mu.Unlock()
 	st := &board.st
 	gate := newAnswerGate(hc.Ctx, hc.DB, sub.ID, st, board.retired, nil)
-	raw, err := json.Marshal(st)
+	raw, err := outcomeState(st, decodeBody(hc.Env.Body).View)
 	if err != nil {
 		return errReply(err.Error())
 	}
 	return okReply(result{State: raw, Retired: gate.retiredIDs()})
+}
+
+func outcomeState(st *state.State, view OutcomeView) (json.RawMessage, error) {
+	switch view {
+	case OutcomeFull:
+		return json.Marshal(st)
+	case OutcomeLive:
+		live := *st
+		live.Rounds.History = nil
+		return json.Marshal(&live)
+	case OutcomeNoDoc:
+		return noDocState(st)
+	}
+	return nil, fmt.Errorf("unknown outcomes view %q", view)
+}
+
+func noDocState(st *state.State) (json.RawMessage, error) {
+	history := make([]map[string]json.RawMessage, len(st.Rounds.History))
+	for i, r := range st.Rounds.History {
+		ids := make([]string, len(r.Blocks))
+		for j, b := range r.Blocks {
+			ids[j] = b.BlockID()
+		}
+		r.Blocks = nil
+		if err := remarshal(r, &history[i]); err != nil {
+			return nil, err
+		}
+		delete(history[i], "blocks")
+		history[i]["blockIds"] = mustJSON(ids)
+	}
+	top := *st
+	top.Doc, top.Rounds.History = nil, nil
+	var m, rounds map[string]json.RawMessage
+	if err := remarshal(&top, &m); err != nil {
+		return nil, err
+	}
+	if err := json.Unmarshal(m["rounds"], &rounds); err != nil {
+		return nil, err
+	}
+	rounds["history"] = mustJSON(history)
+	m["rounds"] = mustJSON(rounds)
+	delete(m, "doc")
+	return json.Marshal(m)
+}
+
+func remarshal(v any, into *map[string]json.RawMessage) error {
+	raw, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	return json.Unmarshal(raw, into)
 }
 
 // NoArtifact is the error every artifact command returns when session resolves

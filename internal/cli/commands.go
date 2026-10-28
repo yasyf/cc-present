@@ -171,7 +171,7 @@ func dryRunReport(ctx context.Context, dd *doc.Doc, pt doc.PackTypes, root strin
 // liveSources reads the source aliases of the artifact's current document, so
 // update-block resolves alias references against the doc it lands in.
 func liveSources(ctx context.Context, cl *ccdaemon.Client, sess, scope string, pid int) (map[string]string, error) {
-	raw, _, err := cl.Outcomes(ctx, sess, scope, pid)
+	raw, _, err := cl.Outcomes(ctx, sess, scope, pid, ccdaemon.OutcomeLive)
 	if err != nil {
 		return nil, err
 	}
@@ -758,7 +758,11 @@ func newOutcomesCmd(d cmd.Deps) *cobra.Command {
 			}
 			defer func() { _ = cl.CloseSession() }()
 			sess, pid := artifactWindow(d, session)
-			raw, retired, err := cl.Outcomes(ctx, sess, mustCwd(cwd), pid)
+			view := ccdaemon.OutcomeFull
+			if noDoc && block == "" {
+				view = ccdaemon.OutcomeNoDoc
+			}
+			raw, retired, err := cl.Outcomes(ctx, sess, mustCwd(cwd), pid, view)
 			if err != nil {
 				return err
 			}
@@ -774,7 +778,7 @@ func newOutcomesCmd(d cmd.Deps) *cobra.Command {
 					return err
 				}
 			}
-			if noDoc {
+			if noDoc && block != "" {
 				raw, err = stripDocs(raw)
 				if err != nil {
 					return err

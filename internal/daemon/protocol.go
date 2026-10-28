@@ -76,6 +76,7 @@ type body struct {
 	Verdicts json.RawMessage `json:"verdicts,omitempty"` // import-verdicts | move-verdicts | carry-verdict
 	Named    bool            `json:"named,omitempty"`
 	Reopen   []string        `json:"reopen,omitempty"`
+	View     OutcomeView     `json:"view,omitempty"` // outcomes
 }
 
 // result is the domain payload a handler returns in Reply.Body. Envelope-level

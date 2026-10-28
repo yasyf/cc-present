@@ -168,3 +168,41 @@ func TestWarmBoardsCatchesUpEveryOpenBoardAtBoot(t *testing.T) {
 		t.Fatalf("first load = %d %s, want 200 from the board warmed at boot", w.Code, w.Body)
 	}
 }
+
+func TestOutcomeViewsCutTheStateTheirReadersSkip(t *testing.T) {
+	h, _ := closedRoundHarness(t)
+	board, err := caughtUp(t.Context(), h.cc.DB(), h.id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer board.mu.Unlock()
+	views := map[OutcomeView]struct {
+		doc     bool
+		history string
+	}{
+		OutcomeFull:  {doc: true, history: `"blocks":[`},
+		OutcomeNoDoc: {doc: false, history: `"blockIds":["k1","m1","p1"]`},
+		OutcomeLive:  {doc: true, history: `null`},
+	}
+	for view, want := range views {
+		raw, err := outcomeState(&board.st, view)
+		if err != nil {
+			t.Fatalf("%q: %v", view, err)
+		}
+		var got struct {
+			Doc    json.RawMessage `json:"doc"`
+			Rounds struct {
+				History json.RawMessage `json:"history"`
+			} `json:"rounds"`
+		}
+		if err := json.Unmarshal(raw, &got); err != nil {
+			t.Fatalf("%q: %v", view, err)
+		}
+		if (got.Doc != nil) != want.doc || !strings.Contains(string(got.Rounds.History), want.history) {
+			t.Errorf("%q: doc=%s history=%s, want doc %v and history holding %s", view, got.Doc, got.Rounds.History, want.doc, want.history)
+		}
+		if view == OutcomeNoDoc && strings.Contains(string(got.Rounds.History), `"blocks"`) {
+			t.Errorf("no-doc history keeps frozen blocks: %s", got.Rounds.History)
+		}
+	}
+}
