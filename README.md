@@ -65,7 +65,9 @@ Machines in your [synckit](https://github.com/yasyf/synckit) mesh open board URL
 
 ## Run on a Linux workspace
 
-Linux amd64 is supported. Use it only on a private single-user VM: the daemon's socket admits any process running as your user, with no code-signing check, and the loopback HTTP plane admits any local process.
+Linux amd64 is supported. Use it only on a private single-user VM: the loopback HTTP plane admits any local process.
+
+On every platform, the daemon's socket admits any process running as your user, with no code-signing check.
 
 Linux has no launchd. Keep one foreground `cc-present supervise` process running in your workspace and restart it if it exits; it needs no systemd or root. Every other command starts and upgrades the daemon through it. Without it, commands fail with daemonkit's `supervise: no supervisor is running for this label` error.
 

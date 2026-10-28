@@ -6,7 +6,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Any process running as your user can now connect to the cc-present daemon's socket. The daemon no longer checks a caller's code signature or team ID, and drain and broker handoff run on the ordinary connection instead of a separate signed one. The network token for LAN and tailnet clients is unchanged, and so are mesh trust and iOS pairing.
+
 ### Fixed
+
+- Every command that talks to the daemon starts about 55 to 85 ms sooner. It no longer SHA-256-hashes its 22 MB executable or the placed copy to name its build; it uses the version string instead. It no longer runs `launchctl print` when the daemon already serves this build. It also opens one connection for the health check and the call instead of two. The first command after upgrading stops the old daemon with SIGTERM, because the old daemon speaks an older wire protocol. A dirty `task build` stamps its version with the build time, so each local build still replaces the running daemon.
 
 - A `push`, `start` or `update-block` that binds a `pr-groups` block to a Slack thread checks the thread against the other open boards' current documents in the daemon's cache. It used to scan every `doc.replaced` and `block.upserted` payload those boards ever wrote, 184 MB across 2,138 events here, which took 0.36 s (1.1 s cold) per bound block and now takes under 1 ms. A thread a board has unbound with an empty `slack` is free for another board to bind; the scan kept finding it in the old payloads.
 - Every command that talks to the daemon starts about 12 ms sooner. The CLI read and SHA-256-hashed its own 22 MB executable once to check the daemon was current and again to connect to it. It now does that once per process.

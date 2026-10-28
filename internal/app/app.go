@@ -17,6 +17,7 @@ import (
 	"github.com/yasyf/cc-interact/procs"
 	"github.com/yasyf/daemonkit"
 	"github.com/yasyf/daemonkit/paths"
+	dkversion "github.com/yasyf/daemonkit/version"
 
 	"github.com/yasyf/synckit/meshtrust"
 
@@ -59,11 +60,10 @@ func NewClient(_ context.Context) (*ccd.Client, error) {
 	return l.NewClient()
 }
 
-var stableProgram = sync.OnceValues(daemonkit.Stable)
+var stableProgram = sync.OnceValues(func() (daemonkit.Program, error) { return daemonkit.Stable(dkversion.Running(version.String())) })
 
 // daemonSpec is the one daemon identity the launcher and the daemon half both
-// read: socket, state dir, and service all derive from its Label, and
-// daemonTrust supplies the platform's trust lanes.
+// read: socket, state dir, and service all derive from its Label.
 func daemonSpec() (daemonkit.Daemon, error) {
 	program, err := stableProgram()
 	if err != nil {
@@ -72,7 +72,6 @@ func daemonSpec() (daemonkit.Daemon, error) {
 	return ccd.Spec(daemonkit.Daemon{
 		Label: daemonServiceLabel, Program: program, Args: []string{"daemon"},
 		Log: Paths().LogPath(), Restart: daemonkit.RestartOnFailure,
-		Trust: daemonTrust(),
 	}), nil
 }
 
@@ -146,10 +145,10 @@ func controlSilent(ctx context.Context, d daemonkit.Daemon) (bool, error) {
 	}
 	probeCtx, cancel := context.WithTimeout(ctx, silenceProbeTimeout)
 	defer cancel()
-	control, err := client.Control(probeCtx)
+	_, err = client.Health(probeCtx)
 	switch {
 	case err == nil:
-		return false, control.Close(probeCtx)
+		return false, client.Close(probeCtx)
 	case errors.Is(err, daemonkit.ErrAbsent), errors.Is(err, daemonkit.ErrDraining), probeCtx.Err() != nil:
 		return true, nil
 	default:

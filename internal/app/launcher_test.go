@@ -36,7 +36,7 @@ func TestUsableDaemon(t *testing.T) {
 
 func TestWedgeRecovery(t *testing.T) {
 	wedged := errors.New("daemon: ensure: no daemon is listening: context deadline exceeded")
-	untrusted := errors.New("daemon: probe incumbent: control lane refused the caller's signature")
+	refused := errors.New("daemon: probe incumbent: handshake rejected")
 	probeFailed := errors.New("daemonkit: open: invalid label")
 	cycleFailed := errors.New("launchctl kickstart -k: exit status 1")
 	tests := []struct {
@@ -54,7 +54,7 @@ func TestWedgeRecovery(t *testing.T) {
 	}{
 		{name: "a healthy ensure is left alone", first: nil, wantErr: nil},
 		{name: "a newer incumbent is never cycled", first: ccd.ErrIncumbentNewer, silent: true, cycled: true, wantErr: ccd.ErrIncumbentNewer},
-		{name: "a daemon that still answers control is never cycled", first: untrusted, silent: false, cycled: true, wantProbes: 1, wantErr: untrusted},
+		{name: "a daemon that still answers health is never cycled", first: refused, silent: false, cycled: true, wantProbes: 1, wantErr: refused},
 		{name: "a parked daemon launchd still runs is cycled and re-ensured", first: wedged, silent: true, cycled: true, wantProbes: 1, wantCycles: 1, wantReensures: 1, wantErr: nil},
 		{name: "a parked daemon the probe reads as absent is cycled", first: ccd.ErrNoPeer, silent: true, cycled: true, wantProbes: 1, wantCycles: 1, wantReensures: 1, wantErr: nil},
 		{name: "proven absence with nothing under launchd stays absent", first: ccd.ErrNoPeer, silent: true, cycled: false, wantProbes: 1, wantCycles: 1, wantErr: ccd.ErrNoPeer},
