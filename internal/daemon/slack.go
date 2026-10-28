@@ -68,15 +68,13 @@ func handleSlackCard(hc ccd.HandlerCtx, pt doc.PackTypes, display displayFunc) c
 			return errReply(err.Error())
 		}
 	}
-	events, err := loadEvents(hc.Ctx, hc.DB, sub.ID)
+	board, err := caughtUp(hc.Ctx, hc.DB, sub.ID)
 	if err != nil {
 		return errReply(err.Error())
 	}
-	st, err := state.Reduce(events)
-	if err != nil {
-		return errReply(err.Error())
-	}
-	if err := admitCard(hc, sub.ID, &st, events, card); err != nil {
+	defer board.mu.Unlock()
+	st := &board.st
+	if err := admitCard(hc, sub.ID, st, board.retired, card); err != nil {
 		return errReply(err.Error())
 	}
 	if err := fitsBoard(st.Doc, card, pt); err != nil {
@@ -127,17 +125,17 @@ func handleSlackCardCheck(hc ccd.HandlerCtx, pt doc.PackTypes) ccd.Reply {
 	if err != nil {
 		return errReply(err.Error())
 	}
-	var events []state.Event
+	empty := state.New()
+	st, retired := &empty, map[string]bool{}
 	if found && sub.Status != statusClosed {
-		if events, err = loadEvents(hc.Ctx, hc.DB, sub.ID); err != nil {
+		board, err := caughtUp(hc.Ctx, hc.DB, sub.ID)
+		if err != nil {
 			return errReply(err.Error())
 		}
+		defer board.mu.Unlock()
+		st, retired = &board.st, board.retired
 	}
-	st, err := state.Reduce(events)
-	if err != nil {
-		return errReply(err.Error())
-	}
-	if err := admitCard(hc, sub.ID, &st, events, card); err != nil {
+	if err := admitCard(hc, sub.ID, st, retired, card); err != nil {
 		return errReply(err.Error())
 	}
 	if err := fitsBoard(st.Doc, card, pt); err != nil {
@@ -146,11 +144,8 @@ func handleSlackCardCheck(hc ccd.HandlerCtx, pt doc.PackTypes) ccd.Reply {
 	return okReply(result{})
 }
 
-func admitCard(hc ccd.HandlerCtx, subID string, st *state.State, events []state.Event, card *doc.Card) error {
-	gate, err := newAnswerGate(hc.Ctx, hc.DB, subID, st, events, nil)
-	if err != nil {
-		return err
-	}
+func admitCard(hc ccd.HandlerCtx, subID string, st *state.State, retired map[string]bool, card *doc.Card) error {
+	gate := newAnswerGate(hc.Ctx, hc.DB, subID, st, retired, nil)
 	if _, warnings := gate.strip([]doc.Block{card}); len(warnings) > 0 {
 		return errors.New(strings.Join(warnings, "; "))
 	}
@@ -176,14 +171,12 @@ func handleSlackAnswer(hc ccd.HandlerCtx) ccd.Reply {
 	}
 	writeMu.Lock()
 	defer writeMu.Unlock()
-	events, err := loadEvents(hc.Ctx, hc.DB, sub.ID)
+	board, err := caughtUp(hc.Ctx, hc.DB, sub.ID)
 	if err != nil {
 		return errReply(err.Error())
 	}
-	st, err := state.Reduce(events)
-	if err != nil {
-		return errReply(err.Error())
-	}
+	defer board.mu.Unlock()
+	st := &board.st
 	card, ch, err := syncedCard(st.Doc, a.Waits)
 	if err != nil {
 		return errReply(err.Error())
@@ -214,14 +207,12 @@ func handleSlackDecided(hc ccd.HandlerCtx) ccd.Reply {
 	}
 	writeMu.Lock()
 	defer writeMu.Unlock()
-	events, err := loadEvents(hc.Ctx, hc.DB, sub.ID)
+	board, err := caughtUp(hc.Ctx, hc.DB, sub.ID)
 	if err != nil {
 		return errReply(err.Error())
 	}
-	st, err := state.Reduce(events)
-	if err != nil {
-		return errReply(err.Error())
-	}
+	defer board.mu.Unlock()
+	st := &board.st
 	if st.Interactions.Closed.Value {
 		return errReply("the board is closed")
 	}
@@ -230,7 +221,7 @@ func handleSlackDecided(hc ccd.HandlerCtx) ccd.Reply {
 	}
 	note := st.Interactions.Triage[blockID][rowID].Note
 	it := interaction{Type: EventTriageDecided, BlockID: blockID, Verdicts: map[string]triageEntry{rowID: {Verdict: verdict, Head: head, Note: note}}}
-	payload, err := validateInteraction(&st, 0, &it, nil, time.Now())
+	payload, err := validateInteraction(st, 0, &it, nil, time.Now())
 	if err != nil {
 		return errReply(err.Error())
 	}
@@ -307,20 +298,14 @@ func slackQuestion(st *state.State, it *interaction) (*doc.Card, *doc.Choice) {
 	return card, ch
 }
 
-func (rs *restServer) answerOnSlack(ctx context.Context, subID string, card *doc.Card, ch *doc.Choice, it *interaction, via string) error {
+func (rs *restServer) answerOnSlack(ctx context.Context, board *reducedBoard, subID string, card *doc.Card, ch *doc.Choice, it *interaction, via string) error {
 	label, other := slackcards.Label(ch, it.OptionIDs, it.Other)
 	res, err := rs.answerSlack(ctx, card.ID, card.Slack.URL, label, other, via)
-	writeMu.Lock()
-	defer writeMu.Unlock()
-	events, lerr := loadEvents(ctx, rs.db(), subID)
-	if lerr != nil {
+	if lerr := board.lock(ctx, rs.db(), subID); lerr != nil {
 		return lerr
 	}
-	st, lerr := state.Reduce(events)
-	if lerr != nil {
-		return lerr
-	}
-	current, currentCh, lerr := syncedCard(st.Doc, card.ID)
+	defer board.mu.Unlock()
+	current, currentCh, lerr := syncedCard(board.st.Doc, card.ID)
 	if lerr != nil || current.Status == slackcards.Resolved || current.Slack.URL != card.Slack.URL {
 		return nil
 	}
@@ -345,36 +330,44 @@ var redrawMu sync.Mutex
 func (rs *restServer) redrawGroupCards(ctx context.Context, subID string, it *interaction) error {
 	redrawMu.Lock()
 	defer redrawMu.Unlock()
-	events, err := loadEvents(ctx, rs.db(), subID)
+	board, err := caughtUp(ctx, rs.db(), subID)
 	if err != nil {
 		return err
 	}
-	st, err := state.Reduce(events)
-	if err != nil {
+	thread, cards, err := groupCards(&board.st, it)
+	board.mu.Unlock()
+	if err != nil || len(cards) == 0 {
 		return err
-	}
-	b, _, err := findBlock(st.Doc, it.BlockID)
-	if err != nil {
-		return err
-	}
-	g, ok := b.(*doc.PRGroups)
-	if !ok || g.Thread() == "" {
-		return nil
 	}
 	var session sql.NullString
 	if err := rs.db().QueryRowContext(ctx, `SELECT session_id FROM subjects WHERE id=?`, subID).Scan(&session); err != nil {
 		return fmt.Errorf("read subject session: %w", err)
 	}
 	var errs []error
-	for _, group := range g.Groups {
-		if !slices.ContainsFunc(group.PRs, func(r doc.PRRow) bool { _, ok := it.Verdicts[doc.RowID(r.Number)]; return ok }) {
-			continue
-		}
-		if _, err := rs.postGroup(ctx, session.String, g.Thread(), slackcards.GroupCard(g, group, st.Interactions.Triage[g.ID], true)); err != nil {
+	for _, card := range cards {
+		if _, err := rs.postGroup(ctx, session.String, thread, card); err != nil {
 			errs = append(errs, err)
 		}
 	}
 	return errors.Join(errs...)
+}
+
+func groupCards(st *state.State, it *interaction) (string, []slackcards.StatusCard, error) {
+	b, _, err := findBlock(st.Doc, it.BlockID)
+	if err != nil {
+		return "", nil, err
+	}
+	g, ok := b.(*doc.PRGroups)
+	if !ok || g.Thread() == "" {
+		return "", nil, nil
+	}
+	var cards []slackcards.StatusCard
+	for _, group := range g.Groups {
+		if slices.ContainsFunc(group.PRs, func(r doc.PRRow) bool { _, ok := it.Verdicts[doc.RowID(r.Number)]; return ok }) {
+			cards = append(cards, slackcards.GroupCard(g, group, st.Interactions.Triage[g.ID], true))
+		}
+	}
+	return g.Thread(), cards, nil
 }
 
 func subjectSlug(ctx context.Context, db *sql.DB, subID string) (string, error) {

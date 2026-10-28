@@ -111,3 +111,31 @@ func writeAsset(t *testing.T, dir, sha string, mtime time.Time) {
 		t.Fatalf("chtimes asset %s: %v", sha, err)
 	}
 }
+
+func TestGCForgetsTheCachedStateOfBoardsThatAreNoLongerOpen(t *testing.T) {
+	cc, err := ccstore.Open(context.Background(), filepath.Join(t.TempDir(), "t.db"), ccstore.Schema{})
+	if err != nil {
+		t.Fatalf("open store: %v", err)
+	}
+	t.Cleanup(func() { _ = cc.Close() })
+	ast := assets.New(filepath.Join(t.TempDir(), "assets"))
+	if err := ast.Prepare(); err != nil {
+		t.Fatalf("prepare assets: %v", err)
+	}
+	seedSubject(t, cc, "open", "/s1", statusOpen, topImageDoc(strings.Repeat("a", 64)))
+	seedSubject(t, cc, "replaced", "/s2", statusOpen, topImageDoc(strings.Repeat("b", 64)))
+	if err := warmBoards(context.Background(), cc.DB()); err != nil {
+		t.Fatal(err)
+	}
+	if err := ccstore.NewSubjectStore(cc.DB()).SetStatus(context.Background(), "replaced", statusClosed); err != nil {
+		t.Fatal(err)
+	}
+	if err := gcAssets(context.Background(), cc.DB(), ast); err != nil {
+		t.Fatalf("gcAssets: %v", err)
+	}
+	for id, want := range map[string]bool{"open": true, "replaced": false} {
+		if _, cached := boards.Load(boardKey{db: cc.DB(), id: id}); cached != want {
+			t.Errorf("board %s cached = %v, want %v", id, cached, want)
+		}
+	}
+}

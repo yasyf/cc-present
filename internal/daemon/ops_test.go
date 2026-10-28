@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"path/filepath"
@@ -1814,4 +1815,36 @@ func revisionOf(t *testing.T, e ccevent.Event) int {
 		t.Fatalf("decode doc.replaced payload: %v", err)
 	}
 	return p.Revision
+}
+
+func TestAnOpDecodesOnlyTheEventsSinceThePreviousOp(t *testing.T) {
+	h := newHarness(t)
+	start := handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks, nilDisplay)
+	if !start.OK {
+		t.Fatalf("start: %s", start.Error)
+	}
+	if reply := handleOutcomes(h.hc(body{})); !reply.OK {
+		t.Fatalf("outcomes: %s", reply.Error)
+	}
+	if _, err := h.cc.DB().Exec(`UPDATE events SET payload='{' WHERE subject_id=? AND seq=1`, start.SubjectID); err != nil {
+		t.Fatal(err)
+	}
+	if reply := handleUpsertBlock(h.hc(body{Block: json.RawMessage(`{"id":"m1","type":"markdown","md":"hi"}`), Round: "current"}), doc.NoPacks); !reply.OK {
+		t.Fatalf("upsert = %s, want ok without re-decoding the history outcomes reduced", reply.Error)
+	}
+	reply := handleOutcomes(h.hc(body{}))
+	if !reply.OK {
+		t.Fatalf("outcomes = %s, want ok from the caught-up state", reply.Error)
+	}
+	var res result
+	if err := json.Unmarshal(reply.Body, &res); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(res.State), `"m1"`) {
+		t.Fatalf("outcomes state = %s, want the upserted m1", res.State)
+	}
+}
+
+func loadEvents(ctx context.Context, db *sql.DB, subjectID string) ([]state.Event, error) {
+	return loadEventsAfter(ctx, db, subjectID, 0)
 }

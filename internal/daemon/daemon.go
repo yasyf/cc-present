@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -84,6 +85,11 @@ func BuildServer(ctx context.Context, p paths.Paths, spec daemonkit.Daemon, runt
 			if err := ast.Prepare(); err != nil {
 				return err
 			}
+			s.Background(func(ctx context.Context) {
+				if err := warmBoards(ctx, s.DB()); err != nil {
+					slog.Warn("warm board cache", "err", err)
+				}
+			})
 			return c.BootReconcile(ctx, s)
 		},
 		// bind/token expose the plane to the LAN; bonjourHook advertises it over
@@ -209,14 +215,12 @@ func resumeGuard(hc ccd.HandlerCtx, cur subject.Subject, named bool, seed *doc.D
 	if !displayPage(seed) {
 		return nil
 	}
-	events, err := loadEvents(hc.Ctx, hc.DB, cur.ID)
+	board, err := caughtUp(hc.Ctx, hc.DB, cur.ID)
 	if err != nil {
 		return err
 	}
-	st, err := state.Reduce(events)
-	if err != nil {
-		return err
-	}
+	defer board.mu.Unlock()
+	st := &board.st
 	if st.Doc == nil || len(st.Doc.Blocks) == 0 || displayPage(st.Doc) {
 		return nil
 	}
@@ -236,21 +240,16 @@ func displayPage(d *doc.Doc) bool {
 func appendSeedDoc(hc ccd.HandlerCtx, subID string, raw json.RawMessage, d *doc.Doc, reopen []string) ([]string, error) {
 	writeMu.Lock()
 	defer writeMu.Unlock()
-	events, err := loadEvents(hc.Ctx, hc.DB, subID)
+	board, err := caughtUp(hc.Ctx, hc.DB, subID)
 	if err != nil {
 		return nil, err
 	}
-	st, err := state.Reduce(events)
-	if err != nil {
-		return nil, err
-	}
+	defer board.mu.Unlock()
+	st := &board.st
 	if err := claimThreads(hc.Ctx, hc.DB, subID, st.Doc, d.Blocks); err != nil {
 		return nil, err
 	}
-	gate, err := newAnswerGate(hc.Ctx, hc.DB, subID, &st, events, reopen)
-	if err != nil {
-		return nil, err
-	}
+	gate := newAnswerGate(hc.Ctx, hc.DB, subID, st, board.retired, reopen)
 	raw, warnings, err := gate.admitDoc(d, raw)
 	if err != nil {
 		return nil, err
@@ -261,7 +260,7 @@ func appendSeedDoc(hc ccd.HandlerCtx, subID string, raw json.RawMessage, d *doc.
 	}
 	_, err = appendEvent(hc.Ctx, hc.Append, &ccevent.Event{
 		SubjectID: subID, Origin: ccevent.OriginAgent, Type: EventDocReplaced,
-		Payload: docReplacedPayload(raw, rev, retainedTopIDs(&st, d)),
+		Payload: docReplacedPayload(raw, rev, retainedTopIDs(st, d)),
 	})
 	return warnings, err
 }
@@ -285,14 +284,12 @@ func handlePush(hc ccd.HandlerCtx, pt doc.PackTypes, display displayFunc) ccd.Re
 	}
 	writeMu.Lock()
 	defer writeMu.Unlock()
-	events, err := loadEvents(hc.Ctx, hc.DB, sub.ID)
+	board, err := caughtUp(hc.Ctx, hc.DB, sub.ID)
 	if err != nil {
 		return errReply(err.Error())
 	}
-	st, err := state.Reduce(events)
-	if err != nil {
-		return errReply(err.Error())
-	}
+	defer board.mu.Unlock()
+	st := &board.st
 	if doc.KeepSlack(st.Doc, d.Blocks) {
 		if b.Doc, err = json.Marshal(d); err != nil {
 			return errReply(err.Error())
@@ -301,20 +298,17 @@ func handlePush(hc ccd.HandlerCtx, pt doc.PackTypes, display displayFunc) ccd.Re
 	if err := claimThreads(hc.Ctx, hc.DB, sub.ID, st.Doc, d.Blocks); err != nil {
 		return errReply(err.Error())
 	}
-	gate, err := newAnswerGate(hc.Ctx, hc.DB, sub.ID, &st, events, b.Reopen)
-	if err != nil {
-		return errReply(err.Error())
-	}
+	gate := newAnswerGate(hc.Ctx, hc.DB, sub.ID, st, board.retired, b.Reopen)
 	raw, warnings, err := gate.admitDoc(d, b.Doc)
 	if err != nil {
 		return errReply(err.Error())
 	}
-	if err := roundGuard(&st, intent, "push", newTopIDs(&st, d)); err != nil {
+	if err := roundGuard(st, intent, "push", newTopIDs(st, d)); err != nil {
 		return errReply(err.Error())
 	}
-	retained := retainedTopIDs(&st, d)
+	retained := retainedTopIDs(st, d)
 	round := 0
-	if intent == roundNew && roundDirty(&st) {
+	if intent == roundNew && roundDirty(st) {
 		if _, err := appendEvent(hc.Ctx, hc.Append, &ccevent.Event{
 			SubjectID: sub.ID, Origin: ccevent.OriginAgent, Type: EventRoundStarted,
 			Payload: roundStartedPayload(b.Title),
@@ -360,14 +354,12 @@ func handleUpsertBlock(hc ccd.HandlerCtx, pt doc.PackTypes) ccd.Reply {
 	}
 	writeMu.Lock()
 	defer writeMu.Unlock()
-	events, err := loadEvents(hc.Ctx, hc.DB, sub.ID)
+	board, err := caughtUp(hc.Ctx, hc.DB, sub.ID)
 	if err != nil {
 		return errReply(err.Error())
 	}
-	st, err := state.Reduce(events)
-	if err != nil {
-		return errReply(err.Error())
-	}
+	defer board.mu.Unlock()
+	st := &board.st
 	if loc, ok := doc.Locate(st.Doc, blk.BlockID()); ok && loc.Visual() {
 		return errReply(pointingError(blk.BlockID(), loc).Error())
 	}
@@ -379,10 +371,7 @@ func handleUpsertBlock(hc ccd.HandlerCtx, pt doc.PackTypes) ccd.Reply {
 	if err := claimThreads(hc.Ctx, hc.DB, sub.ID, st.Doc, []doc.Block{blk}); err != nil {
 		return errReply(err.Error())
 	}
-	gate, err := newAnswerGate(hc.Ctx, hc.DB, sub.ID, &st, events, b.Reopen)
-	if err != nil {
-		return errReply(err.Error())
-	}
+	gate := newAnswerGate(hc.Ctx, hc.DB, sub.ID, st, board.retired, b.Reopen)
 	kept, warnings := gate.strip([]doc.Block{blk})
 	if len(kept) == 0 {
 		return okReply(result{Warnings: warnings})
@@ -410,16 +399,16 @@ func handleUpsertBlock(hc ccd.HandlerCtx, pt doc.PackTypes) ccd.Reply {
 		return errReply(err.Error())
 	}
 	var newTops []string
-	if upsertNewTop(&st, blk, b.After) {
+	if upsertNewTop(st, blk, b.After) {
 		newTops = []string{blk.BlockID()}
 	}
-	if err := roundGuard(&st, intent, "update-block", newTops); err != nil {
+	if err := roundGuard(st, intent, "update-block", newTops); err != nil {
 		return errReply(err.Error())
 	}
 	// Validation is done; only appends follow. A clean round skips round.started,
 	// so a post-submit --round new stays a no-op.
 	round := 0
-	if intent == roundNew && roundDirty(&st) {
+	if intent == roundNew && roundDirty(st) {
 		if _, err := appendEvent(hc.Ctx, hc.Append, &ccevent.Event{
 			SubjectID: sub.ID, Origin: ccevent.OriginAgent, Type: EventRoundStarted,
 			Payload: roundStartedPayload(b.Title),
@@ -460,14 +449,12 @@ func handleRemoveBlock(hc ccd.HandlerCtx) ccd.Reply {
 	if err != nil {
 		return errReply(err.Error())
 	}
-	events, err := loadEvents(hc.Ctx, hc.DB, sub.ID)
+	board, err := caughtUp(hc.Ctx, hc.DB, sub.ID)
 	if err != nil {
 		return errReply(err.Error())
 	}
-	st, err := state.Reduce(events)
-	if err != nil {
-		return errReply(err.Error())
-	}
+	defer board.mu.Unlock()
+	st := &board.st
 	loc, ok := doc.Locate(st.Doc, b.ID)
 	if !ok {
 		return errReply(fmt.Sprintf("no block %q in the current document", b.ID))
@@ -502,14 +489,12 @@ func handleReply(hc ccd.HandlerCtx) ccd.Reply {
 	if err != nil {
 		return errReply(err.Error())
 	}
-	events, err := loadEvents(hc.Ctx, hc.DB, sub.ID)
+	board, err := caughtUp(hc.Ctx, hc.DB, sub.ID)
 	if err != nil {
 		return errReply(err.Error())
 	}
-	st, err := state.Reduce(events)
-	if err != nil {
-		return errReply(err.Error())
-	}
+	defer board.mu.Unlock()
+	st := &board.st
 	blk, top, err := findBlock(st.Doc, b.BlockID)
 	if err != nil {
 		return errReply(err.Error())
@@ -519,7 +504,7 @@ func handleReply(hc ccd.HandlerCtx) ccd.Reply {
 	}
 	re := b.Re
 	if re == "" {
-		if re, err = newestUnansweredNote(events, threadBlockIDs(blk), st.Interactions.Replies); err != nil {
+		if re, err = newestUnansweredNote(hc.Ctx, hc.DB, sub.ID, threadBlockIDs(blk), st.Interactions.Replies); err != nil {
 			return errReply(err.Error())
 		}
 	}
@@ -555,7 +540,11 @@ func threadBlockIDs(blk doc.Block) []string {
 	return ids
 }
 
-func newestUnansweredNote(events []state.Event, blockIDs []string, replies map[string][]state.Reply) (string, error) {
+func newestUnansweredNote(ctx context.Context, db *sql.DB, subID string, blockIDs []string, replies map[string][]state.Reply) (string, error) {
+	events, err := loadEventsOfType(ctx, db, subID, EventFeedbackCreated)
+	if err != nil {
+		return "", err
+	}
 	answered := map[string]bool{}
 	for _, list := range replies {
 		for _, r := range list {
@@ -564,9 +553,6 @@ func newestUnansweredNote(events []state.Event, blockIDs []string, replies map[s
 	}
 	var newest string
 	for _, ev := range events {
-		if ev.Type != EventFeedbackCreated {
-			continue
-		}
 		var p struct {
 			ID      string `json:"id"`
 			BlockID string `json:"blockId"`
@@ -609,14 +595,12 @@ func handleRound(hc ccd.HandlerCtx) ccd.Reply {
 	}); err != nil {
 		return errReply(err.Error())
 	}
-	events, err := loadEvents(hc.Ctx, hc.DB, sub.ID)
+	board, err := caughtUp(hc.Ctx, hc.DB, sub.ID)
 	if err != nil {
 		return errReply(err.Error())
 	}
-	st, err := state.Reduce(events)
-	if err != nil {
-		return errReply(err.Error())
-	}
+	defer board.mu.Unlock()
+	st := &board.st
 	return okReply(result{Round: st.Rounds.Current})
 }
 
@@ -632,14 +616,12 @@ func handleRevising(hc ccd.HandlerCtx) ccd.Reply {
 	}
 	ids := b.BlockIDs
 	if len(ids) > 0 {
-		events, err := loadEvents(hc.Ctx, hc.DB, sub.ID)
+		board, err := caughtUp(hc.Ctx, hc.DB, sub.ID)
 		if err != nil {
 			return errReply(err.Error())
 		}
-		st, err := state.Reduce(events)
-		if err != nil {
-			return errReply(err.Error())
-		}
+		defer board.mu.Unlock()
+		st := &board.st
 		resolved := make([]string, 0, len(ids))
 		seen := map[string]bool{}
 		for _, id := range ids {
@@ -711,18 +693,13 @@ func handleOutcomes(hc ccd.HandlerCtx) ccd.Reply {
 	if err != nil {
 		return errReply(err.Error())
 	}
-	events, err := loadEvents(hc.Ctx, hc.DB, sub.ID)
+	board, err := caughtUp(hc.Ctx, hc.DB, sub.ID)
 	if err != nil {
 		return errReply(err.Error())
 	}
-	st, err := state.Reduce(events)
-	if err != nil {
-		return errReply(err.Error())
-	}
-	gate, err := newAnswerGate(hc.Ctx, hc.DB, sub.ID, &st, events, nil)
-	if err != nil {
-		return errReply(err.Error())
-	}
+	defer board.mu.Unlock()
+	st := &board.st
+	gate := newAnswerGate(hc.Ctx, hc.DB, sub.ID, st, board.retired, nil)
 	raw, err := json.Marshal(st)
 	if err != nil {
 		return errReply(err.Error())
@@ -850,14 +827,21 @@ func nextRevision(ctx context.Context, db *sql.DB, subjectID string) (int, error
 	return n + 1, nil
 }
 
-// loadEvents reads a subject's full log, oldest first, as reducer events.
-func loadEvents(ctx context.Context, db *sql.DB, subjectID string) ([]state.Event, error) {
-	return loadEventsAfter(ctx, db, subjectID, 0)
+func loadEventsAfter(ctx context.Context, db *sql.DB, subjectID string, after int64) ([]state.Event, error) {
+	return queryEvents(ctx, db, `SELECT origin, type, seq, payload FROM events WHERE subject_id=? AND seq>? ORDER BY seq ASC`, subjectID, after)
 }
 
-func loadEventsAfter(ctx context.Context, db *sql.DB, subjectID string, after int64) ([]state.Event, error) {
-	rows, err := db.QueryContext(ctx,
-		`SELECT origin, type, seq, payload FROM events WHERE subject_id=? AND seq>? ORDER BY seq ASC`, subjectID, after)
+func loadEventsOfType(ctx context.Context, db *sql.DB, subjectID string, types ...string) ([]state.Event, error) {
+	args := make([]any, 0, 1+len(types))
+	args = append(args, subjectID)
+	for _, t := range types {
+		args = append(args, t)
+	}
+	return queryEvents(ctx, db, `SELECT origin, type, seq, payload FROM events WHERE subject_id=? AND type IN (?`+strings.Repeat(",?", len(types)-1)+`) ORDER BY seq ASC`, args...)
+}
+
+func queryEvents(ctx context.Context, db *sql.DB, query string, args ...any) ([]state.Event, error) {
+	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("load events: %w", err)
 	}

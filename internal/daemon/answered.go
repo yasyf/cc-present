@@ -17,17 +17,12 @@ type answerGate struct {
 	db      *sql.DB
 	subID   string
 	st      *state.State
-	events  []state.Event
 	retired map[string]bool
 	reopen  []string
 }
 
-func newAnswerGate(ctx context.Context, db *sql.DB, subID string, st *state.State, events []state.Event, reopen []string) (answerGate, error) {
-	retired, err := state.Retired(events)
-	if err != nil {
-		return answerGate{}, err
-	}
-	return answerGate{ctx: ctx, db: db, subID: subID, st: st, events: events, retired: retired, reopen: reopen}, nil
+func newAnswerGate(ctx context.Context, db *sql.DB, subID string, st *state.State, retired map[string]bool, reopen []string) answerGate {
+	return answerGate{ctx: ctx, db: db, subID: subID, st: st, retired: retired, reopen: reopen}
 }
 
 func (g answerGate) strip(blocks []doc.Block) ([]doc.Block, []string) {
@@ -61,11 +56,12 @@ func (g answerGate) check(b doc.Block) error {
 }
 
 func (g answerGate) answeredAt(id string) (string, error) {
-	for i := len(g.events) - 1; i >= 0; i-- {
-		ev := g.events[i]
-		if ev.Type != EventDecisionCreated && ev.Type != EventChoiceSelected && ev.Type != EventInputSubmitted {
-			continue
-		}
+	events, err := loadEventsOfType(g.ctx, g.db, g.subID, EventDecisionCreated, EventChoiceSelected, EventInputSubmitted)
+	if err != nil {
+		return "", err
+	}
+	for i := len(events) - 1; i >= 0; i-- {
+		ev := events[i]
 		var p struct {
 			BlockID string `json:"blockId"`
 		}

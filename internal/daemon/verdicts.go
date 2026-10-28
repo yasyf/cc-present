@@ -53,15 +53,13 @@ func handleImportVerdicts(hc ccd.HandlerCtx) ccd.Reply {
 	}
 	writeMu.Lock()
 	defer writeMu.Unlock()
-	events, err := loadEvents(hc.Ctx, hc.DB, sub.ID)
+	board, err := caughtUp(hc.Ctx, hc.DB, sub.ID)
 	if err != nil {
 		return errReply(err.Error())
 	}
-	st, err := state.Reduce(events)
-	if err != nil {
-		return errReply(err.Error())
-	}
-	payloads, res, err := priorVerdictPayloads(&st, priors, b.Replace)
+	defer board.mu.Unlock()
+	st := &board.st
+	payloads, res, err := priorVerdictPayloads(st, priors, b.Replace)
 	if err != nil {
 		return errReply(err.Error())
 	}
@@ -175,15 +173,13 @@ func handleCarryVerdict(hc ccd.HandlerCtx) ccd.Reply {
 	}
 	writeMu.Lock()
 	defer writeMu.Unlock()
-	events, err := loadEvents(hc.Ctx, hc.DB, sub.ID)
+	board, err := caughtUp(hc.Ctx, hc.DB, sub.ID)
 	if err != nil {
 		return errReply(err.Error())
 	}
-	st, err := state.Reduce(events)
-	if err != nil {
-		return errReply(err.Error())
-	}
-	payload, res, err := carryVerdictPayload(&st, c)
+	defer board.mu.Unlock()
+	st := &board.st
+	payload, res, err := carryVerdictPayload(st, c)
 	if err != nil {
 		return errReply(err.Error())
 	}
@@ -274,15 +270,13 @@ func handleMoveVerdicts(hc ccd.HandlerCtx) ccd.Reply {
 	}
 	writeMu.Lock()
 	defer writeMu.Unlock()
-	events, err := loadEvents(hc.Ctx, hc.DB, sub.ID)
+	board, err := caughtUp(hc.Ctx, hc.DB, sub.ID)
 	if err != nil {
 		return errReply(err.Error())
 	}
-	st, err := state.Reduce(events)
-	if err != nil {
-		return errReply(err.Error())
-	}
-	payloads, err := moveVerdictPayloads(&st, moves, time.Now())
+	defer board.mu.Unlock()
+	st := &board.st
+	payloads, err := moveVerdictPayloads(st, moves, time.Now())
 	if err != nil {
 		return errReply(err.Error())
 	}

@@ -1,7 +1,6 @@
 package daemon
 
 import (
-	"compress/gzip"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -12,7 +11,6 @@ import (
 	"mime"
 	"net/http"
 	"strings"
-	"sync"
 	"time"
 	"unicode"
 	"unicode/utf8"
@@ -59,82 +57,6 @@ type restServer struct {
 	postGroup   groupPoster
 	static      http.Handler
 	version     string
-	boards      sync.Map
-}
-
-// reducedBoard is one subject's reduced state, caught up from the last seq it
-// applied, so a tap or a page load decodes only the events since the previous
-// one instead of the board's whole history.
-type reducedBoard struct {
-	mu       sync.Mutex
-	seq      int64
-	revision int
-	st       state.State
-	snapshot encoded
-	rounds   encoded
-}
-
-type encoded struct {
-	seq  int64
-	body []byte
-	gz   []byte
-}
-
-func (rs *restServer) caughtUp(ctx context.Context, id string) (*reducedBoard, error) {
-	cached, _ := rs.boards.LoadOrStore(id, &reducedBoard{})
-	board := cached.(*reducedBoard)
-	board.mu.Lock()
-	if err := board.catchUp(ctx, rs.db(), id); err != nil {
-		board.mu.Unlock()
-		return nil, err
-	}
-	if board.st.Interactions.Closed.Value {
-		rs.boards.Delete(id)
-	}
-	return board, nil
-}
-
-func (b *reducedBoard) encode(slot *encoded, v func() (any, error)) (encoded, error) {
-	if slot.body != nil && slot.seq == b.seq {
-		return *slot, nil
-	}
-	val, err := v()
-	if err != nil {
-		return encoded{}, err
-	}
-	body, err := json.Marshal(val)
-	if err != nil {
-		return encoded{}, err
-	}
-	gz, err := gzipBytes(body, gzip.DefaultCompression)
-	if err != nil {
-		return encoded{}, err
-	}
-	*slot = encoded{seq: b.seq, body: body, gz: gz}
-	return *slot, nil
-}
-
-func (b *reducedBoard) catchUp(ctx context.Context, db *sql.DB, subID string) error {
-	events, err := loadEventsAfter(ctx, db, subID, b.seq)
-	if err != nil {
-		return err
-	}
-	if b.seq == 0 {
-		b.st, err = state.Reduce(events)
-	} else {
-		err = b.st.Apply(events)
-	}
-	if err != nil {
-		b.seq, b.revision = 0, 0
-		return err
-	}
-	for _, ev := range events {
-		if ev.Type == EventDocReplaced {
-			b.revision++
-		}
-		b.seq = ev.Seq
-	}
-	return nil
 }
 
 // interactionReq is the POST /api/interactions body: which subject, the browser
@@ -274,34 +196,12 @@ func (rs *restServer) handleInteractions(w http.ResponseWriter, r *http.Request)
 		http.Error(w, "unknown subject: "+req.Subject, http.StatusNotFound)
 		return
 	}
-	board, err := rs.caughtUp(r.Context(), id)
+	board := boardFor(rs.db(), id)
+	board.answering.Lock()
+	defer board.answering.Unlock()
+	seq, card, ch, status, err := rs.recordInteraction(r.Context(), board, id, &req)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	defer board.mu.Unlock()
-	st := &board.st
-	if st.Interactions.Closed.Value {
-		http.Error(w, "presentation is closed", http.StatusConflict)
-		return
-	}
-	payload, err := validateInteraction(st, board.revision, &req.Interaction, rs.packs.Current(), time.Now())
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	card, ch := slackQuestion(st, &req.Interaction)
-	if card != nil && card.Status == slackcards.Resolved {
-		http.Error(w, fmt.Sprintf("card %q is already answered", card.ID), http.StatusConflict)
-		return
-	}
-	seq, err := appendEvent(r.Context(), rs.append, &ccevent.Event{
-		SubjectID: id, Origin: ccevent.OriginHuman, Type: req.Interaction.Type,
-		Payload:  payload,
-		DedupKey: req.Interaction.Type + ":" + req.Interaction.BlockID + ":" + req.Nonce,
-	})
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, err.Error(), status)
 		return
 	}
 	if req.Interaction.Type == EventTriageDecided {
@@ -317,12 +217,40 @@ func (rs *restServer) handleInteractions(w http.ResponseWriter, r *http.Request)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		if err := rs.answerOnSlack(context.WithoutCancel(r.Context()), id, card, ch, &req.Interaction, "http://"+r.Host+"/p/"+slug); err != nil {
+		if err := rs.answerOnSlack(context.WithoutCancel(r.Context()), board, id, card, ch, &req.Interaction, "http://"+r.Host+"/p/"+slug); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"seq": seq})
+}
+
+func (rs *restServer) recordInteraction(ctx context.Context, board *reducedBoard, id string, req *interactionReq) (int64, *doc.Card, *doc.Choice, int, error) {
+	if err := board.lock(ctx, rs.db(), id); err != nil {
+		return 0, nil, nil, http.StatusInternalServerError, err
+	}
+	defer board.mu.Unlock()
+	st := &board.st
+	if st.Interactions.Closed.Value {
+		return 0, nil, nil, http.StatusConflict, errors.New("presentation is closed")
+	}
+	payload, err := validateInteraction(st, board.revision, &req.Interaction, rs.packs.Current(), time.Now())
+	if err != nil {
+		return 0, nil, nil, http.StatusBadRequest, err
+	}
+	card, ch := slackQuestion(st, &req.Interaction)
+	if card != nil && card.Status == slackcards.Resolved {
+		return 0, nil, nil, http.StatusConflict, fmt.Errorf("card %q is already answered", card.ID)
+	}
+	seq, err := appendEvent(ctx, rs.append, &ccevent.Event{
+		SubjectID: id, Origin: ccevent.OriginHuman, Type: req.Interaction.Type,
+		Payload:  payload,
+		DedupKey: req.Interaction.Type + ":" + req.Interaction.BlockID + ":" + req.Nonce,
+	})
+	if err != nil {
+		return 0, nil, nil, http.StatusInternalServerError, err
+	}
+	return seq, card, ch, http.StatusOK, nil
 }
 
 // validateInteraction checks one interaction against the reduced document and
