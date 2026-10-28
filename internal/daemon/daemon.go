@@ -832,7 +832,8 @@ func loadEventsAfter(ctx context.Context, db *sql.DB, subjectID string, after in
 }
 
 func loadEventsOfType(ctx context.Context, db *sql.DB, subjectID string, types ...string) ([]state.Event, error) {
-	args := []any{subjectID}
+	args := make([]any, 0, 1+len(types))
+	args = append(args, subjectID)
 	for _, t := range types {
 		args = append(args, t)
 	}
