@@ -410,7 +410,7 @@ func claimThreads(ctx context.Context, db *sql.DB, subID string, cur *doc.Doc, b
 		}
 		board, err := caughtUp(ctx, db, id)
 		if err != nil {
-			continue
+			return fmt.Errorf("read the slack threads open board %s binds: %w", id, err)
 		}
 		var claimed *doc.PRGroups
 		for _, b := range board.st.Doc.Blocks {
