@@ -17,6 +17,7 @@ import (
 	"github.com/yasyf/cc-interact/procs"
 	"github.com/yasyf/daemonkit"
 	"github.com/yasyf/daemonkit/paths"
+	dkversion "github.com/yasyf/daemonkit/version"
 
 	"github.com/yasyf/synckit/meshtrust"
 
@@ -59,7 +60,7 @@ func NewClient(_ context.Context) (*ccd.Client, error) {
 	return l.NewClient()
 }
 
-var stableProgram = sync.OnceValues(func() (daemonkit.Program, error) { return daemonkit.Stable(version.String()) })
+var stableProgram = sync.OnceValues(func() (daemonkit.Program, error) { return daemonkit.Stable(dkversion.Running(version.String())) })
 
 // daemonSpec is the one daemon identity the launcher and the daemon half both
 // read: socket, state dir, and service all derive from its Label.
