@@ -415,3 +415,21 @@ func TestAPRGroupsVerdictLandsAfterItsRoundCloses(t *testing.T) {
 		t.Fatalf("a triage verdict in a closed round = %v, want refused", err)
 	}
 }
+
+func TestASlackThreadIsFreeOnceItsBoardUnbindsIt(t *testing.T) {
+	bound := json.RawMessage(strings.Replace(prGroupsDoc, `"repo":"a/b",`, `"repo":"a/b","slack":"1792842193.708029",`, 1))
+	unbound := json.RawMessage(strings.Replace(prGroupsDoc, `"repo":"a/b",`, `"repo":"a/b","slack":"",`, 1))
+	h := newHarness(t)
+	if r := handleStart(h.hc(body{Doc: bound}), doc.NoPacks, nilDisplay); !r.OK {
+		t.Fatal(r.Error)
+	}
+	if r := handlePush(h.hc(body{Doc: unbound}), doc.NoPacks, nilDisplay); !r.OK {
+		t.Fatal(r.Error)
+	}
+	other := h.hc(body{Doc: bound})
+	other.Env.Session, other.Env.ClaudePID = "s2", 200
+	other.Window = subject.Window{Session: "s2", ClaudePID: 200}
+	if r := handleStart(other, doc.NoPacks, nilDisplay); !r.OK {
+		t.Fatalf("binding a thread its first board unbound: %s", r.Error)
+	}
+}
