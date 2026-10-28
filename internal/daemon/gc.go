@@ -8,7 +8,6 @@ import (
 
 	"github.com/yasyf/cc-present/internal/assets"
 	"github.com/yasyf/cc-present/internal/doc"
-	"github.com/yasyf/cc-present/internal/state"
 )
 
 // assetGrace is how recently an asset must have been written to survive a sweep
@@ -26,17 +25,14 @@ func gcAssets(ctx context.Context, db *sql.DB, ast *assets.Store) error {
 	if err != nil {
 		return err
 	}
+	forgetBoardsExcept(db, ids)
 	keep := map[string]bool{}
 	for _, id := range ids {
-		events, err := loadEvents(ctx, db, id)
-		if err != nil {
-			return err
-		}
-		st, err := state.Reduce(events)
+		board, err := caughtUp(ctx, db, id)
 		if err != nil {
 			return fmt.Errorf("reduce subject %s: %w", id, err)
 		}
-		for _, b := range st.Doc.Blocks {
+		for _, b := range board.st.Doc.Blocks {
 			for _, sha := range doc.AssetRefs(b) {
 				keep[sha] = true
 			}
@@ -44,6 +40,7 @@ func gcAssets(ctx context.Context, db *sql.DB, ast *assets.Store) error {
 				keep[sha] = true
 			}
 		}
+		board.mu.Unlock()
 	}
 	if _, err := ast.Sweep(keep, assetGrace); err != nil {
 		return fmt.Errorf("sweep assets: %w", err)
@@ -56,7 +53,7 @@ func gcAssets(ctx context.Context, db *sql.DB, ast *assets.Store) error {
 // escape hatch and fully drains the rows before returning, freeing the single
 // connection for the per-subject event reads that follow.
 func openSubjectIDs(ctx context.Context, db *sql.DB) ([]string, error) {
-	rows, err := db.QueryContext(ctx, `SELECT id FROM subjects WHERE status=?`, statusOpen)
+	rows, err := db.QueryContext(ctx, `SELECT id FROM subjects WHERE status=? ORDER BY updated_at DESC`, statusOpen)
 	if err != nil {
 		return nil, fmt.Errorf("list open subjects: %w", err)
 	}

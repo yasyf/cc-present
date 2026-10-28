@@ -155,3 +155,16 @@ func TestStateServesTheCachedBoardCaughtUpWithNewEvents(t *testing.T) {
 		t.Fatalf("seq=%d doc=%s, want seq %d without the removed a1", got.Seq, got.State.Doc, seq)
 	}
 }
+
+func TestWarmBoardsCatchesUpEveryOpenBoardAtBoot(t *testing.T) {
+	h := newRestHarness(t)
+	if err := warmBoards(t.Context(), h.cc.DB()); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := h.cc.DB().Exec(`UPDATE events SET payload='{' WHERE subject_id=? AND seq=1`, h.id); err != nil {
+		t.Fatal(err)
+	}
+	if w := h.get(t, "/api/state?session=board--abcd0000"); w.Code != http.StatusOK {
+		t.Fatalf("first load = %d %s, want 200 from the board warmed at boot", w.Code, w.Body)
+	}
+}

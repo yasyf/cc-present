@@ -3,12 +3,9 @@ package daemon
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"time"
-
-	"github.com/yasyf/cc-present/internal/state"
 )
 
 // sessionSummary is one artifact in the GET /api/sessions listing. UpdatedAt
@@ -38,19 +35,16 @@ func (rs *restServer) handleSessions(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	for i := range summaries {
-		events, err := loadEvents(r.Context(), db, summaries[i].Subject)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		title, err := docTitle(events)
-		if err != nil {
+		var title sql.NullString
+		if err := db.QueryRowContext(r.Context(), `SELECT COUNT(*), COALESCE(SUM(type = ?), 0),
+			(SELECT json_extract(payload, '$.doc.title') FROM events WHERE subject_id = ? AND type = ? ORDER BY seq DESC LIMIT 1)
+			FROM events WHERE subject_id = ?`,
+			EventDocReplaced, summaries[i].Subject, EventDocReplaced, summaries[i].Subject,
+		).Scan(&summaries[i].EventCount, &summaries[i].Revision, &title); err != nil {
 			http.Error(w, fmt.Sprintf("subject %s: %v", summaries[i].Subject, err), http.StatusInternalServerError)
 			return
 		}
-		summaries[i].Title = title
-		summaries[i].Revision = docRevision(events)
-		summaries[i].EventCount = len(events)
+		summaries[i].Title = title.String
 	}
 	writeJSON(w, http.StatusOK, summaries)
 }
@@ -90,34 +84,4 @@ func listSessions(ctx context.Context, db *sql.DB, includeClosed bool) ([]sessio
 		return nil, fmt.Errorf("iterate subjects: %w", err)
 	}
 	return out, nil
-}
-
-func docTitle(events []state.Event) (string, error) {
-	for i := len(events) - 1; i >= 0; i-- {
-		if events[i].Type != EventDocReplaced {
-			continue
-		}
-		var p struct {
-			Doc struct {
-				Title string `json:"title"`
-			} `json:"doc"`
-		}
-		if err := json.Unmarshal(events[i].Payload, &p); err != nil {
-			return "", fmt.Errorf("read title at seq %d: %w", events[i].Seq, err)
-		}
-		return p.Doc.Title, nil
-	}
-	return "", nil
-}
-
-// docRevision is the artifact's current revision: the count of doc.replaced
-// events in its log (0 for a document never replaced).
-func docRevision(events []state.Event) int {
-	n := 0
-	for _, ev := range events {
-		if ev.Type == EventDocReplaced {
-			n++
-		}
-	}
-	return n
 }

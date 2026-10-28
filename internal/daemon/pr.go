@@ -46,7 +46,7 @@ func (rs *restServer) handlePR(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "unknown subject: "+q.Get("subject"), http.StatusNotFound)
 		return
 	}
-	board, err := rs.caughtUp(r.Context(), id)
+	board, err := caughtUp(r.Context(), rs.db(), id)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

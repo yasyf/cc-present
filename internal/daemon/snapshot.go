@@ -73,7 +73,7 @@ func (rs *restServer) serveBoard(w http.ResponseWriter, r *http.Request, encode 
 		http.Error(w, "unknown subject: "+ref, http.StatusNotFound)
 		return
 	}
-	board, err := rs.caughtUp(r.Context(), id)
+	board, err := caughtUp(r.Context(), rs.db(), id)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

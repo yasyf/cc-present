@@ -30,12 +30,11 @@ func subtreeIDs(b doc.Block) []string {
 	return ids
 }
 
-// Retired replays the log and returns the ids of blocks a block.removed took
-// off the board while they carried a human verdict and that no later write has
-// put back.
-func Retired(events []Event) (map[string]bool, error) {
-	s := newState()
-	retired := map[string]bool{}
+// ApplyRetiring is Apply that also keeps retired current: a block.removed adds
+// the block it takes off the board when the block carries a human verdict, and
+// a later write that puts the block back drops it. Applying a log in pieces with
+// one retired set leaves the set Retired returns for the whole log.
+func (s *State) ApplyRetiring(events []Event, retired map[string]bool) error {
 	for _, ev := range ordered(events) {
 		if s.Interactions.Closed.Value {
 			continue
@@ -46,7 +45,7 @@ func Retired(events []Event) (map[string]bool, error) {
 				ID string `json:"id"`
 			}
 			if err := decodeEventPayload(ev, &p); err != nil {
-				return nil, fmt.Errorf("apply %s at seq %d: %w", ev.Type, ev.Seq, err)
+				return fmt.Errorf("apply %s at seq %d: %w", ev.Type, ev.Seq, err)
 			}
 			if loc, ok := doc.Locate(s.Doc, p.ID); ok && !loc.Visual() {
 				if _, answered := s.AnsweredBy(loc.Block); answered {
@@ -55,7 +54,7 @@ func Retired(events []Event) (map[string]bool, error) {
 			}
 		}
 		if err := s.apply(ev); err != nil {
-			return nil, fmt.Errorf("apply %s at seq %d: %w", ev.Type, ev.Seq, err)
+			return fmt.Errorf("apply %s at seq %d: %w", ev.Type, ev.Seq, err)
 		}
 		for id := range retired {
 			if _, ok := doc.Locate(s.Doc, id); ok {
@@ -63,5 +62,5 @@ func Retired(events []Event) (map[string]bool, error) {
 			}
 		}
 	}
-	return retired, nil
+	return nil
 }

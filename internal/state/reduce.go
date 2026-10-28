@@ -203,7 +203,7 @@ func (s *State) UnmarshalJSON(data []byte) error {
 // the shared log — channel.changed and the agent.* lifecycle — are skipped;
 // any other unknown event type is an error.
 func Reduce(events []Event) (State, error) {
-	s := newState()
+	s := New()
 	if err := s.Apply(events); err != nil {
 		return State{}, err
 	}
@@ -214,18 +214,11 @@ func Reduce(events []Event) (State, error) {
 // reduce of a log's prefix followed by Apply of the rest equals a reduce of the
 // whole log. On error s holds a partial fold and must be rebuilt.
 func (s *State) Apply(events []Event) error {
-	for _, ev := range ordered(events) {
-		if s.Interactions.Closed.Value {
-			continue
-		}
-		if err := s.apply(ev); err != nil {
-			return fmt.Errorf("apply %s at seq %d: %w", ev.Type, ev.Seq, err)
-		}
-	}
-	return nil
+	return s.ApplyRetiring(events, map[string]bool{})
 }
 
-func newState() State {
+// New returns the state of an empty log.
+func New() State {
 	return State{
 		SchemaVersion: SchemaVersion,
 		Doc:           &doc.Doc{Version: 1, Blocks: []doc.Block{}},
