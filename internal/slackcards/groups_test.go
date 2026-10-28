@@ -1,6 +1,8 @@
 package slackcards_test
 
 import (
+	"fmt"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -57,7 +59,11 @@ func TestGroupCardAsksOnlyRowsWhoseVerdictDoesNotStand(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			g, group := merges(tt.row)
 			g.ID = "pg"
-			sc := slackcards.GroupCard(g, group, tt.verdicts, true)
+			cards := slackcards.GroupCard(g, group, tt.verdicts, true, 0)
+			if len(cards) != 1 {
+				t.Fatalf("cards = %d, want 1", len(cards))
+			}
+			sc := cards[0]
 			if got := rowIDs(sc); strings.Join(got, ",") != strings.Join(tt.want, ",") {
 				t.Fatalf("rows = %v, want %v", got, tt.want)
 			}
@@ -79,7 +85,7 @@ func TestGroupCardRowCarriesTheFiveFactsInSlackMarkup(t *testing.T) {
 	g, group := merges(row(41, "abc1234def"))
 	g.ID = "pg"
 	stale := map[string]state.Decision{"41": {Verdict: "rejected", Head: "0001111", At: decidedAt}}
-	text := slackcards.GroupCard(g, group, stale, true).Rows[0].Text
+	text := slackcards.GroupCard(g, group, stale, true, 0)[0].Rows[0].Text
 	for _, want := range []string{
 		"*<https://github.com/acme/app/pull/41|app PR 41>* Fix the <https://x.test/l|login> &lt;form&gt; `abc1234`",
 		"*What changes:* Login works.", "*Against the plan:* Matches the plan.", "*Risk:* Low.",
@@ -109,6 +115,62 @@ func TestGroupCardsRetireAGroupThatLeftTheBoard(t *testing.T) {
 		if !strings.Contains(retired.Body, want) {
 			t.Errorf("retired body lacks %q:\n%s", want, retired.Body)
 		}
+	}
+}
+
+func rows(n int) []doc.PRRow {
+	prs := make([]doc.PRRow, 0, n)
+	for i := range n {
+		prs = append(prs, row(100+i, fmt.Sprintf("%010d", 100+i)))
+	}
+	return prs
+}
+
+type page struct {
+	group, title, status string
+	rows                 int
+}
+
+func pages(cards []slackcards.StatusCard) []page {
+	got := make([]page, 0, len(cards))
+	for _, c := range cards {
+		got = append(got, page{c.Group, c.Title, c.Status, len(c.Rows)})
+	}
+	return got
+}
+
+func TestGroupCardPagesTwentyRowsACard(t *testing.T) {
+	tests := []struct {
+		name     string
+		prs      int
+		verdicts map[string]state.Decision
+		held     int
+		want     []page
+	}{
+		{"twenty rows fit one card", 20, nil, 0, []page{{"pg:login", "Login", "needs_you", 20}}},
+		{"twenty-one rows page onto two cards", 21, nil, 0, []page{{"pg:login", "Login (1 of 2)", "needs_you", 20}, {"pg:login:2", "Login (2 of 2)", "needs_you", 1}}},
+		{"a tap that settles a row empties the second card", 21, map[string]state.Decision{"100": approvedAt("0000000100")}, 0, []page{{"pg:login", "Login", "needs_you", 20}, {"pg:login:2", "Login", "done", 0}}},
+		{"rows that left the group empty the second card", 19, nil, 21, []page{{"pg:login", "Login", "needs_you", 19}, {"pg:login:2", "Login", "done", 0}}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g, group := merges(rows(tt.prs)...)
+			g.ID = "pg"
+			if got := pages(slackcards.GroupCard(g, group, tt.verdicts, true, tt.held)); !slices.Equal(got, tt.want) {
+				t.Fatalf("cards = %+v, want %+v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestGroupCardsEmptyThePageAGroupNoLongerFills(t *testing.T) {
+	before, _ := merges(rows(21)...)
+	before.ID = "pg"
+	after := *before
+	after.Groups = []doc.PRGroup{{ID: "login", Title: "Login", PRs: rows(20)}}
+	want := []page{{"pg:login", "Login", "needs_you", 20}, {"pg:login:2", "Login", "done", 0}}
+	if got := pages(slackcards.GroupCards(before, &after, nil)); !slices.Equal(got, want) {
+		t.Fatalf("cards = %+v, want %+v", got, want)
 	}
 }
 

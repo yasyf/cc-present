@@ -364,7 +364,7 @@ func groupCards(st *state.State, it *interaction) (string, []slackcards.StatusCa
 	var cards []slackcards.StatusCard
 	for _, group := range g.Groups {
 		if slices.ContainsFunc(group.PRs, func(r doc.PRRow) bool { _, ok := it.Verdicts[doc.RowID(r.Number)]; return ok }) {
-			cards = append(cards, slackcards.GroupCard(g, group, st.Interactions.Triage[g.ID], true))
+			cards = append(cards, slackcards.GroupCard(g, group, st.Interactions.Triage[g.ID], true, 0)...)
 		}
 	}
 	return g.Thread(), cards, nil
