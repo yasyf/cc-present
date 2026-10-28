@@ -20,13 +20,9 @@ const markdownBlock = `{"id":"m1","type":"markdown","md":"hi"}`
 
 // testDaemonSpec is the identity both halves of a test daemon read. The label
 // is short because the socket derives from it and a long one would overflow
-// sun_path; the control lane keeps the same-EUID floor, since an unsigned test
-// binary can prove nothing more.
+// sun_path.
 func testDaemonSpec() daemonkit.Daemon {
-	return ccd.Spec(daemonkit.Daemon{
-		Label: "ccp-scope-test",
-		Trust: daemonkit.Trust{Serving: daemonkit.ServingSameUser()},
-	})
+	return ccd.Spec(daemonkit.Daemon{Label: "ccp-scope-test"})
 }
 
 func TestBuildServerDefersGenerationState(t *testing.T) {

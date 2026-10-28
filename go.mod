@@ -11,9 +11,9 @@ require (
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.2
 	github.com/spf13/cobra v1.10.2
 	github.com/yasyf/cc-context v0.28.5-0.20260720034201-f18e537f26a5
-	github.com/yasyf/cc-interact v0.37.2
-	github.com/yasyf/daemonkit v0.33.1
-	github.com/yasyf/synckit v0.40.0
+	github.com/yasyf/cc-interact v0.38.1-0.20261028042730-4062b9bc5703
+	github.com/yasyf/daemonkit v0.34.1-0.20261028043144-de26bfed792d
+	github.com/yasyf/synckit v0.46.1-0.20261028042517-18536ed9b209
 	golang.org/x/sync v0.23.0
 )
 
@@ -44,6 +44,7 @@ require (
 	golang.org/x/term v0.46.0 // indirect
 	golang.org/x/text v0.42.0 // indirect
 	golang.org/x/tools v0.49.0 // indirect
+	howett.net/plist v1.0.1 // indirect
 	modernc.org/libc v1.72.3 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.11.0 // indirect
