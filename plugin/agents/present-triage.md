@@ -17,9 +17,9 @@ Invoke the CLI as bare `cc-present`, falling back to `"${CLAUDE_PLUGIN_ROOT}/bin
 
 ## The one pass
 
-1. Drain once: `cc-present outcomes --no-doc --session <session>`. It prints every human interaction keyed by block id — decisions, choices, inputs, feedback, replies, the submitted marker, rounds.
+1. Drain once: `cc-present outcomes --since last-submit --session <session>`. It prints `{since, through, interactions}`: every human interaction after the submit before the newest one, oldest first, each with its `seq`, `type`, `blockId`, `at` and `payload`. A choice, input, decision or pack value appears once per block, at its latest write; feedback and annotations appear one row each; `submit` rows carry the blocks the human opened as `viewed`.
 2. Key each interaction and drop the ones already in `handled`:
-   - feedback → `feedback:<id>`
+   - feedback → `feedback:<payload.id>`
    - decision → `decision:<blockId>:<verdict>`
    - choice → `choice:<blockId>`
    - input → `input:<blockId>`

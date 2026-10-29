@@ -28,6 +28,7 @@ type harness struct {
 	resolver subject.Resolver
 	activity *ccd.Activity
 	assets   *assets.Store
+	cursors  string
 }
 
 func newHarness(t *testing.T) *harness {
@@ -43,6 +44,7 @@ func newHarness(t *testing.T) *harness {
 	}
 	return &harness{
 		cc:       cc,
+		cursors:  t.TempDir(),
 		activity: ccd.NewActivity(),
 		assets:   ast,
 		resolver: subject.Resolver{
@@ -1498,7 +1500,7 @@ func TestOutcomes(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("append decision: %v", err)
 	}
-	reply := handleOutcomes(h.hc(body{}))
+	reply := handleOutcomes(h.hc(body{}), h.cursors)
 	if !reply.OK {
 		t.Fatalf("outcomes not ok: %s", reply.Error)
 	}
@@ -1531,11 +1533,11 @@ func TestNamedSessionNeverFallsBackToTheWindow(t *testing.T) {
 		return hc
 	}
 
-	if reply := handleOutcomes(named("s1", body{})); !reply.OK {
+	if reply := handleOutcomes(named("s1", body{}), h.cursors); !reply.OK {
 		t.Fatalf("outcomes for the bound session: %s", reply.Error)
 	}
 	for name, reply := range map[string]ccd.Reply{
-		"outcomes": handleOutcomes(named("s-unknown", body{})),
+		"outcomes": handleOutcomes(named("s-unknown", body{}), h.cursors),
 		"reply":    handleReply(named("s-unknown", body{BlockID: "a1", Md: "hi"})),
 		"close":    handleClose(named("s-unknown", body{}), h.assets),
 	} {
@@ -1599,7 +1601,7 @@ func TestStoredUnknownKeysLoadWhileWritesRejectThem(t *testing.T) {
 			if got := h.eventsOfType(t, start.SubjectID, EventDocReplaced); len(got) != 1 {
 				t.Fatalf("got %d doc.replaced, want only the stored one", len(got))
 			}
-			reply := handleOutcomes(h.hc(body{}))
+			reply := handleOutcomes(h.hc(body{}), h.cursors)
 			if !reply.OK {
 				t.Fatalf("outcomes not ok: %s", reply.Error)
 			}
@@ -1843,7 +1845,7 @@ func TestAnOpDecodesOnlyTheEventsSinceThePreviousOp(t *testing.T) {
 	if !start.OK {
 		t.Fatalf("start: %s", start.Error)
 	}
-	if reply := handleOutcomes(h.hc(body{})); !reply.OK {
+	if reply := handleOutcomes(h.hc(body{}), h.cursors); !reply.OK {
 		t.Fatalf("outcomes: %s", reply.Error)
 	}
 	if _, err := h.cc.DB().Exec(`UPDATE events SET payload='{' WHERE subject_id=? AND seq=1`, start.SubjectID); err != nil {
@@ -1852,7 +1854,7 @@ func TestAnOpDecodesOnlyTheEventsSinceThePreviousOp(t *testing.T) {
 	if reply := handleUpsertBlock(h.hc(body{Block: json.RawMessage(`{"id":"m1","type":"markdown","md":"hi"}`), Round: "current"}), doc.NoPacks); !reply.OK {
 		t.Fatalf("upsert = %s, want ok without re-decoding the history outcomes reduced", reply.Error)
 	}
-	reply := handleOutcomes(h.hc(body{}))
+	reply := handleOutcomes(h.hc(body{}), h.cursors)
 	if !reply.OK {
 		t.Fatalf("outcomes = %s, want ok from the caught-up state", reply.Error)
 	}

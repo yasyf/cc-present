@@ -33,7 +33,7 @@ Open the URL, pick "Full jitter", approve, and press Send decisions. `channel: i
 Collect the round and shut down. On close, `watch` prints `{"type":"present.closed"}` and exits:
 
 ```bash
-cc-present outcomes --session demo   # reduced doc + human interactions as JSON
+cc-present outcomes --session demo   # human interactions since the last submit as JSON (--all: reduced doc + every interaction)
 cc-present close --session demo
 # closed: approve-the-retry-plan--<hash>
 cc-present stop

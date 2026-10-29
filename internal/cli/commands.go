@@ -738,14 +738,15 @@ func newRevisingCmd(d cmd.Deps) *cobra.Command {
 	return c
 }
 
-// newOutcomesCmd prints the artifact's reduced state as JSON — the post-submit
-// drain.
+// newOutcomesCmd prints the human interactions since the last submit once the
+// board has one, and the artifact's reduced state as JSON before that or with
+// --all — the post-submit drain.
 func newOutcomesCmd(d cmd.Deps) *cobra.Command {
-	var session, cwd, block string
-	var noDoc bool
+	var session, cwd, block, since string
+	var noDoc, all, fresh bool
 	c := &cobra.Command{
 		Use:   "outcomes",
-		Short: "Print the artifact's reduced document and human interactions as JSON",
+		Short: "Print the human interactions since the last submit, or the artifact's reduced state, as JSON",
 		Args:  cobra.NoArgs,
 		RunE: func(c *cobra.Command, _ []string) error {
 			ctx := c.Context()
@@ -762,25 +763,21 @@ func newOutcomesCmd(d cmd.Deps) *cobra.Command {
 			if noDoc && block == "" {
 				view = ccdaemon.OutcomeNoDoc
 			}
-			raw, retired, err := cl.Outcomes(ctx, sess, mustCwd(cwd), pid, view)
+			switch {
+			case fresh:
+				since = ccdaemon.SinceNew
+			case all || block != "":
+				since = ccdaemon.SinceAll
+			case since == "":
+				since = ccdaemon.SinceAuto
+			}
+			read, err := cl.OutcomesSince(ctx, sess, mustCwd(cwd), pid, view, since)
 			if err != nil {
 				return err
 			}
-			if raw, err = withRetired(raw, retired); err != nil {
-				return err
-			}
-			if raw, err = nestReplies(raw); err != nil {
-				return err
-			}
-			if block != "" {
-				raw, err = filterBlock(raw, block)
-				if err != nil {
-					return err
-				}
-			}
-			if noDoc && block != "" {
-				raw, err = stripDocs(raw)
-				if err != nil {
+			raw := read.Delta
+			if raw == nil {
+				if raw, err = shapeState(read, block, noDoc); err != nil {
 					return err
 				}
 			}
@@ -792,11 +789,35 @@ func newOutcomesCmd(d cmd.Deps) *cobra.Command {
 			return nil
 		},
 	}
+	c.Flags().StringVar(&since, "since", "", "print only the human interactions after an event seq, an RFC 3339 time, or last-submit (what the newest submit delivered, and everything after); the default once the board has a submit is last-submit")
+	c.Flags().BoolVar(&fresh, "new", false, "print only the human interactions since the previous outcomes read of this board")
+	c.Flags().BoolVar(&all, "all", false, "print the whole reduced state, as before the first submit")
 	c.Flags().BoolVar(&noDoc, "no-doc", false, "omit the reduced document and cut closed rounds to their block ids, printing only the human interactions and rounds")
-	c.Flags().StringVar(&block, "block", "", "filter the state to a single block id (a child id filters to its own entries; the doc keeps the enclosing card)")
+	c.Flags().StringVar(&block, "block", "", "filter the whole state to a single block id (a child id filters to its own entries; the doc keeps the enclosing card)")
 	c.Flags().StringVar(&session, "session", "", "Claude session id (defaults to $CLAUDE_CODE_SESSION_ID)")
 	c.Flags().StringVar(&cwd, "cwd", "", "working directory (recorded on the request; artifacts are per-window, not resolved by directory)")
+	c.MarkFlagsMutuallyExclusive("since", "new", "all", "block")
 	return c
+}
+
+func shapeState(read ccdaemon.OutcomesRead, block string, noDoc bool) (json.RawMessage, error) {
+	raw, err := withRetired(read.State, read.Retired)
+	if err != nil {
+		return nil, err
+	}
+	if raw, err = nestReplies(raw); err != nil {
+		return nil, err
+	}
+	if block == "" {
+		return raw, nil
+	}
+	if raw, err = filterBlock(raw, block); err != nil {
+		return nil, err
+	}
+	if noDoc {
+		return stripDocs(raw)
+	}
+	return raw, nil
 }
 
 type threadedNote struct {
