@@ -195,19 +195,22 @@ func handleCarryVerdict(hc ccd.HandlerCtx) ccd.Reply {
 }
 
 func carryVerdictPayload(st *state.State, c VerdictCarry) (json.RawMessage, CarryResult, error) {
-	g, topID, err := requirePRGroups(st, c.Block)
-	if err != nil {
-		return nil, CarryResult{}, err
-	}
-	if err := requireCurrentRound(st, c.Block, topID); err != nil {
-		return nil, CarryResult{}, err
-	}
 	head, err := doc.ParseHead(c.Head)
 	if err != nil {
 		return nil, CarryResult{}, fmt.Errorf("pr-groups %q #%s: %w", c.Block, c.Row, err)
 	}
-	if row, ok := g.Row(c.Row); ok && doc.SameHead(head, row.Head) {
-		head = row.Head
+	d, recorded := recordedVerdict(st, VerdictRef{Block: c.Block, Row: c.Row})
+	if _, onBoard := doc.Locate(st.Doc, c.Block); onBoard || !recorded || d.Head == "" {
+		g, topID, err := requirePRGroups(st, c.Block)
+		if err != nil {
+			return nil, CarryResult{}, err
+		}
+		if err := requireCurrentRound(st, c.Block, topID); err != nil {
+			return nil, CarryResult{}, err
+		}
+		if row, ok := g.Row(c.Row); ok && doc.SameHead(head, row.Head) {
+			head = row.Head
+		}
 	}
 	if strings.TrimSpace(c.Note) == "" {
 		return nil, CarryResult{}, fmt.Errorf("pr-groups %q #%s: a carry needs a note saying why the tap still stands", c.Block, c.Row)
@@ -215,8 +218,7 @@ func carryVerdictPayload(st *state.State, c VerdictCarry) (json.RawMessage, Carr
 	if len(c.Note) > maxHumanTextBytes {
 		return nil, CarryResult{}, fmt.Errorf("pr-groups %q #%s note exceeds %d bytes", c.Block, c.Row, maxHumanTextBytes)
 	}
-	d, ok := recordedVerdict(st, VerdictRef{Block: c.Block, Row: c.Row})
-	if !ok {
+	if !recorded {
 		return nil, CarryResult{}, fmt.Errorf("pr-groups %q #%s has no recorded verdict to carry", c.Block, c.Row)
 	}
 	tapped := cmp.Or(d.CarriedFrom, d.Head)

@@ -12,6 +12,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `cc-present verdict carry` works when the `pr-groups` block is off the board, as it is whenever no row waits on the owner. It used to refuse with `unknown block`. It now finds the block through the row's recorded verdict and records the carry there, so the verdict stands at the new head when the block comes back. A block with no recorded verdict for the row is still refused.
+
 - A `pr-groups` group with more than 20 pull requests waiting on a tap now mirrors to Slack as one card per 20 rows, titled "<group> (1 of 2)", "(2 of 2)" and so on, and each card is edited in place. cc-slack refuses a group card with more than 20 rows, so the group's one card used to stop updating at the 21st row while the board stayed current. When the rows shrink back, a card they no longer reach is edited to a settled card with no buttons.
 
 - Every command that talks to the daemon starts about 55 to 85 ms sooner. It no longer SHA-256-hashes its 22 MB executable or the placed copy to name its build; it uses the version string instead. It no longer runs `launchctl print` when the daemon already serves this build. It also opens one connection for the health check and the call instead of two. The first command after upgrading stops the old daemon with SIGTERM, because the old daemon speaks an older wire protocol. A dirty `task build` stamps its version with the build time, so each local build still replaces the running daemon.
