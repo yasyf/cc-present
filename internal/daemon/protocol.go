@@ -29,6 +29,7 @@ const (
 	OpImportVerdicts ccd.Op = "import-verdicts"
 	OpMoveVerdicts   ccd.Op = "move-verdicts"
 	OpCarryVerdict   ccd.Op = "carry-verdict"
+	OpBlockShow      ccd.Op = "block-show"
 )
 
 // Event types appended to a subject's log. The agent-side ops append the agent
@@ -64,7 +65,7 @@ type body struct {
 	Doc      json.RawMessage `json:"doc,omitempty"`      // start | push
 	Block    json.RawMessage `json:"block,omitempty"`    // upsert-block
 	After    string          `json:"after,omitempty"`    // upsert-block
-	ID       string          `json:"id,omitempty"`       // remove-block | reply
+	ID       string          `json:"id,omitempty"`       // remove-block | reply | block-show
 	BlockID  string          `json:"blockId,omitempty"`  // reply
 	Md       string          `json:"md,omitempty"`       // reply
 	Re       string          `json:"re,omitempty"`       // reply
@@ -88,7 +89,7 @@ type result struct {
 	ChannelState string          `json:"channelState,omitempty"` // start
 	Revision     int             `json:"revision,omitempty"`     // push
 	Round        int             `json:"round,omitempty"`        // round
-	State        json.RawMessage `json:"state,omitempty"`        // outcomes | import-verdicts | carry-verdict
+	State        json.RawMessage `json:"state,omitempty"`        // outcomes | import-verdicts | carry-verdict | block-show
 	Waits        string          `json:"waits,omitempty"`        // reply
 	Warnings     []string        `json:"warnings,omitempty"`
 	Retired      []string        `json:"retired,omitempty"`
