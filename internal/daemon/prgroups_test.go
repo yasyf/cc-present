@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -300,6 +301,7 @@ func TestCarryVerdictPayload(t *testing.T) {
 		name    string
 		decided map[string]state.Decision
 		history map[string]state.Decision
+		offDoc  bool
 		carry   VerdictCarry
 		want    string
 		res     CarryResult
@@ -351,6 +353,16 @@ func TestCarryVerdictPayload(t *testing.T) {
 		},
 		{name: "unknown row without a verdict", carry: VerdictCarry{Block: "pg", Row: "77", Head: "abc1234", Note: "same"}, wantErr: "no recorded verdict"},
 		{name: "not a pr-groups", carry: VerdictCarry{Block: "tr1", Row: "i1", Head: "abc1234", Note: "same"}, wantErr: "not a pr-groups"},
+		{
+			name:    "a block a push took off the board carries for when it returns",
+			decided: map[string]state.Decision{"8": {Verdict: "approved", Head: "0001111", At: tapped}},
+			offDoc:  true,
+			carry:   VerdictCarry{Block: "pg", Row: "8", Head: "abc1234", Note: "same patch"},
+			want:    `{"blockId":"pg","verdicts":{"8":{"verdict":"approved","head":"abc1234","at":"2026-10-26T20:03:00Z","carriedFrom":"0001111","carryNote":"same patch"}}}`,
+			res:     CarryResult{Verdict: "approved", From: "0001111", At: tapped, To: "abc1234"},
+		},
+		{name: "an absent block without a verdict", offDoc: true, carry: VerdictCarry{Block: "pg", Row: "8", Head: "abc1234", Note: "same"}, wantErr: `unknown block "pg"`},
+		{name: "an absent block's headless verdict", decided: map[string]state.Decision{"8": {Verdict: "approved"}}, offDoc: true, carry: VerdictCarry{Block: "pg", Row: "8", Head: "abc1234", Note: "same"}, wantErr: `unknown block "pg"`},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -368,6 +380,9 @@ func TestCarryVerdictPayload(t *testing.T) {
 			}
 			if tt.history != nil {
 				st.Rounds.History = append(st.Rounds.History, state.RoundRecord{Triage: map[string]map[string]state.Decision{"pg": tt.history}})
+			}
+			if tt.offDoc {
+				st.Doc.Blocks = slices.DeleteFunc(st.Doc.Blocks, func(b doc.Block) bool { return b.BlockID() == "pg" })
 			}
 			payload, res, err := carryVerdictPayload(&st, tt.carry)
 			if tt.wantErr != "" {
