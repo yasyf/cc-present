@@ -243,3 +243,18 @@ func (cl *Client) CarryVerdict(ctx context.Context, session, scope string, pid i
 	}
 	return out, nil
 }
+
+// BlockShow returns block id as the window's board last showed it, inside its
+// card, with the interactions on it newest first, whether or not the block is
+// still on the board.
+func (cl *Client) BlockShow(ctx context.Context, session, scope string, pid int, id string) (BlockShow, error) {
+	_, res, err := cl.do(ctx, OpBlockShow, session, scope, pid, body{ID: id})
+	if err != nil {
+		return BlockShow{}, err
+	}
+	var out BlockShow
+	if err := json.Unmarshal(res.State, &out); err != nil {
+		return BlockShow{}, fmt.Errorf("decode block show: %w", err)
+	}
+	return out, nil
+}

@@ -895,6 +895,18 @@ notes. The op appends one agent-origin `triage.decided` per target, then one
 `cleared` per source unless `keep` is set, and writes nothing when any pair is
 invalid.
 
+`cc-present block show <id>` runs the read-only `block-show` op over `{id}` and
+prints the reply as plain text. The reply is `{top, onBoard, events}`: `top` is
+the block's enclosing top-level block, its card for a card child, taken from the
+current document when `onBoard` is true and otherwise from the newest
+`doc.replaced` or `block.upserted` that carried the id; an `update-block` of a
+lone leaf is set into the newest document or card that held it. `top` is null
+when no write carried the id. `events` lists every `decision.created`,
+`choice.selected`, `feedback.created`, `input.submitted`, `pack.interaction`,
+`annotation.created` and `triage.decided` on the block, or on any child when the
+id names a card, newest first, each as `{type, origin, at, payload}`. An id with
+neither a write nor an interaction is refused.
+
 ## Slack ask cards
 
 A card whose `slack.url` is set is synced with a cc-slack ask card: one

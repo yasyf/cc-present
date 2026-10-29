@@ -6,6 +6,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `cc-present block show <id>` prints one block as plain text: its card's title and summary, its prompt and options, then the human's answers on it newest first with the time of each. A block that is no longer on the board, retired or swapped out by a push, prints as the board last showed it, read from the newest write that carried it. Reading an answer used to take `outcomes --block` piped through a script, and `outcomes --block` refused a block that had left the board.
+
 ### Changed
 
 - Any process running as your user can now connect to the cc-present daemon's socket. The daemon no longer checks a caller's code signature or team ID, and drain and broker handoff run on the ordinary connection instead of a separate signed one. The network token for LAN and tailnet clients is unchanged, and so are mesh trust and iOS pairing.
