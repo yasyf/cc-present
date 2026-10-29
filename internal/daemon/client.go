@@ -169,10 +169,29 @@ const (
 )
 
 // Outcomes returns the reduced state of the window's artifact as JSON, cut to
-// view.
+// view. It never moves the board's outcomes cursor.
 func (cl *Client) Outcomes(ctx context.Context, session, scope string, pid int, view OutcomeView) (json.RawMessage, []string, error) {
 	_, res, err := cl.do(ctx, OpOutcomes, session, scope, pid, body{View: view})
 	return res.State, res.Retired, err
+}
+
+// OutcomesRead is an outcomes read for a caller draining the board: the
+// reduced state cut to its view, or, when since selected a delta, the Delta
+// JSON with State empty.
+type OutcomesRead struct {
+	State   json.RawMessage
+	Retired []string
+	Delta   json.RawMessage
+}
+
+// OutcomesSince reads the window's artifact for a caller draining it, as a
+// delta since the point since names (an event seq, an RFC 3339 time,
+// SinceLastSubmit or SinceNew), or the whole state under SinceAll; SinceAuto
+// reads SinceLastSubmit once the board has a submit and the whole state before.
+// Every read moves the board's cursor to the log's head.
+func (cl *Client) OutcomesSince(ctx context.Context, session, scope string, pid int, view OutcomeView, since string) (OutcomesRead, error) {
+	_, res, err := cl.do(ctx, OpOutcomes, session, scope, pid, body{View: view, Since: since})
+	return OutcomesRead{State: res.State, Retired: res.Retired, Delta: res.Delta}, err
 }
 
 // SlackCard puts a card synced with a Slack ask card on the window's board,

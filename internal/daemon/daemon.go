@@ -118,7 +118,7 @@ func BuildServer(ctx context.Context, p paths.Paths, spec daemonkit.Daemon, runt
 	s.Register(OpRound, handleRound)
 	s.Register(OpRevising, handleRevising)
 	s.Register(OpClose, func(hc ccd.HandlerCtx) ccd.Reply { return handleClose(hc, ast) })
-	s.Register(OpOutcomes, handleOutcomes)
+	s.Register(OpOutcomes, func(hc ccd.HandlerCtx) ccd.Reply { return handleOutcomes(hc, filepath.Join(p.StateDir(), "outcomes")) })
 	s.Register(OpSlackCard, func(hc ccd.HandlerCtx) ccd.Reply { return handleSlackCard(hc, loader.Settled(hc.Ctx), display) })
 	s.Register(OpSlackCardCheck, func(hc ccd.HandlerCtx) ccd.Reply { return handleSlackCardCheck(hc, loader.Settled(hc.Ctx)) })
 	s.Register(OpSlackAnswer, handleSlackAnswer)
@@ -685,27 +685,6 @@ func handleClose(hc ccd.HandlerCtx, ast *assets.Store) ccd.Reply {
 		return errReply(fmt.Sprintf("artifact %s closed, but asset GC failed: %v", sub.Slug, err))
 	}
 	return okReply(result{Slug: sub.Slug})
-}
-
-// handleOutcomes reduces the artifact's full event log into the document plus
-// the keyed human interactions and returns it as JSON — the post-submit drain.
-func handleOutcomes(hc ccd.HandlerCtx) ccd.Reply {
-	sub, err := resolve(hc)
-	if err != nil {
-		return errReply(err.Error())
-	}
-	board, err := caughtUp(hc.Ctx, hc.DB, sub.ID)
-	if err != nil {
-		return errReply(err.Error())
-	}
-	defer board.mu.Unlock()
-	st := &board.st
-	gate := newAnswerGate(hc.Ctx, hc.DB, sub.ID, st, board.retired, nil)
-	raw, err := outcomeState(st, decodeBody(hc.Env.Body).View)
-	if err != nil {
-		return errReply(err.Error())
-	}
-	return okReply(result{State: raw, Retired: gate.retiredIDs()})
 }
 
 func outcomeState(st *state.State, view OutcomeView) (json.RawMessage, error) {

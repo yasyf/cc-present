@@ -41,7 +41,7 @@ func answeredBoard(t *testing.T) (*harness, string) {
 
 func outcome(t *testing.T, h *harness) result {
 	t.Helper()
-	reply := handleOutcomes(h.hc(body{}))
+	reply := handleOutcomes(h.hc(body{}), h.cursors)
 	if !reply.OK {
 		t.Fatalf("outcomes not ok: %s", reply.Error)
 	}

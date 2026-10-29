@@ -12,11 +12,11 @@
 | `input.submitted` | `{"schemaVersion":1,"blockId":"board-notes","text":"also check the docs site","type":"input.submitted"}` | Last-write-wins per block | Informational until submit. |
 | `triage.decided` | `{"schemaVersion":1,"blockId":"merge-prs","type":"triage.decided","verdicts":{"112":{"verdict":"approved","head":"3f9a0c1","at":"2026-10-26T21:40:05Z"}}}` — on a `triage`, each entry is `{verdict, note?}`; on a `pr-groups`, the key is the PR number, `rejected` is Hold, and `head` and `at` record the commit and time | Partial-map merge, last-write-wins per item; `cleared` removes the item | Informational until submit; a held row with a note is actionable like a rejecting decision. On a `pr-groups`, compare `head` with the row's `head` and `carried` before acting on an approval. |
 | `pack.interaction` | `{"schemaVersion":1,"blockId":"ex-rating","payload":{"value":4},"type":"pack.interaction"}` — `payload` is the pack block's own interaction shape, validated against the pack's interaction schema at the REST edge | Last-write-wins per block; the reducer stores the payload verbatim under `interactions.packs`, never inspecting its shape | Informational until submit; the pack's reference fragment says what the payload means. |
-| `submit` | `{"schemaVersion":1,"revision":1,"type":"submit","viewed":["card-cli","cli-approval"]}` — `viewed` lists the blocks the human opened this round and is absent when they opened none | Merges `viewed` into `interactions.viewed`, then marks submitted with the revision; when the round is dirty (some top-level block was agent-touched this round) it also snapshots the round into `rounds.history` (with `submittedRevision`) and advances the round; either way it clears the revising working set. Never closes the artifact | Drain `outcomes --no-doc` in the main session, summarize in chat, apply, then start the next round or `close`. |
+| `submit` | `{"schemaVersion":1,"revision":1,"type":"submit","viewed":["card-cli","cli-approval"]}` — `viewed` lists the blocks the human opened this round and is absent when they opened none | Merges `viewed` into `interactions.viewed`, then marks submitted with the revision; when the round is dirty (some top-level block was agent-touched this round) it also snapshots the round into `rounds.history` (with `submittedRevision`) and advances the round; either way it clears the revising working set. Never closes the artifact | Drain `outcomes` in the main session (it prints the interactions this submit delivered), summarize in chat, apply, then start the next round or `close`. |
 | `channel.changed` | `{"type":"channel.changed","connected":true}` | Presence frame (system origin); skipped by the reducer | Informational — a browser tab connected or dropped. Needs no reply. |
 | `present.closed` | `{"schemaVersion":1,"summary":"Both drafts approved.","type":"present.closed"}` — `summary` only when `close --summary` passed one | Terminal (system origin): your own `close` echoing back; every later event is a no-op in the reduction | Nothing — `watch` exits on it, so its Monitor completes on its own. |
 
-Delivery is at-least-once: `watch` resumes from a persisted cursor, and a channel/Monitor overlap can duplicate a frame. Re-delivery is harmless by construction — decisions, choices, and inputs are last-write-wins; feedback dedupes by its `id`; a re-delivered `submit` just re-runs `outcomes`.
+Delivery is at-least-once: `watch` resumes from a persisted cursor, and a channel/Monitor overlap can duplicate a frame. Re-delivery is harmless by construction — decisions, choices, and inputs are last-write-wins; feedback dedupes by its `id`; a re-delivered `submit` just re-runs `outcomes`, which prints the same delta until the next submit.
 
 ## Agent-origin events (never delivered to you)
 
@@ -33,7 +33,7 @@ For completeness — these are what your own CLI calls append. The browser reduc
 
 ## The reduced state (`outcomes`)
 
-`outcomes` prints the full reduction — the current document plus every human interaction keyed by block id:
+`outcomes --all` prints the full reduction — the current document plus every human interaction keyed by block id. It is the default before the first submit; after one, `outcomes` prints only the interactions since the previous submit, as `SKILL.md` step 5 shows:
 
 ```json
 {

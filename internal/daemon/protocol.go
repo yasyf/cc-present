@@ -77,7 +77,8 @@ type body struct {
 	Verdicts json.RawMessage `json:"verdicts,omitempty"` // import-verdicts | move-verdicts | carry-verdict
 	Named    bool            `json:"named,omitempty"`
 	Reopen   []string        `json:"reopen,omitempty"`
-	View     OutcomeView     `json:"view,omitempty"` // outcomes
+	View     OutcomeView     `json:"view,omitempty"`  // outcomes
+	Since    string          `json:"since,omitempty"` // outcomes
 }
 
 // result is the domain payload a handler returns in Reply.Body. Envelope-level
@@ -90,6 +91,7 @@ type result struct {
 	Revision     int             `json:"revision,omitempty"`     // push
 	Round        int             `json:"round,omitempty"`        // round
 	State        json.RawMessage `json:"state,omitempty"`        // outcomes | import-verdicts | carry-verdict | block-show
+	Delta        json.RawMessage `json:"delta,omitempty"`        // outcomes
 	Waits        string          `json:"waits,omitempty"`        // reply
 	Warnings     []string        `json:"warnings,omitempty"`
 	Retired      []string        `json:"retired,omitempty"`
