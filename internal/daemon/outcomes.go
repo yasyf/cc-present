@@ -135,7 +135,7 @@ func outcomesSince(ctx context.Context, db *sql.DB, subjectID, since, cursor str
 
 func loadDelta(ctx context.Context, db *sql.DB, subjectID string, since, through int64) (json.RawMessage, error) {
 	args := append([]any{subjectID, ccevent.OriginHuman, since, through}, deltaTypes...)
-	rows, err := db.QueryContext(ctx, `SELECT seq, type, payload, created_at FROM events WHERE subject_id=? AND origin=? AND seq>? AND seq<=? AND type IN (?`+strings.Repeat(",?", len(deltaTypes)-1)+`) ORDER BY seq ASC`, args...)
+	rows, err := db.QueryContext(ctx, `SELECT seq, type, payload, created_at FROM events WHERE subject_id=? AND origin=? AND seq>? AND seq<=? AND type IN (?,?,?,?,?,?,?,?,?) ORDER BY seq ASC`, args...)
 	if err != nil {
 		return nil, fmt.Errorf("load interactions: %w", err)
 	}
@@ -207,6 +207,7 @@ func queryInts(ctx context.Context, db *sql.DB, query string, args ...any) ([]in
 }
 
 func readCursor(path string) (int64, error) {
+	//nolint:gosec // G304: path is the daemon's state dir joined with a subject id it resolved itself.
 	raw, err := os.ReadFile(path)
 	if errors.Is(err, fs.ErrNotExist) {
 		return 0, nil
