@@ -82,6 +82,39 @@ func TestPRGroupsVerdictsStampHeadAndTime(t *testing.T) {
 	}
 }
 
+func TestPRGroupsVerdictOnAStackRowDecidesEveryMemberAtItsHead(t *testing.T) {
+	var d doc.Doc
+	if err := json.Unmarshal([]byte(prGroupsDoc), &d); err != nil {
+		t.Fatal(err)
+	}
+	g := d.Blocks[0].(*doc.PRGroups)
+	g.Groups[0].PRs[0].Stack = []doc.StackMember{{Number: 6, Head: "1112223"}, {Number: 7, Head: "4445556"}}
+	now := time.Date(2026, 10, 29, 19, 0, 0, 0, time.UTC)
+	out, err := prGroupsVerdicts(g, map[string]triageEntry{"8": {Verdict: "approved", Head: "abc1234", Note: "ok"}}, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	at := "2026-10-29T19:00:00Z"
+	want := map[string]triageEntry{
+		"8": {Verdict: "approved", Note: "ok", Head: "abc1234", At: at},
+		"6": {Verdict: "approved", Note: "ok", Head: "1112223", At: at},
+		"7": {Verdict: "approved", Note: "ok", Head: "4445556", At: at},
+	}
+	if len(out) != len(want) || out["8"] != want["8"] || out["6"] != want["6"] || out["7"] != want["7"] {
+		t.Fatalf("verdicts = %+v, want %+v", out, want)
+	}
+	cleared, err := prGroupsVerdicts(g, map[string]triageEntry{"8": {Verdict: "cleared"}}, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cleared) != 3 || cleared["6"] != (triageEntry{Verdict: "cleared"}) || cleared["7"] != (triageEntry{Verdict: "cleared"}) {
+		t.Fatalf("cleared = %+v, want every member cleared", cleared)
+	}
+	if _, err := prGroupsVerdicts(g, map[string]triageEntry{"6": {Verdict: "approved", Head: "1112223"}}, now); err == nil || !strings.Contains(err.Error(), `has no pull request "6"`) {
+		t.Fatalf("a tap on a stack member alone = %v, want refused: only its row is tapped", err)
+	}
+}
+
 func TestHandlePRServesPRGroupsRow(t *testing.T) {
 	tests := []struct {
 		name      string

@@ -12,6 +12,7 @@ import {
   givenLine,
   prRowId,
   rowVerdict,
+  shortHead,
   staleLine,
   tally,
   toggleEntry,
@@ -252,6 +253,12 @@ function Row({ block, row, decision, locked, expanded, cursored, onFocus, onTogg
           </div>
         ))}
       </dl>
+
+      {row.stack && row.stack.length > 0 && (
+        <p className="prg-stack">
+          One tap also decides {row.stack.map((m) => `#${m.number} at ${shortHead(m.head)}`).join(', ')}
+        </p>
+      )}
 
       {v.kind === 'stale' && (
         <p className="prg-stale" role="status">

@@ -205,3 +205,15 @@ func TestDecidedNamesTheBoardVerdict(t *testing.T) {
 		}
 	}
 }
+
+func TestGroupCardRowNamesTheStackItsTapDecides(t *testing.T) {
+	r := row(41, "abc1234def")
+	r.Stack = []doc.StackMember{{Number: 39, Head: "1112223aaa"}, {Number: 40, Head: "4445556bbb"}}
+	g, group := merges(r)
+	g.ID = "pg"
+	cards := slackcards.GroupCard(g, group, nil, true, 0)
+	want := "*One tap also decides:* <https://github.com/acme/app/pull/39|#39> `1112223`, <https://github.com/acme/app/pull/40|#40> `4445556`"
+	if text := cards[0].Rows[0].Text; !strings.Contains(text, want) {
+		t.Fatalf("row text lacks %q:\n%s", want, text)
+	}
+}

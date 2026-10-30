@@ -473,19 +473,29 @@ type PRGroup struct {
 
 // PRRow is one pull request in a group. Head is the commit the verdict is
 // given at; Carried lists earlier heads whose verdict still stands for this
-// head. Md is the row's full text, shown when the row is expanded.
+// head. Md is the row's full text, shown when the row is expanded. Stack lists
+// the other pull requests of its stack the row stands for: a verdict on the row
+// is recorded for each of them at its own head too.
 type PRRow struct {
-	Number  int      `json:"number"`
-	Head    string   `json:"head"`
-	Title   string   `json:"title"`
-	Change  string   `json:"change"`
-	Plan    string   `json:"plan"`
-	Risk    string   `json:"risk"`
-	Review  string   `json:"review"`
-	Blocker string   `json:"blocker"`
-	Md      string   `json:"md,omitempty"`
-	Carried []string `json:"carried,omitempty"`
-	Files   []string `json:"files,omitempty"`
+	Number  int           `json:"number"`
+	Head    string        `json:"head"`
+	Title   string        `json:"title"`
+	Change  string        `json:"change"`
+	Plan    string        `json:"plan"`
+	Risk    string        `json:"risk"`
+	Review  string        `json:"review"`
+	Blocker string        `json:"blocker"`
+	Md      string        `json:"md,omitempty"`
+	Carried []string      `json:"carried,omitempty"`
+	Files   []string      `json:"files,omitempty"`
+	Stack   []StackMember `json:"stack,omitempty"`
+}
+
+// StackMember is a pull request a row stands for, at the head a verdict on the
+// row is recorded at for it.
+type StackMember struct {
+	Number int    `json:"number"`
+	Head   string `json:"head"`
 }
 
 // Thread is the Slack DM status thread the block's rows are asked in, or ""
@@ -1548,6 +1558,18 @@ func validatePRGroups(g *PRGroups) error {
 			numbers[r.Number] = true
 			if err := validatePRRow(r); err != nil {
 				return fmt.Errorf("pr-groups %q: #%d %w", g.ID, r.Number, err)
+			}
+			for _, m := range r.Stack {
+				if m.Number < 1 {
+					return fmt.Errorf("pr-groups %q: #%d stack: number must be a positive integer", g.ID, r.Number)
+				}
+				if numbers[m.Number] {
+					return fmt.Errorf("pr-groups %q: pull request #%d appears more than once", g.ID, m.Number)
+				}
+				numbers[m.Number] = true
+				if _, err := ParseHead(m.Head); err != nil {
+					return fmt.Errorf("pr-groups %q: #%d stack #%d %w", g.ID, r.Number, m.Number, err)
+				}
 			}
 		}
 	}

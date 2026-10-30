@@ -2641,6 +2641,12 @@ a.ref:focus-visible {
   font-weight: 600;
   line-height: 1.4;
 }
+.prg-stack {
+  margin: 0;
+  color: var(--text);
+  font-weight: 600;
+  line-height: 1.4;
+}
 .prg-given {
   margin: 0;
   color: var(--dim);

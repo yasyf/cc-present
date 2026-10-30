@@ -341,6 +341,9 @@ func rowText(repo string, r doc.PRRow, d state.Decision, decided bool) string {
 	for _, f := range rowFacts {
 		lines = append(lines, "*"+f.label+":* "+mrkdwn(f.value(r)))
 	}
+	if len(r.Stack) > 0 {
+		lines = append(lines, "*One tap also decides:* "+stackLine(repo, r.Stack))
+	}
 	if decided {
 		lines = append(lines, "_"+verdictLine(d)+"; new head "+r.Head[:shortHead]+" needs your tap._")
 	}
@@ -349,6 +352,14 @@ func rowText(repo string, r doc.PRRow, d state.Decision, decided bool) string {
 		return string(text)
 	}
 	return string(text[:maxRowText-1]) + "…"
+}
+
+func stackLine(repo string, stack []doc.StackMember) string {
+	members := make([]string, len(stack))
+	for i, m := range stack {
+		members[i] = fmt.Sprintf("<https://github.com/%s/pull/%d|#%d> `%s`", repo, m.Number, m.Number, m.Head[:min(len(m.Head), shortHead)])
+	}
+	return strings.Join(members, ", ")
 }
 
 func verdictLine(d state.Decision) string {

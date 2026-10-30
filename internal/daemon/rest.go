@@ -588,6 +588,9 @@ func prGroupsVerdicts(g *doc.PRGroups, verdicts map[string]triageEntry, now time
 				return nil, fmt.Errorf("pr-groups %q #%s: a cleared verdict carries no note or head", g.ID, rowID)
 			}
 			out[rowID] = triageEntry{Verdict: entry.Verdict}
+			for _, m := range row.Stack {
+				out[doc.RowID(m.Number)] = triageEntry{Verdict: entry.Verdict}
+			}
 			continue
 		}
 		if !doc.SameHead(entry.Head, row.Head) {
@@ -596,7 +599,11 @@ func prGroupsVerdicts(g *doc.PRGroups, verdicts map[string]triageEntry, now time
 		if len(entry.Note) > maxHumanTextBytes {
 			return nil, fmt.Errorf("pr-groups %q #%s note exceeds %d bytes", g.ID, rowID, maxHumanTextBytes)
 		}
-		out[rowID] = triageEntry{Verdict: entry.Verdict, Note: entry.Note, Head: row.Head, At: now.UTC().Format(time.RFC3339)}
+		at := now.UTC().Format(time.RFC3339)
+		out[rowID] = triageEntry{Verdict: entry.Verdict, Note: entry.Note, Head: row.Head, At: at}
+		for _, m := range row.Stack {
+			out[doc.RowID(m.Number)] = triageEntry{Verdict: entry.Verdict, Note: entry.Note, Head: m.Head, At: at}
+		}
 	}
 	return out, nil
 }
