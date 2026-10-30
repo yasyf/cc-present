@@ -67,7 +67,7 @@ afterEach(() => {
   draftStore.reset();
 });
 
-function render(interactions: Interactions, overrides: Partial<PresentApi> = {}): unknown[] {
+function render(interactions: Interactions, overrides: Partial<PresentApi> = {}, shown: PRGroupsBlock = block): unknown[] {
   const posted: unknown[] = [];
   const present: PresentApi = {
     post: async (ev) => {
@@ -83,8 +83,8 @@ function render(interactions: Interactions, overrides: Partial<PresentApi> = {})
       <QueryClientProvider client={new QueryClient()}>
         <SubjectProvider value={{ subject: 'board--abcd', scope: undefined }}>
           <PresentContext.Provider value={present}>
-            <KeyboardProvider blocks={[block]} interactions={interactions} closed={false} round={1}>
-              <PRGroups block={block} interactions={interactions} />
+            <KeyboardProvider blocks={[shown]} interactions={interactions} closed={false} round={1}>
+              <PRGroups block={shown} interactions={interactions} />
             </KeyboardProvider>
           </PresentContext.Provider>
         </SubjectProvider>
@@ -103,6 +103,12 @@ function button(scope: HTMLElement, text: string): HTMLButtonElement {
 }
 
 describe('PRGroups', () => {
+  it('names the stack the row tap also decides', () => {
+    const stacked = { ...row(8, 'abc1234'), stack: [{ number: 6, head: '1112223aaa' }, { number: 7, head: '4445556' }] };
+    render(withVerdicts({}), {}, { ...block, groups: [{ ...block.groups[0]!, prs: [stacked] }] });
+    expect(rowEl(8).querySelector('.prg-stack')?.textContent).toBe('One tap also decides #6 at 1112223, #7 at 4445556');
+  });
+
   it('shows the group summary and all five facts on each row', () => {
     render(withVerdicts({}));
     expect(container.textContent).toContain('Every chat opens.');

@@ -368,6 +368,14 @@ export interface PRRow {
   md?: string;
   carried?: string[];
   files?: string[];
+  // The other pull requests of its stack the row stands for; a verdict on the
+  // row is recorded for each at its own head.
+  stack?: StackMember[];
+}
+
+export interface StackMember {
+  number: number;
+  head: string;
 }
 
 // --- Pack blocks (plugin-supplied leaves) ---
