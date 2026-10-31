@@ -8,18 +8,20 @@ import (
 	"github.com/yasyf/cc-present/internal/doc"
 )
 
-func approvedBoard(t *testing.T) *harness {
+func decidedBoard(t *testing.T, verdict string) *harness {
 	t.Helper()
 	h := newHarness(t)
 	if reply := handleStart(h.hc(body{Doc: json.RawMessage(prGroupsDoc)}), doc.NoPacks, nilDisplay); !reply.OK {
 		t.Fatalf("start: %s", reply.Error)
 	}
-	tap := json.RawMessage(`[{"block":"pg","row":"8","verdict":"approved","at":"2026-10-31T09:30:00Z"}]`)
+	tap := json.RawMessage(`[{"block":"pg","row":"8","verdict":"` + verdict + `","at":"2026-10-31T09:30:00Z"}]`)
 	if reply := handleImportVerdicts(h.hc(body{Verdicts: tap})); !reply.OK {
-		t.Fatalf("import the owner's approval: %s", reply.Error)
+		t.Fatalf("import the owner's %s verdict: %s", verdict, reply.Error)
 	}
 	return h
 }
+
+func approvedBoard(t *testing.T) *harness { return decidedBoard(t, "approved") }
 
 func movedHead(row string) string {
 	return strings.Replace(prGroupsDoc, `"number":8,"head":"abc1234"`, `"number":8,"head":"1112223"`+row, 1)
@@ -87,4 +89,28 @@ func TestAVerdictWriteNeverLeavesAnApprovedRowAskingAgain(t *testing.T) {
 	if reply := handleCarryVerdict(h.hc(body{Verdicts: carry})); reply.OK || !strings.Contains(reply.Error, "#8 was approved at abc1234") {
 		t.Fatalf("carry to a head the row does not stand at ok=%v err=%q", reply.OK, reply.Error)
 	}
+}
+
+func TestAPullRequestTheOwnerHeldComesBackOnlyAtAHeadThatAnswersTheHold(t *testing.T) {
+	t.Run("a row at a later head is refused", func(t *testing.T) {
+		h := decidedBoard(t, "rejected")
+		reply := handlePush(h.hc(body{Doc: json.RawMessage(movedHead(""))}), doc.NoPacks, nilDisplay)
+		if reply.OK || !strings.Contains(reply.Error, "#8 was held at abc1234") || !strings.Contains(reply.Error, "--owner-reask 8") {
+			t.Fatalf("push of a held pull request at a new head ok=%v err=%q", reply.OK, reply.Error)
+		}
+	})
+	t.Run("the held row at its held head stays", func(t *testing.T) {
+		h := decidedBoard(t, "rejected")
+		retitled := strings.Replace(prGroupsDoc, `"title":"T9"`, `"title":"T9 renamed"`, 1)
+		if reply := handlePush(h.hc(body{Doc: json.RawMessage(retitled)}), doc.NoPacks, nilDisplay); !reply.OK {
+			t.Fatalf("push keeping the held row at its head: %s", reply.Error)
+		}
+	})
+	t.Run("a head the root says answers the hold goes back", func(t *testing.T) {
+		h := decidedBoard(t, "rejected")
+		reask := Reask{PRs: []string{"8"}, Reason: "root record 250099 names 1112223 as answering the hold"}
+		if reply := handlePush(h.hc(body{Doc: json.RawMessage(movedHead("")), Reask: reask}), doc.NoPacks, nilDisplay); !reply.OK {
+			t.Fatalf("reask of an answered hold: %s", reply.Error)
+		}
+	})
 }

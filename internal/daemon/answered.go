@@ -19,7 +19,7 @@ type answerGate struct {
 	st      *state.State
 	retired map[string]bool
 	reopen  []string
-	prior   approvalGate
+	prior   decidedGate
 }
 
 func newAnswerGate(ctx context.Context, db *sql.DB, subID string, st *state.State, retired map[string]bool, reopen []string) answerGate {
@@ -29,7 +29,7 @@ func newAnswerGate(ctx context.Context, db *sql.DB, subID string, st *state.Stat
 func newAdmitGate(ctx context.Context, db *sql.DB, subID string, st *state.State, retired map[string]bool, reopen []string, reask Reask) (answerGate, error) {
 	gate := newAnswerGate(ctx, db, subID, st, retired, reopen)
 	var err error
-	gate.prior, err = newApprovalGate(ctx, db, subID, st, reask)
+	gate.prior, err = newDecidedGate(ctx, db, subID, st, reask)
 	return gate, err
 }
 
