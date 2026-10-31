@@ -9,6 +9,8 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/yasyf/cc-interact/cmd"
+
+	ccdaemon "github.com/yasyf/cc-present/internal/daemon"
 )
 
 // newShowCmd opens a one-off HTML, SVG, or Markdown file as this window's
@@ -41,7 +43,7 @@ func newShowCmd(d cmd.Deps) *cobra.Command {
 				return err
 			}
 			defer func() { _ = cl.CloseSession() }()
-			res, err := cl.Start(ctx, sessionOr(session), mustCwd(cwd), d.ClaudePID(), startMode(fresh, replace), namedOther(session), nil, "", docJSON)
+			res, err := cl.Start(ctx, sessionOr(session), mustCwd(cwd), d.ClaudePID(), startMode(fresh, replace), namedOther(session), nil, ccdaemon.Reask{}, "", docJSON)
 			if err != nil {
 				return err
 			}

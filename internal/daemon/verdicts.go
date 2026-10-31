@@ -63,6 +63,9 @@ func handleImportVerdicts(hc ccd.HandlerCtx) ccd.Reply {
 	if err != nil {
 		return errReply(err.Error())
 	}
+	if err := refuseAskingAgain(hc, sub.ID, st, b.Reask, payloads); err != nil {
+		return errReply(err.Error())
+	}
 	for _, p := range payloads {
 		if _, err := appendEvent(hc.Ctx, hc.Append, &ccevent.Event{
 			SubjectID: sub.ID, Origin: ccevent.OriginAgent, Type: EventTriageDecided, Payload: p,
@@ -184,6 +187,9 @@ func handleCarryVerdict(hc ccd.HandlerCtx) ccd.Reply {
 		return errReply(err.Error())
 	}
 	if payload != nil {
+		if err := refuseAskingAgain(hc, sub.ID, st, b.Reask, []json.RawMessage{payload}); err != nil {
+			return errReply(err.Error())
+		}
 		if _, err := appendEvent(hc.Ctx, hc.Append, &ccevent.Event{
 			SubjectID: sub.ID, Origin: ccevent.OriginAgent, Type: EventTriageDecided, Payload: payload,
 		}); err != nil {
@@ -280,6 +286,9 @@ func handleMoveVerdicts(hc ccd.HandlerCtx) ccd.Reply {
 	st := &board.st
 	payloads, err := moveVerdictPayloads(st, moves, time.Now())
 	if err != nil {
+		return errReply(err.Error())
+	}
+	if err := refuseAskingAgain(hc, sub.ID, st, b.Reask, payloads); err != nil {
 		return errReply(err.Error())
 	}
 	for _, p := range payloads {

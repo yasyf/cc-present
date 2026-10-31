@@ -28,6 +28,7 @@ func newVerdictCmd(d cmd.Deps) *cobra.Command {
 
 func newVerdictImportCmd(d cmd.Deps) *cobra.Command {
 	var session, cwd, file string
+	var reask ccdaemon.Reask
 	var replace bool
 	c := &cobra.Command{
 		Use:   "import",
@@ -56,7 +57,7 @@ A row that already has a verdict keeps it unless --replace is set.`,
 				return err
 			}
 			defer done()
-			res, err := cl.ImportVerdicts(c.Context(), sess, mustCwd(cwd), pid, raw, replace)
+			res, err := cl.ImportVerdicts(c.Context(), sess, mustCwd(cwd), pid, raw, replace, reask)
 			if err != nil {
 				return err
 			}
@@ -73,11 +74,13 @@ A row that already has a verdict keeps it unless --replace is set.`,
 	c.Flags().StringVar(&file, "file", "", "JSON array of prior verdicts, or - for stdin")
 	c.Flags().BoolVar(&replace, "replace", false, "overwrite a row's existing verdict instead of keeping it")
 	verdictFlags(c, &session, &cwd)
+	reaskFlags(c, &reask)
 	return c
 }
 
 func newVerdictCarryCmd(d cmd.Deps) *cobra.Command {
 	var session, cwd string
+	var reask ccdaemon.Reask
 	var carry ccdaemon.VerdictCarry
 	c := &cobra.Command{
 		Use:   "carry",
@@ -94,7 +97,7 @@ original tap stays in the board's history.`,
 				return err
 			}
 			defer done()
-			res, err := cl.CarryVerdict(c.Context(), sess, mustCwd(cwd), pid, carry)
+			res, err := cl.CarryVerdict(c.Context(), sess, mustCwd(cwd), pid, carry, reask)
 			if err != nil {
 				return err
 			}
@@ -114,11 +117,13 @@ original tap stays in the board's history.`,
 		_ = c.MarkFlagRequired(f)
 	}
 	verdictFlags(c, &session, &cwd)
+	reaskFlags(c, &reask)
 	return c
 }
 
 func newVerdictMoveCmd(d cmd.Deps, keep bool) *cobra.Command {
 	var session, cwd string
+	var reask ccdaemon.Reask
 	var from, to []string
 	use, past, short := "move", "moved", "Move recorded verdicts to other rows, clearing each source"
 	if keep {
@@ -146,7 +151,7 @@ refused, and nothing is written unless every pair is valid.`,
 				return err
 			}
 			defer done()
-			if err := cl.MoveVerdicts(c.Context(), sess, mustCwd(cwd), pid, raw); err != nil {
+			if err := cl.MoveVerdicts(c.Context(), sess, mustCwd(cwd), pid, raw, reask); err != nil {
 				return err
 			}
 			for _, m := range moves {
@@ -158,6 +163,7 @@ refused, and nothing is written unless every pair is valid.`,
 	c.Flags().StringArrayVar(&from, "from", nil, "source <block>/<row> (repeatable)")
 	c.Flags().StringArrayVar(&to, "to", nil, "target <block>/<row>, paired with --from by position (repeatable)")
 	verdictFlags(c, &session, &cwd)
+	reaskFlags(c, &reask)
 	return c
 }
 
