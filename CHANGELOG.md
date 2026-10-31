@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Two cc-present builds on one Mac no longer replace each other's daemon. During an upgrade, an older client that checked for a daemon in the gap before the new one came up saw none, so it started its own older build over the newer one, and the next newer client reversed it again. Each client now waits for any upgrade already in progress before it checks, and an older client then leaves the newer daemon running. This comes from cc-interact v0.39.1.
 - `cc-present verdict carry` works when the `pr-groups` block is off the board, as it is whenever no row waits on the owner. It used to refuse with `unknown block`. It now finds the block through the row's recorded verdict and records the carry there, so the verdict stands at the new head when the block comes back. A block with no recorded verdict for the row is still refused.
 
 - A `pr-groups` group with more than 20 pull requests waiting on a tap now mirrors to Slack as one card per 20 rows, titled "<group> (1 of 2)", "(2 of 2)" and so on, and each card is edited in place. cc-slack refuses a group card with more than 20 rows, so the group's one card used to stop updating at the 21st row while the board stayed current. When the rows shrink back, a card they no longer reach is edited to a settled card with no buttons.
