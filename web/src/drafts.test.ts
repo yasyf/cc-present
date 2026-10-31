@@ -67,7 +67,7 @@ describe('draftStore', () => {
     expect(before.get('n1')).toBe('x');
   });
 
-  it('restores a board's unsent drafts in a fresh page, entries included', () => {
+  it('restores the unsent drafts of a board in a fresh page, entries included', () => {
     draftStore.scope('s1', storage);
     draftStore.set('a1', 'note', 'half a thought');
     draftStore.setEntry('d1', 'annotations', 'n1', { anchor: 2, focus: 3, text: 'on line two' });
@@ -88,7 +88,7 @@ describe('draftStore', () => {
     expect(storage.items.has(DRAFTS_KEY_PREFIX + 's1')).toBe(false);
   });
 
-  it('keeps each board's drafts apart, and a repeat scope keeps what is typed', () => {
+  it('keeps the drafts of each board apart, and a repeat scope keeps what is typed', () => {
     draftStore.scope('s1', storage);
     draftStore.set('a1', 'note', 'x');
     draftStore.scope('s1', storage);

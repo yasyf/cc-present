@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"strings"
 	"time"
 
 	ccevent "github.com/yasyf/cc-interact/event"
@@ -24,7 +23,7 @@ type touches map[string]touch
 
 func recentTouches(ctx context.Context, db *sql.DB, subID string) (touches, error) {
 	args := append([]any{subID, ccevent.OriginHuman, time.Now().Add(-touchHold).Unix()}, deltaTypes...)
-	rows, err := db.QueryContext(ctx, `SELECT seq, type, payload, created_at FROM events WHERE subject_id=? AND origin=? AND created_at>=? AND type IN (?`+strings.Repeat(",?", len(deltaTypes)-1)+`) ORDER BY seq ASC`, args...)
+	rows, err := db.QueryContext(ctx, `SELECT seq, type, payload, created_at FROM events WHERE subject_id=? AND origin=? AND created_at>=? AND type IN (?,?,?,?,?,?,?,?,?) ORDER BY seq ASC`, args...)
 	if err != nil {
 		return nil, fmt.Errorf("load recent interactions: %w", err)
 	}
