@@ -144,7 +144,7 @@ Route by the `channel:` line from step 2:
   cc-present watch --session "$CLAUDE_CODE_SESSION_ID"
   ```
 
-  Each line it prints is one JSON event. `--session` is required — `watch` does not read the environment, and without it it polls forever.
+  Each line it prints is one JSON event. Pass every line to the Monitor. A `grep` that names the types you expect drops every type it leaves out. `--session` is required — `watch` does not read the environment, and without it it polls forever.
 
 If a `<channel source="cc-present">` tag arrives while the Monitor is armed, the channel went live: run `cc-present channel-ack --session "$CLAUDE_CODE_SESSION_ID"`, stop the Monitor with **TaskStop**, and rely on tags from then on. Delivery is at-least-once; re-delivery is harmless — decisions, choices, and inputs are last-write-wins, and feedback carries its own `id`.
 
@@ -160,12 +160,13 @@ Each event (Monitor line or channel tag) is the event's JSON payload, self-descr
 | `decision.created` | `{blockId, note?, type, verdict}` | `rejected`, or `approved` with a note that asks for change — **actionable** (redraft). `approved` with no note — informational. `cleared` — the human withdrew their verdict; nothing to do. |
 | `choice.selected` | `{blockId, optionIds, other?, type}` | Informational until submit; `other` is the human's write-in past your options. |
 | `input.submitted` | `{blockId, text, type}` | Informational until submit. |
+| `triage.decided` | `{blockId, type, verdicts}` | A tap on a `triage` or `pr-groups` block, the type every merge approval emits; `verdicts` maps each item id, or PR number, to `{verdict, note?, head?, at?}`. Informational until submit; a held or rejected item with a note is actionable like a rejecting decision. On a `pr-groups`, compare `head` with the row's head before acting on an approval. |
 | `pack.interaction` | `{blockId, payload, type}` | A pack block's interaction; `payload`'s shape is the pack's own — see its reference fragment. Informational unless the fragment says it needs a response. |
 | `submit` | `{revision, type}` | Also closes the current round when you've touched a block this round. Go to step 5. |
 | `channel.changed` | `{type, connected}` | Lifecycle — a browser tab connected or dropped. Nothing to do. |
 | `present.closed` | `{summary?, type}` | Lifecycle — your own `close` echoing back, terminal. `watch` exits on it, completing its Monitor. |
 
-**Informational events cost you one ledger line.** Keep a handled-ledger in your context — one key per routed interaction: `feedback:<id>`, `decision:<blockId>:<verdict>`, `choice:<blockId>`, `input:<blockId>`, `pack:<blockId>`. Note the event in the ledger and keep working; submit collects the substance. The ledger in your context is the only bookkeeping — there are no daemon-side handled markers.
+**Informational events cost you one ledger line.** Keep a handled-ledger in your context — one key per routed interaction: `feedback:<id>`, `decision:<blockId>:<verdict>`, `triage:<blockId>:<item>:<verdict>`, `choice:<blockId>`, `input:<blockId>`, `pack:<blockId>`. Note the event in the ledger and keep working; submit collects the substance. The ledger in your context is the only bookkeeping — there are no daemon-side handled markers.
 
 **Actionable events delegate — you never write the reply or redraft yourself.** Route by burst size:
 
