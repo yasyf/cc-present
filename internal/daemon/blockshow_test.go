@@ -51,6 +51,7 @@ func TestBlockShowReadsARemovedChildFromTheLog(t *testing.T) {
 	if show := blockShow(t, h, "q1"); !show.OnBoard {
 		t.Fatal("q1 on the board reads as removed")
 	}
+	ageEvents(t, h, start.SubjectID)
 	if reply := handleRemoveBlock(h.hc(body{ID: "c1"})); !reply.OK {
 		t.Fatalf("remove-block not ok: %s", reply.Error)
 	}

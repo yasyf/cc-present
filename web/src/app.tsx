@@ -73,6 +73,7 @@ export function App() {
       </div>
     );
   }
+  draftStore.scope(subject);
   const params = new URLSearchParams(window.location.search);
   const blockId = params.get('block');
   const row = params.has('row') ? Number(params.get('row')) : undefined;
@@ -143,7 +144,6 @@ function PresentView({ subject }: { subject: string }) {
   }, [boardReady, stream.connected]);
 
   useEffect(() => viewedStore.scope(subject, currentRound), [subject, currentRound]);
-  useEffect(() => draftStore.scope(subject, currentRound), [subject, currentRound]);
 
   const api = useMemo<PresentApi>(
     () => ({

@@ -1,23 +1,34 @@
 import { useSyncExternalStore } from 'react';
 
+export const DRAFTS_KEY_PREFIX = 'cc-present:drafts:v1:';
+
 const NO_DRAFTS: ReadonlyMap<string, never> = new Map<string, never>();
+
+interface DraftStorage {
+  getItem(key: string): string | null;
+  setItem(key: string, value: string): void;
+  removeItem(key: string): void;
+}
+
+type Drafts = Map<string, ReadonlyMap<string, unknown>>;
 
 class DraftStore {
   private subject: string | null = null;
-  private round = 0;
+  private storage: DraftStorage | null = null;
   private scopes = 0;
-  private drafts = new Map<string, ReadonlyMap<string, unknown>>();
+  private drafts: Drafts = new Map();
   private listeners = new Set<() => void>();
 
   get epoch(): number {
     return this.scopes;
   }
 
-  scope(subject: string, round: number): void {
-    if (this.subject === subject && this.round === round) return;
+  scope(subject: string, storage: DraftStorage = localStorage): void {
+    if (this.subject === subject) return;
     this.subject = subject;
-    this.round = round;
-    this.drop();
+    this.storage = storage;
+    const raw = storage.getItem(DRAFTS_KEY_PREFIX + subject);
+    this.replace(raw === null ? new Map() : decodeDrafts(raw));
   }
 
   get<T>(blockId: string, slot: string): T | undefined {
@@ -26,7 +37,7 @@ class DraftStore {
 
   set(blockId: string, slot: string, value: unknown): void {
     this.drafts.set(blockId, new Map(this.drafts.get(blockId)).set(slot, value));
-    this.emit();
+    this.changed();
   }
 
   clear(blockId: string, slot: string): void {
@@ -36,7 +47,7 @@ class DraftStore {
     rest.delete(slot);
     if (rest.size === 0) this.drafts.delete(blockId);
     else this.drafts.set(blockId, rest);
-    this.emit();
+    this.changed();
   }
 
   entries<T>(blockId: string, group: string): ReadonlyMap<string, T> {
@@ -63,19 +74,40 @@ class DraftStore {
 
   reset(): void {
     this.subject = null;
-    this.round = 0;
-    this.drop();
+    this.storage = null;
+    this.replace(new Map());
   }
 
-  private drop(): void {
+  private replace(drafts: Drafts): void {
     this.scopes += 1;
-    this.drafts.clear();
+    this.drafts = drafts;
+    this.emit();
+  }
+
+  private changed(): void {
+    if (this.storage !== null) {
+      const key = DRAFTS_KEY_PREFIX + this.subject!;
+      if (this.drafts.size === 0) this.storage.removeItem(key);
+      else this.storage.setItem(key, JSON.stringify(this.drafts, encodeMaps));
+    }
     this.emit();
   }
 
   private emit(): void {
     for (const listener of this.listeners) listener();
   }
+}
+
+function encodeMaps(_key: string, value: unknown): unknown {
+  return value instanceof Map ? { $map: [...value] } : value;
+}
+
+function decodeDrafts(raw: string): Drafts {
+  const drafts: unknown = JSON.parse(raw, (_key, value: unknown) =>
+    value !== null && typeof value === 'object' && '$map' in value ? new Map((value as { $map: [string, unknown][] }).$map) : value,
+  );
+  if (!(drafts instanceof Map)) throw new Error('cc-present draft record is corrupt');
+  return drafts as Drafts;
 }
 
 export const draftStore = new DraftStore();

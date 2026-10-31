@@ -112,7 +112,7 @@ describe('SingleBlockView closed-round fallback', () => {
 });
 
 describe('SingleBlockView draft scope', () => {
-  it('keeps unsent drafts within a round and drops them when the round advances', () => {
+  it('keeps unsent drafts when the round advances', () => {
     const opening = reduce([
       { origin: 'agent', type: 'doc.replaced', seq: 1, payload: { schemaVersion: 1, type: 'doc.replaced', doc: doc([markdownBlock('l1', 'live block')]), revision: 1 } },
     ]);
@@ -123,7 +123,7 @@ describe('SingleBlockView draft scope', () => {
     expect(draftStore.get('l1', 'note')).toBe('half a thought');
 
     render('s', 'l1', historyState());
-    expect(draftStore.get('l1', 'note')).toBeUndefined();
+    expect(draftStore.get('l1', 'note')).toBe('half a thought');
   });
 });
 
