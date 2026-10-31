@@ -1128,6 +1128,7 @@ func engageDecision(t *testing.T, h *harness, subjectID, blockID string) {
 	}); err != nil {
 		t.Fatalf("append decision: %v", err)
 	}
+	ageEvents(t, h, subjectID)
 }
 
 // fileNote records a human note id on blockID directly on the log, as the REST

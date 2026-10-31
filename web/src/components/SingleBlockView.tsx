@@ -14,7 +14,6 @@ import { presentKey, queryClient, usePostInteraction, useRoundRecords } from '..
 import { emptyState, topLevelRound } from '../reduce';
 import { flatten } from '../decide';
 import { narrowToRow } from '../prgroups';
-import { draftStore } from '../drafts';
 import { KeyboardProvider } from '../keyboard';
 import { PresentContext } from '../present';
 import { usePackToastSink } from '../packs/toasts';
@@ -86,8 +85,6 @@ export function SingleBlockView({ subject, blockId, row }: { subject: string; bl
   // while ClosedBanner and context.closed stay reserved for a closed artifact.
   const roundOver = round !== undefined && round !== state.rounds.current;
   const currentRound = state.rounds.current;
-
-  useEffect(() => draftStore.scope(subject, currentRound), [subject, currentRound]);
 
   const api = useMemo<PresentApi>(
     () => ({

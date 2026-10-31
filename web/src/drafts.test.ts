@@ -1,8 +1,21 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { draftStore } from './drafts';
+import { DRAFTS_KEY_PREFIX, draftStore } from './drafts';
+
+function memoryStorage() {
+  const items = new Map<string, string>();
+  return {
+    items,
+    getItem: (key: string) => items.get(key) ?? null,
+    setItem: (key: string, value: string) => void items.set(key, value),
+    removeItem: (key: string) => void items.delete(key),
+  };
+}
+
+let storage = memoryStorage();
 
 beforeEach(() => {
   draftStore.reset();
+  storage = memoryStorage();
 });
 
 describe('draftStore', () => {
@@ -54,44 +67,69 @@ describe('draftStore', () => {
     expect(before.get('n1')).toBe('x');
   });
 
-  it('drops every draft when the round or the subject changes, and not on a repeat scope', () => {
-    draftStore.scope('s1', 1);
-    draftStore.set('a1', 'note', 'x');
-    draftStore.scope('s1', 1);
-    expect(draftStore.get('a1', 'note')).toBe('x');
+  it('restores a board's unsent drafts in a fresh page, entries included', () => {
+    draftStore.scope('s1', storage);
+    draftStore.set('a1', 'note', 'half a thought');
+    draftStore.setEntry('d1', 'annotations', 'n1', { anchor: 2, focus: 3, text: 'on line two' });
 
-    draftStore.scope('s1', 2);
-    expect(draftStore.get('a1', 'note')).toBeUndefined();
+    draftStore.reset();
+    draftStore.scope('s1', storage);
 
-    draftStore.set('a1', 'note', 'y');
-    draftStore.scope('s2', 2);
-    expect(draftStore.get('a1', 'note')).toBeUndefined();
+    expect(draftStore.get('a1', 'note')).toBe('half a thought');
+    expect([...draftStore.entries('d1', 'annotations')]).toEqual([['n1', { anchor: 2, focus: 3, text: 'on line two' }]]);
   });
 
-  it('moves to a new epoch only when the scope changes', () => {
-    draftStore.scope('s1', 1);
+  it('forgets the stored record once its last draft is sent', () => {
+    draftStore.scope('s1', storage);
+    draftStore.set('a1', 'note', 'x');
+    expect(storage.items.has(DRAFTS_KEY_PREFIX + 's1')).toBe(true);
+
+    draftStore.clear('a1', 'note');
+    expect(storage.items.has(DRAFTS_KEY_PREFIX + 's1')).toBe(false);
+  });
+
+  it('keeps each board's drafts apart, and a repeat scope keeps what is typed', () => {
+    draftStore.scope('s1', storage);
+    draftStore.set('a1', 'note', 'x');
+    draftStore.scope('s1', storage);
+    expect(draftStore.get('a1', 'note')).toBe('x');
+
+    draftStore.scope('s2', storage);
+    expect(draftStore.get('a1', 'note')).toBeUndefined();
+
+    draftStore.scope('s1', storage);
+    expect(draftStore.get('a1', 'note')).toBe('x');
+  });
+
+  it('moves to a new epoch only when the board changes', () => {
+    draftStore.scope('s1', storage);
     const first = draftStore.epoch;
     draftStore.set('a1', 'note', 'x');
     draftStore.clear('a1', 'note');
-    draftStore.scope('s1', 1);
+    draftStore.scope('s1', storage);
     expect(draftStore.epoch).toBe(first);
 
-    draftStore.scope('s1', 2);
+    draftStore.scope('s2', storage);
     expect(draftStore.epoch).not.toBe(first);
   });
 
+  it('refuses a corrupt stored record', () => {
+    storage.setItem(DRAFTS_KEY_PREFIX + 's1', '[]');
+    expect(() => draftStore.scope('s1', storage)).toThrow('cc-present draft record is corrupt');
+  });
+
   it('notifies subscribers on every change until they unsubscribe', () => {
-    draftStore.scope('s1', 1);
+    draftStore.scope('s1', storage);
     const listener = vi.fn();
     const unsubscribe = draftStore.subscribe(listener);
 
     draftStore.set('a1', 'note', 'x');
     draftStore.clear('a1', 'note');
     draftStore.clear('a1', 'note');
-    draftStore.scope('s1', 1);
+    draftStore.scope('s1', storage);
     expect(listener).toHaveBeenCalledTimes(2);
 
-    draftStore.scope('s1', 2);
+    draftStore.scope('s2', storage);
     expect(listener).toHaveBeenCalledTimes(3);
 
     unsubscribe();

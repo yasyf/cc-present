@@ -472,6 +472,13 @@ func handleRemoveBlock(hc ccd.HandlerCtx) ccd.Reply {
 	if loc.Visual() {
 		return errReply(pointingError(b.ID, loc).Error())
 	}
+	held, err := recentTouches(hc.Ctx, hc.DB, sub.ID)
+	if err != nil {
+		return errReply(err.Error())
+	}
+	if err := held.refuse(loc.Block, "remove", true); err != nil {
+		return errReply(err.Error())
+	}
 	if _, err := appendEvent(hc.Ctx, hc.Append, &ccevent.Event{
 		SubjectID: sub.ID, Origin: ccevent.OriginAgent, Type: EventBlockRemoved,
 		Payload: mustJSON(map[string]string{"id": b.ID}),

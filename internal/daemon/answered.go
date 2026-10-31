@@ -20,6 +20,7 @@ type answerGate struct {
 	retired map[string]bool
 	reopen  []string
 	prior   decidedGate
+	touches touches
 }
 
 func newAnswerGate(ctx context.Context, db *sql.DB, subID string, st *state.State, retired map[string]bool, reopen []string) answerGate {
@@ -29,7 +30,10 @@ func newAnswerGate(ctx context.Context, db *sql.DB, subID string, st *state.Stat
 func newAdmitGate(ctx context.Context, db *sql.DB, subID string, st *state.State, retired map[string]bool, reopen []string, reask Reask) (answerGate, error) {
 	gate := newAnswerGate(ctx, db, subID, st, retired, reopen)
 	var err error
-	gate.prior, err = newDecidedGate(ctx, db, subID, st, reask)
+	if gate.prior, err = newDecidedGate(ctx, db, subID, st, reask); err != nil {
+		return gate, err
+	}
+	gate.touches, err = recentTouches(ctx, db, subID)
 	return gate, err
 }
 
@@ -54,7 +58,13 @@ func (g answerGate) check(b doc.Block) error {
 	if err := g.answered(b); err != nil {
 		return err
 	}
-	return g.prior.checkRows(b)
+	if err := g.prior.checkRows(b); err != nil {
+		return err
+	}
+	if loc, ok := doc.Locate(g.st.Doc, b.BlockID()); ok {
+		return g.touches.refuseReplacing(loc.Block, b)
+	}
+	return nil
 }
 
 func (g answerGate) answered(b doc.Block) error {
@@ -119,6 +129,14 @@ func (g answerGate) admitDoc(d *doc.Doc, raw json.RawMessage) (json.RawMessage, 
 			continue
 		}
 		if err := g.check(b); err != nil {
+			return nil, nil, err
+		}
+	}
+	for _, b := range g.st.Doc.Blocks {
+		if _, kept := doc.Locate(d, b.BlockID()); kept {
+			continue
+		}
+		if err := g.touches.refuse(b, "drop", true); err != nil {
 			return nil, nil, err
 		}
 	}

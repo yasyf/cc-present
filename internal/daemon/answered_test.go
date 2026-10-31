@@ -36,6 +36,7 @@ func answeredBoard(t *testing.T) (*harness, string) {
 		t.Fatalf("start not ok: %s", start.Error)
 	}
 	answer(t, h, start.SubjectID, "a1")
+	ageEvents(t, h, start.SubjectID)
 	return h, start.SubjectID
 }
 

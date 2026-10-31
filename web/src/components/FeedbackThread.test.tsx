@@ -34,6 +34,7 @@ afterEach(() => {
   act(() => root.unmount());
   container.remove();
   draftStore.reset();
+  localStorage.clear();
 });
 
 function render(
@@ -154,16 +155,16 @@ describe('FeedbackThread unsent note', () => {
     expect(container.querySelector('textarea')?.value).toBe('first\nsecond');
   });
 
-  it('drops a failed note whose round ended before the post came back', async () => {
+  it('drops a failed note whose board changed before the post came back', async () => {
     let fail = (): void => {};
     const post: PresentApi['post'] = () => new Promise((resolve) => (fail = () => resolve(false)));
-    act(() => draftStore.scope('s1', 1));
+    act(() => draftStore.scope('s1'));
     const feedbackRef = render('inline', undefined, post);
     act(() => feedbackRef.current?.open());
-    type('about round one');
+    type('about the first board');
     act(() => action('Send').click());
 
-    act(() => draftStore.scope('s1', 2));
+    act(() => draftStore.scope('s2'));
     await settle(fail);
 
     expect(draftStore.get('a1', 'note')).toBeUndefined();
