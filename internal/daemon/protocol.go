@@ -77,6 +77,7 @@ type body struct {
 	Verdicts json.RawMessage `json:"verdicts,omitempty"` // import-verdicts | move-verdicts | carry-verdict
 	Named    bool            `json:"named,omitempty"`
 	Reopen   []string        `json:"reopen,omitempty"`
+	Reask    Reask           `json:"reask,omitempty"` // start | push | upsert-block | import-verdicts | move-verdicts | carry-verdict
 	View     OutcomeView     `json:"view,omitempty"`  // outcomes
 	Since    string          `json:"since,omitempty"` // outcomes
 }

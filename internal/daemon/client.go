@@ -92,8 +92,8 @@ const (
 
 // Start creates or resumes the window's artifact, optionally seeding it with a
 // document.
-func (cl *Client) Start(ctx context.Context, session, scope string, pid int, mode StartMode, named bool, reopen []string, title string, docJSON json.RawMessage) (StartResult, error) {
-	reply, res, err := cl.do(ctx, OpStart, session, scope, pid, body{New: mode == StartNew, Replace: mode == StartReplace, Named: named, Reopen: reopen, Title: title, Doc: docJSON})
+func (cl *Client) Start(ctx context.Context, session, scope string, pid int, mode StartMode, named bool, reopen []string, reask Reask, title string, docJSON json.RawMessage) (StartResult, error) {
+	reply, res, err := cl.do(ctx, OpStart, session, scope, pid, body{New: mode == StartNew, Replace: mode == StartReplace, Named: named, Reopen: reopen, Reask: reask, Title: title, Doc: docJSON})
 	if err != nil {
 		return StartResult{}, err
 	}
@@ -103,8 +103,8 @@ func (cl *Client) Start(ctx context.Context, session, scope string, pid int, mod
 // Push replaces the document and returns the new revision, the artifact's
 // display URLs, and the round it advanced into. round is the caller's declared
 // round intent ("", "current", or "new"); roundTitle titles a newly opened round.
-func (cl *Client) Push(ctx context.Context, session, scope string, pid int, docJSON json.RawMessage, reopen []string, round, roundTitle string) (PushResult, error) {
-	_, res, err := cl.do(ctx, OpPush, session, scope, pid, body{Doc: docJSON, Reopen: reopen, Round: round, Title: roundTitle})
+func (cl *Client) Push(ctx context.Context, session, scope string, pid int, docJSON json.RawMessage, reopen []string, reask Reask, round, roundTitle string) (PushResult, error) {
+	_, res, err := cl.do(ctx, OpPush, session, scope, pid, body{Doc: docJSON, Reopen: reopen, Reask: reask, Round: round, Title: roundTitle})
 	if err != nil {
 		return PushResult{}, err
 	}
@@ -114,8 +114,8 @@ func (cl *Client) Push(ctx context.Context, session, scope string, pid int, docJ
 // UpsertBlock inserts or replaces a single block, optionally after another. round
 // is the caller's declared round intent ("", "current", or "new") and roundTitle
 // titles a newly opened round; it returns the round an advance opened (0 if none).
-func (cl *Client) UpsertBlock(ctx context.Context, session, scope string, pid int, blockJSON json.RawMessage, reopen []string, after, round, roundTitle string) (int, []string, error) {
-	_, res, err := cl.do(ctx, OpUpsertBlock, session, scope, pid, body{Block: blockJSON, Reopen: reopen, After: after, Round: round, Title: roundTitle})
+func (cl *Client) UpsertBlock(ctx context.Context, session, scope string, pid int, blockJSON json.RawMessage, reopen []string, reask Reask, after, round, roundTitle string) (int, []string, error) {
+	_, res, err := cl.do(ctx, OpUpsertBlock, session, scope, pid, body{Block: blockJSON, Reopen: reopen, Reask: reask, After: after, Round: round, Title: roundTitle})
 	return res.Round, res.Warnings, err
 }
 
@@ -226,8 +226,8 @@ func (cl *Client) SlackAnswer(ctx context.Context, session, scope string, pid in
 // ImportVerdicts carries verdicts given on an earlier board onto the window's
 // pr-groups rows, leaving any row that already has a verdict untouched unless
 // replace overwrites it.
-func (cl *Client) ImportVerdicts(ctx context.Context, session, scope string, pid int, verdictsJSON json.RawMessage, replace bool) (ImportResult, error) {
-	_, res, err := cl.do(ctx, OpImportVerdicts, session, scope, pid, body{Verdicts: verdictsJSON, Replace: replace})
+func (cl *Client) ImportVerdicts(ctx context.Context, session, scope string, pid int, verdictsJSON json.RawMessage, replace bool, reask Reask) (ImportResult, error) {
+	_, res, err := cl.do(ctx, OpImportVerdicts, session, scope, pid, body{Verdicts: verdictsJSON, Replace: replace, Reask: reask})
 	if err != nil {
 		return ImportResult{}, err
 	}
@@ -240,19 +240,19 @@ func (cl *Client) ImportVerdicts(ctx context.Context, session, scope string, pid
 
 // MoveVerdicts re-keys recorded verdicts onto other triage items or pr-groups
 // rows, clearing each source unless its move keeps it.
-func (cl *Client) MoveVerdicts(ctx context.Context, session, scope string, pid int, movesJSON json.RawMessage) error {
-	_, _, err := cl.do(ctx, OpMoveVerdicts, session, scope, pid, body{Verdicts: movesJSON})
+func (cl *Client) MoveVerdicts(ctx context.Context, session, scope string, pid int, movesJSON json.RawMessage, reask Reask) error {
+	_, _, err := cl.do(ctx, OpMoveVerdicts, session, scope, pid, body{Verdicts: movesJSON, Reask: reask})
 	return err
 }
 
 // CarryVerdict moves a pr-groups row's recorded verdict to a new head the agent
 // judged the same change, keeping the head and time the human tapped.
-func (cl *Client) CarryVerdict(ctx context.Context, session, scope string, pid int, carry VerdictCarry) (CarryResult, error) {
+func (cl *Client) CarryVerdict(ctx context.Context, session, scope string, pid int, carry VerdictCarry, reask Reask) (CarryResult, error) {
 	raw, err := json.Marshal(carry)
 	if err != nil {
 		return CarryResult{}, err
 	}
-	_, res, err := cl.do(ctx, OpCarryVerdict, session, scope, pid, body{Verdicts: raw})
+	_, res, err := cl.do(ctx, OpCarryVerdict, session, scope, pid, body{Verdicts: raw, Reask: reask})
 	if err != nil {
 		return CarryResult{}, err
 	}

@@ -145,7 +145,10 @@ func handleSlackCardCheck(hc ccd.HandlerCtx, pt doc.PackTypes) ccd.Reply {
 }
 
 func admitCard(hc ccd.HandlerCtx, subID string, st *state.State, retired map[string]bool, card *doc.Card) error {
-	gate := newAnswerGate(hc.Ctx, hc.DB, subID, st, retired, nil)
+	gate, err := newAdmitGate(hc.Ctx, hc.DB, subID, st, retired, nil, Reask{})
+	if err != nil {
+		return err
+	}
 	if _, warnings := gate.strip([]doc.Block{card}); len(warnings) > 0 {
 		return errors.New(strings.Join(warnings, "; "))
 	}

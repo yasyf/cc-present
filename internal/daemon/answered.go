@@ -19,10 +19,18 @@ type answerGate struct {
 	st      *state.State
 	retired map[string]bool
 	reopen  []string
+	prior   approvalGate
 }
 
 func newAnswerGate(ctx context.Context, db *sql.DB, subID string, st *state.State, retired map[string]bool, reopen []string) answerGate {
 	return answerGate{ctx: ctx, db: db, subID: subID, st: st, retired: retired, reopen: reopen}
+}
+
+func newAdmitGate(ctx context.Context, db *sql.DB, subID string, st *state.State, retired map[string]bool, reopen []string, reask Reask) (answerGate, error) {
+	gate := newAnswerGate(ctx, db, subID, st, retired, reopen)
+	var err error
+	gate.prior, err = newApprovalGate(ctx, db, subID, st, reask)
+	return gate, err
 }
 
 func (g answerGate) strip(blocks []doc.Block) ([]doc.Block, []string) {
@@ -43,6 +51,13 @@ func (g answerGate) strip(blocks []doc.Block) ([]doc.Block, []string) {
 }
 
 func (g answerGate) check(b doc.Block) error {
+	if err := g.answered(b); err != nil {
+		return err
+	}
+	return g.prior.checkRows(b)
+}
+
+func (g answerGate) answered(b doc.Block) error {
 	decidable, answered := g.st.AnsweredBy(b)
 	if !answered || slices.Contains(g.reopen, b.BlockID()) || slices.Contains(g.reopen, decidable) {
 		return nil

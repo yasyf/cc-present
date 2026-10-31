@@ -198,7 +198,7 @@ func handleStart(hc ccd.HandlerCtx, pt doc.PackTypes, display displayFunc) ccd.R
 	}
 	var warnings []string
 	if d != nil {
-		if warnings, err = appendSeedDoc(hc, sub.ID, b.Doc, d, b.Reopen); err != nil {
+		if warnings, err = appendSeedDoc(hc, sub.ID, b.Doc, d, b.Reopen, b.Reask); err != nil {
 			return errReply(err.Error())
 		}
 	}
@@ -238,7 +238,7 @@ func displayPage(d *doc.Doc) bool {
 // top-level block to a round the human has engaged, an unspecified round intent
 // is rejected; --round new closes the dirty round into history and opens the
 // next before the replacement lands.
-func appendSeedDoc(hc ccd.HandlerCtx, subID string, raw json.RawMessage, d *doc.Doc, reopen []string) ([]string, error) {
+func appendSeedDoc(hc ccd.HandlerCtx, subID string, raw json.RawMessage, d *doc.Doc, reopen []string, reask Reask) ([]string, error) {
 	writeMu.Lock()
 	defer writeMu.Unlock()
 	board, err := caughtUp(hc.Ctx, hc.DB, subID)
@@ -250,7 +250,10 @@ func appendSeedDoc(hc ccd.HandlerCtx, subID string, raw json.RawMessage, d *doc.
 	if err := claimThreads(hc.Ctx, hc.DB, subID, st.Doc, d.Blocks); err != nil {
 		return nil, err
 	}
-	gate := newAnswerGate(hc.Ctx, hc.DB, subID, st, board.retired, reopen)
+	gate, err := newAdmitGate(hc.Ctx, hc.DB, subID, st, board.retired, reopen, reask)
+	if err != nil {
+		return nil, err
+	}
 	raw, warnings, err := gate.admitDoc(d, raw)
 	if err != nil {
 		return nil, err
@@ -299,7 +302,10 @@ func handlePush(hc ccd.HandlerCtx, pt doc.PackTypes, display displayFunc) ccd.Re
 	if err := claimThreads(hc.Ctx, hc.DB, sub.ID, st.Doc, d.Blocks); err != nil {
 		return errReply(err.Error())
 	}
-	gate := newAnswerGate(hc.Ctx, hc.DB, sub.ID, st, board.retired, b.Reopen)
+	gate, err := newAdmitGate(hc.Ctx, hc.DB, sub.ID, st, board.retired, b.Reopen, b.Reask)
+	if err != nil {
+		return errReply(err.Error())
+	}
 	raw, warnings, err := gate.admitDoc(d, b.Doc)
 	if err != nil {
 		return errReply(err.Error())
@@ -372,7 +378,10 @@ func handleUpsertBlock(hc ccd.HandlerCtx, pt doc.PackTypes) ccd.Reply {
 	if err := claimThreads(hc.Ctx, hc.DB, sub.ID, st.Doc, []doc.Block{blk}); err != nil {
 		return errReply(err.Error())
 	}
-	gate := newAnswerGate(hc.Ctx, hc.DB, sub.ID, st, board.retired, b.Reopen)
+	gate, err := newAdmitGate(hc.Ctx, hc.DB, sub.ID, st, board.retired, b.Reopen, b.Reask)
+	if err != nil {
+		return errReply(err.Error())
+	}
 	kept, warnings := gate.strip([]doc.Block{blk})
 	if len(kept) == 0 {
 		return okReply(result{Warnings: warnings})

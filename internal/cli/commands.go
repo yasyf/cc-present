@@ -267,6 +267,7 @@ func newStartCmd(d cmd.Deps) *cobra.Command {
 	var session, cwd, title, docPath, root string
 	var fresh, replace bool
 	var reopen []string
+	var reask ccdaemon.Reask
 	c := &cobra.Command{
 		Use:   "start",
 		Short: "Create or resume this window's cc-present artifact and print its URL",
@@ -313,7 +314,7 @@ func newStartCmd(d cmd.Deps) *cobra.Command {
 					return err
 				}
 			}
-			res, err := cl.Start(ctx, sess, scope, pid, startMode(fresh, replace), namedOther(session), reopen, title, docJSON)
+			res, err := cl.Start(ctx, sess, scope, pid, startMode(fresh, replace), namedOther(session), reopen, reask, title, docJSON)
 			if err != nil {
 				return err
 			}
@@ -329,11 +330,17 @@ func newStartCmd(d cmd.Deps) *cobra.Command {
 	c.Flags().BoolVar(&replace, "replace", false, "close this session's open artifact and start a fresh one")
 	c.Flags().StringVar(&docPath, "doc", "", "seed the artifact with a document from a file (- for stdin)")
 	c.Flags().StringSliceVar(&reopen, "reopen", nil, reopenUsage)
+	reaskFlags(c, &reask)
 	c.Flags().StringVar(&root, "root", "", "checkout that code block src paths and markdown code cites resolve under (defaults to the git toplevel of the current directory)")
 	return c
 }
 
 const reopenUsage = "block id to ask again although the human already answered it (repeatable)"
+
+func reaskFlags(c *cobra.Command, reask *ccdaemon.Reask) {
+	c.Flags().StringSliceVar(&reask.PRs, "owner-reask", nil, "pull request number to put back in front of the owner although they approved it at an earlier head, only when the owner asked to see it again (repeatable; needs --reason)")
+	c.Flags().StringVar(&reask.Reason, "reason", "", "why the owner asked to see the --owner-reask pull requests again")
+}
 
 func printWarnings(c *cobra.Command, warnings []string) {
 	for _, w := range warnings {
@@ -375,6 +382,7 @@ func newPushCmd(d cmd.Deps) *cobra.Command {
 	var session, cwd, round, roundTitle, root string
 	var dryRun bool
 	var reopen []string
+	var reask ccdaemon.Reask
 	c := &cobra.Command{
 		Use:   "push <file|->",
 		Short: "Replace the artifact's document",
@@ -443,7 +451,7 @@ func newPushCmd(d cmd.Deps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			res, err := cl.Push(ctx, sess, scope, pid, docJSON, reopen, round, roundTitle)
+			res, err := cl.Push(ctx, sess, scope, pid, docJSON, reopen, reask, round, roundTitle)
 			if err != nil {
 				return err
 			}
@@ -476,6 +484,7 @@ func newPushCmd(d cmd.Deps) *cobra.Command {
 	c.Flags().StringVar(&cwd, "cwd", "", "working directory (recorded on the request; artifacts are per-window, not resolved by directory)")
 	c.Flags().BoolVar(&dryRun, "dry-run", false, "validate the document only; print every violation and exit non-zero")
 	c.Flags().StringSliceVar(&reopen, "reopen", nil, reopenUsage)
+	reaskFlags(c, &reask)
 	c.Flags().StringVar(&root, "root", "", "checkout that code block src paths and markdown code cites resolve under (defaults to the git toplevel of the current directory)")
 	c.Flags().StringVar(&round, "round", "", `round intent when a new top-level block lands in an engaged round: "current" (add to it) or "new" (close it and open the next)`)
 	c.Flags().StringVar(&roundTitle, "round-title", "", "title for the round opened by --round new")
@@ -490,6 +499,7 @@ func newUpdateBlockCmd(d cmd.Deps) *cobra.Command {
 	var session, cwd, after, round, roundTitle, root string
 	var dryRun bool
 	var reopen []string
+	var reask ccdaemon.Reask
 	c := &cobra.Command{
 		Use:   "update-block <file|->",
 		Short: "Insert or replace a single block",
@@ -562,7 +572,7 @@ func newUpdateBlockCmd(d cmd.Deps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			n, warnings, err := cl.UpsertBlock(ctx, sess, scope, pid, blockJSON, reopen, after, round, roundTitle)
+			n, warnings, err := cl.UpsertBlock(ctx, sess, scope, pid, blockJSON, reopen, reask, after, round, roundTitle)
 			if err != nil {
 				return err
 			}
@@ -590,6 +600,7 @@ func newUpdateBlockCmd(d cmd.Deps) *cobra.Command {
 	c.Flags().StringVar(&after, "after", "", "insert a new block after a top-level block, or into a card after a child (unknown ids error)")
 	c.Flags().BoolVar(&dryRun, "dry-run", false, "validate the single block only; print every violation and exit non-zero")
 	c.Flags().StringSliceVar(&reopen, "reopen", nil, reopenUsage)
+	reaskFlags(c, &reask)
 	c.Flags().StringVar(&root, "root", "", "checkout that code block src paths and markdown code cites resolve under (defaults to the git toplevel of the current directory)")
 	c.Flags().StringVar(&round, "round", "", `round intent when the block is a new top-level block in an engaged round: "current" (add to it) or "new" (close it and open the next)`)
 	c.Flags().StringVar(&roundTitle, "round-title", "", "title for the round opened by --round new")
