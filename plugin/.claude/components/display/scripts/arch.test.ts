@@ -43,12 +43,6 @@ describe('validate', () => {
     bad.notes!.push({ edge: { from: 'shopper', to: 'index' }, text: 'never drawn' });
     expect(validate(bad)).toContain(`note ${bad.notes!.length}: no edge joins "shopper" and "index"`);
   });
-
-  test('asks to nest a level wider than twelve', () => {
-    const bad = structuredClone(doc);
-    bad.nodes[1]!.nodes = Array.from({ length: 13 }, (_, i) => ({ id: `screen-${i}`, kind: 'app' as const, name: `Screen ${i}`, role: 'shows a page' }));
-    expect(validate(bad)).toContain('node "web" has 13 nodes; keep each level to 12 or fewer and nest the rest');
-  });
 });
 
 describe('project', () => {

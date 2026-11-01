@@ -47,8 +47,7 @@ export function validate(doc) {
     else seen[id] = what;
   };
   for (const g of doc.groups || []) claim(g.id, "group");
-  const walk = (list, where) => {
-    if (list.length > 12) out.push(`${where} has ${list.length} nodes; keep each level to 12 or fewer and nest the rest`);
+  const walk = (list) => {
     for (const n of list) {
       claim(n.id, "node");
       const at = `node "${n.id}"`;
@@ -60,10 +59,10 @@ export function validate(doc) {
       if (STORES.has(n.kind) && !MEDIA.has(n.medium)) out.push(`${at}: a ${n.kind} node needs "medium", one of ${[...MEDIA].join(", ")}`);
       if (!STORES.has(n.kind)) for (const f of ["medium", "tag", "holds"]) if (n[f] != null) out.push(`${at}: only store and log nodes take "${f}"`);
       if (n.shape === "store" && !STORES.has(n.kind)) out.push(`${at}: the store shape belongs to store and log nodes`);
-      walk(kids(n), at);
+      walk(kids(n));
     }
   };
-  walk(doc.nodes, "the top level");
+  walk(doc.nodes);
   for (const s of doc.stories || []) claim(s.id, "story");
   const { node } = index(doc);
   const G = Object.fromEntries((doc.groups || []).map((g) => [g.id, g]));

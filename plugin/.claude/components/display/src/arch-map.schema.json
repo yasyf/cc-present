@@ -40,22 +40,19 @@
     "nodes": {
       "type": "array",
       "minItems": 1,
-      "maxItems": 12,
       "items": {
         "$ref": "#/$defs/node"
       },
-      "description": "The top level, in the order a request meets them."
+      "description": "The top level, in the order a request meets them. Four to eight read best; nest the rest."
     },
     "groups": {
       "type": "array",
-      "maxItems": 24,
       "items": {
         "$ref": "#/$defs/group"
       }
     },
     "edges": {
       "type": "array",
-      "maxItems": 400,
       "items": {
         "$ref": "#/$defs/edge"
       },
@@ -78,7 +75,6 @@
         "steps": {
           "type": "array",
           "minItems": 1,
-          "maxItems": 24,
           "items": {
             "$ref": "#/$defs/step"
           }
@@ -87,7 +83,6 @@
     },
     "stories": {
       "type": "array",
-      "maxItems": 12,
       "description": "Other journeys worth walking: a retry, a crash, a recovery, an option under review.",
       "items": {
         "type": "object",
@@ -122,7 +117,6 @@
           "steps": {
             "type": "array",
             "minItems": 1,
-            "maxItems": 24,
             "items": {
               "$ref": "#/$defs/step"
             }
@@ -132,7 +126,6 @@
     },
     "notes": {
       "type": "array",
-      "maxItems": 40,
       "description": "Sticky notes, each one fact or number. A note shows at every level where its node or edge is drawn.",
       "items": {
         "$ref": "#/$defs/note"
@@ -279,7 +272,6 @@
         },
         "holds": {
           "type": "array",
-          "maxItems": 6,
           "description": "store and log only: rows listing what it holds.",
           "items": {
             "type": "object",
@@ -330,7 +322,6 @@
         },
         "badges": {
           "type": "array",
-          "maxItems": 2,
           "items": {
             "type": "object",
             "required": [
@@ -358,11 +349,10 @@
         },
         "nodes": {
           "type": "array",
-          "maxItems": 12,
           "items": {
             "$ref": "#/$defs/node"
           },
-          "description": "What this box expands into when a reader zooms in: the next level of granularity. Nest as deep as the system goes."
+          "description": "What this box expands into when a reader zooms in: the next level of detail. Four to eight read best; nest as deep as the system goes."
         }
       }
     },

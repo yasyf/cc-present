@@ -16,8 +16,8 @@ as an outline. The schema is `src/arch-map.schema.json`.
 1. `name`, the system's short name, and `title`, the one claim the top level
    makes.
 2. `nodes`, the top level, four to eight boxes in the order a request meets them.
-   Give each one `nodes` for what it expands into. Keep every level to 12 or
-   fewer and nest the rest.
+   Give each one `nodes` for what it expands into. Four to eight per level
+   read best; nest the rest.
 3. `edges` between the deepest nodes you know. An edge between two components
    inside different systems shows as a line between those systems at the top
    level, and between the components once a reader zooms in.
@@ -50,7 +50,7 @@ sees what calls it. Notes show only where their node or edge is drawn.
 | `name` | string, 40 | yes | First crumb in the zoom trail. |
 | `title` | string, 100 | yes | The top level's one claim, drawn across the top. |
 | `summary` | string, 1200 | no | A paragraph for whoever reads only this. |
-| `nodes` | Node[], 1 to 12 | yes | The top level. |
+| `nodes` | Node[] | yes | The top level. |
 | `groups` | Group[] | no | Dashed boundaries around boxes. |
 | `edges` | Edge[] | no | Lines between nodes at any depth. |
 | `path` | `{title, steps}` | no | The main journey, numbered in blue. |
@@ -69,7 +69,7 @@ sees what calls it. Notes show only where their node or edge is drawn.
 | `role` | string, 48 | yes | What it does, a short verb phrase. |
 | `about` | string, 280 | no | Shown when a reader selects it. |
 | `claim` | string, 100 | no | The claim its zoomed-in view makes. Defaults to name and role. |
-| `nodes` | Node[], at most 12 | no | What it expands into. |
+| `nodes` | Node[] | no | What it expands into. |
 | `shape` | part shape | no | The glyph when it shows as a part: `api`, `relay`, `gate`, `router`, `guard`, `queue`, `pool`, `log`, `recovery`, `handoff`, `watcher`, `keys`, `budget`, `timer`, `uploader`, `codec`, `compactor`, `sweeper`, `cache`, `ui`, `tool`, `docs`, `sdk`, `module`, `store`. Defaults from `kind`. |
 | `medium` | `memory` \| `disk` \| `bucket` \| `keys` \| `pages` | store and log only, required there | Picks the store's silhouette. |
 | `tag`, `holds` | string 8, rows | store and log only | A short label such as `S3`; rows of what it keeps. |
