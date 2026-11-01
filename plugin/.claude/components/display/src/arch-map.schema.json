@@ -1,0 +1,506 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cdn.jsdelivr.net/gh/yasyf/cc-present/plugin/.claude/components/display/src/arch-map.schema.json",
+  "title": "Architecture doc (arch/v1)",
+  "description": "A system at every zoom level, as data. Nodes nest to say what each box expands into; edges, steps and notes may name nodes at any depth, and the renderer rolls them up to whatever level a reader is viewing. No positions: the renderer lays out, routes and places everything.",
+  "type": "object",
+  "required": [
+    "arch",
+    "name",
+    "title",
+    "nodes"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "arch": {
+      "const": 1,
+      "description": "The format version."
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 40,
+      "description": "The system's short name, shown first in the zoom trail."
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100,
+      "description": "The one claim the top level makes, about eighteen words."
+    },
+    "summary": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1200,
+      "description": "A paragraph for readers and models who read only this."
+    },
+    "nodes": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/node"
+      },
+      "description": "The top level, in the order a request meets them. Four to eight read best; nest the rest."
+    },
+    "groups": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/group"
+      }
+    },
+    "edges": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/edge"
+      },
+      "description": "Connections between nodes at any depth. Draw them where you know them, part to part; the top level shows their roll-up."
+    },
+    "path": {
+      "type": "object",
+      "required": [
+        "title",
+        "steps"
+      ],
+      "additionalProperties": false,
+      "description": "The one journey the doc explains, drawn as numbered steps at every level it crosses.",
+      "properties": {
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 60
+        },
+        "steps": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/step"
+          }
+        }
+      }
+    },
+    "stories": {
+      "type": "array",
+      "description": "Other journeys worth walking: a retry, a crash, a recovery, an option under review.",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "label",
+          "steps"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "$ref": "#/$defs/id"
+          },
+          "label": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 28,
+            "description": "The chip's text."
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 60
+          },
+          "tone": {
+            "enum": [
+              "ok",
+              "fail",
+              "pending"
+            ]
+          },
+          "steps": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "$ref": "#/$defs/step"
+            }
+          }
+        }
+      }
+    },
+    "notes": {
+      "type": "array",
+      "description": "Sticky notes, each one fact or number. A note shows at every level where its node or edge is drawn.",
+      "items": {
+        "$ref": "#/$defs/note"
+      }
+    },
+    "lanes": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "main": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 24
+        },
+        "background": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 24
+        },
+        "control": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 24
+        }
+      }
+    },
+    "start": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "What the doc opens on. The default is the top level, fitted.",
+      "properties": {
+        "node": {
+          "$ref": "#/$defs/id",
+          "description": "Open zoomed in on this node."
+        },
+        "story": {
+          "$ref": "#/$defs/id"
+        }
+      }
+    }
+  },
+  "$defs": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{0,39}$",
+      "description": "Stable id: a lowercase letter, then letters, digits and dashes. Unique across every node, group and story in the doc. Keep it when the node's name changes."
+    },
+    "node": {
+      "type": "object",
+      "required": [
+        "id",
+        "kind",
+        "name",
+        "role"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "kind": {
+          "enum": [
+            "actor",
+            "app",
+            "service",
+            "worker",
+            "store",
+            "log",
+            "external",
+            "artifact",
+            "doc"
+          ],
+          "description": "What the box is. actor: a person or outside caller. app: a client people use. service: a server that answers requests. worker: a background process. store: data at rest. log: an append-only log or journal. external: a system someone else runs. artifact: a build output or file. doc: written guidance."
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 28,
+          "description": "The name people use for it, about three words."
+        },
+        "role": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 48,
+          "description": "What it does, as a short verb phrase."
+        },
+        "about": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 280,
+          "description": "One or two sentences shown when a reader selects the box."
+        },
+        "claim": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100,
+          "description": "The one claim this node's zoomed-in view makes. Defaults to name and role."
+        },
+        "shape": {
+          "enum": [
+            "api",
+            "relay",
+            "gate",
+            "router",
+            "guard",
+            "queue",
+            "pool",
+            "log",
+            "recovery",
+            "handoff",
+            "watcher",
+            "keys",
+            "budget",
+            "timer",
+            "uploader",
+            "codec",
+            "compactor",
+            "sweeper",
+            "cache",
+            "ui",
+            "tool",
+            "docs",
+            "sdk",
+            "module",
+            "store"
+          ],
+          "description": "The glyph drawn when this node shows as a part inside its parent. Defaults from kind."
+        },
+        "medium": {
+          "enum": [
+            "memory",
+            "disk",
+            "bucket",
+            "keys",
+            "pages"
+          ],
+          "description": "store and log only: where the bytes live. Required for them."
+        },
+        "tag": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 8,
+          "description": "store and log only: a short label such as S3 or NVME."
+        },
+        "holds": {
+          "type": "array",
+          "description": "store and log only: rows listing what it holds.",
+          "items": {
+            "type": "object",
+            "required": [
+              "text"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "text": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 40
+              },
+              "note": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 60
+              },
+              "sealed": {
+                "type": "boolean"
+              }
+            }
+          }
+        },
+        "status": {
+          "enum": [
+            "live",
+            "planned",
+            "retired"
+          ],
+          "description": "live is the default. planned is drawn dashed as not built yet, retired as on its way out."
+        },
+        "group": {
+          "$ref": "#/$defs/id",
+          "description": "The group drawn around this node when it shows as a box."
+        },
+        "lane": {
+          "enum": [
+            "main",
+            "background",
+            "control"
+          ],
+          "description": "The row this box sits in when the level has lanes."
+        },
+        "critical": {
+          "type": "boolean",
+          "description": "The store the main path must reach before it replies."
+        },
+        "badges": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "tone",
+              "text"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "tone": {
+                "enum": [
+                  "ok",
+                  "fail",
+                  "warn",
+                  "info",
+                  "ask"
+                ]
+              },
+              "text": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 16
+              }
+            }
+          }
+        },
+        "nodes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/node"
+          },
+          "description": "What this box expands into when a reader zooms in: the next level of detail. Four to eight read best; nest as deep as the system goes."
+        }
+      }
+    },
+    "group": {
+      "type": "object",
+      "required": [
+        "id",
+        "label"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 40
+        },
+        "kind": {
+          "enum": [
+            "zone",
+            "machine",
+            "process"
+          ],
+          "description": "zone: an organisation or network boundary. machine: a host, VM or pod. process: an OS process, which needs in."
+        },
+        "in": {
+          "$ref": "#/$defs/id",
+          "description": "process only: the machine group it runs on."
+        }
+      }
+    },
+    "edge": {
+      "type": "object",
+      "required": [
+        "from",
+        "to"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "from": {
+          "$ref": "#/$defs/id"
+        },
+        "to": {
+          "$ref": "#/$defs/id"
+        },
+        "kind": {
+          "enum": [
+            "sync",
+            "async",
+            "copy",
+            "control"
+          ],
+          "description": "sync: calls and waits (the default). async: hands off without waiting. copy: copies or replicates data. control: checks, configures or signals."
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 40,
+          "description": "What crosses the line, about five words."
+        }
+      }
+    },
+    "step": {
+      "type": "object",
+      "required": [
+        "from",
+        "to",
+        "say"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "from": {
+          "$ref": "#/$defs/id",
+          "description": "The node the step starts at, at any depth."
+        },
+        "to": {
+          "$ref": "#/$defs/id",
+          "description": "The node the step ends at. Repeat from for work done inside one node."
+        },
+        "say": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 40,
+          "description": "What happens, about six words."
+        },
+        "waitsFor": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Path only: the earlier step this reply waits for, 1-based. Draws a barrier on the reply's arrow."
+        },
+        "mark": {
+          "enum": [
+            "risk",
+            "stop"
+          ],
+          "description": "Story only: risk marks a step that can lose or corrupt data, stop a refusal on purpose."
+        }
+      }
+    },
+    "note": {
+      "type": "object",
+      "required": [
+        "text"
+      ],
+      "oneOf": [
+        {
+          "required": [
+            "on"
+          ]
+        },
+        {
+          "required": [
+            "edge"
+          ]
+        }
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "on": {
+          "$ref": "#/$defs/id",
+          "description": "The node the note sticks to."
+        },
+        "edge": {
+          "type": "object",
+          "required": [
+            "from",
+            "to"
+          ],
+          "additionalProperties": false,
+          "description": "The edge the note sticks to, by its two ends.",
+          "properties": {
+            "from": {
+              "$ref": "#/$defs/id"
+            },
+            "to": {
+              "$ref": "#/$defs/id"
+            }
+          }
+        },
+        "text": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 56,
+          "description": "One fact or number, about eight words."
+        }
+      }
+    }
+  }
+}

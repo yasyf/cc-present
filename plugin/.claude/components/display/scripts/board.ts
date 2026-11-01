@@ -14,7 +14,7 @@ interface Reply {
 }
 
 const root = new URL('..', import.meta.url).pathname;
-const fixtures = ['examples/system.json', 'scripts/fixtures/tiny.json', 'scripts/fixtures/storage.json', 'scripts/fixtures/web.json', 'scripts/fixtures/dense.json', 'scripts/fixtures/sessions.json', 'scripts/fixtures/queue.json'];
+const fixtures = ['examples/system.json', 'scripts/fixtures/tiny.json', 'scripts/fixtures/storage.json', 'scripts/fixtures/web.json', 'scripts/fixtures/dense.json', 'scripts/fixtures/sessions.json', 'scripts/fixtures/queue.json', 'examples/system.json&skin=clean', 'scripts/fixtures/storage.json&skin=clean', 'scripts/fixtures/arch-shop.json'];
 const sizes: [number, number][] = [
   [1440, 900],
   [1024, 768],
@@ -80,7 +80,7 @@ const value = async <T>(expression: string): Promise<T> => {
 
 const AUDIT = `(async () => {
   const out = [];
-  for (const h of document.querySelectorAll("[data-smap]")) for (const p of await h.smap.audit({ all: true })) out.push({ host: h.id, ...p });
+  for (const h of document.querySelectorAll("[data-smap]")) for (const p of await h.smap.audit({ all: true })) out.push({ host: h.closest(".host").id, ...p });
   return out;
 })()`;
 

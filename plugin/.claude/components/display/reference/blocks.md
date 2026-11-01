@@ -195,7 +195,7 @@ The limits below are JSON Schema `maxLength` or `maxItems` values. Word counts i
 
 **Step**: `from`, `to` (a block or part; the same id twice is a step inside one block), `say` (40, 6 words), `waitsFor` (main path only: the number of an earlier step; draws a red barrier on this step's arrow captioned "waits for step N"), `mark` (stories only: `risk` draws it red and dashed, `stop` draws a stop sign where the design refuses on purpose).
 
-**Note**: `on` (a block or part id), `text` (56, 8 words). It sits beside its block on the overview and beside its part in the inside view.
+**Note**: `on` (a block or part id) or `link` (`{from, to}`, the ends of a link), and `text` (56, 8 words). A note `on` a box sits beside its block on the overview and beside its part in the inside view. A note on a `link` sits beside that arrow wherever the arrow is drawn.
 
 **Badge**: `tone` (`ok` green check, `fail` red cross, `warn` amber, `info` gray, `ask` speech bubble), `text` (8).
 

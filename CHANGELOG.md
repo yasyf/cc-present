@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `display/src/arch-map.js` renders an architecture doc (arch/v1): one JSON file whose nested nodes say what each box expands into, with edges, steps and notes that may name nodes at any depth. A reader zooms from the top level into any system, and the trail zooms back out; deeper edges roll up to the visible box, and outside callers show as outside boxes. `validate`, `project` and `toMarkdown` work without a page. The schema is `arch-map.schema.json` and the guide is `reference/arch.md`.
+- The system map takes `skin: "clean"`: crisp lines with rounded corners, sans type, flat stickies and soft fills, with no hand-drawn library needed. Its `fill` option keeps the full map at the container's height instead of the names-only glimpse.
+- A `display.system` note can stick to a link with `link: {from, to}` instead of a box.
 - A `pr-groups` row can stand for a whole stack. Its `stack` lists the other pull requests in the stack as `{number, head}`. One Approve or Hold on the row, on the board or on Slack, records the same verdict for each member at that member's own head, so a reader keyed by PR number sees each one decided. The row names the members under its facts. A member number cannot also be a row or a member of another stack.
 - After a submit, `cc-present outcomes` prints only the human interactions since the submit before the newest one, oldest first, each with its event seq, type, block id, time and payload. A write-in saved four times reads as its final text, once. `--since` takes an event seq, an RFC 3339 time or `last-submit`; `--new` reads what landed since the previous `outcomes` call on the board; `--all` prints the whole reduced state, as every read did before. Before the first submit nothing changes. A drain on a long board used to print every choice, decision and note since the board opened, over 100 KB, which a caller had to filter with a script to find the one new write-in.
 - `cc-present block show <id>` prints one block as plain text: its card's title and summary, its prompt and options, then the human's answers on it newest first with the time of each. A block that is no longer on the board, retired or swapped out by a push, prints as the board last showed it, read from the newest write that carried it. Reading an answer used to take `outcomes --block` piped through a script, and `outcomes --block` refused a block that had left the board.
@@ -18,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- An actor block's role wraps clear of its figure instead of running under it.
 - Two cc-present builds on one Mac no longer replace each other's daemon. During an upgrade, an older client that checked for a daemon in the gap before the new one came up saw none, so it started its own older build over the newer one, and the next newer client reversed it again. Each client now waits for any upgrade already in progress before it checks, and an older client then leaves the newer daemon running. This comes from cc-interact v0.39.1.
 - `cc-present verdict carry` works when the `pr-groups` block is off the board, as it is whenever no row waits on the owner. It used to refuse with `unknown block`. It now finds the block through the row's recorded verdict and records the carry there, so the verdict stands at the new head when the block comes back. A block with no recorded verdict for the row is still refused.
 
