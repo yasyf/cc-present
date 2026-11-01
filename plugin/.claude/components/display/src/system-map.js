@@ -210,14 +210,14 @@ const CLEAN_TY = {
   thesis: { size: 20, weight: 650, lh: 26, sans: true },
   name: { size: 16.5, weight: 650, lh: 21, sans: true },
   role: { size: 14, weight: 400, lh: 18.5, sans: true },
-  step: { size: 14.5, weight: 600, lh: 19, sans: true },
-  link: { size: 13, weight: 500, lh: 16.5, sans: true },
+  step: { size: 15, weight: 600, lh: 19.5, sans: true },
+  link: { size: 13.5, weight: 500, lh: 17, sans: true },
   frame: { size: 12.5, weight: 650, lh: 15, sans: true },
-  note: { size: 14, weight: 500, lh: 19, sans: true },
-  heap: { size: 12.5, weight: 500, lh: 16, sans: true },
+  note: { size: 14.5, weight: 500, lh: 19.5, sans: true },
+  heap: { size: 13, weight: 500, lh: 16.5, sans: true },
   member: { size: 14.5, weight: 650, lh: 18.5, sans: true },
-  mrole: { size: 12.5, weight: 400, lh: 16, sans: true },
-  hold: { size: 12.5, weight: 500, lh: 16, sans: true },
+  mrole: { size: 13, weight: 400, lh: 16.5, sans: true },
+  hold: { size: 13, weight: 500, lh: 16.5, sans: true },
   small: { size: 13, weight: 500, lh: 17, sans: true },
   badge: { size: 12, weight: 700, lh: 15, sans: true },
   tag: { size: 11, weight: 700, lh: 13, sans: true },
@@ -228,8 +228,8 @@ const CLEAN_TY = {
 const CLEAN_GLIMPSE = { ...CLEAN_TY, thesis: { size: 28, weight: 650, lh: 34, sans: true }, name: { size: 25, weight: 650, lh: 30, sans: true }, frame: { size: 14.5, weight: 650, lh: 18, sans: true }, badge: { size: 18, weight: 700, lh: 22, sans: true } };
 const LY = { pad: 14, minW: 176, maxW: 204, phone: 165, stack: 22, rowGap: 40, phoneRowGap: 70, gutter: [60, 190], phoneGutter: [40, 120], frame: 16, inset: 16, margin: 22, lane: 28, labelW: 116 };
 const SKINS = {
-  sketch: { ty: TY, glimpse: GLIMPSE, ly: LY, clean: false },
-  clean: { ty: CLEAN_TY, glimpse: CLEAN_GLIMPSE, ly: { ...LY, minW: 150, maxW: 184, phone: 150, gutter: [48, 160], phoneGutter: [34, 104], labelW: 104 }, clean: true },
+  sketch: { ty: TY, glimpse: GLIMPSE, ly: LY, least: { note: 16, step: 14.5, block: 14, part: 12.5, edge: 13, glimpse: 17.5 }, clean: false },
+  clean: { ty: CLEAN_TY, glimpse: CLEAN_GLIMPSE, ly: { ...LY, minW: 150, maxW: 184, phone: 150, rowGap: 64, gutter: [48, 160], phoneGutter: [34, 104], labelW: 104 }, least: { note: 12, step: 12.4, block: 11.5, part: 10.5, edge: 10.8, glimpse: 14 }, clean: true },
 };
 const READ = 0.84;
 const GLIMPSE_NAME = 18;
@@ -3436,7 +3436,8 @@ class Board {
     for (const t of m.clash) add("overlap", t);
     for (const t of this.covers()) add("cover", t);
     if (o.home) {
-      const want = inside ? { note: 16, part: 12.5, edge: 13 } : this.o.compact ? { block: 17.5 } : { note: 16, step: 14.5, block: 14 };
+      const L = this.skin.least;
+      const want = inside ? { note: L.note, part: L.part, edge: L.edge } : this.o.compact ? { block: L.glimpse } : { note: L.note, step: L.step, block: L.block };
       for (const [k, px] of Object.entries(want)) if (m.font[k] < px) add("font", `${k} text renders at ${m.font[k].toFixed(1)} px, want at least ${px}`);
     }
     if (inside) for (const id of this.orphans()) add("orphan", `part "${this.labelOf(id)}" has no arrow to anything inside the view`);
