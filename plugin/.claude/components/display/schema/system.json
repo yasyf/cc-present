@@ -149,10 +149,17 @@
     },
     "note": {
       "type": "object",
-      "required": ["on", "text"],
+      "required": ["text"],
+      "oneOf": [{ "required": ["on"] }, { "required": ["link"] }],
       "additionalProperties": false,
       "properties": {
         "on": { "$ref": "#/$defs/id" },
+        "link": {
+          "type": "object",
+          "required": ["from", "to"],
+          "additionalProperties": false,
+          "properties": { "from": { "$ref": "#/$defs/id" }, "to": { "$ref": "#/$defs/id" } }
+        },
         "text": { "type": "string", "minLength": 1, "maxLength": 56 }
       }
     },

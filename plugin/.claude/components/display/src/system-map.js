@@ -40,7 +40,7 @@ const CSS = String.raw`
 .smap button { font: inherit; color: inherit; }
 .smap-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 8px 12px; border-bottom: 1px solid var(--wb-line); min-width: 0; }
 .smap-crumbs { display: none; align-items: center; gap: 6px; font-size: 13px; color: var(--wb-ink-3); white-space: nowrap; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.smap.focused > .smap-bar .smap-crumbs { display: flex; }
+.smap.focused > .smap-bar .smap-crumbs, .smap.leveled > .smap-bar .smap-crumbs { display: flex; }
 .smap-crumbs button { background: none; border: 0; padding: 0; cursor: pointer; color: var(--wb-marker); font-weight: 600; }
 .smap-crumbs b { color: var(--wb-ink); font-weight: 650; }
 .smap-chips { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; flex: 1 1 220px; min-width: 0; padding: 2px 0; }
@@ -69,6 +69,8 @@ const CSS = String.raw`
 .smap-open { border: 1.5px solid var(--wb-ink); background: var(--wb-ink); color: var(--wb-paper) !important; border-radius: 999px; padding: 4px 14px; cursor: pointer; font-size: 13px; font-weight: 650; white-space: nowrap; }
 .smap-readout { padding: 7px 12px 9px; border-top: 1px solid var(--wb-line); font-size: 13px; line-height: 1.5; color: var(--wb-ink-2); min-height: 1.5em; overflow-wrap: anywhere; }
 .smap-readout b { color: var(--wb-ink); font-weight: 650; }
+.smap-deeper { margin-left: 6px; border: 1px solid var(--wb-marker); background: var(--wb-marker-soft); color: var(--wb-marker) !important; border-radius: 999px; padding: 1px 10px; cursor: pointer; font-size: 12.5px; font-weight: 650; white-space: nowrap; }
+.smap-deeper:hover { background: var(--wb-marker); color: var(--wb-paper) !important; }
 .smap-readout ol { display: inline; margin: 0; padding: 0; list-style: none; }
 .smap-readout li { display: inline; margin-right: 12px; }
 .smap-readout li .n { display: inline-block; min-width: 18px; height: 18px; border-radius: 9px; background: var(--wb-marker); color: var(--wb-paper); font: 700 11px/18px var(--smap-sans); text-align: center; margin-right: 5px; vertical-align: 1px; }
@@ -166,6 +168,22 @@ const CSS = String.raw`
 }
 :root[data-print] .smap .smap-chrome, :root[data-print] .smap .smap-hint { display: none !important; }
 :root[data-print] .smap .smap-pathline { display: block; }
+.smap.clean { --smap-d-paper: #fbfbfc; --smap-d-ink: #172033; --smap-d-line: #e2e5eb; --wb-marker: #2f5bd8; --wb-marker-soft: rgba(47, 91, 216, .13); --wb-sticky: #fff4c2; --wb-sticky-ink: #3d3412; --wb-amber: #9a6a14; }
+@media screen and (prefers-color-scheme: dark) { :root:not([data-theme="light"]):not([data-print]) .smap.clean { --smap-d-paper: #16191e; --smap-d-ink: #e8eaee; --smap-d-line: #30353d; --wb-marker: #8aa9ff; --wb-marker-soft: rgba(138, 169, 255, .16); --wb-sticky: #463f22; --wb-sticky-ink: #f4ebc3; } }
+@media screen { :root[data-theme="dark"]:not([data-print]) .smap.clean { --smap-d-paper: #16191e; --smap-d-ink: #e8eaee; --smap-d-line: #30353d; --wb-marker: #8aa9ff; --wb-marker-soft: rgba(138, 169, 255, .16); --wb-sticky: #463f22; --wb-sticky-ink: #f4ebc3; } }
+.smap.clean svg text { font-family: var(--smap-sans); }
+.smap.clean svg .dotgrid circle { fill: color-mix(in srgb, var(--wb-ink) 8%, var(--wb-paper)); }
+.smap.clean svg .block { filter: drop-shadow(0 1px 1.5px rgba(16, 24, 40, .09)); }
+.smap.clean svg .f-blue path { fill: var(--wb-tint-blue); stroke: none; opacity: .5; }
+.smap.clean svg .f-green path { fill: var(--wb-tint-green); stroke: none; opacity: .7; }
+.smap.clean svg .f-amber path { fill: var(--wb-tint-amber); stroke: none; }
+.smap.clean svg .f-red path { fill: var(--wb-tint-red); stroke: none; }
+.smap.clean svg .f-grey path { fill: var(--wb-tint-grey); stroke: none; }
+.smap.clean svg .k-hl path { stroke: var(--wb-marker-soft); }
+.smap.clean svg .note { filter: drop-shadow(0 1px 2px rgba(16, 24, 40, .16)); }
+.smap.clean svg .note .k-ink3 path { stroke: color-mix(in srgb, var(--wb-sticky-ink) 18%, var(--wb-sticky)); }
+.smap.clean .smap-chip { border-width: 1px; font-weight: 550; }
+.smap.clean .smap-tools button { border-radius: 8px; box-shadow: none; }
 `;
 
 const TY = {
@@ -188,7 +206,31 @@ const TY = {
   title: { size: 28, weight: 700, lh: 32 },
 };
 const GLIMPSE = { ...TY, thesis: { size: 34, weight: 600, lh: 40 }, name: { size: 30, weight: 700, lh: 34 }, frame: { size: 17, weight: 600, lh: 21 }, badge: { size: 20, weight: 700, lh: 24, sans: true } };
+const CLEAN_TY = {
+  thesis: { size: 20, weight: 650, lh: 26, sans: true },
+  name: { size: 16.5, weight: 650, lh: 21, sans: true },
+  role: { size: 14, weight: 400, lh: 18.5, sans: true },
+  step: { size: 14.5, weight: 600, lh: 19, sans: true },
+  link: { size: 13, weight: 500, lh: 16.5, sans: true },
+  frame: { size: 12.5, weight: 650, lh: 15, sans: true },
+  note: { size: 14, weight: 500, lh: 19, sans: true },
+  heap: { size: 12.5, weight: 500, lh: 16, sans: true },
+  member: { size: 14.5, weight: 650, lh: 18.5, sans: true },
+  mrole: { size: 12.5, weight: 400, lh: 16, sans: true },
+  hold: { size: 12.5, weight: 500, lh: 16, sans: true },
+  small: { size: 13, weight: 500, lh: 17, sans: true },
+  badge: { size: 12, weight: 700, lh: 15, sans: true },
+  tag: { size: 11, weight: 700, lh: 13, sans: true },
+  lane: { size: 11.5, weight: 650, lh: 14, sans: true },
+  disc: { size: 12, weight: 700, lh: 15, sans: true },
+  title: { size: 24, weight: 700, lh: 28, sans: true },
+};
+const CLEAN_GLIMPSE = { ...CLEAN_TY, thesis: { size: 28, weight: 650, lh: 34, sans: true }, name: { size: 25, weight: 650, lh: 30, sans: true }, frame: { size: 14.5, weight: 650, lh: 18, sans: true }, badge: { size: 18, weight: 700, lh: 22, sans: true } };
 const LY = { pad: 14, minW: 176, maxW: 204, phone: 165, stack: 22, rowGap: 40, phoneRowGap: 70, gutter: [60, 190], phoneGutter: [40, 120], frame: 16, inset: 16, margin: 22, lane: 28, labelW: 116 };
+const SKINS = {
+  sketch: { ty: TY, glimpse: GLIMPSE, ly: LY, clean: false },
+  clean: { ty: CLEAN_TY, glimpse: CLEAN_GLIMPSE, ly: { ...LY, minW: 150, maxW: 184, phone: 150, gutter: [48, 160], phoneGutter: [34, 104], labelW: 104 }, clean: true },
+};
 const READ = 0.84;
 const GLIMPSE_NAME = 18;
 const TALL_AT = 900;
@@ -324,6 +366,36 @@ const injectFont = () => {
   link.rel = "stylesheet";
   link.href = FONT_HREF;
   document.head.append(link);
+};
+
+const crisp = () => {
+  const shape = (d, o) => {
+    const g = document.createElementNS(NS, "g");
+    const p = document.createElementNS(NS, "path");
+    p.setAttribute("d", d);
+    p.setAttribute("fill", o.fill || "none");
+    p.setAttribute("stroke", o.stroke || "#000");
+    p.setAttribute("stroke-width", o.strokeWidth ?? 1);
+    p.setAttribute("stroke-linecap", "round");
+    p.setAttribute("stroke-linejoin", "round");
+    if (o.strokeLineDash) p.setAttribute("stroke-dasharray", o.strokeLineDash.join(" "));
+    g.append(p);
+    return g;
+  };
+  const poly = (pts, close) => `M ${pts.map(([x, y]) => `${x} ${y}`).join(" L ")}${close ? " Z" : ""}`;
+  const oval = (cx, cy, w, h) => `M ${cx - w / 2} ${cy} A ${w / 2} ${h / 2} 0 1 0 ${cx + w / 2} ${cy} A ${w / 2} ${h / 2} 0 1 0 ${cx - w / 2} ${cy} Z`;
+  return {
+    line: (x1, y1, x2, y2, o) => shape(`M ${x1} ${y1} L ${x2} ${y2}`, o),
+    linearPath: (pts, o) => shape(poly(pts, false), o),
+    polygon: (pts, o) => shape(poly(pts, true), o),
+    path: (d, o) => shape(d, o),
+    circle: (cx, cy, d, o) => shape(oval(cx, cy, d, d), o),
+    ellipse: (cx, cy, w, h, o) => shape(oval(cx, cy, w, h), o),
+    rectangle: (x, y, w, h, o) => {
+      const r = Math.max(0, Math.min(8, w / 4, h / 4));
+      return shape(`M ${x + r} ${y} H ${x + w - r} Q ${x + w} ${y} ${x + w} ${y + r} V ${y + h - r} Q ${x + w} ${y + h} ${x + w - r} ${y + h} H ${x + r} Q ${x} ${y + h} ${x} ${y + h - r} V ${y + r} Q ${x} ${y} ${x + r} ${y} Z`, o);
+    },
+  };
 };
 
 function router(boxes, vg, hg, avoid) {
@@ -644,7 +716,7 @@ const offsetLine = (pts, d) => {
   });
 };
 
-export function validate(map) {
+export function validate(map, o = {}) {
   if (!map || typeof map !== "object" || !Array.isArray(map.blocks)) return ["the map needs a title and a list of blocks"];
   const out = [];
   const groups = map.groups || [];
@@ -705,7 +777,13 @@ export function validate(map) {
       if (s.waitsFor != null) out.push(`story "${st.id}" step ${i + 1}: "waitsFor" belongs only on the main path`);
     });
   }
-  (map.notes || []).forEach((n, i) => ref(`note ${i + 1}`, "on", n.on));
+  (map.notes || []).forEach((n, i) => {
+    if (n.link == null) { ref(`note ${i + 1}`, "on", n.on); return; }
+    if (n.on != null) out.push(`note ${i + 1}: give "on" or "link", not both`);
+    ref(`note ${i + 1}`, "link.from", n.link.from);
+    ref(`note ${i + 1}`, "link.to", n.link.to);
+    if (!links.some((l) => (l.from === n.link.from && l.to === n.link.to) || (l.from === n.link.to && l.to === n.link.from))) out.push(`note ${i + 1}: no link joins "${n.link.from}" and "${n.link.to}"`);
+  });
   const start = map.start || {};
   if (start.story != null && kindOf[start.story] !== "story") out.push(`start: "story" names "${start.story}", which is not a story`);
   if (start.block != null) {
@@ -713,6 +791,7 @@ export function validate(map) {
     if (!b) out.push(`start: "block" names "${start.block}", which is not a block`);
     else if (!(b.parts || []).length && !(b.contents || []).length) out.push(`start: block "${b.id}" has no parts to open`);
   }
+  if (o.derived) return out;
   const used = new Set([...links, ...pathSteps, ...stories.flatMap((s) => s.steps || [])].flatMap((x) => [x.from, x.to]));
   for (const b of map.blocks) for (const p of b.parts || []) if (!used.has(p.id)) out.push(`part "${p.id}" in block "${b.id}" is in no link or step`);
   const arrows = new Set(links.filter((l) => owner[l.from] && owner[l.to] && owner[l.from] !== owner[l.to]).map((l) => `${[owner[l.from], owner[l.to]].sort().join("|")}|${l.style || "sync"}`));
@@ -793,7 +872,7 @@ function normalize(map) {
     spine,
     paths,
     walks,
-    callouts: (map.notes || []).map((n) => ({ block: owner[n.on], text: n.text, source: n.on })),
+    callouts: (map.notes || []).map((n) => (n.link ? { block: null, link: [n.link.from, n.link.to], text: n.text, source: null } : { block: owner[n.on], text: n.text, source: n.on })),
     lanes: [lanes.main || LANES[0], lanes.background || LANES[1], lanes.control || LANES[2]],
     start: map.start || null,
   };
@@ -804,11 +883,14 @@ let boards = 0;
 class Board {
   constructor(host, model, o) {
     this.o = { ...o, compact: false };
-    this.ty = TY;
+    this.skin = SKINS[o.skin || "sketch"];
+    this.T = this.skin.ty;
+    this.L = this.skin.ly;
+    this.ty = this.T;
     this.id = ++boards;
     this.st = { layout: null, stack: false, story: null, shape: null, part: null, sel: null, step: null, vb: null, hot: null };
     this.root = document.createElement("div");
-    this.root.className = `smap${o.dialog ? " dialog" : ""}`;
+    this.root.className = `smap${o.dialog ? " dialog" : ""}${this.skin.clean ? " clean" : ""}`;
     const end = o.dialog
       ? `<button type="button" data-z="close" aria-label="Close the map">&times;</button>`
       : `<button type="button" data-z="open" aria-label="Open the map full screen"><svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M9.5 2.5h4v4M6.5 13.5h-4v-4M13.5 2.5 9 7M2.5 13.5 7 9" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></button>`;
@@ -820,7 +902,7 @@ class Board {
     this.svg = this.root.querySelector(".smap-svg");
     this.canvas = this.root.querySelector(".smap-canvas");
     this.readout = this.root.querySelector(".smap-readout");
-    this.rc = o.rough.svg(this.svg);
+    this.rc = this.skin.clean ? crisp() : o.rough.svg(this.svg);
     this.dragMoved = false;
     this.rev = 0;
     this.full = {};
@@ -910,7 +992,7 @@ class Board {
 
   wantW(b) {
     const k = this.inset(b);
-    return Math.max(measure(b.name, this.ty.name) + k.g, this.o.compact ? 0 : measure(b.role, TY.role)) + k.l + k.r + 4;
+    return Math.max(measure(b.name, this.ty.name) + k.g, this.o.compact ? 0 : measure(b.role, this.T.role)) + k.l + k.r + 4;
   }
 
   wordW(b) {
@@ -922,12 +1004,12 @@ class Board {
     const k = this.inset(b);
     const tw = w - k.l - k.r;
     const name = wrap(b.name, tw - k.g, this.ty.name);
-    const role = this.o.compact ? [] : wrap(b.role, tw, TY.role);
+    const role = this.o.compact ? [] : wrap(b.role, this.sil(b) === "actor" ? tw - k.g : tw, this.T.role);
     const foot = this.unbuilt(b) || (!this.o.compact && (this.tagOf(b) || b.kind === "log")) ? 26 : 0;
     const strip = this.o.compact ? [] : this.stripOf(b);
-    const heaps = this.o.compact ? [] : this.heapOf(b).map((m) => { const p = this.shapeOf(m); return { m, lines: wrap(p && p.role ? p.role : this.labelOf(m), w - 76, TY.heap) }; });
-    const heapH = heaps.reduce((s, x) => s + Math.max(46, x.lines.length * TY.heap.lh + 18) + 8, 0);
-    return { k, name, role, foot, strip, heaps, h: k.t + name.length * this.ty.name.lh + 4 + role.length * TY.role.lh + (strip.length ? 44 : 0) + (heapH ? heapH + 6 : 0) + foot + k.b };
+    const heaps = this.o.compact ? [] : this.heapOf(b).map((m) => { const p = this.shapeOf(m); return { m, lines: wrap(p && p.role ? p.role : this.labelOf(m), w - 76, this.T.heap) }; });
+    const heapH = heaps.reduce((s, x) => s + Math.max(46, x.lines.length * this.T.heap.lh + 18) + 8, 0);
+    return { k, name, role, foot, strip, heaps, h: k.t + name.length * this.ty.name.lh + 4 + role.length * this.T.role.lh + (strip.length ? 44 : 0) + (heapH ? heapH + 6 : 0) + foot + k.b };
   }
 
   heapOf(b) {
@@ -966,7 +1048,7 @@ class Board {
 
   rowsOf(rows, ty, width) {
     const out = rows.map((r) => {
-      const lines = r.text ? balance(r.text, width || LY.labelW, ty) : [];
+      const lines = r.text ? balance(r.text, width || this.L.labelW, ty) : [];
       const w = (lines.length ? Math.max(...lines.map((ln) => measure(ln, ty))) : 0) + (r.n != null ? 28 : 0);
       return { ...r, lines, w, h: Math.max(r.n != null ? 22 : 0, lines.length * ty.lh) };
     });
@@ -975,8 +1057,8 @@ class Board {
 
   linkLabel(i) {
     const steps = this.SM.on[i] || [];
-    if (steps.length) return this.rowsOf(steps.map((n) => ({ n, text: this.B.spine.steps[n].say, tone: "marker" })), TY.step);
-    return this.B.links[i].label ? this.rowsOf([{ text: this.B.links[i].label }], TY.link) : null;
+    if (steps.length) return this.rowsOf(steps.map((n) => ({ n, text: this.B.spine.steps[n].say, tone: "marker" })), this.T.step);
+    return this.B.links[i].label ? this.rowsOf([{ text: this.B.links[i].label }], this.T.link) : null;
   }
 
   arrange() {
@@ -1061,8 +1143,8 @@ class Board {
     const cells = {};
     for (const b of B.blocks) (cells[`${gx[b.id]},${gy[b.id]}`] = cells[`${gx[b.id]},${gy[b.id]}`] || []).push(b.id);
     for (const k of Object.keys(cells)) cells[k].sort(cmp);
-    const colW = Array(nx).fill(tall ? LY.phone : LY.minW);
-    for (const b of B.blocks) colW[gx[b.id]] = Math.max(colW[gx[b.id]], tall ? 0 : Math.min(LY.maxW, Math.ceil(this.wantW(b))), Math.ceil(this.wordW(b)));
+    const colW = Array(nx).fill(tall ? this.L.phone : this.L.minW);
+    for (const b of B.blocks) colW[gx[b.id]] = Math.max(colW[gx[b.id]], tall ? 0 : Math.min(this.L.maxW, Math.ceil(this.wantW(b))), Math.ceil(this.wordW(b)));
     const text = {};
     const h = {};
     for (const b of B.blocks) { text[b.id] = this.blockText(b, colW[gx[b.id]]); h[b.id] = text[b.id].h; }
@@ -1076,16 +1158,16 @@ class Board {
       let best = null;
       for (const r of this.SM.rails) {
         const l = B.links[r.link];
-        if ((l.from === a && l.to === b) || (l.from === b && l.to === a)) { const s = this.rowsOf([{ n: r.i, text: B.spine.steps[r.i].say, tone: "marker" }], TY.step); best = !best || s.w > best.w ? s : best; }
+        if ((l.from === a && l.to === b) || (l.from === b && l.to === a)) { const s = this.rowsOf([{ n: r.i, text: B.spine.steps[r.i].say, tone: "marker" }], this.T.step); best = !best || s.w > best.w ? s : best; }
       }
       return best;
     };
-    const [gmin, gmax] = tall ? LY.phoneGutter : LY.gutter;
+    const [gmin, gmax] = tall ? this.L.phoneGutter : this.L.gutter;
     const gut = Array(Math.max(0, nx - 1)).fill(gmin);
-    const rgap = Array(Math.max(0, ny - 1)).fill(tall ? LY.phoneRowGap : LY.rowGap);
+    const rgap = Array(Math.max(0, ny - 1)).fill(tall ? this.L.phoneRowGap : this.L.rowGap);
     const sgap = {};
     const chain = (b) => { const f = b.frame && this.F[b.frame]; return !f ? [] : f.parent ? [f.id, f.parent] : [f.id]; };
-    const walls = (a, b) => { const x = chain(a); const y = chain(b); return (x.filter((f) => !y.includes(f)).length + y.filter((f) => !x.includes(f)).length) * LY.frame; };
+    const walls = (a, b) => { const x = chain(a); const y = chain(b); return (x.filter((f) => !y.includes(f)).length + y.filter((f) => !x.includes(f)).length) * this.L.frame; };
     const waits = (a, b) => B.links.some((l, li) => ((l.from === a && l.to === b) || (l.from === b && l.to === a)) && [...(this.SM.on[li] || []), ...this.SM.rails.filter((r) => r.link === li).map((r) => r.i)].some((n) => B.spine.steps[n].waitsFor));
     if (!compact) for (const a of B.blocks) for (const b of B.blocks) {
       if (a.id >= b.id) continue;
@@ -1119,10 +1201,10 @@ class Board {
       }
       if (gx[s.from] === gx[s.to] && Math.abs(gy[s.from] - gy[s.to]) === 1) {
         const j = Math.min(gy[s.from], gy[s.to]);
-        rgap[j] = Math.max(rgap[j], (tall ? LY.phoneRowGap : LY.rowGap) + 60);
+        rgap[j] = Math.max(rgap[j], (tall ? this.L.phoneRowGap : this.L.rowGap) + 60);
       }
     }
-    const stackGap = (id, i) => (i === 0 ? 0 : Math.max(LY.stack, sgap[id] || 0));
+    const stackGap = (id, i) => (i === 0 ? 0 : Math.max(this.L.stack, sgap[id] || 0));
     const stackH = (list) => list.reduce((s, id, i) => s + h[id] + stackGap(id, i), 0);
     const off = {};
     for (const list of Object.values(cells)) { let yy = 0; list.forEach((id, n) => { yy += stackGap(id, n); off[id] = yy; yy += h[id]; }); }
@@ -1135,14 +1217,14 @@ class Board {
     const rowH = Array(ny).fill(0);
     for (const [k, list] of Object.entries(cells)) { const j = Number(k.split(",")[1]); rowH[j] = Math.max(rowH[j], stackH(list)); }
     const showLanes = hasPath && !compact && new Set(Object.values(tall ? colLane : rowLane)).size > 1;
-    const left = LY.margin + (!tall && showLanes ? LY.lane : 0);
+    const left = this.L.margin + (!tall && showLanes ? this.L.lane : 0);
     const colX = [];
     let x = left;
     for (let i = 0; i < nx; i++) { colX[i] = x; x += colW[i] + (i < nx - 1 ? gut[i] : 0); }
     const right = x;
     const width = right - left;
     const thesis = compact ? [] : wrap(B.thesis, Math.max(width, 300), this.ty.thesis);
-    const thesisTop = LY.margin;
+    const thesisTop = this.L.margin;
     const thesisBottom = thesisTop + thesis.length * this.ty.thesis.lh;
     const topY = thesisBottom + (compact ? 14 : tall && showLanes ? 64 : 50);
     const rowY = [];
@@ -1174,13 +1256,13 @@ class Board {
       if (f.scope === "machine") continue;
       const ids = B.blocks.filter((b) => b.frame === f.id).map((b) => b.id);
       if (!ids.length) continue;
-      const rect = bb(ids, LY.frame);
+      const rect = bb(ids, this.L.frame);
       if (f.scope === "process") procRect[f.id] = rect;
       frames.push({ f, rect });
     }
     for (const f of B.frames.filter((m) => m.scope === "machine")) {
       const own = B.blocks.filter((b) => b.frame === f.id).map((b) => b.id);
-      const parts = [...(own.length ? [bb(own, LY.frame)] : []), ...B.frames.filter((p) => p.parent === f.id && procRect[p.id]).map((p) => grow(procRect[p.id], LY.inset))];
+      const parts = [...(own.length ? [bb(own, this.L.frame)] : []), ...B.frames.filter((p) => p.parent === f.id && procRect[p.id]).map((p) => grow(procRect[p.id], this.L.inset))];
       if (parts.length) frames.push({ f, rect: union(parts) });
     }
     frames.sort((a, b) => (a.f.scope === "machine" ? 0 : 1) - (b.f.scope === "machine" ? 0 : 1));
@@ -1214,7 +1296,7 @@ class Board {
         lanes.push({ text: t, x: colX[i], y: topY - 40, w: colW[i], vertical: false });
       }
     } else if (showLanes) {
-      for (let j = 0; j < ny; j++) lanes.push({ text: B.lanes[rowLane[j]], x: LY.margin - 6, y: rowY[j], h: rowH[j], vertical: true });
+      for (let j = 0; j < ny; j++) lanes.push({ text: B.lanes[rowLane[j]], x: this.L.margin - 6, y: rowY[j], h: rowH[j], vertical: true });
     }
     const all = [...Object.values(box), ...frames.flatMap((fr) => (fr.label ? [fr.rect, fr.label] : [fr.rect])), ...(thesis.length ? [{ x: left, y: thesisTop, w: Math.max(width, ...thesis.map((ln) => measure(ln, this.ty.thesis) + 6)), h: thesisBottom - thesisTop }] : [])];
     const ext = union(all);
@@ -1404,6 +1486,7 @@ class Board {
     const g = this.el("g", { class: "thesis" }, this.layers.ov);
     this.text(g, t.x, t.y + this.ty.thesis.size, t.lines, this.ty.thesis, "");
     this.seed = hash(`thesis-${this.B.thesis}`);
+    if (this.skin.clean) return;
     const lw = Math.max(...t.lines.map((ln) => measure(ln, this.ty.thesis)));
     const uy = t.y + this.ty.thesis.size + (t.lines.length - 1) * this.ty.thesis.lh + 9;
     this.R("k-marker", this.rc.line(t.x - 2, uy, t.x + lw + 4, uy + 1.5, this.O({ strokeWidth: 2.2, roughness: 1.4 })), g);
@@ -1427,12 +1510,12 @@ class Board {
       if (ln.vertical) {
         const cy = ln.y + ln.h / 2;
         const words = label.split(" ");
-        const lines = measure(label, TY.lane) * 1.1 > ln.h && words.length > 1 ? [words.slice(0, Math.ceil(words.length / 2)).join(" "), words.slice(Math.ceil(words.length / 2)).join(" ")] : [label];
-        const t = this.text(this.layers.lanes, ln.x, cy, lines, TY.lane, "t-caps t-ink3", "middle");
+        const lines = measure(label, this.T.lane) * 1.1 > ln.h && words.length > 1 ? [words.slice(0, Math.ceil(words.length / 2)).join(" "), words.slice(Math.ceil(words.length / 2)).join(" ")] : [label];
+        const t = this.text(this.layers.lanes, ln.x, cy, lines, this.T.lane, "t-caps t-ink3", "middle");
         t.setAttribute("transform", `rotate(-90 ${ln.x} ${cy})`);
         t.setAttribute("letter-spacing", "1.2");
       } else {
-        const t = this.text(this.layers.lanes, ln.x, ln.y, [label], TY.lane, "t-caps t-ink3");
+        const t = this.text(this.layers.lanes, ln.x, ln.y, [label], this.T.lane, "t-caps t-ink3");
         t.setAttribute("letter-spacing", "1.2");
       }
     }
@@ -1626,12 +1709,12 @@ class Board {
     if (b.kind === "log") for (let i = 0; i < 4; i++) this.R("k-ink2", this.rc.rectangle(x + w - k.r - 4 * 17 + i * 17, y + h - k.b - 15, 13, 9, this.O({ strokeWidth: 1.1, roughness: 0.7 })), g);
     let ty = y + k.t + this.ty.name.size - 3;
     this.text(g, x + k.l, ty, tx.name, this.ty.name, "");
-    ty += (tx.name.length - 1) * this.ty.name.lh + 6 + TY.role.size;
-    this.text(g, x + k.l, ty, tx.role, TY.role, "t-ink2");
-    let cy = y + k.t + tx.name.length * this.ty.name.lh + 4 + tx.role.length * TY.role.lh + 8;
+    ty += (tx.name.length - 1) * this.ty.name.lh + 6 + this.T.role.size;
+    this.text(g, x + k.l, ty, tx.role, this.T.role, "t-ink2");
+    let cy = y + k.t + tx.name.length * this.ty.name.lh + 4 + tx.role.length * this.T.role.lh + 8;
     if (tx.strip.length) { this.drawStrip(g, x + k.l, cy, tx.strip); cy += 44; }
     for (const hp of tx.heaps) {
-      const hh = Math.max(46, hp.lines.length * TY.heap.lh + 18);
+      const hh = Math.max(46, hp.lines.length * this.T.heap.lh + 18);
       this.drawHeapIn(g, hp, { x: x + 10, y: cy, w: w - 20, h: hh });
       cy += hh + 8;
     }
@@ -1665,18 +1748,18 @@ class Board {
     this.R("f-green", this.rc.rectangle(r.x + 2, r.y + 2, r.w - 4, r.h - 4, this.O({ stroke: "none", fill: "#000", fillStyle: "hachure", hachureGap: 9, hachureAngle: 60, fillWeight: 0.7 })), hg);
     this.R("k-ink2", this.rc.rectangle(r.x, r.y, r.w, r.h, this.O({ strokeWidth: 1.4, roughness: 1, strokeLineDash: [7, 4] })), hg);
     this.storeGlyph("memory", hg, r.x + 24, r.y + r.h / 2 - 3, 30, "k-ink2");
-    this.text(hg, r.x + 50, r.y + 9 + TY.heap.size, hp.lines, TY.heap, "t-ink2 halo");
+    this.text(hg, r.x + 50, r.y + 9 + this.T.heap.size, hp.lines, this.T.heap, "t-ink2 halo");
   }
 
   pillW(text) {
-    return measure(text.toUpperCase(), TY.tag) + 0.8 * text.length + 14;
+    return measure(text.toUpperCase(), this.T.tag) + 0.8 * text.length + 14;
   }
 
   pill(g, x, y, text, cls) {
     const pw = this.pillW(text);
     const pg = this.el("g", { class: `pill ${cls}` }, g);
     this.el("rect", { x, y, width: pw, height: 17, rx: 8.5 }, pg);
-    const t = this.text(pg, x + 7, y + 12.5, [text.toUpperCase()], TY.tag, `t-caps ${cls === "warn" ? "t-amber" : "t-ink3"}`);
+    const t = this.text(pg, x + 7, y + 12.5, [text.toUpperCase()], this.T.tag, `t-caps ${cls === "warn" ? "t-amber" : "t-ink3"}`);
     t.setAttribute("letter-spacing", "0.8");
     return x + pw;
   }
@@ -1890,7 +1973,7 @@ class Board {
       leader(lab, spot);
       this.drawRows(lab, spot.r, size, spine ? "spine" : "plain", spine ? (rg, row) => this.wireStep(rg, row.n, null) : null);
       if (spine && l.label) {
-        const plain = this.rowsOf([{ text: l.label }], TY.link);
+        const plain = this.rowsOf([{ text: l.label }], this.T.link);
         const pl = this.el("g", { class: "lab plain gone", "data-link": i }, this.layers.labels);
         this.drawRows(pl, { x: spot.r.x + (spot.r.w - plain.w) / 2, y: spot.r.y + (spot.r.h - plain.h) / 2, w: plain.w, h: plain.h }, plain, "plain");
         this.labEls.push({ g: pl, i, plain: true });
@@ -1903,7 +1986,7 @@ class Board {
       this.seed = hash(`rail-${rl.i}`);
       const g = this.el("g", { class: "step", "data-step": rl.i }, sp);
       this.drawArrow(g, pts, 1.6, null, "open", "k-marker", "fh-marker");
-      const size = this.rowsOf([{ n: rl.i, text: B.spine.steps[rl.i].say, tone: "marker" }], TY.step);
+      const size = this.rowsOf([{ n: rl.i, text: B.spine.steps[rl.i].say, tone: "marker" }], this.T.step);
       const spot = put(size, pts, soft);
       if (spot) { leader(g, spot, "k-marker"); this.drawRows(g, spot.r, size, "spine"); }
       this.wireStep(g, rl.i, null);
@@ -1912,7 +1995,7 @@ class Board {
       const s = B.spine.steps[n];
       const g = this.el("g", { class: "step", "data-step": n }, sp);
       this.seed = hash(`spine-free-${n}`);
-      this.drawLoose(g, s, B.spine.steps, "marker", false, TY.step, n, this.el("g", { class: "step", "data-step": n }, this.layers.spineRing), place, soft);
+      this.drawLoose(g, s, B.spine.steps, "marker", false, this.T.step, n, this.el("g", { class: "step", "data-step": n }, this.layers.spineRing), place, soft);
       this.wireStep(g, n, null);
     }
   }
@@ -1992,7 +2075,7 @@ class Board {
       if (row.n != null) {
         const tone = row.tone === "red" ? " risk" : row.tone === "ink2" ? " stop" : "";
         this.el("circle", { cx: x + 11, cy: y + 11, r: 11, class: `disc${tone}` }, rg);
-        this.text(rg, x + 11, y + 15.5, [String(row.n + 1)], TY.disc, "t-paper", "middle");
+        this.text(rg, x + 11, y + 15.5, [String(row.n + 1)], this.T.disc, "t-paper", "middle");
         x += 28;
       }
       const cls = mode === "plain" ? "t-ink2" : row.tone === "red" ? "t-red" : row.tone === "ink2" ? "t-ink2" : "t-marker";
@@ -2009,11 +2092,23 @@ class Board {
     const loose = [...this.B.paths.map((p) => p.steps), this.B.spine.steps].flatMap((steps) => steps.filter((s) => s.from !== s.to && this.linkFor(s.from, s.to) < 0).map((s) => this.loose(s.from, s.to, steps).pts));
     const soft = [...this.routes.filter(Boolean).map((x) => x.pts), ...Object.values(this.railPts), ...loose];
     (this.B.callouts || []).forEach((c) => {
+      const lines = wrap(c.text, 176, this.T.note);
+      const w = Math.max(...lines.map((ln) => measure(ln, this.T.note))) + 24;
+      const h = lines.length * this.T.note.lh + 18;
+      if (c.link) {
+        const [a, z] = c.link.map((id) => this.B.owner[id]);
+        const li = this.B.links.findIndex((l) => (l.from === a && l.to === z) || (l.from === z && l.to === a));
+        const route = li >= 0 && this.routes[li];
+        if (!route) return;
+        const spot = this.place({ w: w + 8, h: h + 8 }, route.pts, soft);
+        if (!spot) return;
+        this.placed.push(spot.r);
+        if (spot.leader) this.R("k-ink3 lead", this.rc.line(spot.leader[0][0], spot.leader[0][1], spot.leader[1][0], spot.leader[1][1], this.O({ strokeWidth: 1.1, roughness: 0.4, strokeLineDash: [3, 4] })), this.layers.notes);
+        this.drawSticky(this.layers.notes, grow(spot.r, -4), lines, c.text);
+        return;
+      }
       const r = this.G.box[c.block];
       if (!r) return;
-      const lines = wrap(c.text, 176, TY.note);
-      const w = Math.max(...lines.map((ln) => measure(ln, TY.note))) + 24;
-      const h = lines.length * TY.note.lh + 18;
       const at = this.place.around({ w: w + 8, h: h + 8 }, grow(r, 2), soft, this.extent());
       if (!at) return;
       this.placed.push(at);
@@ -2051,7 +2146,7 @@ class Board {
       this.seed = hash(`path-${p.id}-${i}`);
       const g = this.el("g", { class: "step", "data-step": i }, layer);
       if (li < 0) {
-        const lab = this.drawLoose(g, s, p.steps, tone, !!s.risk, TY.step, i, this.el("g", { class: "step", "data-step": i }, this.layers.pathRing), place, [...lines, ...loose.filter((x, k) => x && k !== i)]);
+        const lab = this.drawLoose(g, s, p.steps, tone, !!s.risk, this.T.step, i, this.el("g", { class: "step", "data-step": i }, this.layers.pathRing), place, [...lines, ...loose.filter((x, k) => x && k !== i)]);
         if (s.stop) { const at = this.boxOf(g); this.octagon(g, at.x - 12, at.y + 11); }
         this.wireStep(lab, i, p);
         tags.push(lab);
@@ -2066,7 +2161,7 @@ class Board {
         if (!done.has(li)) {
           done.add(li);
           const rows = onLink[li].map((n) => { const x = p.steps[n]; return { n, text: x.say, tone: x.risk ? "red" : x.stop ? "ink2" : "marker" }; });
-          const size = this.rowsOf(rows, TY.step);
+          const size = this.rowsOf(rows, this.T.step);
           const spot = place(size, base, lines, true);
           if (spot) {
             const lab = this.el("g", { class: "step", "data-step": i }, layer);
@@ -2179,12 +2274,12 @@ class Board {
   memberSize(m, w) {
     const it = this.items[m];
     const tw = w - 70;
-    const name = wrap(it.label, tw, TY.member);
+    const name = wrap(it.label, tw, this.T.member);
     const part = this.shapeOf(m);
-    const role = part && part.role ? wrap(part.role, tw, TY.mrole) : [];
+    const role = part && part.role ? wrap(part.role, tw, this.T.mrole) : [];
     const unbuilt = it.status !== "live";
     const tail = part && part.shape === "guard" ? 20 : 0;
-    return { name, role, h: Math.max(78, 14 + name.length * TY.member.lh + (role.length ? 4 + role.length * TY.mrole.lh : 0) + (unbuilt ? 20 : 0) + 14 + tail) };
+    return { name, role, h: Math.max(78, 14 + name.length * this.T.member.lh + (role.length ? 4 + role.length * this.T.mrole.lh : 0) + (unbuilt ? 20 : 0) + 14 + tail) };
   }
 
   memberPath(shape, r) {
@@ -2198,7 +2293,7 @@ class Board {
   }
 
   memberW(m, least) {
-    return Math.max(least, Math.ceil(Math.max(...this.items[m].label.split(/\s+/).map((x) => measure(x, TY.member))) + 78));
+    return Math.max(least, Math.ceil(Math.max(...this.items[m].label.split(/\s+/).map((x) => measure(x, this.T.member))) + 78));
   }
 
   shapeOf(m) {
@@ -2211,8 +2306,8 @@ class Board {
     const w = sil === "actor" ? 132 : 158;
     const [top, bottom] = { actor: [58, 12], chip: [13, 22], cylinder: [27, 18], bucket: [32, 16], key: [14, 14], pages: [14, 14] }[sil] || [14, 14];
     const lead = sil === "key" ? 44 : 14;
-    const name = wrap(blk.name, w - lead - 12, TY.link);
-    return { w, h: top + name.length * TY.link.lh + bottom, name, sil, top, lead };
+    const name = wrap(blk.name, w - lead - 12, this.T.link);
+    return { w, h: top + name.length * this.T.link.lh + bottom, name, sil, top, lead };
   }
 
   drawInside() {
@@ -2230,9 +2325,9 @@ class Board {
     const meta = {};
     const GY = 60;
     const pad = 30;
-    const title = wrap(b.name, 520, TY.title);
-    const roleLines = wrap(b.role, 560, TY.role);
-    const TH = title.length * TY.title.lh + roleLines.length * TY.role.lh + 50;
+    const title = wrap(b.name, 520, this.T.title);
+    const roleLines = wrap(b.role, 560, this.T.role);
+    const TH = title.length * this.T.title.lh + roleLines.length * this.T.role.lh + 50;
     const pairs = new Map();
     for (const f of A.touching) {
       const a = A.node(f.from);
@@ -2261,7 +2356,7 @@ class Board {
       e.strength = Math.max(...e.flows.map((f) => (f.kind === "control" ? 0 : f.mode === "async" ? 1 : 2)));
       const lead = e.flows.find((f) => A.node(f.from) === e.a && walk.has(f.id)) || e.flows.find((f) => A.node(f.from) === e.a) || e.flows[0];
       const label = e.flows.map((f) => f.label).find(Boolean);
-      e.size = e.nums.length ? this.rowsOf(e.nums.map(([n, f]) => ({ n: n - 1, text: f.label || this.walkSteps()[n - 1].say, tone: "marker" })), TY.link, 104) : label ? this.rowsOf([{ text: lead.label || label }], TY.link, 104) : null;
+      e.size = e.nums.length ? this.rowsOf(e.nums.map(([n, f]) => ({ n: n - 1, text: f.label || this.walkSteps()[n - 1].say, tone: "marker" })), this.T.link, 104) : label ? this.rowsOf([{ text: lead.label || label }], this.T.link, 104) : null;
       if (lead && A.node(lead.from) !== e.a) [e.a, e.z] = [e.z, e.a];
     }
     const inPath = new Set(A.path);
@@ -2356,10 +2451,10 @@ class Board {
         const hx = nCols ? colX[lo] : 0;
         const hw = Math.max(nCols ? colX[hi] + colW[hi] - hx : 0, 420);
         const tw = hw - 120 - this.pillW("in memory");
-        const lines = heapIds.map((m) => { const p = this.shapeOf(m); return { m, name: wrap(this.labelOf(m), tw, TY.member), role: wrap(p && p.role ? p.role : (this.items[m].what || ""), tw, TY.mrole) }; });
+        const lines = heapIds.map((m) => { const p = this.shapeOf(m); return { m, name: wrap(this.labelOf(m), tw, this.T.member), role: wrap(p && p.role ? p.role : (this.items[m].what || ""), tw, this.T.mrole) }; });
         let hy = bottom + GY - 12;
         for (const ln of lines) {
-          const h = Math.max(70, 16 + ln.name.length * TY.member.lh + ln.role.length * TY.mrole.lh + 16);
+          const h = Math.max(70, 16 + ln.name.length * this.T.member.lh + ln.role.length * this.T.mrole.lh + 16);
           boxes[ln.m] = { x: hx, y: hy, w: hw, h };
           meta[ln.m] = { kind: "heap", lines: ln };
           hy += h + 18;
@@ -2390,7 +2485,7 @@ class Board {
       }
     }
     const inner = Object.values(boxes);
-    const W = Math.max(...inner.map((r) => r.x + r.w), measure(title[0], TY.title) + 40);
+    const W = Math.max(...inner.map((r) => r.x + r.w), measure(title[0], this.T.title) + 40);
     const H = Math.max(...inner.map((r) => r.y + r.h));
     const fr = { x: -pad, y: 0, w: W + pad * 2, h: H + pad };
     const ghosts = [...new Set(edges.flatMap((e) => [e.a, e.z]).filter((n) => n.startsWith("ghost:")))].map((n) => n.slice(6));
@@ -2446,13 +2541,13 @@ class Board {
     const procLabel = b.frame && this.F[b.frame] && this.F[b.frame].scope === "process" ? this.F[b.frame].label : null;
     this.R("k-ink3", this.rc.rectangle(fr.x, fr.y, fr.w, fr.h, this.O({ strokeWidth: 1.8, roughness: 1.2, strokeLineDash: [7, 6] })), g);
     const titleG = this.el("g", { class: "in-title" }, g);
-    this.text(titleG, fr.x + 22, 40, title, TY.title, "");
-    this.text(titleG, fr.x + 22, 40 + (title.length - 1) * TY.title.lh + 28, roleLines, TY.role, "t-ink2");
-    const hard = [{ x: fr.x + 14, y: 8, w: Math.max(measure(title[0], TY.title), ...roleLines.map((l) => measure(l, TY.role))) + 20, h: TH - 30 }];
+    this.text(titleG, fr.x + 22, 40, title, this.T.title, "");
+    this.text(titleG, fr.x + 22, 40 + (title.length - 1) * this.T.title.lh + 28, roleLines, this.T.role, "t-ink2");
+    const hard = [{ x: fr.x + 14, y: 8, w: Math.max(measure(title[0], this.T.title), ...roleLines.map((l) => measure(l, this.T.role))) + 20, h: TH - 30 }];
     if (procLabel) {
       const tag = procLabel.toUpperCase();
-      const tw = measure(tag, TY.lane) + 16;
-      const tg = this.text(g, fr.x + fr.w - tw - 8, 24, [tag], TY.lane, "t-caps t-ink3");
+      const tw = measure(tag, this.T.lane) + 16;
+      const tg = this.text(g, fr.x + fr.w - tw - 8, 24, [tag], this.T.lane, "t-caps t-ink3");
       tg.setAttribute("letter-spacing", "1.2");
       tg.classList.add("in-tag");
       hard.push({ x: fr.x + fr.w - tw - 14, y: 8, w: tw + 12, h: 24 });
@@ -2514,12 +2609,20 @@ class Board {
       this.el("title", {}, lab).textContent = e.flows.map((f) => f.label).filter(Boolean).join("; ");
     }
     for (const c of this.B.callouts || []) {
-      const at = boxes[c.source] || (c.block === sid ? boxes[A.path[0]] : null);
-      if (!at) continue;
-      const lines = wrap(c.text, 170, TY.note);
-      const w = Math.max(...lines.map((ln) => measure(ln, TY.note))) + 24;
-      const h = lines.length * TY.note.lh + 18;
-      const spot = place.around({ w, h }, at, soft, fr);
+      const lines = wrap(c.text, 170, this.T.note);
+      const w = Math.max(...lines.map((ln) => measure(ln, this.T.note))) + 24;
+      const h = lines.length * this.T.note.lh + 18;
+      let spot = null;
+      if (c.link) {
+        const ed = order.find((e) => (e.a === c.link[0] && e.z === c.link[1]) || (e.a === c.link[1] && e.z === c.link[0]));
+        const near = ed && place({ w, h }, routes.get(ed).pts, soft);
+        if (near && near.leader) this.R("k-ink3", this.rc.line(near.leader[0][0], near.leader[0][1], near.leader[1][0], near.leader[1][1], this.O({ strokeWidth: 1, roughness: 0.4, strokeLineDash: [3, 4] })), labLayer);
+        spot = near && near.r;
+      } else {
+        const at = boxes[c.source] || (c.block === sid ? boxes[A.path[0]] : null);
+        if (!at) continue;
+        spot = place.around({ w, h }, at, soft, fr);
+      }
       if (!spot) continue;
       this.drawSticky(labLayer, spot, lines, c.text);
       const sx = tx + (spot.x - 30) * k;
@@ -2535,13 +2638,13 @@ class Board {
 
   sibSize(o) {
     const blk = this.K[o];
-    const name = wrap(blk.name, 200, TY.member);
-    const role = wrap(blk.role, 200, TY.mrole);
-    return { name, role, h: 16 + name.length * TY.member.lh + 4 + role.length * TY.mrole.lh + 44 };
+    const name = wrap(blk.name, 200, this.T.member);
+    const role = wrap(blk.role, 200, this.T.mrole);
+    return { name, role, h: 16 + name.length * this.T.member.lh + 4 + role.length * this.T.mrole.lh + 44 };
   }
 
   marksOf(m, r) {
-    return this.markList(this.items[m].badges, r.x + r.w - 6, r.y - 8, TY.badge);
+    return this.markList(this.items[m].badges, r.x + r.w - 6, r.y - 8, this.T.badge);
   }
 
   drawMarks(pg, m, list) {
@@ -2554,21 +2657,21 @@ class Board {
 
   drawSticky(parent, at, lines, text) {
     this.seed = hash(`note-${text}`);
-    const g = this.el("g", { class: "note", transform: `rotate(${(hash(text) % 3) - 1} ${at.x + at.w / 2} ${at.y + at.h / 2})` }, parent);
+    const g = this.el("g", { class: "note", transform: `rotate(${this.skin.clean ? 0 : (hash(text) % 3) - 1} ${at.x + at.w / 2} ${at.y + at.h / 2})` }, parent);
     this.R("f-sticky", this.rc.rectangle(at.x, at.y, at.w, at.h, this.O({ stroke: "none", fill: "#000", fillStyle: "solid" })), g);
     this.R("k-ink3", this.rc.rectangle(at.x, at.y, at.w, at.h, this.O({ strokeWidth: 1, roughness: 0.8 })), g);
-    this.text(g, at.x + 12, at.y + 9 + TY.note.size - 1, lines, TY.note, "t-sticky");
+    this.text(g, at.x + 12, at.y + 9 + this.T.note.size - 1, lines, this.T.note, "t-sticky");
     return g;
   }
 
   contentsCard(st) {
     const rows = st.holds.map((h) => {
-      const what = wrap(h.text, 340, TY.hold);
-      const sub = h.note ? wrap(h.note, 340, TY.small) : [];
-      return { h, what, sub, height: what.length * TY.hold.lh + sub.length * TY.small.lh + 14 };
+      const what = wrap(h.text, 340, this.T.hold);
+      const sub = h.note ? wrap(h.note, 340, this.T.small) : [];
+      return { h, what, sub, height: what.length * this.T.hold.lh + sub.length * this.T.small.lh + 14 };
     });
-    const head = wrap(st.label, st.tag ? 300 : 380, TY.member);
-    const top = 22 + head.length * TY.member.lh;
+    const head = wrap(st.label, st.tag ? 300 : 380, this.T.member);
+    const top = 22 + head.length * this.T.member.lh;
     const h = top + rows.reduce((s, r) => s + r.height, 0) + 12;
     return { w: 420, h, rows, st, head, top };
   }
@@ -2579,14 +2682,14 @@ class Board {
     const sel = this.el("g", { class: "sel" }, pg);
     this.R("k-marker", this.rc.rectangle(c.x - 5, c.y - 5, c.w + 10, c.h + 10, this.O({ strokeWidth: 3, roughness: 1.6 })), sel);
     this.R("k-ink", this.rc.rectangle(c.x, c.y, c.w, c.h, this.O({ strokeWidth: 1.8 })), pg);
-    this.text(pg, c.x + 14, c.y + 28, c.head, TY.member, "");
+    this.text(pg, c.x + 14, c.y + 28, c.head, this.T.member, "");
     if (c.st.tag) this.pill(pg, c.x + c.w - 14 - this.pillW(c.st.tag), c.y + 14, c.st.tag, "");
     let y = c.y + c.top;
     for (const r of c.rows) {
       if (r.h.sealed != null) this.lock(pg, c.x + 22, y + 9, r.h.sealed);
-      this.text(pg, c.x + 40, y + 13, r.what, TY.hold, "");
-      let yy = y + 13 + (r.what.length - 1) * TY.hold.lh;
-      for (const s of r.sub) { yy += TY.small.lh; this.text(pg, c.x + 40, yy, [s], TY.small, "t-ink3"); }
+      this.text(pg, c.x + 40, y + 13, r.what, this.T.hold, "");
+      let yy = y + 13 + (r.what.length - 1) * this.T.hold.lh;
+      for (const s of r.sub) { yy += this.T.small.lh; this.text(pg, c.x + 40, yy, [s], this.T.small, "t-ink3"); }
       y += r.height;
     }
     this.drawMarks(pg, c.id, marks || []);
@@ -2633,10 +2736,10 @@ class Board {
     if (shape === "handoff") this.drawArrow(pg, [[r.x - 4, r.y + r.h + 4], [r.x + 22, r.y + r.h + 4]], 1.6, null, "fill", "k-ink2", "fh-ink2");
     if (it.type === "store") this.storeGlyph(it.medium, pg, r.x + 32, r.y + 38, 40, "k-ink2");
     else this.glyph(shape, pg, r.x + 32, r.y + 38, 40, "k-ink2");
-    let ty = r.y + 14 + TY.member.size - 2;
-    this.text(pg, r.x + 62, ty, size.name, TY.member, "");
-    ty += (size.name.length - 1) * TY.member.lh + 4 + TY.mrole.lh;
-    if (size.role.length) this.text(pg, r.x + 62, ty, size.role, TY.mrole, "t-ink2");
+    let ty = r.y + 14 + this.T.member.size - 2;
+    this.text(pg, r.x + 62, ty, size.name, this.T.member, "");
+    ty += (size.name.length - 1) * this.T.member.lh + 4 + this.T.mrole.lh;
+    if (size.role.length) this.text(pg, r.x + 62, ty, size.role, this.T.mrole, "t-ink2");
     if (unbuilt) this.pill(pg, r.x + 62, r.y + r.h - 26, it.status, "warn");
     this.drawMarks(pg, m, marks || []);
     this.hoverEdges(pg, m);
@@ -2654,8 +2757,8 @@ class Board {
     this.R("f-green", this.rc.rectangle(r.x + 3, r.y + 3, r.w - 6, r.h - 6, this.O({ stroke: "none", fill: "#000", fillStyle: "hachure", hachureGap: 11, hachureAngle: 60, fillWeight: 0.8 })), pg);
     this.R("k-ink2", this.rc.rectangle(r.x, r.y, r.w, r.h, this.O({ strokeWidth: 1.8, roughness: 1.1, strokeLineDash: [10, 5] })), pg);
     this.storeGlyph("memory", pg, r.x + 44, r.y + r.h / 2 - 4, 52, "k-ink2");
-    this.text(pg, r.x + 96, r.y + 14 + TY.member.size - 2, lines.name, TY.member, "");
-    this.text(pg, r.x + 96, r.y + 14 + TY.member.size - 2 + (lines.name.length - 1) * TY.member.lh + 4 + TY.mrole.lh, lines.role, TY.mrole, "t-ink2");
+    this.text(pg, r.x + 96, r.y + 14 + this.T.member.size - 2, lines.name, this.T.member, "");
+    this.text(pg, r.x + 96, r.y + 14 + this.T.member.size - 2 + (lines.name.length - 1) * this.T.member.lh + 4 + this.T.mrole.lh, lines.role, this.T.mrole, "t-ink2");
     this.pill(pg, r.x + r.w - 14 - this.pillW("in memory"), r.y + r.h - 28, "in memory", "");
     this.drawMarks(pg, m, marks || []);
     this.hoverEdges(pg, m);
@@ -2669,8 +2772,8 @@ class Board {
     this.seed = hash(`sib-${o}`);
     this.el("rect", { class: "paper", x: r.x, y: r.y, width: r.w, height: r.h, rx: 8 }, gg);
     this.R("k-ink2", this.rc.rectangle(r.x, r.y, r.w, r.h, this.O({ strokeWidth: 1.7, strokeLineDash: [8, 5] })), gg);
-    this.text(gg, r.x + 14, r.y + 14 + TY.member.size - 2, size.name, TY.member, "");
-    this.text(gg, r.x + 14, r.y + 14 + TY.member.size - 2 + (size.name.length - 1) * TY.member.lh + 4 + TY.mrole.lh, size.role, TY.mrole, "t-ink2");
+    this.text(gg, r.x + 14, r.y + 14 + this.T.member.size - 2, size.name, this.T.member, "");
+    this.text(gg, r.x + 14, r.y + 14 + this.T.member.size - 2 + (size.name.length - 1) * this.T.member.lh + 4 + this.T.mrole.lh, size.role, this.T.mrole, "t-ink2");
     const parts = blk.members.filter((m) => this.items[m] && this.items[m].type === "component").slice(0, 5);
     parts.forEach((m, i) => this.glyph((this.shapeOf(m) || {}).shape || "module", gg, r.x + 26 + i * 40, r.y + r.h - 22, 26, "k-ink3"));
     gg.addEventListener("click", (ev) => { if (this.dragMoved) return; ev.stopPropagation(); this.goTo(o); });
@@ -2697,7 +2800,7 @@ class Board {
       this.outline("key", gg, r, { ...tone, strokeLineDash: size.sil === "key" ? null : [7, 5] });
       if (size.sil === "key") D.key(gg, r.x + 14, r.y + r.h / 2, 0.3);
     }
-    this.text(gg, r.x + size.lead, r.y + size.top + TY.link.size - 3, size.name, TY.link, "t-ink2");
+    this.text(gg, r.x + size.lead, r.y + size.top + this.T.link.size - 3, size.name, this.T.link, "t-ink2");
     gg.addEventListener("click", (ev) => { if (this.dragMoved) return; ev.stopPropagation(); this.goTo(o); });
     gg.addEventListener("keydown", (ev) => { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); this.goTo(o); } });
   }
@@ -2711,11 +2814,11 @@ class Board {
     let stack = false;
     const print = !this.o.dialog && printing();
     if (this.o.dialog && lay === "tall") stack = cw / this.sizeOf("tall", false, false).w < READ;
-    if (!this.o.dialog && !print) {
+    if (!this.o.dialog && !print && !this.o.fill) {
       const mh = this.maxH();
       const f = this.sizeOf(lay, false, false);
       compact = Math.min(cw / f.w, mh / f.h) < READ;
-      const least = GLIMPSE_NAME / GLIMPSE.name.size;
+      const least = GLIMPSE_NAME / this.skin.glimpse.name.size;
       if (compact && lay === "wide") {
         const g = this.sizeOf("wide", true, false);
         if (Math.min(cw / g.w, mh / g.h) < least) lay = "tall";
@@ -2742,7 +2845,7 @@ class Board {
 
   setCompact(c) {
     this.o.compact = c;
-    this.ty = c ? GLIMPSE : TY;
+    this.ty = c ? this.skin.glimpse : this.skin.ty;
   }
 
   layoutKey(lay, compact, stack) {
@@ -2784,7 +2887,7 @@ class Board {
     this.canvas.style.aspectRatio = print ? `${Math.round(w)} / ${Math.round(h)}` : "";
     if (print) { this.canvas.style.height = "auto"; return; }
     const cw = this.canvas.getBoundingClientRect().width;
-    this.canvas.style.height = `${Math.round(Math.min(this.maxH(), (cw * h) / w, h * 1.25))}px`;
+    this.canvas.style.height = `${Math.round(this.o.fill ? this.maxH() : Math.min(this.maxH(), (cw * h) / w, h * 1.25))}px`;
   }
 
   center(box, k) {
@@ -3119,13 +3222,22 @@ class Board {
 
   renderCrumbs() {
     const nav = this.root.querySelector(".smap-crumbs");
-    if (!this.st.shape) { nav.replaceChildren(); return; }
-    const name = esc(this.K[this.st.shape].name);
-    const bits = [`<button type="button" data-c="all">Whole system</button>`, this.st.part ? `<button type="button" data-c="shape">${name}</button>` : `<b>${name}</b>`];
-    if (this.st.part) bits.push(`<b>${esc(this.labelOf(this.st.part))}</b>`);
+    const lv = this.o.nav;
+    const trail = lv ? lv.trail() : [];
+    this.root.classList.toggle("leveled", trail.length > 0);
+    if (!this.st.shape && !trail.length) { nav.replaceChildren(); return; }
+    const here = esc(lv ? lv.here() : "Whole system");
+    const bits = trail.map((t, i) => `<button type="button" data-up="${i}">${esc(t)}</button>`);
+    if (!this.st.shape) bits.push(`<b>${here}</b>`);
+    else {
+      const name = esc(this.K[this.st.shape].name);
+      bits.push(`<button type="button" data-c="all">${here}</button>`, this.st.part ? `<button type="button" data-c="shape">${name}</button>` : `<b>${name}</b>`);
+      if (this.st.part) bits.push(`<b>${esc(this.labelOf(this.st.part))}</b>`);
+    }
     nav.innerHTML = bits.join(" › ");
     nav.querySelectorAll("button").forEach((b) => b.addEventListener("click", () => {
-      if (b.dataset.c === "all") this.unfocus();
+      if (b.dataset.up) lv.up(Number(b.dataset.up));
+      else if (b.dataset.c === "all") this.unfocus();
       else { this.focus(this.st.shape, null); this.emit(); }
     }));
   }
@@ -3141,6 +3253,8 @@ class Board {
       const role = this.st.part ? (part ? part.role : "") : this.K[id].role;
       const about = this.st.part ? this.items[id].what : this.K[id].what;
       html = `<b>${esc(name)}</b>${role ? ` · ${esc(role)}` : ""}${about ? `. ${esc(about)}` : ""}`;
+      const deeper = this.o.nav && this.o.nav.deeper(id);
+      if (deeper) html += ` <button type="button" class="smap-deeper" data-down="${esc(id)}">${esc(deeper)} ›</button>`;
     } else if (p) {
       html = `<b>${esc(p.title)}</b> ${steps(p.steps)}`;
     } else {
@@ -3149,6 +3263,8 @@ class Board {
     }
     const sp = this.B.spine.steps;
     this.readout.innerHTML = `${html}${sp.length ? `<div class="smap-pathline"><b>${esc(this.B.spine.title)}</b> ${steps(sp)}</div>` : ""}`;
+    const down = this.readout.querySelector(".smap-deeper");
+    if (down) down.addEventListener("click", () => this.o.nav.down(down.dataset.down));
   }
 
   async reset() {
@@ -3360,7 +3476,7 @@ class Board {
 
 export function mount(host, map, opts) {
   injectCss();
-  if (opts.font !== false) injectFont();
+  if (opts.font !== false && opts.skin !== "clean") injectFont();
   let inline = null;
   let dlg = null;
   let modal = null;
@@ -3380,16 +3496,16 @@ export function mount(host, map, opts) {
     }
     modal.setAttribute("aria-label", model.thesis);
     if (!modal.open) modal.showModal();
-    if (!dlg) dlg = new Board(modal, model, { rough: opts.rough, dialog: true, state: view, onState: (v) => { if (inline.mode) inline.want = v; onState(v); }, onOpen: () => {}, onClose: close });
+    if (!dlg) dlg = new Board(modal, model, { rough: opts.rough, skin: opts.skin, nav: opts.nav, dialog: true, state: view, onState: (v) => { if (inline.mode) inline.want = v; onState(v); }, onOpen: () => {}, onClose: close });
     else { dlg.refresh(); dlg.show(view); }
     await dlg.ready;
     return dlg;
   };
-  const set = (next) => {
+  const set = (next, view) => {
     const k = JSON.stringify(next);
-    if (k === key) return;
+    if (k === key) { if (view) handle.show(view); return; }
     key = k;
-    problems = validate(next);
+    problems = validate(next, { derived: opts.derived });
     if (problems.length) {
       if (inline) inline.destroy();
       if (dlg) dlg.destroy();
@@ -3404,10 +3520,10 @@ export function mount(host, map, opts) {
     model = normalize(next);
     if (!inline) {
       host.replaceChildren();
-      inline = new Board(host, model, { rough: opts.rough, dialog: false, state: opts.state && Object.values(opts.state).some(Boolean) ? opts.state : null, onState, onOpen: (v) => { open(v); }, onClose: close });
+      inline = new Board(host, model, { rough: opts.rough, skin: opts.skin, nav: opts.nav, fill: opts.fill, dialog: false, state: opts.state && Object.values(opts.state).some(Boolean) ? opts.state : null, onState, onOpen: (v) => { open(v); }, onClose: close });
       inline.ready.then(settle);
-    } else inline.setModel(model);
-    if (dlg) dlg.setModel(model);
+    } else inline.setModel(model, view);
+    if (dlg) dlg.setModel(model, view);
   };
   const audit = async (o = {}) => {
     await ready;

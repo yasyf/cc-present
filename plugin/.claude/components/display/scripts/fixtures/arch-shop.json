@@ -1,0 +1,110 @@
+{
+  "arch": 1,
+  "name": "Bookshop",
+  "title": "An order is on disk before the shopper hears yes, and search catches up within seconds",
+  "summary": "Shoppers check out through the web app. The orders API validates and prices the cart, charges the card and writes the order and an outbox event in one transaction. A relay ships outbox events to search.",
+  "groups": [
+    { "id": "phone", "label": "Shopper's phone", "kind": "zone" },
+    { "id": "cloud", "label": "Our AWS account", "kind": "zone" }
+  ],
+  "nodes": [
+    { "id": "shopper", "kind": "actor", "name": "Shopper", "role": "Browses and buys books" },
+    {
+      "id": "web", "kind": "app", "name": "Shop web app", "role": "Shows the cart and checks out", "group": "phone",
+      "nodes": [
+        { "id": "cart-ui", "kind": "app", "name": "Cart", "role": "Lists what the shopper picked" },
+        { "id": "checkout-ui", "kind": "app", "name": "Checkout", "role": "Takes the card and places the order" }
+      ]
+    },
+    {
+      "id": "api", "kind": "service", "name": "Orders API", "role": "Checks, charges, then records", "group": "cloud",
+      "about": "One Go service behind the load balancer. It answers only after the order and its outbox event commit together.",
+      "nodes": [
+        { "id": "http", "kind": "service", "name": "HTTP handler", "role": "Parses requests and replies", "shape": "api" },
+        {
+          "id": "orders", "kind": "service", "name": "Order flow", "role": "Validates, prices and reserves",
+          "nodes": [
+            { "id": "validate", "kind": "service", "name": "Validator", "role": "Rejects bad carts", "shape": "guard" },
+            { "id": "price", "kind": "service", "name": "Pricer", "role": "Applies prices and tax" },
+            { "id": "reserve", "kind": "service", "name": "Reserver", "role": "Holds stock and charges", "shape": "gate" }
+          ]
+        },
+        { "id": "outbox-writer", "kind": "service", "name": "Outbox writer", "role": "Adds the event to the commit", "shape": "relay" }
+      ]
+    },
+    {
+      "id": "db", "kind": "store", "name": "Orders database", "role": "Keeps orders and events", "medium": "disk", "tag": "RDS", "group": "cloud", "critical": true,
+      "nodes": [
+        { "id": "orders-table", "kind": "store", "name": "Orders table", "role": "One row per order", "medium": "disk" },
+        { "id": "outbox", "kind": "log", "name": "Outbox", "role": "Events waiting to ship", "medium": "disk" }
+      ]
+    },
+    {
+      "id": "relay", "kind": "worker", "name": "Outbox relay", "role": "Ships new events", "group": "cloud", "lane": "background",
+      "nodes": [
+        { "id": "poller", "kind": "worker", "name": "Poller", "role": "Reads new events every second", "shape": "timer" },
+        { "id": "publisher", "kind": "worker", "name": "Publisher", "role": "Sends each event once", "shape": "relay" }
+      ]
+    },
+    {
+      "id": "search", "kind": "service", "name": "Search", "role": "Finds books and orders", "group": "cloud", "lane": "background",
+      "nodes": [
+        { "id": "indexer", "kind": "worker", "name": "Indexer", "role": "Applies order events", "shape": "uploader" },
+        { "id": "index", "kind": "store", "name": "Search index", "role": "Words to orders", "medium": "memory" }
+      ]
+    },
+    { "id": "payments", "kind": "external", "name": "Card processor", "role": "Charges cards" }
+  ],
+  "edges": [
+    { "from": "shopper", "to": "cart-ui", "label": "picks books" },
+    { "from": "shopper", "to": "checkout-ui", "label": "taps Buy" },
+    { "from": "cart-ui", "to": "http", "label": "GET /cart" },
+    { "from": "checkout-ui", "to": "http", "label": "POST /orders" },
+    { "from": "http", "to": "validate", "label": "the cart" },
+    { "from": "validate", "to": "price", "label": "valid lines" },
+    { "from": "price", "to": "reserve", "label": "priced order" },
+    { "from": "reserve", "to": "payments", "label": "charge the card" },
+    { "from": "reserve", "to": "orders-table", "label": "insert order" },
+    { "from": "outbox-writer", "to": "outbox", "label": "append event" },
+    { "from": "reserve", "to": "outbox-writer", "label": "order placed" },
+    { "from": "poller", "to": "outbox", "kind": "control", "label": "read new events" },
+    { "from": "poller", "to": "publisher", "label": "a batch" },
+    { "from": "publisher", "to": "indexer", "kind": "async", "label": "order event" },
+    { "from": "indexer", "to": "index", "label": "update" }
+  ],
+  "path": {
+    "title": "Placing an order",
+    "steps": [
+      { "from": "shopper", "to": "checkout-ui", "say": "tap Buy" },
+      { "from": "checkout-ui", "to": "http", "say": "POST /orders" },
+      { "from": "http", "to": "validate", "say": "check the cart" },
+      { "from": "validate", "to": "price", "say": "price each line" },
+      { "from": "reserve", "to": "payments", "say": "charge the card" },
+      { "from": "reserve", "to": "orders-table", "say": "write the order" },
+      { "from": "http", "to": "checkout-ui", "say": "201 Created", "waitsFor": 6 }
+    ]
+  },
+  "stories": [
+    {
+      "id": "search-catches-up", "label": "Search catches up", "title": "A new order reaches search", "tone": "ok",
+      "steps": [
+        { "from": "poller", "to": "outbox", "say": "read new events" },
+        { "from": "publisher", "to": "indexer", "say": "send the order event" },
+        { "from": "indexer", "to": "index", "say": "update the index" }
+      ]
+    },
+    {
+      "id": "declined", "label": "Card declined", "title": "The card processor says no", "tone": "fail",
+      "steps": [
+        { "from": "reserve", "to": "payments", "say": "charge the card" },
+        { "from": "payments", "to": "reserve", "say": "declined", "mark": "stop" },
+        { "from": "http", "to": "checkout-ui", "say": "402, try another card" }
+      ]
+    }
+  ],
+  "notes": [
+    { "on": "outbox", "text": "events kept for 7 days" },
+    { "edge": { "from": "publisher", "to": "indexer" }, "text": "about 2 s behind" },
+    { "on": "reserve", "text": "stock held for 15 minutes" }
+  ]
+}

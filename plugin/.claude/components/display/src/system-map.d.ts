@@ -93,6 +93,8 @@ export interface Story {
   steps: Step[];
 }
 
+export type Note = { on: string; text: string } | { link: { from: string; to: string }; text: string };
+
 export interface SystemMap {
   title: string;
   blocks: Block[];
@@ -100,7 +102,7 @@ export interface SystemMap {
   links?: Link[];
   path?: { title: string; steps: Step[] };
   stories?: Story[];
-  notes?: { on: string; text: string }[];
+  notes?: Note[];
   lanes?: { main?: string; background?: string; control?: string };
   start?: { story: string } | { block: string };
 }
@@ -125,12 +127,22 @@ export interface Rough {
 export interface MapHandle {
   readonly problems: string[];
   ready: Promise<void>;
-  update(map: SystemMap): void;
+  update(map: SystemMap, view?: View): void;
   show(view: View): void;
   reset(): Promise<void>;
   audit(opts?: { all?: boolean }): Promise<Problem[]>;
   destroy(): void;
 }
 
-export function mount(host: HTMLElement, map: SystemMap, opts: { rough: Rough; font?: boolean; state?: View; onState?: (v: View) => void }): MapHandle;
-export function validate(map: unknown): string[];
+export interface Levels {
+  trail(): string[];
+  here(): string;
+  up(index: number): void;
+  deeper(id: string): string | null;
+  down(id: string): void;
+}
+
+export type MountOptions = { font?: boolean; state?: View; onState?: (v: View) => void; nav?: Levels; derived?: boolean; fill?: boolean } & ({ skin?: 'sketch'; rough: Rough } | { skin: 'clean'; rough?: Rough });
+
+export function mount(host: HTMLElement, map: SystemMap, opts: MountOptions): MapHandle;
+export function validate(map: unknown, opts?: { derived?: boolean }): string[];
