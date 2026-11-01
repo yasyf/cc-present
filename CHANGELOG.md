@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- The daemon picks up a pack directory added to `packDirs` in `~/.cc-present/config.json` on its next scan, as the author-pack guide says. It used to read the config only at start, so `cc-present pack list` showed a new dev pack while every push of a doc that used it failed with `pack block type ... is not installed` until the daemon restarted.
 - An actor block's role wraps clear of its figure instead of running under it.
 - Two cc-present builds on one Mac no longer replace each other's daemon. During an upgrade, an older client that checked for a daemon in the gap before the new one came up saw none, so it started its own older build over the newer one, and the next newer client reversed it again. Each client now waits for any upgrade already in progress before it checks, and an older client then leaves the newer daemon running. This comes from cc-interact v0.39.1.
 - `cc-present verdict carry` works when the `pr-groups` block is off the board, as it is whenever no row waits on the owner. It used to refuse with `unknown block`. It now finds the block through the row's recorded verdict and records the carry there, so the verdict stands at the new head when the block comes back. A block with no recorded verdict for the row is still refused.

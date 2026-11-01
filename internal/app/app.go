@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -208,7 +209,14 @@ func serve(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	loader := packs.NewLoader(ctx, cfg.PackDirs, cfg.DisabledPacks)
+	loader := packs.NewLoaderFrom(ctx, func() ([]string, []string) {
+		next, err := ReadConfig()
+		if err != nil {
+			slog.Warn("pack dirs keep the config the daemon started with", "err", err)
+			return cfg.PackDirs, cfg.DisabledPacks
+		}
+		return next.PackDirs, next.DisabledPacks
+	})
 	if err := web.Validate(); err != nil {
 		return fmt.Errorf("validate embedded web build: %w", err)
 	}

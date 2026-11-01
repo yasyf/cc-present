@@ -9,13 +9,13 @@ import (
 const scanTTL = 2 * time.Second
 
 // Loader scans for packs eagerly at construction, then re-scans on access after a
-// short TTL so installing a pack and pushing a doc that uses it just works. A
+// short TTL so installing a pack, or adding its directory to the config, and
+// pushing a doc that uses it just works. A
 // source pack whose bundle is stale builds in the background and reads as
 // dropped with reason "building" until it finishes; Settled waits for it instead.
 // It is safe for concurrent use.
 type Loader struct {
-	devDirs   []string
-	disabled  []string
+	dirs      Dirs
 	configDir string
 	ttl       time.Duration
 	builds    *backgroundBuilds
@@ -34,12 +34,22 @@ func Load(ctx context.Context, devDirs, disabled []string) *Registry {
 	return buildRegistry(roots, dropped, disabled, syncBuilds{ctx: ctx})
 }
 
-// NewLoader builds a loader over the given dev dirs and disabled pack names and
+// Dirs returns the dev dirs and disabled pack names a scan uses.
+type Dirs func() (devDirs, disabled []string)
+
+// NewLoader builds a loader over fixed dev dirs and disabled pack names and
 // performs the first scan; ctx bounds its background builds.
 func NewLoader(ctx context.Context, devDirs, disabled []string) *Loader {
+	devDirs = append([]string(nil), devDirs...)
+	disabled = append([]string(nil), disabled...)
+	return NewLoaderFrom(ctx, func() ([]string, []string) { return devDirs, disabled })
+}
+
+// NewLoaderFrom builds a loader that asks dirs for the dev dirs and disabled
+// pack names on every scan, and performs the first scan.
+func NewLoaderFrom(ctx context.Context, dirs Dirs) *Loader {
 	l := &Loader{
-		devDirs:   append([]string(nil), devDirs...),
-		disabled:  append([]string(nil), disabled...),
+		dirs:      dirs,
 		configDir: ClaudeConfigDir(),
 		ttl:       scanTTL,
 		builds:    newBackgroundBuilds(ctx),
@@ -67,8 +77,9 @@ func (l *Loader) Settled(ctx context.Context) *Registry {
 	if reg := l.Current(); !reg.building {
 		return reg
 	}
-	roots, dropped := discoverRoots(l.devDirs, l.configDir)
-	reg := buildRegistry(roots, dropped, l.disabled, syncBuilds{ctx: ctx})
+	devDirs, disabled := l.dirs()
+	roots, dropped := discoverRoots(devDirs, l.configDir)
+	reg := buildRegistry(roots, dropped, disabled, syncBuilds{ctx: ctx})
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	l.current, l.scannedAt = reg, time.Now()
@@ -76,7 +87,8 @@ func (l *Loader) Settled(ctx context.Context) *Registry {
 }
 
 func (l *Loader) scanLocked() {
-	roots, dropped := discoverRoots(l.devDirs, l.configDir)
-	l.current = buildRegistry(roots, dropped, l.disabled, l.builds)
+	devDirs, disabled := l.dirs()
+	roots, dropped := discoverRoots(devDirs, l.configDir)
+	l.current = buildRegistry(roots, dropped, disabled, l.builds)
 	l.scannedAt = time.Now()
 }
