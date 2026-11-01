@@ -336,3 +336,22 @@ func TestFailedBuildKeepsPreviousBundle(t *testing.T) {
 		}
 	}
 }
+
+func TestLoaderPicksUpANewDevDir(t *testing.T) {
+	dir := t.TempDir()
+	if _, err := Scaffold(dir, "late", examples.ExamplePack, examples.ExamplePackRoot); err != nil {
+		t.Fatal(err)
+	}
+	var dirs []string
+	l := NewLoaderFrom(t.Context(), func() ([]string, []string) { return dirs, nil })
+	if names := packNames(l.Current()); len(names) != 0 {
+		t.Fatalf("packs before the dir is configured = %v, want none", names)
+	}
+	dirs = []string{dir}
+	l.ttl = 0
+	l.Current()
+	l.builds.wg.Wait()
+	if names := packNames(l.Current()); len(names) != 1 || names[0] != "late" {
+		t.Fatalf("packs after the dir is configured = %v, dropped = %+v, want late", names, l.Current().Dropped)
+	}
+}
