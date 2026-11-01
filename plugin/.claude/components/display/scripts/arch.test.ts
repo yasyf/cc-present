@@ -89,16 +89,26 @@ describe('project', () => {
     expect(map.path).toBeUndefined();
   });
 
-  test('steps inside one visible box merge, and waitsFor follows its step', () => {
+  test('a run of steps inside one box becomes one step on the box, and waitsFor follows its step', () => {
     const map = project(doc, null);
-    expect(map.path!.steps.map((s) => [s.from, s.to, s.waitsFor ?? null])).toEqual([
-      ['shopper', 'checkout-ui', null],
-      ['checkout-ui', 'http', null],
-      ['http', 'orders', null],
-      ['orders', 'orders', null],
-      ['orders', 'payments', null],
-      ['orders', 'orders-table', null],
-      ['http', 'checkout-ui', 6],
+    expect(map.path!.steps.map((s) => [s.from, s.to, s.say, s.waitsFor ?? null])).toEqual([
+      ['shopper', 'checkout-ui', 'tap Buy', null],
+      ['checkout-ui', 'http', 'POST /orders', null],
+      ['api', 'api', 'check the cart (and 1 more)', null],
+      ['orders', 'payments', 'charge the card', null],
+      ['orders', 'orders-table', 'write the order', null],
+      ['http', 'checkout-ui', '201 Created', 5],
+    ]);
+  });
+
+  test('zoomed in, the same run shows step by step', () => {
+    expect(project(doc, 'api').path!.steps.map((s) => [s.from, s.to])).toEqual([
+      ['web', 'http'],
+      ['http', 'validate'],
+      ['validate', 'price'],
+      ['reserve', 'payments'],
+      ['reserve', 'db'],
+      ['http', 'web'],
     ]);
   });
 

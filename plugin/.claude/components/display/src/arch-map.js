@@ -154,13 +154,21 @@ export function project(doc, focus) {
   const walk = (list, keep) => {
     const out = [];
     const at = [];
+    let run = null;
     list.forEach((s) => {
       const p = pair(s.from, s.to);
-      if (!p) { at.push(null); return; }
-      const last = out[out.length - 1];
-      if (last && p[0] === p[1] && last.from === p[0] && last.to === p[1]) { at.push(out.length); return; }
-      out.push({ from: p[0], to: p[1], say: s.say, ...keep(s) });
+      if (!p) { run = null; at.push(null); return; }
+      const box = blockOf[p[0]] === blockOf[p[1]] ? blockOf[p[0]] : null;
+      if (box && run && run.box === box) {
+        run.n += 1;
+        Object.assign(run.step, { from: box, to: box, say: `${run.say} (and ${run.n - 1} more)` });
+        at.push(out.length);
+        return;
+      }
+      const step = { from: p[0], to: p[1], say: s.say, ...keep(s) };
+      out.push(step);
       at.push(out.length);
+      run = box ? { box, step, say: s.say, n: 1 } : null;
     });
     return { out, at };
   };
