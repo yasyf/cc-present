@@ -743,6 +743,7 @@ func noDocState(st *state.State) (json.RawMessage, error) {
 	rounds["history"] = mustJSON(history)
 	m["rounds"] = mustJSON(rounds)
 	delete(m, "doc")
+	m["removed"] = mustJSON(st.RemovedAnswers())
 	return json.Marshal(m)
 }
 

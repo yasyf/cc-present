@@ -904,8 +904,17 @@ lone leaf is set into the newest document or card that held it. `top` is null
 when no write carried the id. `events` lists every `decision.created`,
 `choice.selected`, `feedback.created`, `input.submitted`, `pack.interaction`,
 `annotation.created` and `triage.decided` on the block, or on any child when the
-id names a card, newest first, each as `{type, origin, at, payload}`. An id with
-neither a write nor an interaction is refused.
+id names a card, newest first, each as `{type, origin, at, round, payload}`,
+where `round` is the round the interaction landed in. An id with neither a write
+nor an interaction is refused as `block "<id>" was never on this board`.
+
+`cc-present outcomes --block <id>` reads the same op and filters the reduced
+state through its `top`, so a block removed by `remove-block` or dropped by a
+push reads like a live one. It adds `onBoard` and `answers`, the op's `events`.
+A card id keeps the entries of the card and every child. `outcomes --no-doc`
+adds `removed`, a map from each block id that carries an interaction and is no
+longer on the board to `{top, title, round}`: the top-level block that held it,
+that block's card title, and the round it left the board in.
 
 ## Slack ask cards
 

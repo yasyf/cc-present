@@ -85,7 +85,7 @@ func writeBlockShow(w io.Writer, id string, show ccdaemon.BlockShow) error {
 		if err != nil {
 			return err
 		}
-		fmt.Fprintf(&b, "  %s  %s\n", e.At.Local().Format("Jan 2 3:04 PM MST"), line)
+		fmt.Fprintf(&b, "  %s  round %d  %s\n", e.At.Local().Format("Jan 2 3:04 PM MST"), e.Round, line)
 	}
 	_, err := io.WriteString(w, b.String())
 	return err

@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	ccdaemon "github.com/yasyf/cc-present/internal/daemon"
 	"github.com/yasyf/cc-present/internal/doc"
 )
 
@@ -122,7 +123,7 @@ func interactionKeys(t *testing.T, raw json.RawMessage, group string) []string {
 }
 
 func TestFilterBlockNarrowsAnnotationsTriageAndViewed(t *testing.T) {
-	got, err := filterBlock(json.RawMessage(reducedFixture), "in1")
+	got, err := filterBlock(json.RawMessage(reducedFixture), "in1", shownIn(t, "in1"))
 	if err != nil {
 		t.Fatalf("filterBlock() error = %v", err)
 	}
@@ -148,10 +149,57 @@ func TestFilterBlockNarrowsAnnotationsTriageAndViewed(t *testing.T) {
 	}
 }
 
-func TestFilterBlockUnknownID(t *testing.T) {
-	_, err := filterBlock(json.RawMessage(reducedFixture), "nope")
-	if err == nil || err.Error() != `no block "nope" in the current document` {
-		t.Fatalf("filterBlock() error = %v, want unknown-block error", err)
+func shownIn(t *testing.T, id string) ccdaemon.BlockShow {
+	t.Helper()
+	var m struct {
+		Doc doc.Doc `json:"doc"`
+	}
+	if err := json.Unmarshal([]byte(reducedFixture), &m); err != nil {
+		t.Fatalf("unmarshal fixture: %v", err)
+	}
+	loc, ok := doc.Locate(&m.Doc, id)
+	if !ok {
+		t.Fatalf("fixture has no block %q", id)
+	}
+	top, err := json.Marshal(m.Doc.Blocks[loc.TopIndex])
+	if err != nil {
+		t.Fatalf("marshal top: %v", err)
+	}
+	return ccdaemon.BlockShow{Top: top, OnBoard: true}
+}
+
+func TestFilterBlockKeepsARemovedCardsAnswers(t *testing.T) {
+	var m map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(reducedFixture), &m); err != nil {
+		t.Fatalf("unmarshal fixture: %v", err)
+	}
+	m["doc"] = json.RawMessage(`{"version":1,"title":"T","blocks":[{"id":"m1","type":"markdown","md":"hi"}]}`)
+	raw, err := json.Marshal(m)
+	if err != nil {
+		t.Fatalf("marshal fixture: %v", err)
+	}
+	show := shownIn(t, "card1")
+	show.OnBoard = false
+	show.Events = []ccdaemon.BlockEvent{{Type: ccdaemon.EventChoiceSelected, Origin: "human", Round: 1, Payload: json.RawMessage(`{"blockId":"ch1","optionIds":["o1"]}`)}}
+	got, err := filterBlock(raw, "card1", show)
+	if err != nil {
+		t.Fatalf("filterBlock() error = %v", err)
+	}
+	if ids := docBlockIDs(t, got); !slices.Equal(ids, []string{"card1"}) {
+		t.Fatalf("doc block ids = %v, want the card as last shown", ids)
+	}
+	if keys := interactionKeys(t, got, "choices"); !slices.Equal(keys, []string{"ch1"}) {
+		t.Fatalf("choices keys = %v, want the removed card's ch1", keys)
+	}
+	var out struct {
+		OnBoard bool                  `json:"onBoard"`
+		Answers []ccdaemon.BlockEvent `json:"answers"`
+	}
+	if err := json.Unmarshal(got, &out); err != nil {
+		t.Fatalf("unmarshal filtered: %v", err)
+	}
+	if out.OnBoard || len(out.Answers) != 1 || out.Answers[0].Round != 1 {
+		t.Fatalf("onBoard=%v answers=%+v, want off the board with its round-1 answer", out.OnBoard, out.Answers)
 	}
 }
 
@@ -181,16 +229,18 @@ func TestFilterBlock(t *testing.T) {
 			wantFeedback: []string{"ch1"},
 		},
 		{
-			name:         "top-level card keeps its own feedback but no child interactions",
-			id:           "card1",
-			wantDoc:      []string{"card1"},
-			wantChildren: []string{"ch1", "ap1"},
-			wantFeedback: []string{"card1"},
+			name:          "top-level card keeps its own and its children's interactions",
+			id:            "card1",
+			wantDoc:       []string{"card1"},
+			wantChildren:  []string{"ch1", "ap1"},
+			wantDecisions: []string{"ap1"},
+			wantChoices:   []string{"ch1"},
+			wantFeedback:  []string{"ap1", "card1", "ch1"},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := filterBlock(json.RawMessage(reducedFixture), tt.id)
+			got, err := filterBlock(json.RawMessage(reducedFixture), tt.id, shownIn(t, tt.id))
 			if err != nil {
 				t.Fatalf("filterBlock() error = %v", err)
 			}
@@ -356,7 +406,7 @@ func TestStripDocs(t *testing.T) {
 }
 
 func TestFilterBlockThenStripDocsNarrowsHistory(t *testing.T) {
-	filtered, err := filterBlock(json.RawMessage(reducedFixture), "ch1")
+	filtered, err := filterBlock(json.RawMessage(reducedFixture), "ch1", shownIn(t, "ch1"))
 	if err != nil {
 		t.Fatalf("filterBlock() error = %v", err)
 	}
