@@ -35,7 +35,9 @@ func subtreeIDs(b doc.Block) []string {
 // a later write that puts the block back drops it. Applying a log in pieces with
 // one retired set leaves the set Retired returns for the whole log.
 func (s *State) ApplyRetiring(events []Event, retired map[string]bool) error {
-	for _, ev := range ordered(events) {
+	evs := ordered(events)
+	upserts := decodeUpserts(evs)
+	for i, ev := range evs {
 		if s.Interactions.Closed.Value {
 			continue
 		}
@@ -53,12 +55,12 @@ func (s *State) ApplyRetiring(events []Event, retired map[string]bool) error {
 				}
 			}
 		}
-		if err := s.apply(ev); err != nil {
+		if err := s.apply(ev, upserts[i]); err != nil {
 			return fmt.Errorf("apply %s at seq %d: %w", ev.Type, ev.Seq, err)
 		}
-		for id := range retired {
-			if _, ok := doc.Locate(s.Doc, id); ok {
-				delete(retired, id)
+		if len(retired) > 0 && (ev.Type == "block.upserted" || ev.Type == "doc.replaced") {
+			for _, b := range s.Doc.Blocks {
+				doc.Walk(b, func(b doc.Block) { delete(retired, b.BlockID()) })
 			}
 		}
 	}

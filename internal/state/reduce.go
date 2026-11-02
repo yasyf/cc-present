@@ -11,9 +11,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"runtime"
 	"slices"
 	"sort"
 	"strings"
+	"sync"
+	"sync/atomic"
 
 	"github.com/yasyf/cc-present/internal/doc"
 )
@@ -242,13 +245,53 @@ func New() State {
 	}
 }
 
+type upsert struct {
+	block doc.Block
+	after string
+	err   error
+}
+
+func decodeUpserts(events []Event) []upsert {
+	out := make([]upsert, len(events))
+	var idx []int
+	for i, ev := range events {
+		if ev.Type == "block.upserted" {
+			idx = append(idx, i)
+		}
+	}
+	var next atomic.Int64
+	var wg sync.WaitGroup
+	for range min(runtime.GOMAXPROCS(0), len(idx)) {
+		wg.Go(func() {
+			for n := next.Add(1) - 1; n < int64(len(idx)); n = next.Add(1) - 1 {
+				out[idx[n]] = decodeUpsert(events[idx[n]])
+			}
+		})
+	}
+	wg.Wait()
+	return out
+}
+
+func decodeUpsert(ev Event) upsert {
+	var p struct {
+		payloadIdentity
+		Block json.RawMessage `json:"block"`
+		After string          `json:"after"`
+	}
+	if err := decodeEventPayload(ev, &p); err != nil {
+		return upsert{err: err}
+	}
+	b, err := doc.DecodeStoredBlock(p.Block)
+	return upsert{block: b, after: p.After, err: err}
+}
+
 func ordered(events []Event) []Event {
 	out := append([]Event(nil), events...)
 	sort.SliceStable(out, func(i, j int) bool { return out[i].Seq < out[j].Seq })
 	return out
 }
 
-func (s *State) apply(ev Event) error {
+func (s *State) apply(ev Event, up upsert) error {
 	if strings.HasPrefix(ev.Type, "agent.") {
 		return nil
 	}
@@ -278,25 +321,17 @@ func (s *State) apply(ev Event) error {
 		s.Revising = Revising{BlockIDs: []string{}}
 		return nil
 	case "block.upserted":
-		var p struct {
-			payloadIdentity
-			Block json.RawMessage `json:"block"`
-			After string          `json:"after"`
+		if up.err != nil {
+			return up.err
 		}
-		if err := decodeEventPayload(ev, &p); err != nil {
-			return err
-		}
-		b, err := doc.DecodeStoredBlock(p.Block)
-		if err != nil {
-			return err
-		}
+		b := up.block
 		topID := b.BlockID()
 		if loc, ok := doc.Locate(s.Doc, b.BlockID()); ok {
 			topID = loc.TopID
-		} else if loc, ok := doc.Locate(s.Doc, p.After); ok && loc.Kind == doc.CardChild {
+		} else if loc, ok := doc.Locate(s.Doc, up.after); ok && loc.Kind == doc.CardChild {
 			topID = loc.TopID
 		}
-		s.Doc.Blocks = doc.UpsertBlocks(s.Doc.Blocks, b, p.After)
+		s.Doc.Blocks = doc.UpsertBlocks(s.Doc.Blocks, b, up.after)
 		s.Rounds.BlockRounds[topID] = s.Rounds.Current
 		s.revisingOnUpsert(topID)
 		return nil
@@ -511,11 +546,7 @@ func (s *State) apply(ev Event) error {
 		s.Interactions.Submitted = Submitted{Value: true, Revision: p.Revision}
 		s.Revising = Revising{BlockIDs: []string{}}
 		if s.dirty() {
-			rec, err := s.closeRound(&p.Revision)
-			if err != nil {
-				return err
-			}
-			s.Rounds.History = append(s.Rounds.History, rec)
+			s.Rounds.History = append(s.Rounds.History, s.closeRound(&p.Revision))
 			s.Rounds.Current++
 			s.Interactions.Viewed = map[string]bool{}
 			s.Rounds.CurrentTitle = ""
@@ -531,11 +562,7 @@ func (s *State) apply(ev Event) error {
 		}
 		s.Revising = Revising{BlockIDs: []string{}}
 		if s.dirty() {
-			rec, err := s.closeRound(nil)
-			if err != nil {
-				return err
-			}
-			s.Rounds.History = append(s.Rounds.History, rec)
+			s.Rounds.History = append(s.Rounds.History, s.closeRound(nil))
 			s.Rounds.Current++
 			s.Interactions.Viewed = map[string]bool{}
 		}
@@ -631,17 +658,13 @@ func (s *State) dirty() bool {
 	return false
 }
 
-func (s *State) closeRound(revision *int) (RoundRecord, error) {
+func (s *State) closeRound(revision *int) RoundRecord {
 	cur := s.Rounds.Current
-	var live []doc.Block
+	var blocks doc.BlockList
 	for _, b := range s.Doc.Blocks {
 		if s.Rounds.BlockRounds[b.BlockID()] == cur {
-			live = append(live, b)
+			blocks = append(blocks, b)
 		}
-	}
-	blocks, err := copyBlocks(live)
-	if err != nil {
-		return RoundRecord{}, err
 	}
 	ids := idsOf(blocks)
 	return RoundRecord{
@@ -657,7 +680,7 @@ func (s *State) closeRound(revision *int) (RoundRecord, error) {
 		Triage:            filterMap(s.Interactions.Triage, ids, cloneVerdicts),
 		Viewed:            filterMap(s.Interactions.Viewed, ids, identity[bool]),
 		SubmittedRevision: revision,
-	}, nil
+	}
 }
 
 // inputRound resolves the round an input value belongs to: the round of its
@@ -724,18 +747,4 @@ func cloneVerdicts(m map[string]Decision) map[string]Decision {
 		out[id] = d
 	}
 	return out
-}
-
-// copyBlocks deep-copies blocks through the doc decoder so a later in-place
-// mutation of the live document cannot reach a round's frozen snapshot.
-func copyBlocks(blocks []doc.Block) (doc.BlockList, error) {
-	data, err := json.Marshal(blocks)
-	if err != nil {
-		return nil, fmt.Errorf("marshal round blocks: %w", err)
-	}
-	var out doc.BlockList
-	if err := json.Unmarshal(data, &out); err != nil {
-		return nil, fmt.Errorf("decode round blocks: %w", err)
-	}
-	return out, nil
 }

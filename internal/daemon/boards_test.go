@@ -13,7 +13,6 @@ import (
 	ccevent "github.com/yasyf/cc-interact/event"
 
 	"github.com/yasyf/cc-present/internal/doc"
-	"github.com/yasyf/cc-present/internal/state"
 )
 
 // The owner's board at 12:01Z on Oct 31, when it would not load after a daemon
@@ -133,53 +132,10 @@ func TestColdLoadAtOwnerBoardSize(t *testing.T) {
 	h := newRestHarnessWith(t, `{"version":1,"title":"T","blocks":[]}`, emptyPackLoader(t))
 	events, payloadBytes := seedOwnerBoard(t, h)
 
-	ctx := context.Background()
-	start := time.Now()
-	loaded, err := loadEventsAfter(ctx, h.cc.DB(), h.id, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	loadTook := time.Since(start)
-	start = time.Now()
-	for _, ev := range loaded {
-		if ev.Type != EventBlockUpserted {
-			continue
-		}
-		var p struct {
-			Block json.RawMessage `json:"block"`
-		}
-		if err := json.Unmarshal(ev.Payload, &p); err != nil {
-			t.Fatal(err)
-		}
-		if _, err := doc.DecodeStoredBlock(p.Block); err != nil {
-			t.Fatal(err)
-		}
-	}
-	decodeTook := time.Since(start)
-	start = time.Now()
-	full := state.New()
-	if err := full.ApplyRetiring(loaded, map[string]bool{}); err != nil {
-		t.Fatal(err)
-	}
-	reduceTook := time.Since(start)
-	var unretired []state.Event
-	for _, ev := range loaded {
-		if ev.Type != "block.removed" {
-			unretired = append(unretired, ev)
-		}
-	}
-	start = time.Now()
-	bare := state.New()
-	if err := bare.ApplyRetiring(unretired, map[string]bool{}); err != nil {
-		t.Fatal(err)
-	}
-	bareTook := time.Since(start)
-	t.Logf("load %v, decode upserts %v, reduce %v, reduce without removals %v, rounds %d", loadTook, decodeTook, reduceTook, bareTook, len(full.Rounds.History))
-
 	req := httptest.NewRequest(http.MethodGet, "/api/state?session=board--abcd0000", nil)
 	req.Header.Set("Accept-Encoding", "gzip")
 	w := httptest.NewRecorder()
-	start = time.Now()
+	start := time.Now()
 	h.mux().ServeHTTP(w, req)
 	took := time.Since(start)
 	if w.Code != http.StatusOK {
