@@ -17,17 +17,19 @@ import (
 )
 
 // The owner's board at 12:01Z on Oct 31, when it would not load after a daemon
-// restart: 304 cards upserted about seven times each at about 30 KB, every card
-// carrying a merge group of 25 rows, 213 answered cards retired, about 350
-// answered choices, and a round closed on every pass.
+// restart: 304 cards of about 30 KB, each carrying a merge group of 25 rows and
+// upserted seven times within the round that answers it, 38 rounds of 8 cards,
+// about 350 answered choices, and 213 answered cards retired while about 70
+// stay live.
 const (
-	ownerBoardCards       = 304
-	ownerBoardWaves       = 4
-	ownerBoardPasses      = 7
-	ownerBoardRetiredWave = 71
-	ownerBoardMergeRows   = 25
-	coldLoadLimit         = time.Second
-	firstRenderGzipLimit  = 512 << 10
+	ownerBoardCards      = 304
+	ownerBoardRoundSize  = 8
+	ownerBoardPasses     = 7
+	ownerBoardLiveCards  = 72
+	ownerBoardRetired    = 213
+	ownerBoardMergeRows  = 25
+	coldLoadLimit        = time.Second
+	firstRenderGzipLimit = 512 << 10
 )
 
 type fixtureEvent struct {
@@ -68,31 +70,29 @@ func ownerBoardEvents() []fixtureEvent {
 	var out []fixtureEvent
 	agent := func(typ, payload string) { out = append(out, fixtureEvent{ccevent.OriginAgent, typ, payload}) }
 	human := func(typ, payload string) { out = append(out, fixtureEvent{ccevent.OriginHuman, typ, payload}) }
-	per := ownerBoardCards / ownerBoardWaves
-	for wave := range ownerBoardWaves {
-		agent(EventRoundStarted, fmt.Sprintf(`{"title":"wave %d"}`, wave))
-		ids := make([]string, per)
-		for i := range ids {
-			ids[i] = fmt.Sprintf("card-%03d", wave*per+i)
-		}
+	cardID := func(n int) string { return fmt.Sprintf("card-%03d", n) }
+	retired := 0
+	for first := 0; first < ownerBoardCards; first += ownerBoardRoundSize {
 		for pass := range ownerBoardPasses {
-			for i, id := range ids {
+			for n := first; n < first+ownerBoardRoundSize; n++ {
+				id := cardID(n)
 				agent(EventBlockUpserted, ownerBoardCard(id, pass))
-				if (i+pass)%9 != 0 {
-					human("triage.decided", fmt.Sprintf(`{"blockId":"%s-triage","verdicts":{"i%d":{"verdict":"approved"}}}`, id, 1+(i+pass)%3))
+				if (n+pass)%9 != 0 {
+					human("triage.decided", fmt.Sprintf(`{"blockId":"%s-triage","verdicts":{"i%d":{"verdict":"approved"}}}`, id, 1+(n+pass)%3))
 				}
-				if pass == 1 || (pass == 4 && i%7 == 0) {
+				if pass == 1 || (pass == 4 && n == first) {
 					human("choice.selected", fmt.Sprintf(`{"blockId":"%s-choice","optionIds":["a"]}`, id))
 				}
-				if (i+pass)%21 == 0 {
+				if (n+pass)%21 == 0 {
 					agent("reply.created", fmt.Sprintf(`{"id":"r-%s-%d","blockId":"%s","md":"noted"}`, id, pass, id))
 				}
 			}
-			human("submit", `{"revision":1,"viewed":[]}`)
 		}
-		if wave < ownerBoardWaves-1 {
-			for _, id := range ids[:ownerBoardRetiredWave] {
-				agent("block.removed", fmt.Sprintf(`{"id":%q}`, id))
+		human("submit", `{"revision":1,"viewed":[]}`)
+		for n := first - ownerBoardLiveCards; n < first-ownerBoardLiveCards+ownerBoardRoundSize; n++ {
+			if n >= 0 && retired < ownerBoardRetired {
+				agent("block.removed", fmt.Sprintf(`{"id":%q}`, cardID(n)))
+				retired++
 			}
 		}
 	}
