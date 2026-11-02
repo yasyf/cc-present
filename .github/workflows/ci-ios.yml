@@ -25,6 +25,7 @@ jobs:
   test:
     if: github.event_name != 'pull_request'
     runs-on: xcode-27
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v7
       - name: Install lint tools missing from the image
