@@ -788,7 +788,15 @@ func newOutcomesCmd(d cmd.Deps) *cobra.Command {
 			}
 			raw := read.Delta
 			if raw == nil {
-				if raw, err = shapeState(read, block, noDoc); err != nil {
+				var show *ccdaemon.BlockShow
+				if block != "" {
+					found, err := cl.BlockShow(ctx, sess, mustCwd(cwd), pid, block)
+					if err != nil {
+						return err
+					}
+					show = &found
+				}
+				if raw, err = shapeState(read, show, block, noDoc); err != nil {
 					return err
 				}
 			}
@@ -803,15 +811,15 @@ func newOutcomesCmd(d cmd.Deps) *cobra.Command {
 	c.Flags().StringVar(&since, "since", "", "print only the human interactions after an event seq, an RFC 3339 time, or last-submit (what the newest submit delivered, and everything after); the default once the board has a submit is last-submit")
 	c.Flags().BoolVar(&fresh, "new", false, "print only the human interactions since the previous outcomes read of this board")
 	c.Flags().BoolVar(&all, "all", false, "print the whole reduced state, as before the first submit")
-	c.Flags().BoolVar(&noDoc, "no-doc", false, "omit the reduced document and cut closed rounds to their block ids, printing only the human interactions and rounds")
-	c.Flags().StringVar(&block, "block", "", "filter the whole state to a single block id (a child id filters to its own entries; the doc keeps the enclosing card)")
+	c.Flags().BoolVar(&noDoc, "no-doc", false, "omit the reduced document and cut closed rounds to their block ids, printing only the human interactions, the rounds, and under removed every answered block no longer on the board")
+	c.Flags().StringVar(&block, "block", "", "filter the whole state to one block id ever on the board, removed or superseded ones included, adding onBoard and its answers with round and time (a card id keeps its children's entries; a child id filters to its own; the doc keeps the enclosing card as last shown)")
 	c.Flags().StringVar(&session, "session", "", "Claude session id (defaults to $CLAUDE_CODE_SESSION_ID)")
 	c.Flags().StringVar(&cwd, "cwd", "", "working directory (recorded on the request; artifacts are per-window, not resolved by directory)")
 	c.MarkFlagsMutuallyExclusive("since", "new", "all", "block")
 	return c
 }
 
-func shapeState(read ccdaemon.OutcomesRead, block string, noDoc bool) (json.RawMessage, error) {
+func shapeState(read ccdaemon.OutcomesRead, show *ccdaemon.BlockShow, block string, noDoc bool) (json.RawMessage, error) {
 	raw, err := withRetired(read.State, read.Retired)
 	if err != nil {
 		return nil, err
@@ -822,7 +830,7 @@ func shapeState(read ccdaemon.OutcomesRead, block string, noDoc bool) (json.RawM
 	if block == "" {
 		return raw, nil
 	}
-	if raw, err = filterBlock(raw, block); err != nil {
+	if raw, err = filterBlock(raw, block, *show); err != nil {
 		return nil, err
 	}
 	if noDoc {
@@ -890,12 +898,7 @@ func nestReplies(raw json.RawMessage) (json.RawMessage, error) {
 	return json.Marshal(m)
 }
 
-// filterBlock narrows reduced-state JSON to a single block: the document and
-// each closed round keep only the enclosing top-level block's subtree, and each
-// block-keyed interaction map keeps only the block's own entries. An id no block
-// in the current document carries is an error. A child id resolves through
-// doc.Locate — its own interactions, its enclosing card's subtree.
-func filterBlock(raw json.RawMessage, id string) (json.RawMessage, error) {
+func filterBlock(raw json.RawMessage, id string, show ccdaemon.BlockShow) (json.RawMessage, error) {
 	var m map[string]json.RawMessage
 	if err := json.Unmarshal(raw, &m); err != nil {
 		return nil, err
@@ -904,24 +907,27 @@ func filterBlock(raw json.RawMessage, id string) (json.RawMessage, error) {
 	if err := json.Unmarshal(m["doc"], &dd); err != nil {
 		return nil, err
 	}
-	loc, ok := doc.Locate(&dd, id)
-	if !ok {
-		return nil, fmt.Errorf("no block %q in the current document", id)
-	}
-	kept := make([]doc.Block, 0, 1)
-	for _, b := range dd.Blocks {
-		if b.BlockID() == loc.TopID {
-			kept = append(kept, b)
+	dd.Blocks = []doc.Block{}
+	ids, topID := []string{id}, id
+	if string(show.Top) != "null" {
+		top, err := doc.DecodeStoredBlock(show.Top)
+		if err != nil {
+			return nil, err
+		}
+		dd.Blocks, topID = []doc.Block{top}, top.BlockID()
+		if topID == id {
+			for _, c := range doc.Children(top) {
+				ids = append(ids, c.BlockID())
+			}
 		}
 	}
-	dd.Blocks = kept
 	docJSON, err := json.Marshal(&dd)
 	if err != nil {
 		return nil, err
 	}
 	m["doc"] = docJSON
 	if inter, ok := m["interactions"]; ok {
-		filtered, err := filterInteractions(inter, id)
+		filtered, err := filterInteractions(inter, ids)
 		if err != nil {
 			return nil, err
 		}
@@ -940,7 +946,7 @@ func filterBlock(raw json.RawMessage, id string) (json.RawMessage, error) {
 			if err := json.Unmarshal(b, &head); err != nil {
 				return err
 			}
-			if head.ID == loc.TopID {
+			if head.ID == topID {
 				keptBlocks = append(keptBlocks, b)
 			}
 		}
@@ -949,35 +955,39 @@ func filterBlock(raw json.RawMessage, id string) (json.RawMessage, error) {
 			return err
 		}
 		r["blocks"] = blocksJSON
-		return filterKeyed(r, id)
+		return filterKeyed(r, ids)
 	})
 	if err != nil {
 		return nil, err
 	}
 	m["rounds"] = rounds
+	if m["onBoard"], err = json.Marshal(show.OnBoard); err != nil {
+		return nil, err
+	}
+	if m["answers"], err = json.Marshal(show.Events); err != nil {
+		return nil, err
+	}
 	return json.Marshal(m)
 }
 
-// filterInteractions keeps only id's entries in each block-keyed interaction
-// map, leaving the non-keyed submit and close signals untouched.
-func filterInteractions(raw json.RawMessage, id string) (json.RawMessage, error) {
+func filterInteractions(raw json.RawMessage, ids []string) (json.RawMessage, error) {
 	var m map[string]json.RawMessage
 	if err := json.Unmarshal(raw, &m); err != nil {
 		return nil, err
 	}
-	if err := filterKeyed(m, id); err != nil {
+	if err := filterKeyed(m, ids); err != nil {
 		return nil, err
 	}
 	return json.Marshal(m)
 }
 
-func filterKeyed(m map[string]json.RawMessage, id string) error {
+func filterKeyed(m map[string]json.RawMessage, ids []string) error {
 	for _, key := range []string{"decisions", "choices", "inputs", "packs", "feedback", "replies", "annotations", "triage", "viewed"} {
 		sub, ok := m[key]
 		if !ok {
 			continue
 		}
-		filtered, err := filterMapByKey(sub, id)
+		filtered, err := filterMapByKey(sub, ids)
 		if err != nil {
 			return err
 		}
@@ -986,16 +996,16 @@ func filterKeyed(m map[string]json.RawMessage, id string) error {
 	return nil
 }
 
-// filterMapByKey narrows a JSON object to the single entry under id, preserving
-// that entry's value bytes verbatim; a missing id yields an empty object.
-func filterMapByKey(raw json.RawMessage, id string) (json.RawMessage, error) {
+func filterMapByKey(raw json.RawMessage, ids []string) (json.RawMessage, error) {
 	var mm map[string]json.RawMessage
 	if err := json.Unmarshal(raw, &mm); err != nil {
 		return nil, err
 	}
 	out := map[string]json.RawMessage{}
-	if v, ok := mm[id]; ok {
-		out[id] = v
+	for _, id := range ids {
+		if v, ok := mm[id]; ok {
+			out[id] = v
+		}
 	}
 	return json.Marshal(out)
 }

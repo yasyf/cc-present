@@ -11,6 +11,7 @@ import (
 	ccd "github.com/yasyf/cc-interact/daemon"
 
 	"github.com/yasyf/cc-present/internal/doc"
+	"github.com/yasyf/cc-present/internal/state"
 )
 
 // BlockShow is one block as the board last showed it and the interactions on
@@ -24,11 +25,12 @@ type BlockShow struct {
 }
 
 // BlockEvent is one interaction on a block: its event type, who made it, when,
-// and the event payload.
+// the round it landed in, and the event payload.
 type BlockEvent struct {
 	Type    string          `json:"type"`
 	Origin  string          `json:"origin"`
 	At      time.Time       `json:"at"`
+	Round   int             `json:"round"`
 	Payload json.RawMessage `json:"payload"`
 }
 
@@ -49,6 +51,7 @@ func handleBlockShow(hc ccd.HandlerCtx) ccd.Reply {
 	}
 	show := BlockShow{OnBoard: onBoard}
 	show.Top, err = json.Marshal(top)
+	rounds := board.st.RoundStarts()
 	board.mu.Unlock()
 	if err == nil && !onBoard {
 		if top, err = lastShown(hc.Ctx, hc.DB, sub.ID, id); err == nil {
@@ -64,11 +67,11 @@ func handleBlockShow(hc ccd.HandlerCtx) ccd.Reply {
 			ids = append(ids, c.BlockID())
 		}
 	}
-	if show.Events, err = blockEvents(hc.Ctx, hc.DB, sub.ID, ids); err != nil {
+	if show.Events, err = blockEvents(hc.Ctx, hc.DB, sub.ID, ids, rounds); err != nil {
 		return errReply(err.Error())
 	}
 	if top == nil && len(show.Events) == 0 {
-		return errReply(fmt.Sprintf("no block %q on this board or in its history", id))
+		return errReply(fmt.Sprintf("block %q was never on this board", id))
 	}
 	raw, _ := json.Marshal(show)
 	return okReply(result{State: raw})
@@ -130,8 +133,8 @@ func lastShown(ctx context.Context, db *sql.DB, subjectID, id string) (doc.Block
 	return leaf, nil
 }
 
-func blockEvents(ctx context.Context, db *sql.DB, subjectID string, ids []string) ([]BlockEvent, error) {
-	rows, err := db.QueryContext(ctx, `SELECT origin, type, payload, created_at FROM events WHERE subject_id=? AND type IN (?,?,?,?,?,?,?) ORDER BY seq DESC`,
+func blockEvents(ctx context.Context, db *sql.DB, subjectID string, ids []string, rounds state.RoundStarts) ([]BlockEvent, error) {
+	rows, err := db.QueryContext(ctx, `SELECT seq, origin, type, payload, created_at FROM events WHERE subject_id=? AND type IN (?,?,?,?,?,?,?) ORDER BY seq DESC`,
 		subjectID, EventDecisionCreated, EventChoiceSelected, EventFeedbackCreated, EventInputSubmitted, EventPackInteraction, EventAnnotationCreated, EventTriageDecided)
 	if err != nil {
 		return nil, fmt.Errorf("load interactions: %w", err)
@@ -141,10 +144,11 @@ func blockEvents(ctx context.Context, db *sql.DB, subjectID string, ids []string
 	for rows.Next() {
 		var (
 			e       BlockEvent
+			seq     int64
 			payload string
 			created int64
 		)
-		if err := rows.Scan(&e.Origin, &e.Type, &payload, &created); err != nil {
+		if err := rows.Scan(&seq, &e.Origin, &e.Type, &payload, &created); err != nil {
 			return nil, fmt.Errorf("scan interaction: %w", err)
 		}
 		var p struct {
@@ -156,7 +160,7 @@ func blockEvents(ctx context.Context, db *sql.DB, subjectID string, ids []string
 		if !slices.Contains(ids, p.BlockID) {
 			continue
 		}
-		e.At, e.Payload = time.Unix(created, 0), json.RawMessage(payload)
+		e.At, e.Round, e.Payload = time.Unix(created, 0), rounds.At(seq), json.RawMessage(payload)
 		out = append(out, e)
 	}
 	return out, rows.Err()

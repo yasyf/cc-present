@@ -16,8 +16,8 @@ func TestWriteBlockShow(t *testing.T) {
 			`{"id":"q1","type":"choice","prompt":"Which?","options":[{"id":"a","label":"A","hint":"local first","recommended":true},{"id":"b","label":"B"}]},` +
 			`{"id":"ok","type":"approval","prompt":"Ship?"}]}`),
 		Events: []ccdaemon.BlockEvent{
-			{Type: ccdaemon.EventDecisionCreated, Origin: "agent", At: at, Payload: json.RawMessage(`{"blockId":"ok","verdict":"approved","note":"carried"}`)},
-			{Type: ccdaemon.EventChoiceSelected, Origin: "human", At: at, Payload: json.RawMessage(`{"blockId":"q1","optionIds":[],"other":"same layer\nas before"}`)},
+			{Type: ccdaemon.EventDecisionCreated, Origin: "agent", At: at, Round: 2, Payload: json.RawMessage(`{"blockId":"ok","verdict":"approved","note":"carried"}`)},
+			{Type: ccdaemon.EventChoiceSelected, Origin: "human", At: at, Round: 1, Payload: json.RawMessage(`{"blockId":"q1","optionIds":[],"other":"same layer\nas before"}`)},
 		},
 	}
 	var out strings.Builder
@@ -36,8 +36,8 @@ q1: choice, pick one
   - b: B
 
 Answers, newest first:
-  ` + stamp + `  ok  approved: carried (recorded by the agent)
-  ` + stamp + `  q1  wrote in: same layer
+  ` + stamp + `  round 2  ok  approved: carried (recorded by the agent)
+  ` + stamp + `  round 1  q1  wrote in: same layer
     as before
 `
 	if out.String() != want {

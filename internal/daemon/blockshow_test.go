@@ -74,7 +74,52 @@ func TestBlockShowReadsARemovedChildFromTheLog(t *testing.T) {
 	if got := blockShow(t, h, "c1"); len(got.Events) != 2 {
 		t.Fatalf("card events = %d, want its child's 2", len(got.Events))
 	}
-	if reply := handleBlockShow(h.hc(body{ID: "zz"})); reply.OK || !strings.Contains(reply.Error, `"zz"`) {
+}
+
+func TestARemovedAnsweredCardKeepsItsAnswers(t *testing.T) {
+	h := newHarness(t)
+	start := handleStart(h.hc(body{Doc: json.RawMessage(routeDoc)}), doc.NoPacks, nilDisplay)
+	if !start.OK {
+		t.Fatalf("start not ok: %s", start.Error)
+	}
+	if _, err := h.cc.AppendEvent(context.Background(), &ccevent.Event{
+		SubjectID: start.SubjectID, Origin: ccevent.OriginHuman, Type: EventChoiceSelected,
+		Payload: injectIdentity(EventChoiceSelected, json.RawMessage(`{"blockId":"q1","optionIds":[],"other":"flush at startup"}`)),
+	}); err != nil {
+		t.Fatalf("append choice: %v", err)
+	}
+	ageEvents(t, h, start.SubjectID)
+	if reply := handleRemoveBlock(h.hc(body{ID: "c1"})); !reply.OK {
+		t.Fatalf("remove-block not ok: %s", reply.Error)
+	}
+
+	show := blockShow(t, h, "c1")
+	if show.OnBoard || len(show.Events) != 1 || show.Events[0].Round != 1 || !strings.Contains(string(show.Events[0].Payload), "flush at startup") {
+		t.Fatalf("removed card show = %+v, want its child's write-in from round 1", show)
+	}
+
+	reply := handleOutcomes(h.hc(body{View: OutcomeNoDoc}), h.cursors)
+	if !reply.OK {
+		t.Fatalf("outcomes not ok: %s", reply.Error)
+	}
+	var res result
+	if err := json.Unmarshal(reply.Body, &res); err != nil {
+		t.Fatalf("decode result: %v", err)
+	}
+	var out struct {
+		Removed map[string]struct {
+			Top   string `json:"top"`
+			Title string `json:"title"`
+		} `json:"removed"`
+	}
+	if err := json.Unmarshal(res.State, &out); err != nil {
+		t.Fatalf("decode no-doc state: %v", err)
+	}
+	if got := out.Removed["q1"]; got.Top != "c1" || got.Title != "Route?" {
+		t.Fatalf("no-doc removed = %+v, want q1 marked removed from c1", out.Removed)
+	}
+
+	if reply := handleBlockShow(h.hc(body{ID: "zz"})); reply.OK || reply.Error != `block "zz" was never on this board` {
 		t.Fatalf("unknown block: ok=%v err=%q", reply.OK, reply.Error)
 	}
 }

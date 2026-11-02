@@ -185,6 +185,8 @@ type State struct {
 	Interactions  Interactions `json:"interactions"`
 	Rounds        Rounds       `json:"rounds"`
 	Revising      Revising     `json:"revising"`
+	removed       map[string]Removed
+	roundStarts   RoundStarts
 }
 
 // UnmarshalJSON accepts only the exact v1 reduced-state schema.
@@ -224,6 +226,7 @@ func (s *State) Apply(events []Event) error {
 func New() State {
 	return State{
 		SchemaVersion: SchemaVersion,
+		removed:       map[string]Removed{},
 		Doc:           &doc.Doc{Version: 1, Blocks: []doc.Block{}},
 		Interactions: Interactions{
 			Decisions:   map[string]Decision{},
@@ -307,6 +310,7 @@ func (s *State) apply(ev Event, up upsert) error {
 			return err
 		}
 		prior := s.Rounds.BlockRounds
+		s.dropMissing(s.Doc.Blocks, p.Doc.doc.Blocks)
 		s.Doc = p.Doc.doc
 		s.Rounds.BlockRounds = map[string]int{}
 		for _, b := range s.Doc.Blocks {
@@ -326,12 +330,16 @@ func (s *State) apply(ev Event, up upsert) error {
 		}
 		b := up.block
 		topID := b.BlockID()
+		var before []doc.Block
 		if loc, ok := doc.Locate(s.Doc, b.BlockID()); ok {
 			topID = loc.TopID
+			before = s.Doc.Blocks[loc.TopIndex : loc.TopIndex+1]
 		} else if loc, ok := doc.Locate(s.Doc, up.after); ok && loc.Kind == doc.CardChild {
 			topID = loc.TopID
 		}
 		s.Doc.Blocks = doc.UpsertBlocks(s.Doc.Blocks, b, up.after)
+		after, _ := doc.Locate(s.Doc, topID)
+		s.dropMissing(before, s.Doc.Blocks[after.TopIndex:after.TopIndex+1])
 		s.Rounds.BlockRounds[topID] = s.Rounds.Current
 		s.revisingOnUpsert(topID)
 		return nil
@@ -347,6 +355,7 @@ func (s *State) apply(ev Event, up upsert) error {
 		if !ok || loc.Visual() {
 			return nil
 		}
+		s.markRemoved(s.Doc.Blocks[loc.TopIndex], loc.Block)
 		blocks, topID := doc.RemoveBlock(s.Doc.Blocks, p.ID)
 		s.Doc.Blocks = blocks
 		if loc.Kind == doc.CardChild {
@@ -547,7 +556,7 @@ func (s *State) apply(ev Event, up upsert) error {
 		s.Revising = Revising{BlockIDs: []string{}}
 		if s.dirty() {
 			s.Rounds.History = append(s.Rounds.History, s.closeRound(&p.Revision))
-			s.Rounds.Current++
+			s.startRound(ev.Seq)
 			s.Interactions.Viewed = map[string]bool{}
 			s.Rounds.CurrentTitle = ""
 		}
@@ -563,7 +572,7 @@ func (s *State) apply(ev Event, up upsert) error {
 		s.Revising = Revising{BlockIDs: []string{}}
 		if s.dirty() {
 			s.Rounds.History = append(s.Rounds.History, s.closeRound(nil))
-			s.Rounds.Current++
+			s.startRound(ev.Seq)
 			s.Interactions.Viewed = map[string]bool{}
 		}
 		s.Rounds.CurrentTitle = p.Title
