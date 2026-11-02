@@ -52,14 +52,31 @@ func ownerBoardCard(id string, pass int) string {
 			Md:      strings.Repeat("row detail line with enough words to read like a real one. ", 6),
 		}
 	}
-	card := map[string]any{
-		"id": id, "type": "card", "title": "Decision " + id, "summary": strings.Repeat("summary ", 20),
-		"children": []any{
-			map[string]any{"id": id + "-groups", "type": "pr-groups", "repo": "Forge-AI/monorepo", "groups": []doc.PRGroup{{ID: id + "-g", Title: "Group", Summary: "what the group changes", PRs: rows}}},
-			map[string]any{"id": id + "-md", "type": "markdown", "md": strings.Repeat("Context paragraph for the decision on this card. ", 160)},
-			map[string]any{"id": id + "-page", "type": "display.page", "md": strings.Repeat("page body ", 600)},
-			map[string]any{"id": id + "-choice", "type": "choice", "prompt": "Pick one", "options": []map[string]string{{"id": "a", "label": "A"}, {"id": "b", "label": "B"}, {"id": "c", "label": "C"}}},
-			map[string]any{"id": id + "-triage", "type": "triage", "items": []map[string]string{{"id": "i1", "label": "one"}, {"id": "i2", "label": "two"}, {"id": "i3", "label": "three"}}},
+	type leaf struct {
+		ID      string              `json:"id"`
+		Type    string              `json:"type"`
+		Prompt  string              `json:"prompt,omitempty"`
+		Repo    string              `json:"repo,omitempty"`
+		Md      string              `json:"md,omitempty"`
+		Groups  []doc.PRGroup       `json:"groups,omitempty"`
+		Options []map[string]string `json:"options,omitempty"`
+		Items   []map[string]string `json:"items,omitempty"`
+	}
+	abc := []map[string]string{{"id": "a", "label": "A"}, {"id": "b", "label": "B"}, {"id": "c", "label": "C"}}
+	card := struct {
+		ID       string `json:"id"`
+		Type     string `json:"type"`
+		Title    string `json:"title"`
+		Summary  string `json:"summary"`
+		Children []leaf `json:"children"`
+	}{
+		ID: id, Type: "card", Title: "Decision " + id, Summary: strings.Repeat("summary ", 20),
+		Children: []leaf{
+			{ID: id + "-groups", Type: "pr-groups", Repo: "Forge-AI/monorepo", Groups: []doc.PRGroup{{ID: id + "-g", Title: "Group", Summary: "what the group changes", PRs: rows}}},
+			{ID: id + "-md", Type: "markdown", Md: strings.Repeat("Context paragraph for the decision on this card. ", 160)},
+			{ID: id + "-page", Type: "display.page", Md: strings.Repeat("page body ", 600)},
+			{ID: id + "-choice", Type: "choice", Prompt: "Pick one", Options: abc},
+			{ID: id + "-triage", Type: "triage", Items: abc},
 		},
 	}
 	return string(mustJSON(map[string]any{"block": card}))

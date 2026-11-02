@@ -748,8 +748,8 @@ func DecodeStoredBlock(data json.RawMessage) (Block, error) {
 }
 
 func decodeBlock(data json.RawMessage, unmarshal unmarshalFunc) (Block, error) {
-	var head base
-	if err := json.Unmarshal(data, &head); err != nil {
+	head, err := blockHead(data)
+	if err != nil {
 		return nil, fmt.Errorf("read block type: %w", err)
 	}
 	if strings.Contains(head.Type, ".") {
@@ -771,6 +771,33 @@ func decodeBlock(data json.RawMessage, unmarshal unmarshalFunc) (Block, error) {
 		return nil, fmt.Errorf("block %q: decode %s block: %w", head.ID, head.Type, err)
 	}
 	return b, nil
+}
+
+func blockHead(data []byte) (base, error) {
+	var head base
+	dec := json.NewDecoder(bytes.NewReader(data))
+	if open, err := dec.Token(); err != nil {
+		return head, err
+	} else if open != json.Delim('{') {
+		return head, fmt.Errorf("block is %v, not an object", open)
+	}
+	for dec.More() && (head.ID == "" || head.Type == "") {
+		key, err := dec.Token()
+		if err != nil {
+			return head, err
+		}
+		var dst any = &json.RawMessage{}
+		switch {
+		case strings.EqualFold(key.(string), "id"):
+			dst = &head.ID
+		case strings.EqualFold(key.(string), "type"):
+			dst = &head.Type
+		}
+		if err := dec.Decode(dst); err != nil {
+			return head, err
+		}
+	}
+	return head, nil
 }
 
 func decodeLeaf[T any, B interface {

@@ -58,7 +58,11 @@ func (s *State) ApplyRetiring(events []Event, retired map[string]bool) error {
 		if err := s.apply(ev, upserts[i]); err != nil {
 			return fmt.Errorf("apply %s at seq %d: %w", ev.Type, ev.Seq, err)
 		}
-		if len(retired) > 0 && (ev.Type == "block.upserted" || ev.Type == "doc.replaced") {
+		switch {
+		case len(retired) == 0:
+		case ev.Type == "block.upserted":
+			doc.Walk(upserts[i].block, func(b doc.Block) { delete(retired, b.BlockID()) })
+		case ev.Type == "doc.replaced":
 			for _, b := range s.Doc.Blocks {
 				doc.Walk(b, func(b doc.Block) { delete(retired, b.BlockID()) })
 			}
