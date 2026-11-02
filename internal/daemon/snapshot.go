@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"reflect"
 	"strings"
 	"time"
 
@@ -50,7 +51,7 @@ type outlineBlock struct {
 
 func (rs *restServer) handleState(w http.ResponseWriter, r *http.Request) {
 	rs.serveBoard(w, r, func(b *reducedBoard) (encoded, error) {
-		return b.encode(&b.snapshot, func() (any, error) { return snapshotOf(&b.st, b.seq, b.revision) })
+		return b.encode(&b.snapshot, func() (any, error) { return snapshotOf(&b.st, b.seq, b.revision), nil })
 	})
 }
 
@@ -97,16 +98,12 @@ func (rs *restServer) serveBoard(w http.ResponseWriter, r *http.Request, encode 
 	http.ServeContent(w, r, "", time.Time{}, bytes.NewReader(body))
 }
 
-func snapshotOf(st *state.State, seq int64, revision int) (snapshot, error) {
+func snapshotOf(st *state.State, seq int64, revision int) snapshot {
 	history := make([]roundStub, len(st.Rounds.History))
 	for i, record := range st.Rounds.History {
 		outline := make([]outlineBlock, len(record.Blocks))
 		for j, b := range record.Blocks {
-			label, err := outlineLabel(b)
-			if err != nil {
-				return snapshot{}, err
-			}
-			outline[j] = outlineBlock{ID: b.BlockID(), Type: b.BlockType(), Label: label}
+			outline[j] = outlineBlock{ID: b.BlockID(), Type: b.BlockType(), Label: outlineLabel(b)}
 			if card, ok := b.(*doc.Card); ok {
 				for _, child := range card.Children {
 					outline[j].Children = append(outline[j].Children, child.BlockID())
@@ -136,27 +133,31 @@ func snapshotOf(st *state.State, seq int64, revision int) (snapshot, error) {
 			},
 			Revising: st.Revising,
 		},
-	}, nil
+	}
 }
 
-func outlineLabel(b doc.Block) (string, error) {
-	raw, err := json.Marshal(b)
-	if err != nil {
-		return "", err
+var labelKeys = []string{"prompt", "question", "title", "label"}
+
+func outlineLabel(b doc.Block) string {
+	if pb, ok := b.(*doc.PackBlock); ok {
+		for _, key := range labelKeys {
+			var s string
+			if json.Unmarshal(pb.Fields[key], &s) == nil && strings.TrimSpace(s) != "" {
+				return s
+			}
+		}
+		return b.BlockType()
 	}
-	var fields map[string]json.RawMessage
-	if err := json.Unmarshal(raw, &fields); err != nil {
-		return "", err
-	}
-	for _, key := range []string{"prompt", "question", "title", "label"} {
-		var s string
-		if json.Unmarshal(fields[key], &s) == nil && strings.TrimSpace(s) != "" {
-			return s, nil
+	v := reflect.ValueOf(b).Elem()
+	for _, key := range labelKeys {
+		for _, f := range reflect.VisibleFields(v.Type()) {
+			if f.IsExported() && f.Type.Kind() == reflect.String && strings.Split(f.Tag.Get("json"), ",")[0] == key {
+				if s := v.FieldByIndex(f.Index).String(); strings.TrimSpace(s) != "" {
+					return s
+				}
+			}
 		}
 	}
-	if _, ok := b.(*doc.PackBlock); ok {
-		return b.BlockType(), nil
-	}
 	t := b.BlockType()
-	return strings.ToUpper(t[:1]) + t[1:], nil
+	return strings.ToUpper(t[:1]) + t[1:]
 }
