@@ -7,13 +7,14 @@ on:
       - "ios/**"
       - ".github/workflows/ci-ios.yml"
   pull_request:
+    branches: [main]
     paths:
       - "ios/**"
       - ".github/workflows/ci-ios.yml"
 
 concurrency:
-  group: ci-ios-${{ github.ref }}
-  cancel-in-progress: true
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
