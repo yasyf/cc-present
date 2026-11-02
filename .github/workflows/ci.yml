@@ -28,7 +28,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-latest, ubuntu-latest]
+        os: ${{ github.event_name == 'pull_request' && fromJSON('["ubuntu-latest"]') || fromJSON('["macos-latest","ubuntu-latest"]') }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -131,7 +131,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-latest, ubuntu-latest]
+        os: ${{ github.event_name == 'pull_request' && fromJSON('["ubuntu-latest"]') || fromJSON('["macos-latest","ubuntu-latest"]') }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -163,6 +163,7 @@ jobs:
         run: uvx --isolated --python 3.13 'capt-hook>=12.74.0' pack test plugin
 
   vuln:
+    if: github.event_name != 'pull_request'
     runs-on: macos-latest
     timeout-minutes: 15
     steps:
