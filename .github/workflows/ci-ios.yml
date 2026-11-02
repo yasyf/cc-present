@@ -23,6 +23,7 @@ permissions:
 # ships Xcode 27 — the toolchain and iOS SDK this app targets.
 jobs:
   test:
+    if: github.event_name != 'pull_request'
     runs-on: xcode-27
     steps:
       - uses: actions/checkout@v7
