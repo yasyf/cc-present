@@ -175,7 +175,7 @@ func Deps() cmd.Deps {
 			if err != nil {
 				return err
 			}
-			return recoveryFor(l).after(ctx, l.EnsureCurrentIfRunning(ctx))
+			return usableDaemon(recoveryFor(l).after(ctx, l.EnsureCurrentIfRunning(ctx)))
 		},
 		Stop: func(ctx context.Context) error {
 			l, err := launcher()
