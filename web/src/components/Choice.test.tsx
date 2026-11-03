@@ -514,7 +514,9 @@ describe('Choice compare grid', () => {
     const block = plans(3);
     block.options.forEach((option, i) => (option.visual = { id: `v${i}`, type: 'image', src: 'data:,x', alt: `chart-${i}` }));
     render(block, empty());
-    const alts = [...container.querySelectorAll<HTMLImageElement>('.option-row > .option-visual img')].map((img) => img.alt);
+    const alts = [...container.querySelectorAll('.option-row')].map(
+      (r) => r.querySelector<HTMLImageElement>(':scope > .option-visual img')?.alt,
+    );
     expect(alts).toEqual(['chart-0', 'chart-1', 'chart-2']);
   });
 
