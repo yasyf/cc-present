@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
 	"sync"
 
@@ -35,6 +36,8 @@ type reducedBoard struct {
 	events    int
 	st        state.State
 	retired   map[string]bool
+	owed      map[int64]withdrawal
+	settling  bool
 	snapshot  encoded
 	rounds    encoded
 }
@@ -70,6 +73,15 @@ func (b *reducedBoard) lock(ctx context.Context, db *sql.DB, id string) error {
 	return nil
 }
 
+func (b *reducedBoard) settleOwed(db *sql.DB, id string) {
+	m, ok := mirrors.Load(db)
+	if !ok || b.settling || len(b.owed) == 0 {
+		return
+	}
+	b.settling = true
+	go m.(*slackMirror).settle(db, id, maps.Clone(b.owed))
+}
+
 func forgetBoardsExcept(db *sql.DB, open []string) {
 	boards.Range(func(k, _ any) bool {
 		if key := k.(boardKey); key.db == db && !slices.Contains(open, key.id) {
@@ -85,11 +97,18 @@ func (b *reducedBoard) catchUp(ctx context.Context, db *sql.DB, subID string) er
 		return err
 	}
 	if b.seq == 0 {
-		b.st, b.retired, b.revision, b.events = state.New(), map[string]bool{}, 0, 0
+		b.st, b.retired, b.owed, b.revision, b.events = state.New(), map[string]bool{}, map[int64]withdrawal{}, 0, 0
 	}
 	if err := b.st.ApplyRetiring(events, b.retired); err != nil {
 		b.seq = 0
 		return err
+	}
+	if err := trackWithdrawals(events, b.owed); err != nil {
+		b.seq = 0
+		return err
+	}
+	if len(events) > 0 {
+		b.settleOwed(db, subID)
 	}
 	for _, ev := range events {
 		if ev.Type == EventDocReplaced {
