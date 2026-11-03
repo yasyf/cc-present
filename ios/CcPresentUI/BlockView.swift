@@ -67,7 +67,7 @@ public struct BlockView: View {
         case let .image(image):
             ImageBlockView(block: image, client: client)
         case let .table(table):
-            TableBlockView(block: table)
+            TableBlockView(block: table, store: store)
         case let .progress(progress):
             ProgressBlockView(block: progress)
         case let .chart(chart):

@@ -442,24 +442,56 @@ public enum Block: Codable, Equatable, Sendable {
         public var key: String
         public var label: String
         public var align: String?
+        public var filter: Bool?
+        public var sort: Bool?
 
-        public init(key: String, label: String, align: String? = nil) {
+        public init(key: String, label: String, align: String? = nil, filter: Bool? = nil, sort: Bool? = nil) {
             self.key = key
             self.label = label
             self.align = align
+            self.filter = filter
+            self.sort = sort
+        }
+    }
+
+    /// TableAction is a button on each row of a table with a rowKey; a press posts a
+    /// note naming the row on `target`, or on the table when `target` is absent.
+    public struct TableAction: Codable, Equatable, Sendable {
+        public var id: String
+        public var label: String
+        public var target: String?
+
+        public init(id: String, label: String, target: String? = nil) {
+            self.id = id
+            self.label = label
+            self.target = target
         }
     }
 
     /// Table is a columnar block; each row maps a column key to an inline-markdown cell.
+    /// With a `rowKey`, a row can open to its markdown `details` and offer `actions`.
     public struct Table: Codable, Equatable, Sendable {
         public var id: String
         public var columns: [Column]
         public var rows: [[String: String]]
+        public var rowKey: String?
+        public var details: [String: String]?
+        public var actions: [TableAction]?
 
-        public init(id: String, columns: [Column], rows: [[String: String]]) {
+        public init(
+            id: String,
+            columns: [Column],
+            rows: [[String: String]],
+            rowKey: String? = nil,
+            details: [String: String]? = nil,
+            actions: [TableAction]? = nil
+        ) {
             self.id = id
             self.columns = columns
             self.rows = rows
+            self.rowKey = rowKey
+            self.details = details
+            self.actions = actions
         }
     }
 
