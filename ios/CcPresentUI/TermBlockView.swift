@@ -24,6 +24,7 @@ struct TermBlockView: View {
                 .voice(.mono, size: 13)
                 .padding(.horizontal, 14)
                 .padding(.vertical, Metrics.space2)
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .overlay(alignment: .bottom) { Palette.line.frame(height: 1) }
             }
             ScrollView(.horizontal) {

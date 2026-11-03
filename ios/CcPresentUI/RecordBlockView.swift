@@ -16,7 +16,11 @@ struct RecordBlockView: View {
                     .foregroundStyle(Palette.ink)
             }
             if let chips = block.chips, !chips.isEmpty {
-                FlowChips(chips: chips)
+                HStack(spacing: Metrics.space1) {
+                    ForEach(Array(chips.enumerated()), id: \.offset) { _, chip in
+                        ChipView(chip: chip)
+                    }
+                }
             }
             VStack(alignment: .leading, spacing: Metrics.space1) {
                 ForEach(Array(block.facts.enumerated()), id: \.offset) { _, fact in
@@ -52,20 +56,5 @@ struct RecordBlockView: View {
         .background(Palette.chipBg, in: RoundedRectangle(cornerRadius: Metrics.radiusLg))
         .overlay(RoundedRectangle(cornerRadius: Metrics.radiusLg).stroke(Palette.line, lineWidth: 1))
         .receiptContent()
-    }
-}
-
-private struct FlowChips: View {
-    let chips: [Block.Chip]
-
-    var body: some View {
-        ScrollView(.horizontal) {
-            HStack(spacing: Metrics.space1) {
-                ForEach(Array(chips.enumerated()), id: \.offset) { _, chip in
-                    ChipView(chip: chip)
-                }
-            }
-        }
-        .scrollIndicators(.hidden)
     }
 }
