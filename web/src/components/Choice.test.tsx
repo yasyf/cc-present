@@ -897,3 +897,22 @@ describe('Choice recommended badge', () => {
     expect(rows[1]!.querySelector('.option-reco')).toBeNull();
   });
 });
+
+describe('Choice build', () => {
+  it('links the branch an option is built on, and a click on it selects nothing', () => {
+    const block: ChoiceBlock = {
+      id: 'c',
+      type: 'choice',
+      options: [
+        { id: 'o0', label: 'Ship it', recommended: true, build: { repo: 'yasyf/cc-present', branch: 'faster-boards' } },
+        { id: 'o1', label: 'Hold', build: { none: 'a process pick' } },
+      ],
+    };
+    const posted = renderCapturing(block, empty());
+    const link = container.querySelector<HTMLAnchorElement>('a.ref[href="https://github.com/yasyf/cc-present/tree/faster-boards"]');
+    expect(link?.textContent).toBe('yasyf/cc-present faster-boards');
+    expect(container.textContent).toContain('Nothing to build: a process pick');
+    act(() => link!.click());
+    expect(posted).toEqual([]);
+  });
+});

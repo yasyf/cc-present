@@ -1,4 +1,4 @@
-import type { ChoiceOption } from '../schema';
+import type { Build, ChoiceOption } from '../schema';
 import type { Interactions } from '../events';
 import { renderInlineMarkdown } from '../markdown';
 import { Mark } from './Mark';
@@ -67,6 +67,7 @@ export function OptionCard({
           <div className="option-hint" dangerouslySetInnerHTML={{ __html: renderInlineMarkdown(option.hint) }} />
         )}
         {option.md && <Clamped html={renderInlineMarkdown(option.md)} lines={8} className="option-md prose" />}
+        {option.build && <BuildNote build={option.build} />}
       </span>
       {facts && (
         <span className="option-facts">
@@ -92,5 +93,17 @@ export function RecommendedMark() {
     <span className="option-reco">
       <span aria-hidden>★</span> Recommended
     </span>
+  );
+}
+
+export function BuildNote({ build }: { build: Build }) {
+  if (build.none !== undefined) return <div className="option-hint">Nothing to build: {build.none}</div>;
+  return (
+    <div className="option-hint">
+      Built on{' '}
+      <a className="ref" href={`https://github.com/${build.repo}/tree/${build.branch}`} target="_blank" rel="noreferrer">
+        {build.repo} {build.branch}
+      </a>
+    </div>
   );
 }

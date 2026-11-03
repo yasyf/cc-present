@@ -249,6 +249,9 @@ func ToSlack(c *doc.Card, q doc.Block) StatusCard {
 			if line := optionLine(o, label); line != "" {
 				parts = append(parts, line)
 			}
+			if line := buildLine(o); line != "" {
+				parts = append(parts, line)
+			}
 		}
 	}
 	for _, child := range c.Children {
@@ -278,6 +281,16 @@ func optionLine(o doc.Option, label string) string {
 		return "• *" + o.Label + "*"
 	}
 	return ""
+}
+
+func buildLine(o doc.Option) string {
+	switch {
+	case o.Build == nil:
+		return ""
+	case o.Build.None != "":
+		return "• *" + o.Label + "* builds nothing: " + o.Build.None
+	}
+	return fmt.Sprintf("• *%s* is built on <%s|%s %s>", o.Label, o.Build.URL(), o.Build.Repo, o.Build.Branch)
 }
 
 func clip(s string, limit int) string {

@@ -125,7 +125,11 @@ export interface ChoiceOption {
   recommended?: boolean;
   // A single visual leaf rendered in the option's visual stage.
   visual?: OptionVisual;
+  // The branch the option is built on, or why it has nothing to build.
+  build?: Build;
 }
+
+export type Build = { repo: string; branch: string; none?: undefined } | { none: string; repo?: undefined; branch?: undefined };
 
 export interface Choice {
   id: string;
