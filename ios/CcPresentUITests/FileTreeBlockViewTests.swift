@@ -19,6 +19,7 @@ private func outline(_ rows: [FileTreeBlockView.FileTreeRow]) -> [String] {
 }
 
 @Suite("FileTreeBlockView tree")
+@MainActor
 struct FileTreeBlockViewTests {
     @Test("rows fold paths into a tree: directories first, then files, lexicographic")
     func rowsOrderTree() {

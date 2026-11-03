@@ -2,6 +2,7 @@
 import Testing
 
 @Suite("TermBlockView output")
+@MainActor
 struct TermBlockViewTests {
     @Test("stripAnsi removes SGR color codes from the fallback output")
     func stripsSgrColors() {

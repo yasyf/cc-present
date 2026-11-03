@@ -3,6 +3,7 @@ import CcPresentKit
 import Testing
 
 @Suite("ChartBlockView data")
+@MainActor
 struct ChartBlockViewTests {
     @Test("points pair each series value with its category, index for index")
     func pointsAlignToCategories() {
