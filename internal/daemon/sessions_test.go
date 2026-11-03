@@ -257,3 +257,25 @@ func TestSessionsListsDocWhoseBlocksNoLongerDecode(t *testing.T) {
 		t.Fatalf("titles = %v, want stale=Legacy ok=Fine", titles)
 	}
 }
+
+func TestSessionsListTheHrefASectionNames(t *testing.T) {
+	h := newSessionsHarness(t)
+	h.seed(t, "talk", "talk--1", statusOpen, time.Unix(200, 0), "Talk")
+	h.seed(t, "plain", "plain--1", statusOpen, time.Unix(100, 0), "Plain")
+	for _, href := range []string{"http://old:1/", "http://mac:61210/"} {
+		section := json.RawMessage(fmt.Sprintf(`{"id":"talk","type":"section","title":"Talk","href":%q}`, href))
+		if _, err := h.cc.AppendEvent(context.Background(), &ccevent.Event{
+			SubjectID: "talk", Origin: ccevent.OriginAgent, Type: EventBlockUpserted,
+			Payload: blockUpsertedPayload(section, "", Writer{}),
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var got []sessionSummary
+	if err := json.Unmarshal(h.get(t).Body.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 2 || got[0].Href != "http://mac:61210/" || got[1].Href != "" {
+		t.Fatalf("sessions = %+v, want the newest href on talk and none on plain", got)
+	}
+}

@@ -43,6 +43,7 @@ export interface Section {
   title: string;
   md?: string;
   writers?: string[];
+  href?: string;
 }
 
 export type ChipTone = 'default' | 'flag' | 'demo';

@@ -20,6 +20,7 @@ type sessionSummary struct {
 	UpdatedAt  time.Time `json:"updatedAt"`
 	Revision   int       `json:"revision"`
 	EventCount int       `json:"eventCount"`
+	Href       string    `json:"href,omitempty"`
 }
 
 // handleSessions lists artifacts most-recently-updated first, so the iOS client
@@ -35,16 +36,18 @@ func (rs *restServer) handleSessions(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	for i := range summaries {
-		var title sql.NullString
+		var title, href sql.NullString
 		if err := db.QueryRowContext(r.Context(), `SELECT COUNT(*), COALESCE(SUM(type = ?), 0),
-			(SELECT json_extract(payload, '$.doc.title') FROM events WHERE subject_id = ? AND type = ? ORDER BY seq DESC LIMIT 1)
+			(SELECT json_extract(payload, '$.doc.title') FROM events WHERE subject_id = ? AND type = ? ORDER BY seq DESC LIMIT 1),
+			(SELECT json_extract(payload, '$.block.href') FROM events WHERE subject_id = ? AND type = ? AND json_extract(payload, '$.block.href') IS NOT NULL ORDER BY seq DESC LIMIT 1)
 			FROM events WHERE subject_id = ?`,
-			EventDocReplaced, summaries[i].Subject, EventDocReplaced, summaries[i].Subject,
-		).Scan(&summaries[i].EventCount, &summaries[i].Revision, &title); err != nil {
+			EventDocReplaced, summaries[i].Subject, EventDocReplaced, summaries[i].Subject, EventBlockUpserted, summaries[i].Subject,
+		).Scan(&summaries[i].EventCount, &summaries[i].Revision, &title, &href); err != nil {
 			http.Error(w, fmt.Sprintf("subject %s: %v", summaries[i].Subject, err), http.StatusInternalServerError)
 			return
 		}
 		summaries[i].Title = title.String
+		summaries[i].Href = href.String
 	}
 	writeJSON(w, http.StatusOK, summaries)
 }

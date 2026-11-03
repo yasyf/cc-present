@@ -113,12 +113,14 @@ type Doc struct {
 
 // Section is a top-level header marker with optional prose. Writers, when set,
 // names the tailnet devices that may post notes on it; any other device still
-// reads the board and taps its blocks.
+// reads the board and taps its blocks. Href is the page the artifact belongs to,
+// which GET /api/sessions lists beside it.
 type Section struct {
 	base
 	Title   string   `json:"title"`
 	Md      string   `json:"md,omitempty"`
 	Writers []string `json:"writers,omitempty"`
+	Href    string   `json:"href,omitempty"`
 }
 
 // Chip is a small labelled tag on a card.
