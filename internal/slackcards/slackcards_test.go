@@ -300,10 +300,11 @@ func TestASlackBodyCrossesToTheBoardAndBackUnchanged(t *testing.T) {
 		t.Fatal(err)
 	}
 	c := card(t, string(raw))
-	ch, err := slackcards.Check(c)
+	q, err := slackcards.Check(c)
 	if err != nil {
 		t.Fatal(err)
 	}
+	ch := q.(*doc.Choice)
 	if got := slackcards.ToSlack(c, ch).Body; got != body {
 		t.Fatalf("ToSlack body = %q, want the Slack body back: %q", got, body)
 	}
