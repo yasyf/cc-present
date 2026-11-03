@@ -8,7 +8,8 @@ import (
 
 func TestWritesMatchBetweenAFullReplayAndACatchUp(t *testing.T) {
 	event := func(seq int64, kind, payload string) Event {
-		return Event{Seq: seq, Type: kind, Payload: json.RawMessage(payload)}
+		identified := fmt.Sprintf(`{"schemaVersion":%d,"type":%q,`, SchemaVersion, kind) + payload[1:]
+		return Event{Seq: seq, Type: kind, Payload: json.RawMessage(identified)}
 	}
 	events := []Event{
 		event(1, "doc.replaced", `{"revision":1,"lane":"a","doc":{"version":1,"title":"T","blocks":[{"id":"c1","type":"card","children":[]},{"id":"m1","type":"markdown","md":"x"}]}}`),
