@@ -10,8 +10,7 @@ import SwiftUI
 /// RoundGroupView, the current round's blocks through BlockView, and a pinned
 /// SubmitBarView. A connection banner reflects the transport, the board turns
 /// read-only once closed, and a skeleton stands in until the replay catches up.
-/// The `(machine:subject:)` signature is the contract the sessions list navigates
-/// into and stays exactly this shape.
+/// A long-press on the title opens BoardStats.
 struct BoardScreen: View {
     let machine: Machine
     let subject: String
@@ -22,6 +21,8 @@ struct BoardScreen: View {
     @State private var packManifest: PacksResponse?
     @State private var commentsModel = CommentsModel()
     @State private var loadError: String?
+    @State private var stats = BoardStats()
+    @State private var showingStats = false
     private let client: HTTPClient
     private let bearerToken: String?
 
@@ -81,6 +82,12 @@ struct BoardScreen: View {
             .navigationTitle(subject)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .principal) {
+                    Text(subject)
+                        .font(.headline)
+                        .lineLimit(1)
+                        .onLongPressGesture { showingStats = true }
+                }
                 ToolbarItem(placement: .topBarTrailing) { commentsButton }
                 ToolbarItem(placement: .topBarTrailing) { viewToggle }
             }
@@ -88,6 +95,15 @@ struct BoardScreen: View {
             .safeAreaInset(edge: .bottom, spacing: 0) { submitBar }
             .sheet(isPresented: Bindable(commentsModel).isPresented) {
                 CommentsSheetView(store: store, comments: commentsModel)
+            }
+            .sheet(isPresented: $showingStats) {
+                BoardStatsView(stats: stats)
+                    .presentationDetents([.medium])
+            }
+            .onChange(of: store.isLoading) { _, loading in
+                if !loading {
+                    stats.contentShown()
+                }
             }
             .task {
                 do {

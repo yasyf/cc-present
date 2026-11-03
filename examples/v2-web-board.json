@@ -1,0 +1,218 @@
+{
+  "version": 1,
+  "title": "Spike V2: thirty web blocks",
+  "intro": "Thirty diagram blocks, each a web view on the phone. Open it right after a cold launch, wait until every diagram is drawn, then long-press the title.",
+  "presentation": "board",
+  "blocks": [
+    {
+      "id": "v2-diagram-00",
+      "type": "diagram",
+      "kind": "mermaid",
+      "title": "Diagram 1",
+      "source": "graph LR\n  A --> B\n  B --> C"
+    },
+    {
+      "id": "v2-diagram-01",
+      "type": "diagram",
+      "kind": "mermaid",
+      "title": "Diagram 2",
+      "source": "graph TD\n  Phone --> Mac\n  Mac --> Board"
+    },
+    {
+      "id": "v2-diagram-02",
+      "type": "diagram",
+      "kind": "mermaid",
+      "title": "Diagram 3",
+      "source": "sequenceDiagram\n  You->>Board: tap\n  Board-->>You: reply"
+    },
+    {
+      "id": "v2-diagram-03",
+      "type": "diagram",
+      "kind": "mermaid",
+      "title": "Diagram 4",
+      "source": "graph LR\n  A --> B\n  B --> C"
+    },
+    {
+      "id": "v2-diagram-04",
+      "type": "diagram",
+      "kind": "mermaid",
+      "title": "Diagram 5",
+      "source": "graph TD\n  Phone --> Mac\n  Mac --> Board"
+    },
+    {
+      "id": "v2-diagram-05",
+      "type": "diagram",
+      "kind": "mermaid",
+      "title": "Diagram 6",
+      "source": "sequenceDiagram\n  You->>Board: tap\n  Board-->>You: reply"
+    },
+    {
+      "id": "v2-diagram-06",
+      "type": "diagram",
+      "kind": "mermaid",
+      "title": "Diagram 7",
+      "source": "graph LR\n  A --> B\n  B --> C"
+    },
+    {
+      "id": "v2-diagram-07",
+      "type": "diagram",
+      "kind": "mermaid",
+      "title": "Diagram 8",
+      "source": "graph TD\n  Phone --> Mac\n  Mac --> Board"
+    },
+    {
+      "id": "v2-diagram-08",
+      "type": "diagram",
+      "kind": "mermaid",
+      "title": "Diagram 9",
+      "source": "sequenceDiagram\n  You->>Board: tap\n  Board-->>You: reply"
+    },
+    {
+      "id": "v2-diagram-09",
+      "type": "diagram",
+      "kind": "mermaid",
+      "title": "Diagram 10",
+      "source": "graph LR\n  A --> B\n  B --> C"
+    },
+    {
+      "id": "v2-diagram-10",
+      "type": "diagram",
+      "kind": "mermaid",
+      "title": "Diagram 11",
+      "source": "graph TD\n  Phone --> Mac\n  Mac --> Board"
+    },
+    {
+      "id": "v2-diagram-11",
+      "type": "diagram",
+      "kind": "mermaid",
+      "title": "Diagram 12",
+      "source": "sequenceDiagram\n  You->>Board: tap\n  Board-->>You: reply"
+    },
+    {
+      "id": "v2-diagram-12",
+      "type": "diagram",
+      "kind": "mermaid",
+      "title": "Diagram 13",
+      "source": "graph LR\n  A --> B\n  B --> C"
+    },
+    {
+      "id": "v2-diagram-13",
+      "type": "diagram",
+      "kind": "mermaid",
+      "title": "Diagram 14",
+      "source": "graph TD\n  Phone --> Mac\n  Mac --> Board"
+    },
+    {
+      "id": "v2-diagram-14",
+      "type": "diagram",
+      "kind": "mermaid",
+      "title": "Diagram 15",
+      "source": "sequenceDiagram\n  You->>Board: tap\n  Board-->>You: reply"
+    },
+    {
+      "id": "v2-diagram-15",
+      "type": "diagram",
+      "kind": "mermaid",
+      "title": "Diagram 16",
+      "source": "graph LR\n  A --> B\n  B --> C"
+    },
+    {
+      "id": "v2-diagram-16",
+      "type": "diagram",
+      "kind": "mermaid",
+      "title": "Diagram 17",
+      "source": "graph TD\n  Phone --> Mac\n  Mac --> Board"
+    },
+    {
+      "id": "v2-diagram-17",
+      "type": "diagram",
+      "kind": "mermaid",
+      "title": "Diagram 18",
+      "source": "sequenceDiagram\n  You->>Board: tap\n  Board-->>You: reply"
+    },
+    {
+      "id": "v2-diagram-18",
+      "type": "diagram",
+      "kind": "mermaid",
+      "title": "Diagram 19",
+      "source": "graph LR\n  A --> B\n  B --> C"
+    },
+    {
+      "id": "v2-diagram-19",
+      "type": "diagram",
+      "kind": "mermaid",
+      "title": "Diagram 20",
+      "source": "graph TD\n  Phone --> Mac\n  Mac --> Board"
+    },
+    {
+      "id": "v2-diagram-20",
+      "type": "diagram",
+      "kind": "mermaid",
+      "title": "Diagram 21",
+      "source": "sequenceDiagram\n  You->>Board: tap\n  Board-->>You: reply"
+    },
+    {
+      "id": "v2-diagram-21",
+      "type": "diagram",
+      "kind": "mermaid",
+      "title": "Diagram 22",
+      "source": "graph LR\n  A --> B\n  B --> C"
+    },
+    {
+      "id": "v2-diagram-22",
+      "type": "diagram",
+      "kind": "mermaid",
+      "title": "Diagram 23",
+      "source": "graph TD\n  Phone --> Mac\n  Mac --> Board"
+    },
+    {
+      "id": "v2-diagram-23",
+      "type": "diagram",
+      "kind": "mermaid",
+      "title": "Diagram 24",
+      "source": "sequenceDiagram\n  You->>Board: tap\n  Board-->>You: reply"
+    },
+    {
+      "id": "v2-diagram-24",
+      "type": "diagram",
+      "kind": "mermaid",
+      "title": "Diagram 25",
+      "source": "graph LR\n  A --> B\n  B --> C"
+    },
+    {
+      "id": "v2-diagram-25",
+      "type": "diagram",
+      "kind": "mermaid",
+      "title": "Diagram 26",
+      "source": "graph TD\n  Phone --> Mac\n  Mac --> Board"
+    },
+    {
+      "id": "v2-diagram-26",
+      "type": "diagram",
+      "kind": "mermaid",
+      "title": "Diagram 27",
+      "source": "sequenceDiagram\n  You->>Board: tap\n  Board-->>You: reply"
+    },
+    {
+      "id": "v2-diagram-27",
+      "type": "diagram",
+      "kind": "mermaid",
+      "title": "Diagram 28",
+      "source": "graph LR\n  A --> B\n  B --> C"
+    },
+    {
+      "id": "v2-diagram-28",
+      "type": "diagram",
+      "kind": "mermaid",
+      "title": "Diagram 29",
+      "source": "graph TD\n  Phone --> Mac\n  Mac --> Board"
+    },
+    {
+      "id": "v2-diagram-29",
+      "type": "diagram",
+      "kind": "mermaid",
+      "title": "Diagram 30",
+      "source": "sequenceDiagram\n  You->>Board: tap\n  Board-->>You: reply"
+    }
+  ]
+}
