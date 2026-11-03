@@ -85,6 +85,7 @@ func BuildServer(ctx context.Context, p paths.Paths, spec daemonkit.Daemon, runt
 			if err := ast.Prepare(); err != nil {
 				return err
 			}
+			mirrors.Store(s.DB(), &slackMirror{append: s.Append, withdraw: ccSlackCardWithdraw})
 			s.Background(func(ctx context.Context) {
 				if err := warmBoards(ctx, s.DB()); err != nil {
 					slog.Warn("warm board cache", "err", err)
@@ -511,9 +512,12 @@ func handleRemoveBlock(hc ccd.HandlerCtx) ccd.Reply {
 	}
 	seq, err := appendEvent(hc.Ctx, hc.Append, &ccevent.Event{
 		SubjectID: sub.ID, Origin: ccevent.OriginAgent, Type: EventBlockRemoved,
-		Payload: blockRemovedPayload(b.ID, b.Writer),
+		Payload: blockRemovedPayload(b.ID, withdrawnCopy(loc), b.Reason, b.Writer),
 	})
 	if err != nil {
+		return errReply(err.Error())
+	}
+	if err := board.catchUp(hc.Ctx, hc.DB, sub.ID); err != nil {
 		return errReply(err.Error())
 	}
 	return okReply(result{Rev: seq})
@@ -866,11 +870,13 @@ func blockUpsertedPayload(rawBlock json.RawMessage, after string, w Writer) json
 	}{rawBlock, after, by(w)})
 }
 
-func blockRemovedPayload(id string, w Writer) json.RawMessage {
+func blockRemovedPayload(id, slack, reason string, w Writer) json.RawMessage {
 	return mustJSON(struct {
-		ID string `json:"id"`
+		ID     string `json:"id"`
+		Slack  string `json:"slack,omitempty"`
+		Reason string `json:"reason,omitempty"`
 		writtenBy
-	}{id, by(w)})
+	}{id, slack, reason, by(w)})
 }
 
 type writtenBy struct {

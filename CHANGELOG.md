@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- A card removed from the board closes its Slack card, whoever removes it. The Slack card keeps its title, its buttons go, it shows `Withdrawn: <reason>` from `remove-block --reason`, and it gets a reaction. A failed edit logs, never blocks the removal, and retries on the board's next event. A restart edits no card twice. A card already answered, or one with no Slack card, is left as it is. Needs a cc-slack with `card-answer --withdrawn`.
 - A card whose one question is a `triage` reaches Slack row by row: each item is its own row with Approve and Reject buttons on a cc-slack group card, past 20 rows on a second and third card. Each row tap lands at once as the same `triage.decided` a board tap makes, so a partly answered card reads as partly answered on both surfaces, and a board tap redraws the Slack card. A per-row pick used to stay on the board, so the only way to ask it in Slack was to fold the rows into four bundled answers.
 - Any lane can move a `pr` block on another lane's card to a new `head` with `update-block`, when nothing else in the block changes. The write still checks `--rev`, names the writing lane, and leaves the card's owner as it was.
 - A document takes `proof: true`, marking a board made to prove a change. Its taps are an agent's, and a drive's board watcher records none of them as the owner's word.

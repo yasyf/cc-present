@@ -68,6 +68,7 @@ type body struct {
 	Block    json.RawMessage `json:"block,omitempty"`    // upsert-block
 	After    string          `json:"after,omitempty"`    // upsert-block
 	ID       string          `json:"id,omitempty"`       // remove-block | reply | block-show
+	Reason   string          `json:"reason,omitempty"`   // remove-block
 	BlockID  string          `json:"blockId,omitempty"`  // reply
 	Md       string          `json:"md,omitempty"`       // reply
 	Re       string          `json:"re,omitempty"`       // reply

@@ -219,7 +219,7 @@ To redraft, write the revised block JSON to the scratchpad and upsert it:
 cc-present update-block "$BLOCK" [--after <id>]
 ```
 
-**Prefer `update-block` over a full `push`** — it keeps the event log lean and never disturbs the rest of the board. Upserting replaces the block wholesale (nothing from the old block survives), and human verdicts live outside the document, so a redraft never clobbers a decision. `remove-block <id>` drops a block you no longer want on the board.
+**Prefer `update-block` over a full `push`** — it keeps the event log lean and never disturbs the rest of the board. Upserting replaces the block wholesale (nothing from the old block survives), and human verdicts live outside the document, so a redraft never clobbers a decision. `remove-block <id>` drops a block you no longer want on the board; `--reason <why>` is what its Slack card shows as `Withdrawn: <why>` when the card was sent to Slack.
 
 **Many lanes, one board.** Every write names its lane with `--lane <lane>`, or `$CC_PRESENT_LANE` or `$CLAUDE_LONG_RUNNING_LANE` when set, and a write built from a read passes `--rev <n>`, the rev that read printed. The board refuses a write that would overwrite a block written after that rev, naming who wrote it, and refuses another lane's write to a card, naming the lane that owns it. Read again and retry after a stale refusal. A lane that succeeds a card's owner, such as `card-mirror-3` after `card-mirror-2`, takes the card over with `--take-over --lane card-mirror-3`.
 
