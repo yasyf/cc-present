@@ -158,6 +158,7 @@ func TestAnAnsweredSlackCardLeavesTheBoardWithoutAWithdrawal(t *testing.T) {
 	if r := handleSlackAnswer(slackWindow(h, body{Answer: json.RawMessage(answer)})); !r.OK {
 		t.Fatal(r.Error)
 	}
+	submitRevision(t, h, sub, 1)
 	if r := handleRemoveBlock(slackWindow(h, body{ID: "step-3:merge", Reason: "done"})); !r.OK {
 		t.Fatal(r.Error)
 	}
