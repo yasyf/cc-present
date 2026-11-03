@@ -111,8 +111,9 @@ When cc-slack is installed, every simple question waits on both surfaces, by
 default. Write each as a card whose `id` is the question id, such as
 `step-3:merge`, with the question as its `title` and one child that asks it: a
 single-select `choice` of 1 to 4 answers, at most one `recommended`, an
-`approval`, or an `input`. Add no Other or Explain more answer; both surfaces
-draw them. Put each PR the question is about in a `pr` child, and each
+`approval`, or an `input`. Add no Other answer; both surfaces draw it. An
+Explain more option may stay: Slack shows its own button in its place, and a
+board pick of it answers nothing and leaves the card open. Put each PR the question is about in a `pr` child, and each
 screenshot in an `image` child or an answer's `visual`.
 
 `push`, `update-block`, and `start --doc` post the cards they write to the

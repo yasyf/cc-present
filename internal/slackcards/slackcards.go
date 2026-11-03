@@ -148,9 +148,10 @@ func prompt(q doc.Block) string {
 
 // Check enforces the rules a card follows on both surfaces: it asks one
 // question, in words, and a choice takes one of at most four distinct answers,
-// at most one of them recommended and none of them Other or Explain more, since
-// both surfaces draw those themselves. cc-slack holds the card to Slack's own
-// limits when it posts it.
+// at most one of them recommended and none of them Other, since both surfaces
+// draw it themselves. An Explain more option is no answer: cc-slack draws its
+// own, so it never counts or reaches Slack. cc-slack holds the card to Slack's
+// own limits when it posts it.
 func Check(c *doc.Card) (doc.Block, error) {
 	if !c.Mirrors() {
 		return nil, fmt.Errorf("card %q says mirror false, so it stays on the board", c.ID)
@@ -169,16 +170,17 @@ func Check(c *doc.Card) (doc.Block, error) {
 	if ch.Multi {
 		return nil, fmt.Errorf("choice %q takes one answer in Slack; it must be single-select", ch.ID)
 	}
-	if len(ch.Options) > maxAnswers {
-		return nil, fmt.Errorf("choice %q offers %d answers; Slack shows at most %d", ch.ID, len(ch.Options), maxAnswers)
+	answers := Answers(ch)
+	if len(answers) > maxAnswers {
+		return nil, fmt.Errorf("choice %q offers %d answers; Slack shows at most %d", ch.ID, len(answers), maxAnswers)
 	}
 	var labels []string
 	recommended := 0
-	for _, o := range ch.Options {
+	for _, o := range answers {
 		label := clip(o.Label, maxLabel)
 		switch {
-		case o.Label == otherLabel || o.Label == explainLabel:
-			return nil, fmt.Errorf("choice %q answer %q: both surfaces draw %s and %s themselves", ch.ID, o.ID, otherLabel, explainLabel)
+		case o.Label == otherLabel:
+			return nil, fmt.Errorf("choice %q answer %q: both surfaces draw %s themselves", ch.ID, o.ID, otherLabel)
 		case strings.Contains(o.Label, recommendedMark):
 			return nil, fmt.Errorf("choice %q answer %q: mark the recommended answer with recommended, never %s in its label", ch.ID, o.ID, recommendedMark)
 		case slices.Contains(labels, label):
@@ -194,6 +196,20 @@ func Check(c *doc.Card) (doc.Block, error) {
 	}
 	return ch, nil
 }
+
+// Answers is a choice's options minus its Explain more, the answers Slack
+// shows as buttons beside its own Other and Explain more.
+func Answers(ch *doc.Choice) []doc.Option {
+	return slices.DeleteFunc(slices.Clone(ch.Options), explains)
+}
+
+// ExplainsMore reports whether a board selection on ch picks its Explain more
+// option, which asks the session to say more and answers nothing.
+func ExplainsMore(ch *doc.Choice, optionIDs []string) bool {
+	return len(optionIDs) > 0 && slices.ContainsFunc(ch.Options, func(o doc.Option) bool { return o.ID == optionIDs[0] && explains(o) })
+}
+
+func explains(o doc.Option) bool { return o.Label == explainLabel }
 
 // Nudge says why a top-level block that asks something stays off Slack and what
 // its author should do about it, or "" when it reaches Slack or says it will not.
@@ -223,7 +239,7 @@ func ToSlack(c *doc.Card, q doc.Block) StatusCard {
 	case *doc.Approval:
 		sc.Options = []string{approveLabel, rejectLabel}
 	case *doc.Choice:
-		for _, o := range q.Options {
+		for _, o := range Answers(q) {
 			label := clip(o.Label, maxLabel)
 			sc.Options = append(sc.Options, label)
 			if o.Recommended {
