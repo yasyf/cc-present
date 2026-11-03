@@ -200,3 +200,26 @@ func TestNoRedrawTouchesAVerdictANoteOrAReply(t *testing.T) {
 		}
 	}
 }
+
+func TestAnyLaneMovesAPRBlockToANewHeadAndNothingElse(t *testing.T) {
+	h := newHarness(t)
+	startAs(t, h, "card-mirror-2", `{"version":1,"title":"Board","blocks":[{"id":"c1","type":"card","children":[{"id":"p1","type":"pr","repo":"o/r","number":7,"head":"abc1234"},{"id":"q1","type":"choice","options":[{"id":"go","label":"Go"}]}]}]}`)
+	rev := readRev(t, h)
+
+	if r := upsertAs(h, Writer{Lane: "board-refresher-7", Rev: rev}, `{"id":"p1","type":"pr","repo":"o/r","number":7,"head":"def5678","summary":"also new words"}`); r.OK || !strings.Contains(r.Error, "lane card-mirror-2 owns it") {
+		t.Fatalf("another lane's head move that also changes text = %+v, want the owner refusal", r)
+	}
+	if r := upsertAs(h, Writer{Lane: "board-refresher-7", Rev: rev}, `{"id":"p1","type":"pr","repo":"o/r","number":7,"head":"def5678"}`); !r.OK {
+		t.Fatalf("another lane's head-only move = %s, want ok", r.Error)
+	}
+	if r := upsertAs(h, Writer{Lane: "board-refresher-7", Rev: rev}, `{"id":"p1","type":"pr","repo":"o/r","number":7,"head":"0123abc"}`); r.OK || !strings.Contains(r.Error, "after rev") {
+		t.Fatalf("a head-only move from a stale read = %+v, want the rev refusal", r)
+	}
+	st := reduceSubject(t, h, subjectOf(t, h))
+	if got := st.Doc.Blocks[0].(*doc.Card).Children[0].(*doc.PR).Head; got != "def5678" {
+		t.Fatalf("p1 head = %q, want def5678", got)
+	}
+	if w, _ := st.Written("c1"); w.Owner != "card-mirror-2" || w.Lane != "board-refresher-7" {
+		t.Fatalf("c1 write = %+v, want card-mirror-2 still owning it and board-refresher-7 named as the writer", w)
+	}
+}

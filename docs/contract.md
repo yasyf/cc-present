@@ -622,7 +622,10 @@ that changes an owned card is refused naming the owner. `takeOver` with `lane`
 makes that lane the owner and records the lane it took the card from; it needs
 `lane`. A removed card has no owner. A `slack-card` write whose card equals the
 board's card apart from its `slack` binding records a post and checks only
-`rev`.
+`rev`. An `upsert-block` with no `after` that changes nothing on a `pr` block
+already on the board but its `head` is admitted from any lane and checks only
+`rev`, so a lane can move a card's PR to its live head without owning the card;
+the write records the writer's lane and leaves the owner as it was.
 
 **Answers live outside the document.** Verdicts, choices, inputs, notes and
 replies are interaction state keyed by block id. No agent document write,
