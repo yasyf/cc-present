@@ -29,6 +29,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `cc-present pair` on a tailnet no longer opens the daemon to the LAN. The daemon stays on loopback and its own tailnet addresses, and `pair` refuses to print a code that nothing listens on. With no tailnet, `pair` still exposes the LAN.
+- `cc-present pair --off` no longer says the daemon binds 127.0.0.1 only while its tailnet listeners stay up.
 - `send`, `ask` and every write that posts a card no longer refuse a card that carries its own Explain more option. The option stays on the board, Slack shows only its own Explain more button so it never appears twice, it does not count toward the four answers, and a board pick of it leaves the card open on both surfaces instead of answering it.
 - A board built to show pictures shows them before the human acts. Each choice option's `visual` sits beneath the option on the card face, on a phone too, where it used to appear only on hover or after a pick; a compare grid shows the first option's visual until a column is hovered or picked. Focus mode keeps a card's images on the card face instead of folding them into the closed Background. A markdown link in the doc's `intro` renders as a link instead of raw text.
 - An answer given on a Slack card now reaches `cc-present watch` and `outcomes` as the human's own, the same as an answer on the board. It was written with agent origin, so a watcher saw only board answers.

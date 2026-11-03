@@ -3,10 +3,12 @@ package cli
 import (
 	"context"
 	"net"
+	"os"
 	"reflect"
 	"testing"
 
 	"github.com/yasyf/cc-interact/cmd"
+	"github.com/yasyf/daemonkit/paths"
 )
 
 // ipNet wraps a parsed IP as a *net.IPNet, the concrete net.Addr the real
@@ -140,6 +142,93 @@ func TestPairHost(t *testing.T) {
 				t.Fatalf("pairHost = %q, want %q", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestPairBindOpensTheLANOnlyWithoutATailnet(t *testing.T) {
+	if got := pairBind("studio"); got != bindLoopback {
+		t.Errorf("pairBind with a tailnet label = %q, want %q", got, bindLoopback)
+	}
+	if got := pairBind(""); got != bindLAN {
+		t.Errorf("pairBind with no tailnet = %q, want %q", got, bindLAN)
+	}
+}
+
+func tempPaths(t *testing.T) paths.Paths {
+	t.Helper()
+	t.Setenv("HOME", t.TempDir())
+	p := paths.Paths{App: ".cc-present-test"}
+	if err := os.MkdirAll(p.StateDir(), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	return p
+}
+
+func TestEnsureDaemonOnATailnet(t *testing.T) {
+	const onPrimary = `{"port":61118,"bind":"127.0.0.1","extra_addrs":["100.113.56.52:61118","[fd7a:115c:a1e0::1]:61118"]}`
+	const apart = `{"port":61118,"bind":"127.0.0.1","extra_addrs":["100.113.56.52:52668"]}`
+	const none = `{"port":61118,"bind":"127.0.0.1"}`
+	tests := []struct {
+		name         string
+		before       string
+		afterRestart string
+		wantRestart  bool
+		wantErr      bool
+	}{
+		{name: "listener on the primary port needs no restart", before: onPrimary, wantRestart: false},
+		{name: "a first start's split ports converge", before: apart, afterRestart: onPrimary, wantRestart: true},
+		{name: "a daemon from before the mesh picks up its listeners", before: none, afterRestart: onPrimary, wantRestart: true},
+		{name: "still no listener after the restart refuses to print a dead code", before: none, afterRestart: none, wantRestart: true, wantErr: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := tempPaths(t)
+			write := func(body string) {
+				t.Helper()
+				if err := os.WriteFile(p.HTTPInfoPath(), []byte(body), 0o600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			write(tt.before)
+			restarted := false
+			d := cmd.Deps{
+				Paths:         p,
+				EnsureCurrent: func(context.Context) error { return nil },
+				Stop: func(context.Context) error {
+					restarted = true
+					write(tt.afterRestart)
+					return nil
+				},
+			}
+			info, err := ensureDaemon(context.Background(), d, bindLoopback, false, true)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("ensureDaemon err = %v, wantErr %v", err, tt.wantErr)
+			}
+			if restarted != tt.wantRestart {
+				t.Fatalf("restarted = %v, want %v", restarted, tt.wantRestart)
+			}
+			if !tt.wantErr && !tailnetOnPrimaryPort(info) {
+				t.Fatalf("info = %+v has no tailnet listener on the primary port", info)
+			}
+		})
+	}
+}
+
+func TestEnsureDaemonOffATailnetIgnoresListeners(t *testing.T) {
+	p := tempPaths(t)
+	if err := os.WriteFile(p.HTTPInfoPath(), []byte(`{"port":61118,"bind":"0.0.0.0"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	d := cmd.Deps{
+		Paths:         p,
+		EnsureCurrent: func(context.Context) error { return nil },
+		Stop: func(context.Context) error {
+			t.Fatal("restarted a daemon already on the wanted bind")
+			return nil
+		},
+	}
+	if _, err := ensureDaemon(context.Background(), d, bindLAN, false, false); err != nil {
+		t.Fatalf("ensureDaemon: %v", err)
 	}
 }
 
