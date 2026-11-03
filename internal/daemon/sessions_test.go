@@ -52,7 +52,7 @@ func (h *sessionsHarness) seedDocs(t *testing.T, id, slug, status string, update
 	for i, raw := range docs {
 		if _, err := h.cc.AppendEvent(ctx, &ccevent.Event{
 			SubjectID: id, Origin: ccevent.OriginAgent, Type: EventDocReplaced,
-			Payload: injectIdentity(EventDocReplaced, docReplacedPayload(raw, i+1, nil)),
+			Payload: injectIdentity(EventDocReplaced, docReplacedPayload(raw, i+1, nil, Writer{})),
 		}); err != nil {
 			t.Fatalf("seed doc %s: %v", id, err)
 		}
@@ -240,7 +240,7 @@ func TestSessionsListsDocWhoseBlocksNoLongerDecode(t *testing.T) {
 	raw := json.RawMessage(`{"version":1,"title":"Legacy","blocks":[{"id":"a1","type":"approval","allowFeedback":true}]}`)
 	if _, err := h.cc.AppendEvent(ctx, &ccevent.Event{
 		SubjectID: "stale", Origin: ccevent.OriginAgent, Type: EventDocReplaced,
-		Payload: injectIdentity(EventDocReplaced, docReplacedPayload(raw, 1, nil)),
+		Payload: injectIdentity(EventDocReplaced, docReplacedPayload(raw, 1, nil, Writer{})),
 	}); err != nil {
 		t.Fatalf("seed doc: %v", err)
 	}

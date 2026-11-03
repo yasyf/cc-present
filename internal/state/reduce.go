@@ -189,6 +189,7 @@ type State struct {
 	Rounds        Rounds       `json:"rounds"`
 	Revising      Revising     `json:"revising"`
 	removed       map[string]Removed
+	writes        map[string]Write
 	roundStarts   RoundStarts
 }
 
@@ -230,6 +231,7 @@ func New() State {
 	return State{
 		SchemaVersion: SchemaVersion,
 		removed:       map[string]Removed{},
+		writes:        map[string]Write{},
 		Doc:           &doc.Doc{Version: 1, Blocks: []doc.Block{}},
 		Interactions: Interactions{
 			Decisions:   map[string]Decision{},
@@ -254,6 +256,7 @@ func New() State {
 type upsert struct {
 	block doc.Block
 	after string
+	by    writer
 	err   error
 }
 
@@ -281,6 +284,7 @@ func decodeUpserts(events []Event) []upsert {
 func decodeUpsert(ev Event) upsert {
 	var p struct {
 		payloadIdentity
+		writer
 		Block json.RawMessage `json:"block"`
 		After string          `json:"after"`
 	}
@@ -288,7 +292,7 @@ func decodeUpsert(ev Event) upsert {
 		return upsert{err: err}
 	}
 	b, err := doc.DecodeStoredBlock(p.Block)
-	return upsert{block: b, after: p.After, err: err}
+	return upsert{block: b, after: p.After, by: p.writer, err: err}
 }
 
 func ordered(events []Event) []Event {
@@ -305,6 +309,7 @@ func (s *State) apply(ev Event, up upsert) error {
 	case "doc.replaced":
 		var p struct {
 			payloadIdentity
+			writer
 			Doc      storedDoc `json:"doc"`
 			Revision int       `json:"revision"`
 			Retained []string  `json:"retained"`
@@ -314,6 +319,7 @@ func (s *State) apply(ev Event, up upsert) error {
 		}
 		prior := s.Rounds.BlockRounds
 		s.dropMissing(s.Doc.Blocks, p.Doc.doc.Blocks)
+		s.wroteDoc(ev.Seq, p.writer, s.Doc.Blocks, p.Doc.doc.Blocks, p.Retained)
 		s.Doc = p.Doc.doc
 		s.Rounds.BlockRounds = map[string]int{}
 		for _, b := range s.Doc.Blocks {
@@ -332,23 +338,22 @@ func (s *State) apply(ev Event, up upsert) error {
 			return up.err
 		}
 		b := up.block
-		topID := b.BlockID()
+		topID := s.UpsertTop(b, up.after)
 		var before []doc.Block
 		if loc, ok := doc.Locate(s.Doc, b.BlockID()); ok {
-			topID = loc.TopID
 			before = s.Doc.Blocks[loc.TopIndex : loc.TopIndex+1]
-		} else if loc, ok := doc.Locate(s.Doc, up.after); ok && loc.Kind == doc.CardChild {
-			topID = loc.TopID
 		}
 		s.Doc.Blocks = doc.UpsertBlocks(s.Doc.Blocks, b, up.after)
 		after, _ := doc.Locate(s.Doc, topID)
 		s.dropMissing(before, s.Doc.Blocks[after.TopIndex:after.TopIndex+1])
+		s.wrote(topID, ev.Seq, up.by, s.Doc.Blocks[after.TopIndex])
 		s.Rounds.BlockRounds[topID] = s.Rounds.Current
 		s.revisingOnUpsert(topID)
 		return nil
 	case "block.removed":
 		var p struct {
 			payloadIdentity
+			writer
 			ID string `json:"id"`
 		}
 		if err := decodeEventPayload(ev, &p); err != nil {
@@ -362,10 +367,12 @@ func (s *State) apply(ev Event, up upsert) error {
 		blocks, topID := doc.RemoveBlock(s.Doc.Blocks, p.ID)
 		s.Doc.Blocks = blocks
 		if loc.Kind == doc.CardChild {
+			s.wrote(topID, ev.Seq, p.writer, s.Doc.Blocks[loc.TopIndex])
 			s.Rounds.BlockRounds[topID] = s.Rounds.Current
 			s.revisingOnRemove(topID)
 			return nil
 		}
+		s.writes[loc.TopID] = Write{Rev: ev.Seq, Lane: p.Lane, Removed: true}
 		delete(s.Rounds.BlockRounds, loc.TopID)
 		s.revisingOnRemove(loc.TopID)
 		return nil

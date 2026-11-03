@@ -594,6 +594,41 @@ one level of card children. `submittedRevision` is set only when a submit closed
 **Revision is not round.** The revision counts `doc.replaced` events only;
 `round.started` never bumps it, and a round can span many revisions or none.
 
+## Writers
+
+Many lanes write one board. Each agent write op (`start` with a doc, `push`,
+`upsert-block`, `remove-block`, `slack-card`) body carries an optional writer:
+`lane` names the writing lane, `rev` is the board revision the write was built
+from, and `takeOver` lets the lane take over the cards it writes. The daemon
+records `lane` and `takeOver` on the `doc.replaced`, `block.upserted` or
+`block.removed` payload it appends; reducers ignore both keys.
+
+**Rev.** A board's rev is the seq of its newest event. Every agent write
+replies with the rev it landed at, an `outcomes` read replies with the rev it
+read at, and `block-show` replies with the read's rev plus the last agent write
+to the block's top-level block: its rev, lane and, for a card, `owner` and
+`takenFrom`. A write that carries `rev` is refused when any top-level block it
+changes was last written after that rev, naming that write's lane and rev. A
+push changes every top-level block on either side of it that it does not leave
+byte-identical; an upsert changes the top-level block it lands in; a removal,
+the top-level block holding the removed id. Human interactions never move a
+block's write rev. A `rev` past the board's rev is refused. The check and the
+append run under the board's lock, so of two writes from one read the first
+lands and the second is refused.
+
+**Card ownership.** The first write that names a lane on a top-level card makes
+that lane the card's owner; a card written before any lane named itself has no
+owner until one does. A write by any other lane, or by a writer that names none,
+that changes an owned card is refused naming the owner. `takeOver` with `lane`
+makes that lane the owner and records the lane it took the card from; it needs
+`lane`. A removed card has no owner. A `slack-card` write whose card equals the
+board's card apart from its `slack` binding records a post and checks only
+`rev`.
+
+**Answers live outside the document.** Verdicts, choices, inputs, notes and
+replies are interaction state keyed by block id. No agent document write,
+stale, refused or landed, adds, changes or removes one.
+
 ## Live revision
 
 `revising` is the agent's declared working set: the top-level block ids it is

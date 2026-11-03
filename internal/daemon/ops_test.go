@@ -1592,7 +1592,7 @@ func TestStoredUnknownKeysLoadWhileWritesRejectThem(t *testing.T) {
 				t.Fatalf("start --doc: ok=%v err=%q, want %q", reply.OK, reply.Error, tt.wantErr)
 			}
 			start := handleStart(h.hc(body{Title: "T"}), doc.NoPacks, nilDisplay)
-			appendStored(t, h, start.SubjectID, EventDocReplaced, docReplacedPayload(json.RawMessage(tt.doc), 1, nil))
+			appendStored(t, h, start.SubjectID, EventDocReplaced, docReplacedPayload(json.RawMessage(tt.doc), 1, nil, Writer{}))
 			if st := reduceSubject(t, h, start.SubjectID); st.Doc.Title != "Legacy" {
 				t.Fatalf("reduced doc title = %q, want Legacy", st.Doc.Title)
 			}
@@ -1640,8 +1640,8 @@ func TestStoredUnknownKeysLoadWhileWritesRejectThem(t *testing.T) {
 		t.Run("update-block "+tt.name, func(t *testing.T) {
 			h := newHarness(t)
 			start := handleStart(h.hc(body{Title: "T"}), doc.NoPacks, nilDisplay)
-			appendStored(t, h, start.SubjectID, EventDocReplaced, docReplacedPayload(json.RawMessage(storedLegacyDoc), 1, nil))
-			appendStored(t, h, start.SubjectID, EventBlockUpserted, blockUpsertedPayload(json.RawMessage(tt.block), ""))
+			appendStored(t, h, start.SubjectID, EventDocReplaced, docReplacedPayload(json.RawMessage(storedLegacyDoc), 1, nil, Writer{}))
+			appendStored(t, h, start.SubjectID, EventBlockUpserted, blockUpsertedPayload(json.RawMessage(tt.block), "", Writer{}))
 			st := reduceSubject(t, h, start.SubjectID)
 			if _, ok := doc.Locate(st.Doc, "a9"); !ok {
 				t.Fatal("stored block a9 missing from the reduced document")

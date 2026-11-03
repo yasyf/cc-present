@@ -80,6 +80,13 @@ func handleSlackCard(hc ccd.HandlerCtx, pt doc.PackTypes, display displayFunc) c
 	if err := fitsBoard(st.Doc, card); err != nil {
 		return errReply(err.Error())
 	}
+	admit := b.admit
+	if postsCurrent(st.Doc, card) {
+		admit = b.fresh
+	}
+	if err := admit(st, board.seq, card.ID); err != nil {
+		return errReply(err.Error())
+	}
 	if st.Doc.Title == "" && len(st.Doc.Blocks) == 0 {
 		raw, err := json.Marshal(&doc.Doc{Version: 1, Title: slackBoardTitle, Blocks: []doc.Block{card}})
 		if err != nil {
@@ -91,19 +98,36 @@ func handleSlackCard(hc ccd.HandlerCtx, pt doc.PackTypes, display displayFunc) c
 		}
 		if _, err := appendEvent(hc.Ctx, hc.Append, &ccevent.Event{
 			SubjectID: sub.ID, Origin: ccevent.OriginAgent, Type: EventDocReplaced,
-			Payload: docReplacedPayload(raw, rev, nil),
+			Payload: docReplacedPayload(raw, rev, nil, b.Writer),
 		}); err != nil {
 			return errReply(err.Error())
 		}
 	} else if _, err := appendEvent(hc.Ctx, hc.Append, &ccevent.Event{
 		SubjectID: sub.ID, Origin: ccevent.OriginAgent, Type: EventBlockUpserted,
-		Payload: blockUpsertedPayload(b.Block, ""),
+		Payload: blockUpsertedPayload(b.Block, "", b.Writer),
 	}); err != nil {
 		return errReply(err.Error())
 	}
 	res := result{URL: artifactURL(hc.HTTPPort, sub.Slug), TailnetURLs: display(hc.Ctx, sub.Slug, hc.HTTPPort), Slug: sub.Slug}
 	raw, _ := json.Marshal(res)
 	return ccd.Reply{OK: true, SubjectID: sub.ID, HTTPPort: hc.HTTPPort, Body: raw}
+}
+
+// postsCurrent reports whether card is the board's card of the same id as it
+// stands, with only its Slack binding changed: the write that records a post,
+// which takes no ownership of the card.
+func postsCurrent(d *doc.Doc, card *doc.Card) bool {
+	loc, ok := doc.Locate(d, card.ID)
+	if !ok {
+		return false
+	}
+	cur, ok := loc.Block.(*doc.Card)
+	if !ok {
+		return false
+	}
+	was, now := *cur, *card
+	was.Slack, now.Slack = nil, nil
+	return string(mustJSON(&was)) == string(mustJSON(&now))
 }
 
 func handleSlackCardCheck(hc ccd.HandlerCtx, pt doc.PackTypes) ccd.Reply {
@@ -291,7 +315,7 @@ func settleCard(ctx context.Context, appendFn ccd.AppendFunc, subID string, card
 		return err
 	}
 	if _, err := appendEvent(ctx, appendFn, &ccevent.Event{
-		SubjectID: subID, Origin: ccevent.OriginAgent, Type: EventBlockUpserted, Payload: blockUpsertedPayload(raw, ""),
+		SubjectID: subID, Origin: ccevent.OriginAgent, Type: EventBlockUpserted, Payload: blockUpsertedPayload(raw, "", Writer{}),
 	}); err != nil {
 		return err
 	}

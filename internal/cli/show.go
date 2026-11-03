@@ -43,7 +43,7 @@ func newShowCmd(d cmd.Deps) *cobra.Command {
 				return err
 			}
 			defer func() { _ = cl.CloseSession() }()
-			res, err := cl.Start(ctx, sessionOr(session), mustCwd(cwd), d.ClaudePID(), startMode(fresh, replace), namedOther(session), nil, ccdaemon.Reask{}, "", docJSON)
+			res, err := cl.Start(ctx, sessionOr(session), mustCwd(cwd), d.ClaudePID(), ccdaemon.Writer{}, startMode(fresh, replace), namedOther(session), nil, ccdaemon.Reask{}, "", docJSON)
 			if err != nil {
 				return err
 			}

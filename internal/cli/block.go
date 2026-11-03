@@ -87,6 +87,17 @@ func writeBlockShow(w io.Writer, id string, show ccdaemon.BlockShow) error {
 		}
 		fmt.Fprintf(&b, "  %s  round %d  %s\n", e.At.Local().Format("Jan 2 3:04 PM MST"), e.Round, line)
 	}
+	fmt.Fprintf(&b, "\nrev: %d\n", show.Rev)
+	if lw := show.Write; lw != nil {
+		fmt.Fprintf(&b, "  last written at rev %d by %s\n", lw.Rev, ccdaemon.LaneName(lw.Lane))
+		if lw.Owner != "" {
+			fmt.Fprintf(&b, "  owned by lane %s", lw.Owner)
+			if lw.TakenFrom != "" {
+				fmt.Fprintf(&b, ", taken over from lane %s", lw.TakenFrom)
+			}
+			b.WriteString("\n")
+		}
+	}
 	_, err := io.WriteString(w, b.String())
 	return err
 }
