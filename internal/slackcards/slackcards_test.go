@@ -58,6 +58,21 @@ func TestCheckHoldsACardToTheRulesBothSurfacesShare(t *testing.T) {
 	}
 }
 
+func TestACardsOwnExplainMoreReachesSlackOnceAndCountsAsNoAnswer(t *testing.T) {
+	c := card(t, askCard(`{"id":"o1","label":"A","recommended":true},{"id":"o2","label":"B"},{"id":"o3","label":"C"},{"id":"o4","label":"D"},{"id":"more","label":"Explain more"}`))
+	q, err := slackcards.Check(c)
+	if err != nil {
+		t.Fatalf("a card carrying its own Explain more: %v", err)
+	}
+	if got := slackcards.ToSlack(c, q).Options; !slices.Equal(got, []string{"A", "B", "C", "D"}) {
+		t.Errorf("Slack options = %q, want the four answers with no Explain more beside cc-slack's own", got)
+	}
+	ch := q.(*doc.Choice)
+	if !slackcards.ExplainsMore(ch, []string{"more"}) || slackcards.ExplainsMore(ch, []string{"o2"}) {
+		t.Error("ExplainsMore must hold for the Explain more pick alone")
+	}
+}
+
 func TestToSlackAsksTheSameQuestionAndLinksItsPRs(t *testing.T) {
 	c := card(t, `{"id":"step-3:merge","type":"card","title":"Merge #41 now?","summary":"CI is green.","children":[`+
 		`{"id":"pr","type":"pr","repo":"acme/app","number":41},`+

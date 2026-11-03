@@ -155,6 +155,21 @@ func TestASlackAnswerResolvesAnApprovalOrAnInputOnTheBoard(t *testing.T) {
 	}
 }
 
+func TestABoardExplainMorePickLeavesItsSlackCardOpen(t *testing.T) {
+	explained := strings.Replace(syncedCardJSON, `{"id":"answer-2","label":"Hold"}`, `{"id":"answer-2","label":"Hold"},{"id":"more","label":"Explain more"}`, 1)
+	h := newRestHarnessWith(t, `{"version":1,"title":"T","blocks":[`+explained+`]}`, emptyPackLoader(t))
+	h.rs.answerSlack = func(context.Context, string, string, string, bool, string) (slackcards.SlackAnswer, error) {
+		t.Error("an Explain more pick answered the Slack card")
+		return slackcards.SlackAnswer{}, nil
+	}
+	if w := h.post(t, `{"subject":"board--abcd0000","nonce":"n1","interaction":{"type":"choice.selected","blockId":"step-3:merge-answer","optionIds":["more"]}}`); w.Code != http.StatusOK {
+		t.Fatalf("pick = %d %s", w.Code, w.Body)
+	}
+	if got := syncedCardOf(t, h.reduce(t), "step-3:merge").Status; got == slackcards.Resolved {
+		t.Error("an Explain more pick resolved the card")
+	}
+}
+
 func TestABoardAnswerOnAnApprovalOrAnInputAnswersItsSlackCard(t *testing.T) {
 	tests := []struct {
 		name        string

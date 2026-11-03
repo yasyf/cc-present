@@ -30,6 +30,7 @@ export interface PRLive {
   state: PRStateName;
   base: string;
   head: string;
+  headSha: string;
   mergedSha?: string;
   additions: number;
   deletions: number;
