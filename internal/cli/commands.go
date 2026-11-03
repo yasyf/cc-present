@@ -365,9 +365,16 @@ const reopenUsage = "block id to ask again although the human already answered i
 // writerFlags names the lane making a board write, the board rev the read it
 // was built from printed, and whether it takes over another lane's cards.
 func writerFlags(c *cobra.Command, w *ccdaemon.Writer) {
-	c.Flags().StringVar(&w.Lane, "lane", os.Getenv("CC_PRESENT_LANE"), "lane making this write (defaults to $CC_PRESENT_LANE); the first lane to write a card owns it, and another lane's write to it is refused")
+	c.Flags().StringVar(&w.Lane, "lane", defaultLane(), "lane making this write (defaults to $CC_PRESENT_LANE, then $CLAUDE_LONG_RUNNING_LANE); the first lane to write a card owns it, and another lane's write to it is refused")
 	c.Flags().Int64Var(&w.Rev, "rev", 0, "board rev printed by the read this write was built from (outcomes, block show, or an earlier write); refused when a block it changes was written after that rev")
 	c.Flags().BoolVar(&w.TakeOver, "take-over", false, "as the successor of the lane that owns the cards this write changes, take them over; needs --lane")
+}
+
+func defaultLane() string {
+	if lane := os.Getenv("CC_PRESENT_LANE"); lane != "" {
+		return lane
+	}
+	return os.Getenv("CLAUDE_LONG_RUNNING_LANE")
 }
 
 func reaskFlags(c *cobra.Command, reask *ccdaemon.Reask) {

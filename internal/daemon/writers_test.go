@@ -267,3 +267,21 @@ func TestASlackCardRefusedByTheBoardIsRefusedBeforeItIsPosted(t *testing.T) {
 		t.Fatalf("a fresh send of the card as it stands: %s", r.Error)
 	}
 }
+
+func TestAWriteFromTheRevASlackPostPrintedIsNotRefusedByThatPost(t *testing.T) {
+	h := newHarness(t)
+	unposted := strings.Replace(syncedCardJSON, `"slack":{"url":"`+slackPermalink+`"},`, "", 1)
+	startAs(t, h, "card-mirror-2", `{"version":1,"title":"Board","blocks":[`+unposted+`]}`)
+	reply := handleSlackCard(h.hc(body{Writer: Writer{Lane: "card-mirror-2", Rev: readRev(t, h)}, Block: json.RawMessage(syncedCardJSON)}), doc.NoPacks, nilDisplay)
+	if !reply.OK {
+		t.Fatalf("the post: %s", reply.Error)
+	}
+	var posted result
+	if err := json.Unmarshal(reply.Body, &posted); err != nil {
+		t.Fatal(err)
+	}
+	if r := upsertAs(h, Writer{Lane: "card-mirror-2", Rev: posted.Rev}, syncedCardJSON); !r.OK {
+		t.Fatalf("a write from the rev the post replied %d: %s", posted.Rev, r.Error)
+	}
+}
+

@@ -215,7 +215,7 @@ func (cl *Client) SlackCard(ctx context.Context, session, scope string, pid int,
 	if err != nil {
 		return StartResult{}, err
 	}
-	return StartResult{SubjectID: reply.SubjectID, URL: res.URL, TailnetURLs: res.TailnetURLs}, nil
+	return StartResult{SubjectID: reply.SubjectID, Rev: res.Rev, URL: res.URL, TailnetURLs: res.TailnetURLs}, nil
 }
 
 // SlackCardCheck refuses a card the window's board would refuse from w, before

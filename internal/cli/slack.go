@@ -79,7 +79,7 @@ func newAskCmd(d cmd.Deps) *cobra.Command {
 				return err
 			}
 			printBoard(c.OutOrStdout(), res)
-			_, _ = fmt.Fprintf(c.OutOrStdout(), "slack: %s\n", card.Slack.URL)
+			_, _ = fmt.Fprintf(c.OutOrStdout(), "slack: %s\nrev: %d\n", card.Slack.URL, res.Rev)
 			return nil
 		},
 	}
@@ -137,7 +137,7 @@ func newSendCmd(d cmd.Deps) *cobra.Command {
 	}
 	c.Flags().StringVar(&thread, "slack", "", "ts or permalink of a DM message to keep watched for replies; the cards post at the DM root")
 	c.Flags().StringSliceVar(&blocks, "blocks", nil, "ids of the cards to send (defaults to every open question card)")
-	c.Flags().StringVar(&lane, "lane", os.Getenv("CC_PRESENT_LANE"), "lane sending the cards (defaults to $CC_PRESENT_LANE); sending records each card's Slack post without changing who owns it")
+	c.Flags().StringVar(&lane, "lane", defaultLane(), "lane sending the cards (defaults to $CC_PRESENT_LANE, then $CLAUDE_LONG_RUNNING_LANE); sending records each card's Slack post without changing who owns it")
 	c.Flags().StringVar(&session, "session", "", "Claude session id (defaults to $CLAUDE_CODE_SESSION_ID)")
 	c.Flags().StringVar(&cwd, "cwd", "", "working directory (recorded on the request; artifacts are per-window, not resolved by directory)")
 	return c
@@ -336,7 +336,7 @@ func sendQuestions(ctx context.Context, cl *ccdaemon.Client, b board, rev int64,
 			continue
 		}
 		res = r
-		_, _ = fmt.Fprintf(w, "sent: %s ts=%s %s\n", q.card.ID, posted, q.card.Slack.URL)
+		_, _ = fmt.Fprintf(w, "sent: %s ts=%s %s\nrev: %d\n", q.card.ID, posted, q.card.Slack.URL, r.Rev)
 	}
 	return res, errors.Join(errs...)
 }

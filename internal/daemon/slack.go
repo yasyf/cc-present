@@ -85,6 +85,7 @@ func handleSlackCard(hc ccd.HandlerCtx, pt doc.PackTypes, display displayFunc) c
 	if err := w.admit(st, board.seq, card.ID); err != nil {
 		return errReply(err.Error())
 	}
+	var seq int64
 	if st.Doc.Title == "" && len(st.Doc.Blocks) == 0 {
 		raw, err := json.Marshal(&doc.Doc{Version: 1, Title: slackBoardTitle, Blocks: []doc.Block{card}})
 		if err != nil {
@@ -94,19 +95,19 @@ func handleSlackCard(hc ccd.HandlerCtx, pt doc.PackTypes, display displayFunc) c
 		if err != nil {
 			return errReply(err.Error())
 		}
-		if _, err := appendEvent(hc.Ctx, hc.Append, &ccevent.Event{
+		if seq, err = appendEvent(hc.Ctx, hc.Append, &ccevent.Event{
 			SubjectID: sub.ID, Origin: ccevent.OriginAgent, Type: EventDocReplaced,
 			Payload: docReplacedPayload(raw, rev, nil, w),
 		}); err != nil {
 			return errReply(err.Error())
 		}
-	} else if _, err := appendEvent(hc.Ctx, hc.Append, &ccevent.Event{
+	} else if seq, err = appendEvent(hc.Ctx, hc.Append, &ccevent.Event{
 		SubjectID: sub.ID, Origin: ccevent.OriginAgent, Type: EventBlockUpserted,
 		Payload: blockUpsertedPayload(b.Block, "", w),
 	}); err != nil {
 		return errReply(err.Error())
 	}
-	res := result{URL: artifactURL(hc.HTTPPort, sub.Slug), TailnetURLs: display(hc.Ctx, sub.Slug, hc.HTTPPort), Slug: sub.Slug}
+	res := result{Rev: seq, URL: artifactURL(hc.HTTPPort, sub.Slug), TailnetURLs: display(hc.Ctx, sub.Slug, hc.HTTPPort), Slug: sub.Slug}
 	raw, _ := json.Marshal(res)
 	return ccd.Reply{OK: true, SubjectID: sub.ID, HTTPPort: hc.HTTPPort, Body: raw}
 }
