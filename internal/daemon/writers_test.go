@@ -398,4 +398,3 @@ func TestATakeOverIsKeptOnAHeadOnlyWriteAndEmptyFilesCountAsNoChange(t *testing.
 		t.Fatalf("last write = %+v, want card-mirror-3 owning it, taken from card-mirror-2", last)
 	}
 }
-
