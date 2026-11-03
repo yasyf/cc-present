@@ -29,6 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- A DNS-rebinding page can no longer read boards through a trusted browser, from cc-interact 0.40.1's `Host` check. A tokenless caller must name this machine.
 - A document with `proof: true` is accepted. The field shipped in 0.54.8 without reaching the strict document decoder, so every such board was refused as an unknown key.
 - `cc-present pair` on a tailnet no longer opens the daemon to the LAN. The daemon stays on loopback and its own tailnet addresses, and `pair` refuses to print a code that nothing listens on. With no tailnet, `pair` still exposes the LAN.
 - `cc-present pair --off` no longer says the daemon binds 127.0.0.1 only while its tailnet listeners stay up.
