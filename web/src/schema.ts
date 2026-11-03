@@ -255,6 +255,8 @@ export interface Column {
   key: string;
   label: string;
   align?: ColumnAlign;
+  filter?: boolean;
+  sort?: boolean;
 }
 
 export interface Table {
@@ -264,6 +266,15 @@ export interface Table {
   // An inline index signature rather than `Record<…>`: the `Record` block type
   // declared below shadows the `Record` utility type within this module.
   rows: { [key: string]: string }[];
+  rowKey?: string;
+  details?: { [key: string]: string };
+  actions?: TableAction[];
+}
+
+export interface TableAction {
+  id: string;
+  label: string;
+  target?: string;
 }
 
 export type ProgressState = 'active' | 'done' | 'error';
