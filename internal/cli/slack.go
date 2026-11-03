@@ -82,7 +82,7 @@ func newAskCmd(d cmd.Deps) *cobra.Command {
 			return nil
 		},
 	}
-	c.Flags().StringVar(&thread, "slack", "", "ts or permalink of the DM thread to post in (defaults to this session's status thread)")
+	c.Flags().StringVar(&thread, "slack", "", "ts or permalink of a DM message to keep watched for replies; the cards post at the DM root")
 	c.Flags().StringVar(&session, "session", "", "Claude session id (defaults to $CLAUDE_CODE_SESSION_ID)")
 	c.Flags().StringVar(&cwd, "cwd", "", "working directory (recorded on the request; artifacts are per-window, not resolved by directory)")
 	return c
@@ -133,7 +133,7 @@ func newSendCmd(d cmd.Deps) *cobra.Command {
 			return err
 		},
 	}
-	c.Flags().StringVar(&thread, "slack", "", "ts or permalink of the DM thread to post in (defaults to this session's status thread)")
+	c.Flags().StringVar(&thread, "slack", "", "ts or permalink of a DM message to keep watched for replies; the cards post at the DM root")
 	c.Flags().StringSliceVar(&blocks, "blocks", nil, "ids of the cards to send (defaults to every open question card)")
 	c.Flags().StringVar(&session, "session", "", "Claude session id (defaults to $CLAUDE_CODE_SESSION_ID)")
 	c.Flags().StringVar(&cwd, "cwd", "", "working directory (recorded on the request; artifacts are per-window, not resolved by directory)")

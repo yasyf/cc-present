@@ -520,8 +520,8 @@ type StackMember struct {
 	Head   string `json:"head"`
 }
 
-// Thread is the Slack DM status thread the block's rows are asked in, or ""
-// when the block is not bound to one.
+// Thread is the Slack DM message the block's rows are bound to, or "" when
+// the block is not bound to one.
 func (g *PRGroups) Thread() string {
 	if g.Slack == nil {
 		return ""
@@ -1630,7 +1630,7 @@ func validatePRGroups(g *PRGroups) error {
 		return fmt.Errorf("pr-groups %q: prompt must be a single line", g.ID)
 	}
 	if t := g.Thread(); t != "" && !slackTSPattern.MatchString(t) {
-		return fmt.Errorf("pr-groups %q: slack must be the ts of a Slack DM status thread, or empty to unbind, got %q", g.ID, t)
+		return fmt.Errorf("pr-groups %q: slack must be the ts of a Slack DM message, or empty to unbind, got %q", g.ID, t)
 	}
 	if len(g.Groups) == 0 {
 		return fmt.Errorf("pr-groups %q: must have at least one group", g.ID)

@@ -115,8 +115,8 @@ single-select `choice` of 1 to 4 answers, at most one `recommended`, an
 draw them. Put each PR the question is about in a `pr` child, and each
 screenshot in an `image` child or an answer's `visual`.
 
-`push`, `update-block`, and `start --doc` post the cards they write to this
-session's Slack status thread, images and buttons included, link each card to
+`push`, `update-block`, and `start --doc` post the cards they write to the
+Slack DM root, each as its own message, images and buttons included, link each card to
 its post, and print `sent: <id> ts=<ts> <permalink>` or
 `failed: <id>: <error>` for each. A card already posted is edited in place when
 what Slack shows changes.
