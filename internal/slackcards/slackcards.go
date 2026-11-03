@@ -583,8 +583,8 @@ func GroupCards(before, g *doc.PRGroups, verdicts map[string]state.Decision) []S
 	return cards
 }
 
-// PostGroupCard posts or edits a group card in the DM status thread it is bound
-// to, and returns its permalink; a card cc-slack never posted and has nothing
+// PostGroupCard posts or edits a group card at the DM root, keeping the message
+// it is bound to watched, and returns its permalink; a card cc-slack never posted and has nothing
 // to ask returns none.
 func PostGroupCard(ctx context.Context, session, thread string, card StatusCard) (string, error) {
 	raw, err := json.Marshal(card)
