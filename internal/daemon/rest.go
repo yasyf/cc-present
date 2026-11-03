@@ -598,13 +598,18 @@ func prGroupsVerdicts(g *doc.PRGroups, verdicts map[string]triageEntry, now time
 			}
 			continue
 		}
-		if !doc.SameHead(entry.Head, row.Head) {
-			return nil, fmt.Errorf("pr-groups %q #%s: verdict head %q is not the row's head %q; reload the board", g.ID, rowID, entry.Head, row.Head)
+		shown, err := doc.ParseHead(entry.Head)
+		if err != nil {
+			return nil, fmt.Errorf("pr-groups %q #%s: %w", g.ID, rowID, err)
 		}
 		if len(entry.Note) > maxHumanTextBytes {
 			return nil, fmt.Errorf("pr-groups %q #%s note exceeds %d bytes", g.ID, rowID, maxHumanTextBytes)
 		}
 		at := now.UTC().Format(time.RFC3339)
+		if !doc.SameHead(shown, row.Head) {
+			out[rowID] = triageEntry{Verdict: entry.Verdict, Note: entry.Note, Head: shown, At: at}
+			continue
+		}
 		out[rowID] = triageEntry{Verdict: entry.Verdict, Note: entry.Note, Head: row.Head, At: at}
 		for _, m := range row.Stack {
 			out[doc.RowID(m.Number)] = triageEntry{Verdict: entry.Verdict, Note: entry.Note, Head: m.Head, At: at}

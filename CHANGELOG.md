@@ -26,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Any process running as your user can now connect to the cc-present daemon's socket. The daemon no longer checks a caller's code signature or team ID, and drain and broker handoff run on the ordinary connection instead of a separate signed one. The network token for LAN and tailnet clients is unchanged, and so are mesh trust and iOS pairing.
+- A `pr-groups` tap for a head the row no longer shows is recorded instead of refused. It records the head the card or board showed, reaches `outcomes` and `watch` like any other verdict, and leaves the row asking at its new head, so whoever lands the PR decides whether the tap still holds. Approve all records each row at its own head, so one row that moved no longer refuses the rest. A late tap on a stack row decides only that row.
 
 ### Fixed
 
