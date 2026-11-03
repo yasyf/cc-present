@@ -411,7 +411,7 @@ func mirror(ctx context.Context, cl *ccdaemon.Client, b board, wr ccdaemon.Write
 	if err != nil {
 		return ccdaemon.StartResult{}, "", err
 	}
-	if err := cl.SlackCardCheck(ctx, b.session, b.scope, b.pid, unposted); err != nil {
+	if err := cl.SlackCardCheck(ctx, b.session, b.scope, b.pid, wr, unposted); err != nil {
 		return ccdaemon.StartResult{}, "", fmt.Errorf("card %q, not posted to Slack: %w", card.ID, err)
 	}
 	_, port, err := cl.Resolve(ctx, b.session, b.scope, b.pid)

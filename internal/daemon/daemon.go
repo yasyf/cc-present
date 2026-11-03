@@ -424,11 +424,9 @@ func handleUpsertBlock(hc ccd.HandlerCtx, pt doc.PackTypes) ccd.Reply {
 	if err := roundGuard(st, intent, "update-block", newTops); err != nil {
 		return errReply(err.Error())
 	}
-	admit := b.admit
-	if b.After == "" && headOnly(st, blk) {
-		admit = b.fresh
-	}
-	if err := admit(st, board.seq, st.UpsertTop(blk, b.After)); err != nil {
+	w := b.Writer
+	w.keepOwner = b.After == "" && headOnly(st, blk)
+	if err := w.admit(st, board.seq, st.UpsertTop(blk, b.After)); err != nil {
 		return errReply(err.Error())
 	}
 	// Validation is done; only appends follow. A clean round skips round.started,
@@ -445,7 +443,7 @@ func handleUpsertBlock(hc ccd.HandlerCtx, pt doc.PackTypes) ccd.Reply {
 	}
 	seq, err := appendEvent(hc.Ctx, hc.Append, &ccevent.Event{
 		SubjectID: sub.ID, Origin: ccevent.OriginAgent, Type: EventBlockUpserted,
-		Payload: blockUpsertedPayload(blockJSON, b.After, b.Writer),
+		Payload: blockUpsertedPayload(blockJSON, b.After, w),
 	})
 	if err != nil {
 		return errReply(err.Error())
@@ -858,11 +856,14 @@ func blockRemovedPayload(id string, w Writer) json.RawMessage {
 }
 
 type writtenBy struct {
-	Lane     string `json:"lane,omitempty"`
-	TakeOver bool   `json:"takeOver,omitempty"`
+	Lane      string `json:"lane,omitempty"`
+	TakeOver  bool   `json:"takeOver,omitempty"`
+	KeepOwner bool   `json:"keepOwner,omitempty"`
 }
 
-func by(w Writer) writtenBy { return writtenBy{Lane: w.Lane, TakeOver: w.TakeOver} }
+func by(w Writer) writtenBy {
+	return writtenBy{Lane: w.Lane, TakeOver: w.TakeOver, KeepOwner: w.keepOwner}
+}
 
 func revisingChangedPayload(blockIDs []string, note string) json.RawMessage {
 	return mustJSON(struct {

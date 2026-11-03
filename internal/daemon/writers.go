@@ -11,32 +11,20 @@ import (
 // Writer is who makes a board write and what it read: the writing lane, the
 // board revision the write was derived from (0 when it read nothing), and
 // whether the lane takes over the cards it writes from the lane that owns them.
+// A keepOwner write, which the daemon alone decides on, changes nothing an owner
+// drew, so any lane may make it and it never makes that lane the owner.
 type Writer struct {
-	Lane     string `json:"lane,omitempty"`
-	Rev      int64  `json:"rev,omitempty"`
-	TakeOver bool   `json:"takeOver,omitempty"`
+	Lane      string `json:"lane,omitempty"`
+	Rev       int64  `json:"rev,omitempty"`
+	TakeOver  bool   `json:"takeOver,omitempty"`
+	keepOwner bool
 }
 
 // admit refuses w's write to the top-level blocks ids when a write landed on
-// one after the revision w read, or when one is a card another lane owns and w
-// does not take it over. head is the board's revision now.
+// one after the revision w read, or, unless w is keepOwner, when one is a card
+// another lane owns and w does not take it over. head is the board's revision
+// now.
 func (w Writer) admit(st *state.State, head int64, ids ...string) error {
-	if err := w.fresh(st, head, ids...); err != nil {
-		return err
-	}
-	for _, id := range ids {
-		last, _ := st.Written(id)
-		if last.Owner != "" && last.Owner != w.Lane && !w.TakeOver {
-			return fmt.Errorf("refusing to write card %q: lane %s owns it; %s writes it, or the lane that succeeds %s takes it over with --take-over --lane <successor>",
-				id, last.Owner, last.Owner, last.Owner)
-		}
-	}
-	return nil
-}
-
-// fresh refuses w's write to the top-level blocks ids when a write landed on
-// one after the revision w read.
-func (w Writer) fresh(st *state.State, head int64, ids ...string) error {
 	if w.TakeOver && w.Lane == "" {
 		return fmt.Errorf("--take-over needs --lane naming the lane that takes the card over")
 	}
@@ -47,6 +35,16 @@ func (w Writer) fresh(st *state.State, head int64, ids ...string) error {
 		if last, ok := st.Written(id); ok && w.Rev > 0 && last.Rev > w.Rev {
 			return fmt.Errorf("refusing to write %q: %s wrote it at rev %d, after rev %d that you read; read the board again, rebuild this write from that read, and retry with the rev it prints",
 				id, LaneName(last.Lane), last.Rev, w.Rev)
+		}
+	}
+	if w.keepOwner {
+		return nil
+	}
+	for _, id := range ids {
+		last, _ := st.Written(id)
+		if last.Owner != "" && last.Owner != w.Lane && !w.TakeOver {
+			return fmt.Errorf("refusing to write card %q: lane %s owns it; %s writes it, or the lane that succeeds %s takes it over with --take-over --lane <successor>",
+				id, last.Owner, last.Owner, last.Owner)
 		}
 	}
 	return nil

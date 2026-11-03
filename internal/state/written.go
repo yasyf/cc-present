@@ -34,8 +34,9 @@ func (s *State) UpsertTop(b doc.Block, after string) string {
 }
 
 type writer struct {
-	Lane     string `json:"lane"`
-	TakeOver bool   `json:"takeOver"`
+	Lane      string `json:"lane"`
+	TakeOver  bool   `json:"takeOver"`
+	KeepOwner bool   `json:"keepOwner"`
 }
 
 func (s *State) wrote(id string, seq int64, by writer, top doc.Block) {
@@ -44,6 +45,7 @@ func (s *State) wrote(id string, seq int64, by writer, top doc.Block) {
 		prior := s.writes[id]
 		w.Owner, w.TakenFrom = prior.Owner, prior.TakenFrom
 		switch {
+		case by.KeepOwner:
 		case prior.Owner == "":
 			w.Owner = by.Lane
 		case by.TakeOver && by.Lane != prior.Owner:

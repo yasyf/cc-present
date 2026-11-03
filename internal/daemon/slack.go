@@ -80,11 +80,9 @@ func handleSlackCard(hc ccd.HandlerCtx, pt doc.PackTypes, display displayFunc) c
 	if err := fitsBoard(st.Doc, card); err != nil {
 		return errReply(err.Error())
 	}
-	admit := b.admit
-	if postsCurrent(st.Doc, card) {
-		admit = b.fresh
-	}
-	if err := admit(st, board.seq, card.ID); err != nil {
+	w := b.Writer
+	w.keepOwner = postsCurrent(st.Doc, card)
+	if err := w.admit(st, board.seq, card.ID); err != nil {
 		return errReply(err.Error())
 	}
 	if st.Doc.Title == "" && len(st.Doc.Blocks) == 0 {
@@ -98,13 +96,13 @@ func handleSlackCard(hc ccd.HandlerCtx, pt doc.PackTypes, display displayFunc) c
 		}
 		if _, err := appendEvent(hc.Ctx, hc.Append, &ccevent.Event{
 			SubjectID: sub.ID, Origin: ccevent.OriginAgent, Type: EventDocReplaced,
-			Payload: docReplacedPayload(raw, rev, nil, b.Writer),
+			Payload: docReplacedPayload(raw, rev, nil, w),
 		}); err != nil {
 			return errReply(err.Error())
 		}
 	} else if _, err := appendEvent(hc.Ctx, hc.Append, &ccevent.Event{
 		SubjectID: sub.ID, Origin: ccevent.OriginAgent, Type: EventBlockUpserted,
-		Payload: blockUpsertedPayload(b.Block, "", b.Writer),
+		Payload: blockUpsertedPayload(b.Block, "", w),
 	}); err != nil {
 		return errReply(err.Error())
 	}
@@ -131,7 +129,8 @@ func postsCurrent(d *doc.Doc, card *doc.Card) bool {
 }
 
 func handleSlackCardCheck(hc ccd.HandlerCtx, pt doc.PackTypes) ccd.Reply {
-	blk, err := doc.DecodeBlock(decodeBody(hc.Env.Body).Block)
+	b := decodeBody(hc.Env.Body)
+	blk, err := doc.DecodeBlock(b.Block)
 	if err != nil {
 		return errReply(err.Error())
 	}
@@ -150,19 +149,24 @@ func handleSlackCardCheck(hc ccd.HandlerCtx, pt doc.PackTypes) ccd.Reply {
 		return errReply(err.Error())
 	}
 	empty := state.New()
-	st, retired := &empty, map[string]bool{}
+	st, retired, head := &empty, map[string]bool{}, int64(0)
 	if found && sub.Status != statusClosed {
 		board, err := caughtUp(hc.Ctx, hc.DB, sub.ID)
 		if err != nil {
 			return errReply(err.Error())
 		}
 		defer board.mu.Unlock()
-		st, retired = &board.st, board.retired
+		st, retired, head = &board.st, board.retired, board.seq
 	}
 	if err := admitCard(hc, sub.ID, st, retired, card); err != nil {
 		return errReply(err.Error())
 	}
 	if err := fitsBoard(st.Doc, card); err != nil {
+		return errReply(err.Error())
+	}
+	w := b.Writer
+	w.keepOwner = postsCurrent(st.Doc, card)
+	if err := w.admit(st, head, card.ID); err != nil {
 		return errReply(err.Error())
 	}
 	return okReply(result{})

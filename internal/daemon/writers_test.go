@@ -223,3 +223,47 @@ func TestAnyLaneMovesAPRBlockToANewHeadAndNothingElse(t *testing.T) {
 		t.Fatalf("c1 write = %+v, want card-mirror-2 still owning it and board-refresher-7 named as the writer", w)
 	}
 }
+
+func TestAWriteThatChangesNothingAnOwnerDrewLeavesAnUnownedCardUnowned(t *testing.T) {
+	h := newHarness(t)
+	startAs(t, h, "", `{"version":1,"title":"T","blocks":[{"id":"c1","type":"card","title":"C","children":[{"id":"p1","type":"pr","repo":"o/r","number":7,"head":"abc1234"}]}]}`)
+	if r := upsertAs(h, Writer{Lane: "board-refresher-6"}, `{"id":"p1","type":"pr","repo":"o/r","number":7,"head":"def5678"}`); !r.OK {
+		t.Fatalf("head-only write: %s", r.Error)
+	}
+	hc := h.hc(body{})
+	board, err := caughtUp(hc.Ctx, hc.DB, subjectOf(t, h))
+	if err != nil {
+		t.Fatal(err)
+	}
+	last, _ := board.st.Written("c1")
+	board.mu.Unlock()
+	if last.Lane != "board-refresher-6" || last.Owner != "" {
+		t.Fatalf("after a head-only write the last write is %+v, want the writer named and no owner", last)
+	}
+	if r := upsertAs(h, Writer{Lane: "card-mirror-2"}, `{"id":"c1","type":"card","title":"Redrawn","children":[{"id":"p1","type":"pr","repo":"o/r","number":7,"head":"def5678"}]}`); !r.OK {
+		t.Fatalf("a redraw of the still unowned card: %s", r.Error)
+	}
+}
+
+func TestASlackCardRefusedByTheBoardIsRefusedBeforeItIsPosted(t *testing.T) {
+	h := newHarness(t)
+	unposted := strings.Replace(syncedCardJSON, `"slack":{"url":"`+slackPermalink+`"},`, "", 1)
+	startAs(t, h, "", `{"version":1,"title":"Board","blocks":[`+unposted+`]}`)
+	rev := readRev(t, h)
+	if r := upsertAs(h, Writer{Lane: "card-mirror-2", Rev: rev}, unposted); !r.OK {
+		t.Fatalf("the owner's write: %s", r.Error)
+	}
+	check := func(w Writer, card string) ccd.Reply {
+		return handleSlackCardCheck(h.hc(body{Writer: w, Block: json.RawMessage(card)}), doc.NoPacks)
+	}
+	redrawn := strings.Replace(unposted, `"type":"card",`, `"type":"card","summary":"Redrawn.",`, 1)
+	if r := check(Writer{Lane: "board-refresher-6"}, redrawn); r.OK || !strings.Contains(r.Error, "lane card-mirror-2 owns it") {
+		t.Fatalf("another lane's redraw: %+v", r)
+	}
+	if r := check(Writer{Lane: "board-refresher-6", Rev: rev}, unposted); r.OK || !strings.Contains(r.Error, "lane card-mirror-2 wrote it") {
+		t.Fatalf("a stale send: %+v", r)
+	}
+	if r := check(Writer{Lane: "board-refresher-6", Rev: readRev(t, h)}, unposted); !r.OK {
+		t.Fatalf("a fresh send of the card as it stands: %s", r.Error)
+	}
+}

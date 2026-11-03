@@ -600,8 +600,9 @@ Many lanes write one board. Each agent write op (`start` with a doc, `push`,
 `upsert-block`, `remove-block`, `slack-card`) body carries an optional writer:
 `lane` names the writing lane, `rev` is the board revision the write was built
 from, and `takeOver` lets the lane take over the cards it writes. The daemon
-records `lane` and `takeOver` on the `doc.replaced`, `block.upserted` or
-`block.removed` payload it appends; reducers ignore both keys.
+records `lane`, `takeOver` and, on a write that leaves a card's owner alone,
+`keepOwner` on the `doc.replaced`, `block.upserted` or `block.removed` payload
+it appends; reducers ignore these keys.
 
 **Rev.** A board's rev is the seq of its newest event. Every agent write
 replies with the rev it landed at, an `outcomes` read replies with the rev it
@@ -623,10 +624,13 @@ that changes an owned card is refused naming the owner. `takeOver` with `lane`
 makes that lane the owner and records the lane it took the card from; it needs
 `lane`. A removed card has no owner. A `slack-card` write whose card equals the
 board's card apart from its `slack` binding records a post and checks only
-`rev`. An `upsert-block` with no `after` that changes nothing on a `pr` block
+`rev`, and it never makes the sending lane the owner. `slack-card-check` applies
+the same checks before anything is posted, so a refused card never reaches
+Slack. An `upsert-block` with no `after` that changes nothing on a `pr` block
 already on the board but its `head` is admitted from any lane and checks only
 `rev`, so a lane can move a card's PR to its live head without owning the card;
-the write records the writer's lane and leaves the owner as it was.
+the write records the writer's lane and leaves the card's owner as it was, an
+unowned card included.
 
 **Answers live outside the document.** Verdicts, choices, inputs, notes and
 replies are interaction state keyed by block id. No agent document write,
