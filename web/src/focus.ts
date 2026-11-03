@@ -197,13 +197,16 @@ export function stepFace(step: FocusStep, packInteractive: ReadonlySet<string>):
   const summary = card?.summary ? { md: card.summary, inline: true } : null;
   if (step.kind === 'context') return { prelude: step.context, lede: summary, background: [], hoisted: new Set() };
   const decides = (b: Block) => decidableIds([b], packInteractive).length > 0;
+  const folds = (b: Block) => b.type !== 'image';
   const children = card?.children ?? [];
   const decisionAt = children.flatMap((child, i) => (decides(child) ? [i] : []));
-  const moved = children.filter((child, i) => !decides(child) && (i < decisionAt[0]! || i > decisionAt.at(-1)!));
-  const aside = [...step.context, ...moved];
+  const moved = children.filter(
+    (child, i) => folds(child) && !decides(child) && (i < decisionAt[0]! || i > decisionAt.at(-1)!),
+  );
+  const aside = [...step.context.filter(folds), ...moved];
   const ledeBlock = summary ? undefined : aside.find((b): b is Markdown => b.type === 'markdown' && !b.struck);
   return {
-    prelude: [],
+    prelude: step.context.filter((b) => !folds(b)),
     lede: summary ?? (ledeBlock ? { md: ledeBlock.md, inline: false } : null),
     background: aside.filter((b) => b !== ledeBlock),
     hoisted: new Set(moved.map((child) => child.id)),

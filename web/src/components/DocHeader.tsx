@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { renderInlineMarkdown } from '../markdown';
 import type { Doc } from '../schema';
 import type { ViewMode } from '../viewmode';
 import { HeaderMenu } from './HeaderMenu';
@@ -80,7 +81,9 @@ export function DocHeader({
           <HeaderMenu commentCount={commentCount} onOpenComments={onOpenComments} />
         </span>
       </div>
-      {!compact && doc.intro && <p className="doc-intro">{doc.intro}</p>}
+      {!compact && doc.intro && (
+        <p className="doc-intro" dangerouslySetInnerHTML={{ __html: renderInlineMarkdown(doc.intro) }} />
+      )}
       {!compact && doc.stats && doc.stats.length > 0 && <StatsBar stats={doc.stats} />}
     </header>
   );

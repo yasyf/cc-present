@@ -652,6 +652,9 @@ button.header-menu-item:hover {
   margin: var(--space-3) 0 0;
   line-height: var(--leading-normal);
 }
+.doc-intro a {
+  color: var(--accent);
+}
 
 /* Stats as a bordered data strip: stamp labels over mono tabular values. */
 .stats {

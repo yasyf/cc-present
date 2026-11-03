@@ -62,7 +62,7 @@ function FocusLead({ stepId }: { stepId: string }) {
   if (!lead || lead.stepId !== stepId) return null;
   return (
     <div className="focus-lead">
-      {lead.intro && <p className="doc-intro">{lead.intro}</p>}
+      {lead.intro && <p className="doc-intro" dangerouslySetInnerHTML={{ __html: renderInlineMarkdown(lead.intro) }} />}
       {lead.stats && lead.stats.length > 0 && <StatsBar stats={lead.stats} />}
     </div>
   );

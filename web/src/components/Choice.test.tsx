@@ -509,7 +509,18 @@ describe('Choice compare grid', () => {
     expect(container.querySelectorAll('.options .option-facts').length).toBe(3);
   });
 
-  it('shows the hovered or picked column visual full-width under the grid, and nothing at rest', () => {
+  it('shows every column visual beneath its option once a narrow viewport drops the grid', () => {
+    narrowViewport = true;
+    const block = plans(3);
+    block.options.forEach((option, i) => (option.visual = { id: `v${i}`, type: 'image', src: 'data:,x', alt: `chart-${i}` }));
+    render(block, empty());
+    const alts = [...container.querySelectorAll('.option-row')].map(
+      (r) => r.querySelector<HTMLImageElement>(':scope > .option-visual img')?.alt,
+    );
+    expect(alts).toEqual(['chart-0', 'chart-1', 'chart-2']);
+  });
+
+  it('shows the hovered or picked column visual full-width under the grid, and the first visual at rest', () => {
     const block = plans(3);
     block.options[0]!.visual = { id: 'v0', type: 'image', src: 'data:,x', alt: 'chart-0' };
     block.options[2]!.visual = { id: 'v2', type: 'image', src: 'data:,x', alt: 'chart-2' };
@@ -530,7 +541,7 @@ describe('Choice compare grid', () => {
     expect(shown()).toBe('chart-2');
 
     render(block, empty());
-    expect(shown()).toBeNull();
+    expect(shown()).toBe('chart-0');
   });
 });
 
@@ -830,87 +841,34 @@ describe('Choice inline option visual', () => {
     options: [0, 1, 2].map((i) => ({ id: `o${i}`, label: `Option ${i}`, visual: visual(i) })),
   });
   const row = (i: number) => container.querySelectorAll<HTMLElement>('.option-row')[i]!;
-  const fire = (i: number, event: Event) => act(() => void row(i).querySelector('.option')!.dispatchEvent(event));
-  const pointer = (type: string, i: number, clientX: number) =>
-    fire(i, new MouseEvent(type, { bubbles: true, clientX, clientY: 10 }));
   const shown = () =>
-    [...container.querySelectorAll('.option-row')].flatMap((r, i) =>
-      r.querySelector(':scope > .option-visual img') ? [i] : [],
+    [...container.querySelectorAll('.option-row')].map(
+      (r) => r.querySelector<HTMLImageElement>(':scope > .option-visual img')?.alt ?? null,
     );
 
-  it('shows no visual and no placeholder before a hover or a pick', () => {
+  it('shows every option visual beneath its option before any hover or pick', () => {
     render(withVisuals(), empty());
-    expect(shown()).toEqual([]);
-    expect(container.textContent).not.toContain('No preview');
+    expect(shown()).toEqual(['chart-0', 'chart-1', 'chart-2']);
+  });
+
+  it('keeps every visual in place through a hover and a pick', () => {
+    render(withVisuals(), { ...empty(), choices: { c1: { optionIds: ['o2'] } } });
+    act(() => void row(0).querySelector('.option')!.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, clientX: 50 })));
+    expect(shown()).toEqual(['chart-0', 'chart-1', 'chart-2']);
   });
 
   it('renders nothing beneath an option without a visual', () => {
     const block = withVisuals();
     delete block.options[1]!.visual;
     render(block, empty());
-    pointer('mousemove', 1, 50);
-    expect(container.querySelector('.option-visual')).toBeNull();
-  });
-
-  it('shows a hovered option visual beneath it and drops it once the pointer leaves', () => {
-    render(withVisuals(), empty());
-    pointer('mousemove', 1, 50);
-    expect(shown()).toEqual([1]);
-    expect(row(1).querySelector<HTMLImageElement>('.option-visual img')?.alt).toBe('chart-1');
-    pointer('mouseout', 1, 400);
-    expect(shown()).toEqual([]);
-  });
-
-  it('returns to the selected option visual once the pointer or focus leaves', () => {
-    render(withVisuals(), { ...empty(), choices: { c1: { optionIds: ['o2'] } } });
-    expect(shown()).toEqual([2]);
-
-    pointer('mousemove', 0, 50);
-    expect(shown()).toEqual([0]);
-    pointer('mouseout', 0, 400);
-    expect(shown()).toEqual([2]);
-
-    fire(1, new FocusEvent('focusin', { bubbles: true }));
-    expect(shown()).toEqual([1]);
-    fire(1, new FocusEvent('focusout', { bubbles: true }));
-    expect(shown()).toEqual([2]);
-  });
-
-  it('holds the hovered visual when a layout shift slides a neighbour under a still pointer', () => {
-    render(withVisuals(), { ...empty(), choices: { c1: { optionIds: ['o0'] } } });
-    pointer('mousemove', 1, 50);
-    expect(shown()).toEqual([1]);
-
-    pointer('mouseout', 1, 50);
-    pointer('mouseover', 2, 50);
-    pointer('mousemove', 2, 50);
-    expect(shown()).toEqual([1]);
-
-    pointer('mousemove', 2, 51);
-    expect(shown()).toEqual([2]);
-  });
-
-  it('moves to the option a digit key picks', () => {
-    render(withVisuals(), empty());
-    cursorOntoChoice();
-    expect(shown()).toEqual([0]);
-    press('2');
-    render(withVisuals(), { ...empty(), choices: { c1: { optionIds: ['o1'] } } });
-    expect(shown()).toEqual([1]);
-  });
-
-  it('follows the most recently checked option still checked on a multi-select', () => {
-    const block = withVisuals(true);
-    render(block, { ...empty(), choices: { c1: { optionIds: ['o0', 'o2'] } } });
-    expect(shown()).toEqual([2]);
-    render(block, { ...empty(), choices: { c1: { optionIds: ['o0', 'o2', 'o1'] } } });
-    expect(shown()).toEqual([1]);
+    expect(shown()).toEqual(['chart-0', null, 'chart-2']);
+    expect(row(1).querySelector('.option-visual')).toBeNull();
   });
 
   it('keeps detail content in the drill-down and the visual out of it', () => {
     const block = withVisuals();
     block.options[0]!.detail = { pros: ['fast'] };
-    render(block, { ...empty(), choices: { c1: { optionIds: ['o0'] } } });
+    render(block, empty());
     const detail = container.querySelector('.option-detail') as HTMLElement;
     act(() => (detail.querySelector('.cc-group-header') as HTMLElement).click());
     expect(detail.querySelector('.detail-pros')?.textContent).toContain('fast');
