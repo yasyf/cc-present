@@ -77,8 +77,7 @@ func trackWithdrawals(events []state.Event, owed map[int64]withdrawal) error {
 	return nil
 }
 
-func (m *slackMirror) settle(db *sql.DB, subID string, owed map[int64]withdrawal) {
-	ctx := context.Background()
+func (m *slackMirror) settle(ctx context.Context, db *sql.DB, subID string, owed map[int64]withdrawal) {
 	for _, seq := range slices.Sorted(maps.Keys(owed)) {
 		w := owed[seq]
 		reason := w.reason

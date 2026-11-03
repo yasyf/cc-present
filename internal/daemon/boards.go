@@ -73,13 +73,13 @@ func (b *reducedBoard) lock(ctx context.Context, db *sql.DB, id string) error {
 	return nil
 }
 
-func (b *reducedBoard) settleOwed(db *sql.DB, id string) {
+func (b *reducedBoard) settleOwed(ctx context.Context, db *sql.DB, id string) {
 	m, ok := mirrors.Load(db)
 	if !ok || b.settling || len(b.owed) == 0 {
 		return
 	}
 	b.settling = true
-	go m.(*slackMirror).settle(db, id, maps.Clone(b.owed))
+	go m.(*slackMirror).settle(context.WithoutCancel(ctx), db, id, maps.Clone(b.owed))
 }
 
 func forgetBoardsExcept(db *sql.DB, open []string) {
@@ -108,7 +108,7 @@ func (b *reducedBoard) catchUp(ctx context.Context, db *sql.DB, subID string) er
 		return err
 	}
 	if len(events) > 0 {
-		b.settleOwed(db, subID)
+		b.settleOwed(ctx, db, subID)
 	}
 	for _, ev := range events {
 		if ev.Type == EventDocReplaced {
