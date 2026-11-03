@@ -429,7 +429,7 @@ func TestSlackDecidedRecordsTheBoardsOwnVerdict(t *testing.T) {
 	}{
 		{"approve at the head the card showed", "pg:8:abc1234", "8", "Approve", state.Decision{Verdict: "approved", Head: "abc1234"}, ""},
 		{"hold", "pg:9:def5678", "9", "Hold", state.Decision{Verdict: "rejected", Head: "def5678"}, ""},
-		{"a head that moved is refused", "pg:8:0001111", "8", "Approve", state.Decision{}, `is not the row's head "abc1234"`},
+		{"a tap for a head since redrawn is recorded at that head", "pg:8:0001111", "8", "Approve", state.Decision{Verdict: "approved", Head: "0001111"}, ""},
 		{"a row not on the board is refused", "pg:77:abc1234", "77", "Approve", state.Decision{}, `has no pull request "77"`},
 		{"a triage block is refused", "tr1:i1:abc1234", "i1", "Approve", state.Decision{}, `"tr1" is not a pr-groups block`},
 	}

@@ -38,8 +38,8 @@ func TestInteractionPRGroupsValidation(t *testing.T) {
 		{"approve at the row head", post(`{"8":{"verdict":"approved","head":"abc1234"}}`), 200, ""},
 		{"hold by full sha prefix", post(`{"9":{"verdict":"rejected","head":"def5678ffff","note":"wait"}}`), 200, ""},
 		{"clear", post(`{"8":{"verdict":"cleared"}}`), 200, ""},
-		{"stale head refused", post(`{"8":{"verdict":"approved","head":"0001111"}}`), 400, `is not the row's head "abc1234"`},
-		{"missing head refused", post(`{"8":{"verdict":"approved"}}`), 400, "is not the row's head"},
+		{"a head the row no longer shows is recorded", post(`{"8":{"verdict":"approved","head":"0001111"}}`), 200, ""},
+		{"missing head refused", post(`{"8":{"verdict":"approved"}}`), 400, "head must be a 7 to 40 character"},
 		{"unknown row", post(`{"77":{"verdict":"approved","head":"abc1234"}}`), 400, `has no pull request "77"`},
 		{"client time refused", post(`{"8":{"verdict":"approved","head":"abc1234","at":"2020-01-01T00:00:00Z"}}`), 400, "stamps a verdict's time"},
 		{"cleared with note refused", post(`{"8":{"verdict":"cleared","note":"x"}}`), 400, "carries no note or head"},
@@ -79,6 +79,65 @@ func TestPRGroupsVerdictsStampHeadAndTime(t *testing.T) {
 	}
 	if len(out) != len(want) || out["8"] != want["8"] || out["9"] != want["9"] {
 		t.Fatalf("verdicts = %+v, want %+v", out, want)
+	}
+}
+
+func TestApproveAllRecordsEachRowAtTheHeadItShowed(t *testing.T) {
+	nine := `{"number":9,"head":"def5678","title":"T9","change":"C.","plan":"P.","risk":"R.","review":"V.","blocker":"B."}`
+	three := strings.Replace(prGroupsDoc, nine, nine+`,{"number":10,"head":"9990000","title":"T10","change":"C.","plan":"P.","risk":"R.","review":"V.","blocker":"B."}`, 1)
+	h := newRestHarnessWith(t, three, emptyPackLoader(t))
+	w := h.post(t, `{"subject":"board--abcd0000","nonce":"n","interaction":{"type":"triage.decided","blockId":"pg","verdicts":{
+		"8":{"verdict":"approved","head":"abc1234"},
+		"9":{"verdict":"approved","head":"0001111"},
+		"10":{"verdict":"approved","head":"9990000"}}}}`)
+	if w.Code != http.StatusOK {
+		t.Fatalf("approve all = %d %s, want recorded although #9 moved since the view drew it", w.Code, w.Body)
+	}
+	events, err := loadEvents(context.Background(), h.cc.DB(), h.id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var verdicts map[string]triageEntry
+	for _, ev := range events {
+		if ev.Type == EventTriageDecided {
+			var p struct {
+				Verdicts map[string]triageEntry `json:"verdicts"`
+			}
+			if err := json.Unmarshal(ev.Payload, &p); err != nil {
+				t.Fatal(err)
+			}
+			verdicts = p.Verdicts
+		}
+	}
+	want := map[string]string{"8": "abc1234", "9": "0001111", "10": "9990000"}
+	if len(verdicts) != len(want) {
+		t.Fatalf("approve all emitted %+v, want one approval per row: %v", verdicts, want)
+	}
+	for row, head := range want {
+		if got := verdicts[row]; got.Verdict != "approved" || got.Head != head {
+			t.Errorf("row %s = %+v, want approved at %s", row, got, head)
+		}
+	}
+	if d := h.reduce(t).Interactions.Triage["pg"]["9"]; d.Head != "0001111" {
+		t.Errorf("board verdict on #9 = %+v, want it at the head the view showed, so the row asks again at def5678", d)
+	}
+}
+
+func TestALateTapOnAStackRowDecidesNoMember(t *testing.T) {
+	var d doc.Doc
+	if err := json.Unmarshal([]byte(prGroupsDoc), &d); err != nil {
+		t.Fatal(err)
+	}
+	g := d.Blocks[0].(*doc.PRGroups)
+	g.Groups[0].PRs[0].Stack = []doc.StackMember{{Number: 6, Head: "1112223"}}
+	now := time.Date(2026, 10, 29, 19, 0, 0, 0, time.UTC)
+	out, err := prGroupsVerdicts(g, map[string]triageEntry{"8": {Verdict: "approved", Head: "0001111"}}, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := triageEntry{Verdict: "approved", Head: "0001111", At: "2026-10-29T19:00:00Z"}
+	if len(out) != 1 || out["8"] != want {
+		t.Fatalf("verdicts = %+v, want only #8 at the head the tap saw: its members' heads then are unknown", out)
 	}
 }
 
