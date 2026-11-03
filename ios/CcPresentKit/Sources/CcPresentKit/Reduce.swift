@@ -28,10 +28,12 @@ public struct Decision: Decodable, Equatable, Sendable {
 public struct Selection: Decodable, Equatable, Sendable {
     public var optionIds: [String]
     public var other: String?
+    public var heads: [String: String]?
 
-    public init(optionIds: [String], other: String? = nil) {
+    public init(optionIds: [String], other: String? = nil, heads: [String: String]? = nil) {
         self.optionIds = optionIds
         self.other = other
+        self.heads = heads
     }
 }
 
@@ -458,7 +460,7 @@ private extension BoardState {
                 )
             }
         case let .choiceSelected(payload):
-            interactions.choices[payload.blockId] = Selection(optionIds: payload.optionIds, other: payload.other)
+            interactions.choices[payload.blockId] = Selection(optionIds: payload.optionIds, other: payload.other, heads: payload.heads)
         case let .packInteraction(payload):
             interactions.packs[payload.blockId] = PackValue(payload: payload.payload)
         case let .feedbackCreated(payload):

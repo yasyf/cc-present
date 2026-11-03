@@ -187,7 +187,7 @@ func handleSlackAnswer(hc ccd.HandlerCtx) ccd.Reply {
 	if card.Status == slackcards.Resolved {
 		return okReply(result{})
 	}
-	if err := recordAnswer(hc.Ctx, hc.Append, sub.ID, q, a.Label, a.Other); err != nil {
+	if err := recordAnswer(hc.Ctx, hc.Append, sub.ID, card, q, a.Label, a.Other); err != nil {
 		return errReply(err.Error())
 	}
 	note := fmt.Sprintf("Answered on [Slack](%s) at %s: **%s**", a.Permalink, a.At.Local().Format(time.Kitchen), a.Label)
@@ -255,7 +255,7 @@ func syncedCard(d *doc.Doc, id string) (*doc.Card, doc.Block, error) {
 	return card, q, nil
 }
 
-func recordAnswer(ctx context.Context, appendFn ccd.AppendFunc, subID string, q doc.Block, label string, other bool) error {
+func recordAnswer(ctx context.Context, appendFn ccd.AppendFunc, subID string, card *doc.Card, q doc.Block, label string, other bool) error {
 	p := map[string]any{"blockId": q.BlockID()}
 	var eventType string
 	switch q := q.(type) {
@@ -264,6 +264,9 @@ func recordAnswer(ctx context.Context, appendFn ccd.AppendFunc, subID string, q 
 		eventType, p["optionIds"] = EventChoiceSelected, ids
 		if written != "" {
 			p["other"] = written
+		}
+		if heads := askedHeads(card); len(heads) > 0 {
+			p["heads"] = heads
 		}
 	case *doc.Approval:
 		verdict, note := slackcards.ApprovalVerdict(label, other)
@@ -363,7 +366,7 @@ func (rs *restServer) answerOnSlack(ctx context.Context, board *reducedBoard, su
 	case res.Answered:
 		return settleCard(ctx, rs.append, subID, current, "")
 	default:
-		if err := recordAnswer(ctx, rs.append, subID, currentQ, res.Label, res.Other); err != nil {
+		if err := recordAnswer(ctx, rs.append, subID, current, currentQ, res.Label, res.Other); err != nil {
 			return err
 		}
 		return settleCard(ctx, rs.append, subID, current, fmt.Sprintf("The [Slack card](%s) was answered first: **%s**. This pick did not count.", card.Slack.URL, res.Label))

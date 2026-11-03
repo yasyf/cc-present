@@ -338,6 +338,11 @@ func validateInteraction(st *state.State, revision int, it *interaction, reg *pa
 		if other != "" {
 			p["other"] = other
 		}
+		loc, _ := doc.Locate(st.Doc, topID)
+		card, _ := loc.Block.(*doc.Card)
+		if heads := askedHeads(card); len(heads) > 0 {
+			p["heads"] = heads
+		}
 		return mustJSON(p), nil
 	case EventFeedbackCreated:
 		_, topID, err := findBlock(st.Doc, it.BlockID)

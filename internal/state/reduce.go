@@ -62,9 +62,12 @@ type Decision struct {
 // Selection is a human's last-write-wins option selection on a choice block.
 // Other is a free-text write-in outside the authored option set; it may stand
 // alone (single-select write-in) or coexist with OptionIDs (multi-select).
+// Heads maps each owner/name#number pr block on the choice's card to the head
+// the card asked about when the human picked.
 type Selection struct {
-	OptionIDs []string `json:"optionIds"`
-	Other     string   `json:"other,omitempty"`
+	OptionIDs []string          `json:"optionIds"`
+	Other     string            `json:"other,omitempty"`
+	Heads     map[string]string `json:"heads,omitempty"`
 }
 
 // InputValue is a human's last-write-wins text entry on an input block. Round is
@@ -411,9 +414,10 @@ func (s *State) apply(ev Event, up upsert) error {
 	case "choice.selected":
 		var p struct {
 			payloadIdentity
-			BlockID   string   `json:"blockId"`
-			OptionIDs []string `json:"optionIds"`
-			Other     string   `json:"other"`
+			BlockID   string            `json:"blockId"`
+			OptionIDs []string          `json:"optionIds"`
+			Other     string            `json:"other"`
+			Heads     map[string]string `json:"heads"`
 		}
 		if err := decodeEventPayload(ev, &p); err != nil {
 			return err
@@ -421,7 +425,7 @@ func (s *State) apply(ev Event, up upsert) error {
 		if p.OptionIDs == nil {
 			p.OptionIDs = []string{}
 		}
-		s.Interactions.Choices[p.BlockID] = Selection{OptionIDs: p.OptionIDs, Other: p.Other}
+		s.Interactions.Choices[p.BlockID] = Selection{OptionIDs: p.OptionIDs, Other: p.Other, Heads: p.Heads}
 		return nil
 	case "revising.changed":
 		var p struct {

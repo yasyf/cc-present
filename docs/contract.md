@@ -480,7 +480,7 @@ A key a stored payload carries beyond its row below is ignored.
 | agent | `round.started` | `{title?}` | When the round is dirty (a live top-level block is stamped with the current round), snapshot it into `rounds.history` without a `submittedRevision`, empty `interactions.viewed`, and advance `rounds.current` — every block in the closing round freezes; staying actionable means an explicit re-upsert into the new round. When clean, only the title changes — so a `round.started` right after a submit names the round the submit already opened. Either way the revising working set clears wholesale (see Live revision). Never bumps the revision, which counts `doc.replaced` events only. |
 | system | `present.closed` | `{summary?}` | Set closed. Terminal for the reduction: any event ordered after it is a no-op (see below). Recorded with a `system` origin, not `agent`, so it survives the agent-side `watch`/channel `exclude_origin=agent` filter — `watch` terminates on it. |
 | human | `decision.created` | `{blockId, verdict, note?}` | Last-write-wins per block. `verdict` is one of `approved`, `rejected`, `cleared`; `cleared` removes the decision, returning the block to undecided. |
-| human | `choice.selected` | `{blockId, optionIds, other?}` | Last-write-wins per block. `other` is a free-text write-in outside the authored option set; it may stand alone (single-select write-in, empty `optionIds`) or coexist with `optionIds` (multi-select). A re-pick replaces the whole selection, so it drops a prior `other`. |
+| human | `choice.selected` | `{blockId, optionIds, other?, heads?}` | Last-write-wins per block. `other` is a free-text write-in outside the authored option set; it may stand alone (single-select write-in, empty `optionIds`) or coexist with `optionIds` (multi-select). A re-pick replaces the whole selection, so it drops a prior `other`. `heads` maps `owner/name#number` to the `head` of each `pr` block on the choice's card that names one. The daemon stamps it from the document on a board or Slack pick and ignores a client-sent one, so a pick made after the PR moved still names the head it was asked at. |
 | human | `feedback.created` | `{id, blockId, text}` | Append to the block's feedback list. Targets any block in the current round, top-level or a card child. A note on a card is keyed to the card id. The REST edge rejects an option or item visual id. |
 | human | `input.submitted` | `{blockId, text}` | Last-write-wins per block. |
 | human | `pack.interaction` | `{blockId, payload}` | Last-write-wins per block. `payload` is the pack-defined interaction object, stored opaquely — the reducer never inspects its shape. The REST edge validates it against the block's declared interaction schema before appending. |
@@ -826,7 +826,7 @@ choosing, and no token reaches the document or the client. A redrafted block
 whose id carries a new PR still serves its frozen version in a closed round. An
 unknown subject, or no matching `pr` block, returns 404; a `gh` failure returns
 502 with its stderr.
-The daemon serves a read younger than a minute without calling GitHub, shares
+The daemon serves a read younger than five minutes without calling GitHub, shares
 one fetch among concurrent requests for the same PR, and fetches the changed
 files again only when the PR's head commit or base moves. The client caches a response
 for a minute and refetches on its refresh control.

@@ -64,6 +64,9 @@ export interface ChoiceSelectedPayload {
   // A free-text write-in outside the authored option set; may stand alone
   // (single-select) or coexist with optionIds (multi-select).
   other?: string;
+  // The head each owner/name#number pr block on the card asked about, stamped
+  // by the daemon when the human picked.
+  heads?: Record<string, string>;
 }
 
 export interface FeedbackCreatedPayload {
@@ -222,6 +225,7 @@ export interface Selection {
   optionIds: string[];
   // A free-text write-in outside the authored option set.
   other?: string;
+  heads?: Record<string, string>;
 }
 
 export interface InputValue {
