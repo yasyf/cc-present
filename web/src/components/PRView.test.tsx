@@ -30,6 +30,7 @@ const live: PRLive = {
   state: 'open',
   base: 'main',
   head: 'pr-builtin-card',
+  headSha: '713f07d2c9e1b4a5f60718293a4b5c6d7e8f9012',
   additions: 12,
   deletions: 3,
   changedFiles: 3,
@@ -94,6 +95,19 @@ describe('PRView', () => {
     expect(facts).toEqual(['CI', 'Reviews', 'Labels']);
     expect(container.querySelector('.pr-failing')?.textContent).toBe('web');
     expect(container.querySelector('.pr-fetched')?.textContent).toBe('fetched just now');
+  });
+
+  it('shows the live head and flags a head that moved past the one asked about', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => respond(live)));
+    await renderPR({ ...block, head: '713f07d' });
+    expect(container.querySelector('.pr-head-sha')?.textContent).toBe('713f07d');
+    expect(container.querySelector('.pr-moved')).toBeNull();
+
+    act(() => root.unmount());
+    root = createRoot(container);
+    vi.stubGlobal('fetch', vi.fn(async () => respond({ ...live, headSha: 'c3fa5679538ba87b9ca6' })));
+    await renderPR({ ...block, head: '713f07d' });
+    expect(container.querySelector('.pr-moved')?.textContent).toBe('Asked at 713f07d; the head is now c3fa567.');
   });
 
   it('expands a file to its diff and leaves a patchless file closed', async () => {

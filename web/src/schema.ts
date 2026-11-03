@@ -328,7 +328,8 @@ export interface Record {
 }
 
 // A GitHub pull request the daemon reads live through ccx: repo is owner/name,
-// title overrides the PR's own, files narrows the changed files to matching paths.
+// title overrides the PR's own, files narrows the changed files to matching paths,
+// and head is the commit a question was asked at, flagged once the live head moves.
 export interface PR {
   id: string;
   type: 'pr';
@@ -337,6 +338,7 @@ export interface PR {
   title?: string;
   summary?: string;
   files?: string[];
+  head?: string;
 }
 
 // Pull requests in one repo grouped by what they change. Each row carries the

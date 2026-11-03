@@ -108,6 +108,7 @@ type PR struct {
 	State          string    `json:"state"`
 	Base           string    `json:"base"`
 	Head           string    `json:"head"`
+	HeadSHA        string    `json:"headSha"`
 	MergedSHA      string    `json:"mergedSha,omitempty"`
 	Additions      int       `json:"additions"`
 	Deletions      int       `json:"deletions"`
@@ -301,6 +302,7 @@ func fetch(ctx context.Context, run Runner, repo string, number int, patterns []
 		State:          prState(&gp, landed),
 		Base:           gp.BaseRefName,
 		Head:           gp.HeadRefName,
+		HeadSHA:        gp.HeadRefOid,
 		MergedSHA:      landed,
 		Additions:      gp.Additions,
 		Deletions:      gp.Deletions,

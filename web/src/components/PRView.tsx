@@ -14,6 +14,7 @@ import {
   type PRFile,
   type PRLive,
 } from '../pr';
+import { sameHead, shortHead } from '../prgroups';
 import { DiffView } from './DiffView';
 
 const FILE_STATUS: Record<string, string> = {
@@ -75,8 +76,17 @@ export function PRView({ block }: { block: PRBlock }) {
         </h4>
         {pr && (
           <div className="pr-meta">
-            {pr.author} · {pr.base} ← {pr.head} · <span className="pr-add">+{pr.additions}</span>{' '}
-            <span className="pr-del">−{pr.deletions}</span> · {pr.changedFiles} {pr.changedFiles === 1 ? 'file' : 'files'}
+            {pr.author} · {pr.base} ← {pr.head}{' '}
+            <a className="pr-head-sha" href={commitUrl(block.repo, pr.headSha)} target="_blank" rel="noopener noreferrer">
+              {shortHead(pr.headSha)}
+            </a>{' '}
+            · <span className="pr-add">+{pr.additions}</span> <span className="pr-del">−{pr.deletions}</span> · {pr.changedFiles}{' '}
+            {pr.changedFiles === 1 ? 'file' : 'files'}
+          </div>
+        )}
+        {pr && block.head && !sameHead(block.head, pr.headSha) && (
+          <div className="pr-status pr-moved" role="status">
+            Asked at {shortHead(block.head)}; the head is now {shortHead(pr.headSha)}.
           </div>
         )}
       </header>

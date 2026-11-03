@@ -462,7 +462,9 @@ type Record struct {
 
 // PR is a GitHub pull request the daemon renders live from gh: Repo is
 // owner/name, Title overrides the PR's own title, Summary is markdown under the
-// heading, and Files narrows the changed-file list to matching paths.
+// heading, Files narrows the changed-file list to matching paths, and Head is
+// the commit a question about the PR was asked at, which the board flags once
+// the PR's live head moves past it.
 type PR struct {
 	base
 	Repo    string   `json:"repo"`
@@ -470,6 +472,7 @@ type PR struct {
 	Title   string   `json:"title,omitempty"`
 	Summary string   `json:"summary,omitempty"`
 	Files   []string `json:"files,omitempty"`
+	Head    string   `json:"head,omitempty"`
 }
 
 // PRGroups is a set of GitHub pull requests in one repo, grouped by what they
@@ -1729,6 +1732,11 @@ func validatePR(p *PR) error {
 	}
 	if isMultiline(p.Title) {
 		return fmt.Errorf("pr %q: title must be a single line", p.ID)
+	}
+	if p.Head != "" {
+		if _, err := ParseHead(p.Head); err != nil {
+			return fmt.Errorf("pr %q: %w", p.ID, err)
+		}
 	}
 	if len(p.Files) > MaxPRFiles {
 		return fmt.Errorf("pr %q: %d files patterns exceeds %d", p.ID, len(p.Files), MaxPRFiles)
