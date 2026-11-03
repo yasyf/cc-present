@@ -1044,8 +1044,9 @@ PairPayload = { v: 1, url: "http://<host>:<port>", token: string }
 ```
 
 `host` is the machine's bare MagicDNS label when the synckit mesh and tailscale
-are up, and `port` the daemon's tailnet listener; otherwise, they are the first
-LAN IPv4 address and the HTTP plane's port.
+are up, and `pair` restarts a daemon with no tailnet listener on the HTTP plane's
+port, or refuses if it still has none, so a saved URL stays good; otherwise,
+`host` is the first LAN IPv4 address.
 
 `v` is the pairing-payload schema version. `--reset-token` regenerates the token
 before pairing; `--off` rebinds the daemon to loopback, taking the plane off the

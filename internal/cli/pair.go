@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/netip"
 	"os"
+	"slices"
 	"strconv"
 
 	qrterminal "github.com/mdp/qrterminal/v3"
@@ -77,7 +78,7 @@ func runPair(ctx context.Context, d cmd.Deps, out io.Writer, resetToken bool) er
 	}
 	tokenChanged := resetToken || prev == ""
 
-	info, err := ensureDaemon(ctx, d, bind, tokenChanged)
+	info, err := ensureDaemon(ctx, d, bind, tokenChanged, label != "")
 	if err != nil {
 		return err
 	}
@@ -92,11 +93,10 @@ func runPair(ctx context.Context, d cmd.Deps, out io.Writer, resetToken bool) er
 	if err != nil {
 		return err
 	}
-	port := pairPort(info)
 
 	if label != "" {
 		_, _ = fmt.Fprintln(out, "Tailnet address:")
-		_, _ = fmt.Fprintf(out, "  %s:%d\n\n", label, port)
+		_, _ = fmt.Fprintf(out, "  %s:%d\n\n", label, info.Port)
 	}
 	if len(ips) > 0 {
 		_, _ = fmt.Fprintln(out, "LAN addresses:")
@@ -106,7 +106,7 @@ func runPair(ctx context.Context, d cmd.Deps, out io.Writer, resetToken bool) er
 		_, _ = fmt.Fprintln(out)
 	}
 
-	_, payload, err := composePairPayload(host, port, token)
+	_, payload, err := composePairPayload(host, info.Port, token)
 	if err != nil {
 		return err
 	}
@@ -119,7 +119,7 @@ func runPair(ctx context.Context, d cmd.Deps, out io.Writer, resetToken bool) er
 	})
 	_, _ = fmt.Fprintln(out)
 	_, _ = fmt.Fprintf(out, "pair payload: %s\n", payload)
-	_, _ = fmt.Fprintf(out, "host: %s:%d\n", host, port)
+	_, _ = fmt.Fprintf(out, "host: %s:%d\n", host, info.Port)
 	_, _ = fmt.Fprintln(out, "\nOpen browser tabs reconnect on their own after the daemon restarts.")
 	return nil
 }
@@ -130,10 +130,10 @@ func runOff(ctx context.Context, d cmd.Deps, out io.Writer) error {
 	if err := setBind(bindLoopback); err != nil {
 		return err
 	}
-	if _, err := ensureDaemon(ctx, d, bindLoopback, false); err != nil {
+	if _, err := ensureDaemon(ctx, d, bindLoopback, false, false); err != nil {
 		return err
 	}
-	_, _ = fmt.Fprintln(out, "LAN pairing disabled; the daemon now binds 127.0.0.1 only.")
+	_, _ = fmt.Fprintln(out, "LAN pairing disabled; the daemon is off the LAN.")
 	return nil
 }
 
@@ -153,13 +153,14 @@ func setBind(bind string) error {
 
 // ensureDaemon brings a daemon bound to desiredBind online and returns its
 // published handshake. A running daemon is restarted when its effective bind
-// differs or the token changed; otherwise a stopped daemon is cold-started.
-func ensureDaemon(ctx context.Context, d cmd.Deps, desiredBind string, tokenChanged bool) (ccd.HTTPInfo, error) {
+// differs, the token changed, or wantTailnet finds no tailnet listener on the
+// primary port; otherwise a stopped daemon is cold-started.
+func ensureDaemon(ctx context.Context, d cmd.Deps, desiredBind string, tokenChanged, wantTailnet bool) (ccd.HTTPInfo, error) {
 	if err := d.EnsureCurrent(ctx); err != nil {
 		return ccd.HTTPInfo{}, err
 	}
 	info := readHTTPInfo(d.Paths)
-	if tokenChanged || effectiveBind(info.Bind) != desiredBind {
+	if tokenChanged || effectiveBind(info.Bind) != desiredBind || (wantTailnet && !tailnetOnPrimaryPort(info)) {
 		if err := restartDaemon(ctx, d); err != nil {
 			return ccd.HTTPInfo{}, err
 		}
@@ -167,6 +168,9 @@ func ensureDaemon(ctx context.Context, d cmd.Deps, desiredBind string, tokenChan
 	}
 	if info.Port == 0 {
 		return ccd.HTTPInfo{}, errors.New("daemon did not publish its HTTP port")
+	}
+	if wantTailnet && !tailnetOnPrimaryPort(info) {
+		return ccd.HTTPInfo{}, fmt.Errorf("daemon serves no tailnet listener on port %d, so a phone could not connect; run cc-present trust", info.Port)
 	}
 	return info, nil
 }
@@ -232,14 +236,13 @@ func pairBind(label string) string {
 	return bindLAN
 }
 
-// pairPort is the port the phone connects to: a tailnet listener's when the
-// daemon has one, whose first bind can differ from the primary's, else the
-// primary's, which a tailnet listener bound later reuses.
-func pairPort(info ccd.HTTPInfo) int {
-	if len(info.ExtraAddrs) == 0 {
-		return info.Port
-	}
-	return int(netip.MustParseAddrPort(info.ExtraAddrs[0]).Port())
+// tailnetOnPrimaryPort reports whether a tailnet listener shares the primary
+// port, the one a saved pairing URL names. A first start binds them apart, and
+// a restart brings them together since both then reuse the published port.
+func tailnetOnPrimaryPort(info ccd.HTTPInfo) bool {
+	return slices.ContainsFunc(info.ExtraAddrs, func(addr string) bool {
+		return int(netip.MustParseAddrPort(addr).Port()) == info.Port
+	})
 }
 
 // pairHost picks the host the pairing URL names: the tailnet label, which the
