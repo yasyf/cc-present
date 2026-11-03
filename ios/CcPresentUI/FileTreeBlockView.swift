@@ -1,121 +1,128 @@
 import CcPresentKit
-import IOSKit
 import IOSKitUI
-import IOSKitWeb
 import SwiftUI
 
-/// FileTreeBlockView renders a filetree block by hosting the SPA's single-block page, so
-/// the collapsible tree is pixel-identical to web and follows the system appearance. A
-/// skeleton fills a default height while it loads; a load failure — or a preview with no
-/// board context — falls back to an indented monospaced listing with `+`/`~`/`−` badge
-/// markers, never blank.
+/// FileTreeBlockView renders a filetree block natively as an indented tree: each
+/// implicit directory is a disclosure row, open by default, and each file row shows
+/// its name, an optional change badge, and an optional dim note; a removed file's name
+/// is struck through. Mirrors web FileTreeView.
 struct FileTreeBlockView: View {
     let block: Block.FileTree
-    var context: PackContext?
 
-    @State private var height: CGFloat = FileTreeBlockView.skeletonHeight
-    @State private var phase: WebLoadPhase = .loading
-
-    static let skeletonHeight: CGFloat = 220
-
-    private var presentation: WebBlockPresentation {
-        WebBlockPresentation.of(hasContext: context != nil, phase: phase)
-    }
+    @State private var collapsed: Set<String> = []
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            if presentation.showsNativeTitle, let title = block.title, !title.isEmpty {
+            if let title = block.title, !title.isEmpty {
                 Text(title)
                     .voice(.mono, size: 11)
                     .foregroundStyle(Palette.muted)
                     .lineLimit(1)
             }
-            content
+            VStack(alignment: .leading, spacing: 2) {
+                ForEach(Self.visibleRows(Self.rows(from: block.entries), collapsed: collapsed)) { row in
+                    rowView(row)
+                        .padding(.leading, CGFloat(row.depth) * Metrics.space4)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .background(Palette.monoBg)
+            .clipShape(RoundedRectangle(cornerRadius: Metrics.radiusMd))
+            .overlay(RoundedRectangle(cornerRadius: Metrics.radiusMd).strokeBorder(Palette.line))
         }
     }
 
     @ViewBuilder
-    private var content: some View {
-        switch presentation {
-        case .rawSource:
-            fallbackPanel
-        case let .webView(showingSkeleton):
-            ZStack {
-                if let context {
-                    SingleBlockWebView(
-                        url: context.singleBlockURL(blockId: block.id),
-                        height: $height,
-                        phase: $phase
-                    )
-                    .frame(height: height)
-                    .frame(maxWidth: .infinity)
+    private func rowView(_ row: FileTreeRow) -> some View {
+        if row.isDirectory {
+            Button {
+                if collapsed.contains(row.path) {
+                    collapsed.remove(row.path)
+                } else {
+                    collapsed.insert(row.path)
                 }
-                if showingSkeleton {
-                    skeleton
+            } label: {
+                HStack(spacing: Metrics.space1) {
+                    Image(systemName: collapsed.contains(row.path) ? "chevron.right" : "chevron.down")
+                        .font(.system(size: 10, weight: .semibold))
+                        .frame(width: 12)
+                    Text(row.name + "/")
                 }
+                .voice(.mono, size: 13)
+                .foregroundStyle(Palette.muted)
+                .frame(minHeight: 24)
+                .contentShape(Rectangle())
             }
-        }
-    }
-
-    private var skeleton: some View {
-        RoundedRectangle(cornerRadius: Metrics.radiusMd)
-            .fill(Palette.monoBg)
-            .frame(height: Self.skeletonHeight)
-            .frame(maxWidth: .infinity)
-            .overlay(ProgressView().tint(Palette.muted))
-            .overlay(RoundedRectangle(cornerRadius: Metrics.radiusMd).strokeBorder(Palette.line))
-    }
-
-    private var fallbackPanel: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            ForEach(Self.rows(from: block.entries)) { row in
-                Text(Self.line(for: row))
-                    .voice(.mono, size: 13)
-                    .foregroundStyle(row.isDirectory ? Palette.muted : Palette.ink)
+            .buttonStyle(.plain)
+            .environment(\.isEnabled, true)
+        } else {
+            HStack(alignment: .firstTextBaseline, spacing: Metrics.space2) {
+                Text(row.name)
+                    .strikethrough(row.badge == "removed")
+                    .foregroundStyle(row.badge == "removed" ? Palette.was : Palette.ink)
                     .textSelection(.enabled)
+                if let badge = row.badge {
+                    Text(badge)
+                        .voice(.stamp, size: 10, weight: .semibold)
+                        .foregroundStyle(Self.badgeTone(badge))
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 1)
+                        .overlay(RoundedRectangle(cornerRadius: Metrics.radiusSm).strokeBorder(Self.badgeTone(badge).opacity(0.5)))
+                }
+                if let note = row.note {
+                    Text(note)
+                        .foregroundStyle(Palette.muted)
+                        .lineLimit(2)
+                }
             }
+            .voice(.mono, size: 13)
+            .padding(.leading, 16)
+            .frame(minHeight: 22)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
-        .background(Palette.monoBg)
-        .clipShape(RoundedRectangle(cornerRadius: Metrics.radiusMd))
-        .overlay(RoundedRectangle(cornerRadius: Metrics.radiusMd).strokeBorder(Palette.line))
+    }
+
+    static func badgeTone(_ badge: String) -> Color {
+        switch badge {
+        case "added": Palette.approve
+        case "modified": Palette.warn
+        case "removed": Palette.reject
+        default: Palette.muted
+        }
     }
 }
 
 extension FileTreeBlockView {
-    /// FileTreeRow is one flattened line of the native fallback tree: a directory or a
-    /// file leaf, its depth for indentation, and (for files) a change badge and note.
+    /// FileTreeRow is one flattened line of the tree: a directory or a file leaf, its
+    /// path, its depth for indentation, and (for files) a change badge and note.
     struct FileTreeRow: Identifiable, Equatable {
         let id: Int
         let depth: Int
+        let path: String
         let name: String
         let isDirectory: Bool
         let badge: String?
         let note: String?
     }
 
-    /// badgeGlyph is the one-character change marker prefixed to a file line.
-    static func badgeGlyph(_ badge: String?) -> String {
-        switch badge {
-        case "added": "+"
-        case "modified": "~"
-        case "removed": "\u{2212}"
-        default: " "
+    /// visibleRows drops every row beneath a collapsed directory.
+    static func visibleRows(_ rows: [FileTreeRow], collapsed: Set<String>) -> [FileTreeRow] {
+        var visible: [FileTreeRow] = []
+        var hiddenBelow: Int?
+        for row in rows {
+            if let depth = hiddenBelow {
+                if row.depth > depth {
+                    continue
+                }
+                hiddenBelow = nil
+            }
+            visible.append(row)
+            if row.isDirectory, collapsed.contains(row.path) {
+                hiddenBelow = row.depth
+            }
         }
-    }
-
-    /// line renders one flattened row with a two-character badge gutter so sibling
-    /// names align: a directory as `<indent>  name/`, a file as `<indent><glyph> name`
-    /// with an optional trailing `# note`.
-    static func line(for row: FileTreeRow) -> String {
-        let indent = String(repeating: "  ", count: row.depth)
-        if row.isDirectory {
-            return "\(indent)  \(row.name)/"
-        }
-        let note = row.note.map { "  # \($0)" } ?? ""
-        return "\(indent)\(badgeGlyph(row.badge)) \(row.name)\(note)"
+        return visible
     }
 
     /// rows folds path entries into a depth-first flattened tree — directories before
@@ -123,21 +130,23 @@ extension FileTreeBlockView {
     static func rows(from entries: [Block.TreeEntry]) -> [FileTreeRow] {
         var rows: [FileTreeRow] = []
         var index = 0
-        func walk(_ nodes: [FileTreeNode], depth: Int) {
+        func walk(_ nodes: [FileTreeNode], depth: Int, prefix: String) {
             for node in nodes {
+                let path = prefix.isEmpty ? node.name : "\(prefix)/\(node.name)"
                 rows.append(FileTreeRow(
                     id: index,
                     depth: depth,
+                    path: path,
                     name: node.name,
                     isDirectory: node.entry == nil,
                     badge: node.entry?.badge,
                     note: node.entry?.note
                 ))
                 index += 1
-                walk(node.children, depth: depth + 1)
+                walk(node.children, depth: depth + 1, prefix: path)
             }
         }
-        walk(FileTreeNode.forest(from: entries), depth: 0)
+        walk(FileTreeNode.forest(from: entries), depth: 0, prefix: "")
         return rows
     }
 }

@@ -376,7 +376,7 @@ struct ChoiceBlockView: View {
 }
 
 /// OptionVisualView renders an option's restricted visual leaf: a diagram through the
-/// shared single-block webview, code/diff/image through their native views. The switch
+/// shared single-block webview, every other visual through its native view. The switch
 /// is exhaustive, so a new visual type is a compile error. Mirrors the web stage dispatch.
 struct OptionVisualView: View {
     let visual: OptionVisual
@@ -394,13 +394,13 @@ struct OptionVisualView: View {
         case let .diff(diff):
             DiffBlockView(block: diff)
         case let .chart(chart):
-            ChartBlockView(block: chart, context: context)
+            ChartBlockView(block: chart)
         case let .term(term):
-            TermBlockView(block: term, context: context)
+            TermBlockView(block: term)
         case let .filetree(filetree):
-            FileTreeBlockView(block: filetree, context: context)
+            FileTreeBlockView(block: filetree)
         case let .record(record):
-            RecordBlockView(block: record, context: context)
+            RecordBlockView(block: record)
         }
     }
 }

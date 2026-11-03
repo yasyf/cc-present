@@ -154,7 +154,7 @@ public struct StatusChipView: View {
 
 /// ChipView renders one card chip, toning `flag` red, `demo` accent, and the
 /// default muted, per the web `.chip-*` treatment.
-private struct ChipView: View {
+struct ChipView: View {
     let chip: Block.Chip
 
     var body: some View {

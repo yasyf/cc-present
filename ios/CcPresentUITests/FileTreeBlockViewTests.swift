@@ -1,49 +1,25 @@
 @testable import CcPresentUI
 import CcPresentKit
-import IOSKit
-import IOSKitUI
-import IOSKitWeb
 import Testing
 
-@Suite("FileTreeBlockView fallback state")
-@MainActor
-struct FileTreeBlockViewTests {
-    @Test("with board context, loading shows the webview under a skeleton")
-    func loadingShowsSkeletonOverWebView() {
-        #expect(
-            WebBlockPresentation.of(hasContext: true, phase: .loading)
-                == .webView(showingSkeleton: true)
-        )
-    }
-
-    @Test("with board context, a loaded page shows the webview without a skeleton")
-    func loadedShowsWebViewOnly() {
-        #expect(
-            WebBlockPresentation.of(hasContext: true, phase: .loaded)
-                == .webView(showingSkeleton: false)
-        )
-    }
-
-    @Test("with board context, a load failure falls back to the native listing")
-    func failedFallsBackToListing() {
-        #expect(WebBlockPresentation.of(hasContext: true, phase: .failed) == .rawSource)
-    }
-
-    @Test("without board context, every phase renders the native listing")
-    func noContextAlwaysRendersListing() {
-        for phase in [WebLoadPhase.loading, .loaded, .failed] {
-            #expect(WebBlockPresentation.of(hasContext: false, phase: phase) == .rawSource)
+private func outline(_ rows: [FileTreeBlockView.FileTreeRow]) -> [String] {
+    rows.map { row in
+        let indent = String(repeating: "  ", count: row.depth)
+        if row.isDirectory {
+            return "\(indent)  \(row.name)/"
         }
+        let glyph = switch row.badge {
+        case "added": "+"
+        case "modified": "~"
+        case "removed": "\u{2212}"
+        default: " "
+        }
+        return "\(indent)\(glyph) \(row.name)\(row.note.map { "  # \($0)" } ?? "")"
     }
+}
 
-    @Test("badge glyphs mark the git-status change kind, blank when absent")
-    func badgeGlyphs() {
-        #expect(FileTreeBlockView.badgeGlyph("added") == "+")
-        #expect(FileTreeBlockView.badgeGlyph("modified") == "~")
-        #expect(FileTreeBlockView.badgeGlyph("removed") == "\u{2212}")
-        #expect(FileTreeBlockView.badgeGlyph(nil) == " ")
-    }
-
+@Suite("FileTreeBlockView tree")
+struct FileTreeBlockViewTests {
     @Test("rows fold paths into a tree: directories first, then files, lexicographic")
     func rowsOrderTree() {
         let entries = [
@@ -52,7 +28,7 @@ struct FileTreeBlockViewTests {
             Block.TreeEntry(path: "m.ts"),
             Block.TreeEntry(path: "alpha/y.ts"),
         ]
-        let lines = FileTreeBlockView.rows(from: entries).map(FileTreeBlockView.line(for:))
+        let lines = outline(FileTreeBlockView.rows(from: entries))
         #expect(lines == [
             "  alpha/",
             "    y.ts",
@@ -70,7 +46,7 @@ struct FileTreeBlockViewTests {
             Block.TreeEntry(path: "src/deep/c.ts"),
             Block.TreeEntry(path: "src/b.ts"),
         ]
-        let lines = FileTreeBlockView.rows(from: entries).map(FileTreeBlockView.line(for:))
+        let lines = outline(FileTreeBlockView.rows(from: entries))
         #expect(lines == [
             "  src/",
             "    deep/",
@@ -80,13 +56,13 @@ struct FileTreeBlockViewTests {
         ])
     }
 
-    @Test("file lines carry the badge glyph and an optional trailing note")
+    @Test("file rows carry their badge and note")
     func fileLineBadgesAndNotes() {
         let entries = [
             Block.TreeEntry(path: "gone.ts", badge: "removed", note: "superseded"),
             Block.TreeEntry(path: "new.ts", badge: "added"),
         ]
-        let lines = FileTreeBlockView.rows(from: entries).map(FileTreeBlockView.line(for:))
+        let lines = outline(FileTreeBlockView.rows(from: entries))
         #expect(lines == [
             "\u{2212} gone.ts  # superseded",
             "+ new.ts",
@@ -101,7 +77,7 @@ struct FileTreeBlockViewTests {
         ]
         let rows = FileTreeBlockView.rows(from: entries)
         // The implicit "a/" directory, "b" under it, and the removed "a" file all coexist.
-        #expect(rows.map(FileTreeBlockView.line(for:)) == [
+        #expect(outline(rows) == [
             "  a/",
             "  + b",
             "\u{2212} a",
@@ -110,10 +86,29 @@ struct FileTreeBlockViewTests {
         #expect(Set(rows.map(\.id)).count == rows.count)
     }
 
-    @Test("the native title shows only in the fallback, never over the webview")
-    func nativeTitleOnlyInFallback() {
-        #expect(WebBlockPresentation.rawSource.showsNativeTitle)
-        #expect(!WebBlockPresentation.webView(showingSkeleton: true).showsNativeTitle)
-        #expect(!WebBlockPresentation.webView(showingSkeleton: false).showsNativeTitle)
+    @Test("directory rows carry their full path")
+    func directoryPaths() {
+        let rows = FileTreeBlockView.rows(from: [Block.TreeEntry(path: "src/deep/c.ts")])
+        #expect(rows.map(\.path) == ["src", "src/deep", "src/deep/c.ts"])
+    }
+
+    @Test("collapsing a directory hides everything beneath it and nothing beside it")
+    func collapseHidesSubtree() {
+        let rows = FileTreeBlockView.rows(from: [
+            Block.TreeEntry(path: "src/a.ts"),
+            Block.TreeEntry(path: "src/deep/c.ts"),
+            Block.TreeEntry(path: "z.ts"),
+        ])
+        #expect(outline(FileTreeBlockView.visibleRows(rows, collapsed: ["src/deep"])) == [
+            "  src/",
+            "    deep/",
+            "    a.ts",
+            "  z.ts",
+        ])
+        #expect(outline(FileTreeBlockView.visibleRows(rows, collapsed: ["src"])) == [
+            "  src/",
+            "  z.ts",
+        ])
+        #expect(FileTreeBlockView.visibleRows(rows, collapsed: []) == rows)
     }
 }

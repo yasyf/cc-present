@@ -11,7 +11,7 @@ let package = Package(
         .library(name: "CcPresentUI", targets: ["CcPresentUI"]),
     ],
     dependencies: [
-        .package(url: "https://github.com/yasyf/ioskit", branch: "owner-apps/kit"),
+        .package(url: "https://github.com/yasyf/ioskit", from: "0.1.0"),
         .package(url: "https://github.com/raspu/Highlightr", from: "2.3.0"),
     ],
     targets: [

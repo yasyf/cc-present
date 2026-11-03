@@ -71,13 +71,13 @@ public struct BlockView: View {
         case let .progress(progress):
             ProgressBlockView(block: progress)
         case let .chart(chart):
-            ChartBlockView(block: chart, context: packContext)
+            ChartBlockView(block: chart)
         case let .term(term):
-            TermBlockView(block: term, context: packContext)
+            TermBlockView(block: term)
         case let .filetree(filetree):
-            FileTreeBlockView(block: filetree, context: packContext)
+            FileTreeBlockView(block: filetree)
         case let .record(record):
-            RecordBlockView(block: record, context: packContext)
+            RecordBlockView(block: record)
         case let .pr(pr):
             PRBlockView(block: pr, context: packContext)
         case let .prGroups(groups):

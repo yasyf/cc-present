@@ -1,51 +1,39 @@
 @testable import CcPresentUI
 import CcPresentKit
-import IOSKit
-import IOSKitUI
-import IOSKitWeb
 import Testing
 
-@Suite("ChartBlockView fallback state")
-@MainActor
+@Suite("ChartBlockView data")
 struct ChartBlockViewTests {
-    @Test("with board context, loading shows the webview under a skeleton")
-    func loadingShowsSkeletonOverWebView() {
-        #expect(
-            WebBlockPresentation.of(hasContext: true, phase: .loading)
-                == .webView(showingSkeleton: true)
+    @Test("points pair each series value with its category, index for index")
+    func pointsAlignToCategories() {
+        let block = Block.Chart(
+            id: "c1",
+            kind: "bar",
+            categories: ["mon", "tue"],
+            series: [Block.Series(label: "p50", values: [1, 2]), Block.Series(label: "p95", values: [3, 4, 5])]
         )
+        #expect(ChartBlockView.points(block) == [
+            ChartBlockView.ChartPoint(category: "mon", series: "p50", value: 1),
+            ChartBlockView.ChartPoint(category: "tue", series: "p50", value: 2),
+            ChartBlockView.ChartPoint(category: "mon", series: "p95", value: 3),
+            ChartBlockView.ChartPoint(category: "tue", series: "p95", value: 4),
+        ])
     }
 
-    @Test("with board context, a loaded page shows the webview without a skeleton")
-    func loadedShowsWebViewOnly() {
-        #expect(
-            WebBlockPresentation.of(hasContext: true, phase: .loaded)
-                == .webView(showingSkeleton: false)
-        )
+    @Test("values format like web chart.ts: compact above one, two significant digits below")
+    func formatsValues() {
+        #expect(ChartBlockView.formatValue(1300) == "1.3K")
+        #expect(ChartBlockView.formatValue(4_200_000) == "4.2M")
+        #expect(ChartBlockView.formatValue(12) == "12")
+        #expect(ChartBlockView.formatValue(0.012) == "0.012")
+        #expect(ChartBlockView.formatValue(0) == "0")
+        #expect(ChartBlockView.formatValue(250, unit: "ms") == "250 ms")
     }
 
-    @Test("with board context, a load failure falls back to the native panel")
-    func failedFallsBackToPanel() {
-        #expect(WebBlockPresentation.of(hasContext: true, phase: .failed) == .rawSource)
-    }
-
-    @Test("without board context, every phase renders the native fallback")
-    func noContextAlwaysRendersFallback() {
-        for phase in [WebLoadPhase.loading, .loaded, .failed] {
-            #expect(WebBlockPresentation.of(hasContext: false, phase: phase) == .rawSource)
-        }
-    }
-
-    @Test("the fallback lists a series label with its comma-joined values")
-    func fallbackListsSeriesValues() {
-        let series = Block.Series(label: "p95", values: [10, 20, 30])
-        #expect(ChartBlockView.line(for: series) == "p95: 10.0, 20.0, 30.0")
-    }
-
-    @Test("the native title shows only in the fallback, never over the webview")
-    func nativeTitleOnlyInFallback() {
-        #expect(WebBlockPresentation.rawSource.showsNativeTitle)
-        #expect(!WebBlockPresentation.webView(showingSkeleton: true).showsNativeTitle)
-        #expect(!WebBlockPresentation.webView(showingSkeleton: false).showsNativeTitle)
+    @Test("series colors are distinct up to the ramp and cycle after it")
+    func seriesColors() {
+        let colors = ChartBlockView.colors(count: 9)
+        #expect(colors.count == 9)
+        #expect(colors[8] == colors[0])
     }
 }

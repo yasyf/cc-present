@@ -1,40 +1,8 @@
 @testable import CcPresentUI
-import IOSKit
-import IOSKitUI
-import IOSKitWeb
 import Testing
 
-@Suite("TermBlockView fallback state")
-@MainActor
+@Suite("TermBlockView output")
 struct TermBlockViewTests {
-    @Test("with board context, loading shows the webview under a skeleton")
-    func loadingShowsSkeletonOverWebView() {
-        #expect(
-            WebBlockPresentation.of(hasContext: true, phase: .loading)
-                == .webView(showingSkeleton: true)
-        )
-    }
-
-    @Test("with board context, a loaded page shows the webview without a skeleton")
-    func loadedShowsWebViewOnly() {
-        #expect(
-            WebBlockPresentation.of(hasContext: true, phase: .loaded)
-                == .webView(showingSkeleton: false)
-        )
-    }
-
-    @Test("with board context, a load failure falls back to the native panel")
-    func failedFallsBackToFallback() {
-        #expect(WebBlockPresentation.of(hasContext: true, phase: .failed) == .rawSource)
-    }
-
-    @Test("without board context, every phase renders the native fallback")
-    func noContextAlwaysRendersFallback() {
-        for phase in [WebLoadPhase.loading, .loaded, .failed] {
-            #expect(WebBlockPresentation.of(hasContext: false, phase: phase) == .rawSource)
-        }
-    }
-
     @Test("stripAnsi removes SGR color codes from the fallback output")
     func stripsSgrColors() {
         let esc = "\u{001B}"
@@ -78,10 +46,40 @@ struct TermBlockViewTests {
         #expect(TermBlockView.stripAnsi("\(esc)(Bplain") == "plain")
     }
 
-    @Test("the native title shows only in the fallback, never over the webview")
-    func nativeTitleOnlyInFallback() {
-        #expect(WebBlockPresentation.rawSource.showsNativeTitle)
-        #expect(!WebBlockPresentation.webView(showingSkeleton: true).showsNativeTitle)
-        #expect(!WebBlockPresentation.webView(showingSkeleton: false).showsNativeTitle)
+    @Test("SGR runs carry color and weight, and a reset returns to plain")
+    func runsCarryColorAndWeight() {
+        let esc = "\u{001B}"
+        let runs = TermBlockView.runs("\(esc)[1;32mok\(esc)[0m done")
+        #expect(runs == [
+            TermBlockView.TermRun(text: "ok", style: TermBlockView.TermStyle(color: .basic(2), bold: true)),
+            TermBlockView.TermRun(text: " done", style: TermBlockView.TermStyle()),
+        ])
+    }
+
+    @Test("bright, 256-color, and truecolor foregrounds resolve")
+    func extendedColors() {
+        let plain = TermBlockView.TermStyle()
+        #expect(TermBlockView.apply("91", to: plain).color == .basic(1))
+        #expect(TermBlockView.apply("38;5;196", to: plain).color == .rgb(255, 0, 0))
+        #expect(TermBlockView.apply("38;5;244", to: plain).color == .rgb(128, 128, 128))
+        #expect(TermBlockView.apply("38;2;10;20;30", to: plain).color == .rgb(10, 20, 30))
+        #expect(TermBlockView.apply("39", to: TermBlockView.TermStyle(color: .basic(3))).color == nil)
+    }
+
+    @Test("a background code consumes its arguments without touching the foreground")
+    func backgroundSkipsArguments() {
+        let style = TermBlockView.apply("48;5;21;31", to: TermBlockView.TermStyle())
+        #expect(style.color == .basic(1))
+    }
+
+    @Test("non-SGR escapes are stripped from the runs")
+    func runsDropOtherEscapes() {
+        let esc = "\u{001B}"
+        #expect(TermBlockView.runs("a\(esc)[2K\(esc)[1Ab").map(\.text) == ["ab"])
+    }
+
+    @Test("an empty output yields no runs")
+    func emptyOutput() {
+        #expect(TermBlockView.runs("").isEmpty)
     }
 }
