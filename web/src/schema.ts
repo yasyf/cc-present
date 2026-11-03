@@ -65,6 +65,8 @@ export interface Card {
   slack?: { url: string };
   mirror?: boolean;
   design?: Design;
+  // Slack permalinks of earlier posts that asked this question; cc-slack closes them with the outcome.
+  supersedes?: string[];
   children: ChildBlock[];
 }
 

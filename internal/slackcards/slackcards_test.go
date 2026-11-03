@@ -74,7 +74,7 @@ func TestACardsOwnExplainMoreReachesSlackOnceAndCountsAsNoAnswer(t *testing.T) {
 }
 
 func TestToSlackAsksTheSameQuestionAndLinksItsPRs(t *testing.T) {
-	c := card(t, `{"id":"step-3:merge","type":"card","title":"Merge #41 now?","summary":"CI is green.","children":[`+
+	c := card(t, `{"id":"step-3:merge","type":"card","title":"Merge #41 now?","summary":"CI is green.","supersedes":["`+permalink+`"],"children":[`+
 		`{"id":"pr","type":"pr","repo":"acme/app","number":41},`+
 		`{"id":"q","type":"choice","options":[{"id":"o1","label":"Hold"},{"id":"o2","label":"Merge","recommended":true}]}]}`)
 	ch, err := slackcards.Check(c)
@@ -83,7 +83,8 @@ func TestToSlackAsksTheSameQuestionAndLinksItsPRs(t *testing.T) {
 	}
 	got := slackcards.ToSlack(c, ch)
 	want := slackcards.StatusCard{
-		Status: "needs_you", Title: "Merge #41 now?", Body: "CI is green.\n<https://github.com/acme/app/pull/41|app PR 41>",
+		Supersedes: []string{permalink},
+		Status:     "needs_you", Title: "Merge #41 now?", Body: "CI is green.\n<https://github.com/acme/app/pull/41|app PR 41>",
 		Options: []string{"Hold", "Merge"}, Recommended: "Merge", Waits: "step-3:merge",
 		Refs: []slackcards.Ref{{URL: "https://github.com/acme/app/pull/41"}},
 	}
