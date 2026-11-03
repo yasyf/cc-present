@@ -131,15 +131,16 @@ type Chip struct {
 // card that nests a plan.mock must set it.
 type Card struct {
 	base
-	Title    string     `json:"title,omitempty"`
-	Summary  string     `json:"summary,omitempty"`
-	Chips    []Chip     `json:"chips,omitempty"`
-	Flagged  bool       `json:"flagged,omitempty"`
-	Status   string     `json:"status,omitempty"`
-	Slack    *CardSlack `json:"slack,omitempty"`
-	Mirror   *bool      `json:"mirror,omitempty"`
-	Design   *Design    `json:"design,omitempty"`
-	Children []Block    `json:"children"`
+	Title      string     `json:"title,omitempty"`
+	Summary    string     `json:"summary,omitempty"`
+	Chips      []Chip     `json:"chips,omitempty"`
+	Flagged    bool       `json:"flagged,omitempty"`
+	Status     string     `json:"status,omitempty"`
+	Slack      *CardSlack `json:"slack,omitempty"`
+	Mirror     *bool      `json:"mirror,omitempty"`
+	Design     *Design    `json:"design,omitempty"`
+	Supersedes []string   `json:"supersedes,omitempty"`
+	Children   []Block    `json:"children"`
 }
 
 // Mirrors reports whether the card's question also goes to Slack.
@@ -650,15 +651,16 @@ func decodeDoc(data []byte, unmarshal unmarshalFunc) (*Doc, error) {
 func decodeCard(data json.RawMessage, unmarshal unmarshalFunc) (Block, error) {
 	var raw struct {
 		base
-		Title    string            `json:"title"`
-		Summary  string            `json:"summary"`
-		Chips    []Chip            `json:"chips"`
-		Flagged  bool              `json:"flagged"`
-		Status   string            `json:"status"`
-		Slack    *CardSlack        `json:"slack"`
-		Mirror   *bool             `json:"mirror"`
-		Design   *Design           `json:"design"`
-		Children []json.RawMessage `json:"children"`
+		Title      string            `json:"title"`
+		Summary    string            `json:"summary"`
+		Chips      []Chip            `json:"chips"`
+		Flagged    bool              `json:"flagged"`
+		Status     string            `json:"status"`
+		Slack      *CardSlack        `json:"slack"`
+		Mirror     *bool             `json:"mirror"`
+		Design     *Design           `json:"design"`
+		Supersedes []string          `json:"supersedes"`
+		Children   []json.RawMessage `json:"children"`
 	}
 	if err := unmarshal(data, &raw); err != nil {
 		return nil, fmt.Errorf("unmarshal card: %w", err)
@@ -668,16 +670,17 @@ func decodeCard(data json.RawMessage, unmarshal unmarshalFunc) (Block, error) {
 		return nil, err
 	}
 	return &Card{
-		base:     raw.base,
-		Title:    raw.Title,
-		Summary:  raw.Summary,
-		Chips:    raw.Chips,
-		Flagged:  raw.Flagged,
-		Status:   raw.Status,
-		Slack:    raw.Slack,
-		Mirror:   raw.Mirror,
-		Design:   raw.Design,
-		Children: children,
+		base:       raw.base,
+		Title:      raw.Title,
+		Summary:    raw.Summary,
+		Chips:      raw.Chips,
+		Flagged:    raw.Flagged,
+		Status:     raw.Status,
+		Slack:      raw.Slack,
+		Mirror:     raw.Mirror,
+		Design:     raw.Design,
+		Supersedes: raw.Supersedes,
+		Children:   children,
 	}, nil
 }
 

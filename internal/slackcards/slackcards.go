@@ -74,6 +74,7 @@ type StatusCard struct {
 	Refs        []Ref    `json:"refs,omitempty"`
 	Group       string   `json:"group,omitempty"`
 	Rows        []Row    `json:"rows,omitempty"`
+	Supersedes  []string `json:"supersedes,omitempty"`
 }
 
 // Row is one pull request on a group card, with the board's verdict buttons.
@@ -230,7 +231,7 @@ func Nudge(b doc.Block) string {
 
 // ToSlack is the cc-slack card for a card Check passed.
 func ToSlack(c *doc.Card, q doc.Block) StatusCard {
-	sc := StatusCard{Status: "needs_you", Title: clip(cmp.Or(c.Title, prompt(q)), maxTitle), Waits: c.ID}
+	sc := StatusCard{Status: "needs_you", Title: clip(cmp.Or(c.Title, prompt(q)), maxTitle), Waits: c.ID, Supersedes: c.Supersedes}
 	parts := []string{c.Summary}
 	if c.Title != "" {
 		parts = append(parts, prompt(q))
