@@ -42,6 +42,7 @@ import { BoardSkeleton } from './components/BoardSkeleton';
 import { ClosedBanner } from './components/ClosedBanner';
 import { ConnectError } from './components/ConnectError';
 import { SingleBlockView } from './components/SingleBlockView';
+import { TalkView } from './components/TalkView';
 import { SidebarPanel } from './components/SidebarPanel';
 import { CommentsSheet } from './components/CommentsSheet';
 import { MarginRail } from './components/MarginRail';
@@ -76,13 +77,16 @@ export function App() {
   draftStore.scope(subject);
   const params = new URLSearchParams(window.location.search);
   const blockId = params.get('block');
+  const threadId = params.get('thread');
   const row = params.has('row') ? Number(params.get('row')) : undefined;
   return (
     <SubjectProvider value={{ subject, scope: undefined }}>
       <SnapshotGate subject={subject}>
         <EventStreamProvider subject={subject}>
           <ExpandAllProvider>
-            {blockId ? (
+            {threadId ? (
+              <TalkView subject={subject} talkId={threadId} />
+            ) : blockId ? (
               <SingleBlockView subject={subject} blockId={blockId} row={row} />
             ) : (
               <PresentView subject={subject} />

@@ -1332,6 +1332,36 @@ body[data-single] .toast-stack {
   margin-top: var(--space-3);
 }
 
+.talk {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+}
+.talk-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+}
+.talk-scroll .block-row {
+  margin: 0;
+}
+.talk-composer {
+  flex: none;
+  display: flex;
+  gap: var(--space-2);
+  align-items: flex-end;
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--line);
+}
+.talk-composer textarea {
+  flex: 1;
+  min-width: 0;
+}
+
 /* --- Responsive: the two breakpoints of record (--bp-rail 720, --bp-compact 440).
    The page gutter already went fluid in tokens.css; here the board chrome reflows —
    the stat cells tighten, the margin rail folds toward the content, and the header touch targets grow to the 44px floor. --- */

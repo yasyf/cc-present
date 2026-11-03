@@ -10,6 +10,7 @@ import (
 	"maps"
 	"net/http"
 	"net/http/httptest"
+	"net/netip"
 	"slices"
 	"strings"
 	"testing"
@@ -951,5 +952,53 @@ func TestAPickRecordsTheHeadsItsCardAskedAbout(t *testing.T) {
 	}
 	if got := st.Interactions.Choices["ch2"].Heads; got != nil {
 		t.Fatalf("heads on a card naming no head = %v, want none", got)
+	}
+}
+
+const talkDoc = `{"version":1,"title":"Talk","blocks":[
+	{"id":"talk","type":"section","title":"Talk","writers":["yphone"]},
+	{"id":"m1","type":"markdown","md":"a reply"}
+]}`
+
+func TestNoteWritersAdmitNamedDevices(t *testing.T) {
+	tests := []struct {
+		name     string
+		remote   string
+		blockID  string
+		wantCode int
+	}{
+		{name: "named device", remote: "100.64.0.1:4000", blockID: "talk", wantCode: http.StatusOK},
+		{name: "ipv4 mapped named device", remote: "[::ffff:100.64.0.1]:4000", blockID: "talk", wantCode: http.StatusOK},
+		{name: "this machine", remote: "127.0.0.1:4000", blockID: "talk", wantCode: http.StatusOK},
+		{name: "other device", remote: "100.64.0.9:4000", blockID: "talk", wantCode: http.StatusForbidden},
+		{name: "unknown address", remote: "100.64.0.77:4000", blockID: "talk", wantCode: http.StatusForbidden},
+		{name: "other device on an open block", remote: "100.64.0.9:4000", blockID: "m1", wantCode: http.StatusOK},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := newRestHarnessWith(t, talkDoc, emptyPackLoader(t))
+			h.rs.peerName = func(_ context.Context, ip netip.Addr) string {
+				return map[string]string{"100.64.0.1": "yphone", "100.64.0.9": "steamdeck"}[ip.String()]
+			}
+			req := httptest.NewRequest(http.MethodPost, "/api/interactions", strings.NewReader(fmt.Sprintf(`{"subject":"board--abcd0000","nonce":"n","interaction":{"type":"feedback.created","id":"f1","blockId":%q,"text":"hi"}}`, tt.blockID)))
+			req.Header.Set("Content-Type", "application/json")
+			req.RemoteAddr = tt.remote
+			w := httptest.NewRecorder()
+			h.rs.handleInteractions(w, req)
+			if w.Code != tt.wantCode {
+				t.Fatalf("status = %d, want %d (body %q)", w.Code, tt.wantCode, w.Body.String())
+			}
+			events, err := h.cc.EventsSince(context.Background(), h.id, 0, "")
+			if err != nil {
+				t.Fatal(err)
+			}
+			wantEvents := 1
+			if tt.wantCode == http.StatusOK {
+				wantEvents = 2
+			}
+			if len(events) != wantEvents {
+				t.Fatalf("events = %d, want %d", len(events), wantEvents)
+			}
+		})
 	}
 }

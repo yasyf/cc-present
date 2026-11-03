@@ -177,6 +177,8 @@ A board with any decision unit opens in focus mode by default: one step at a tim
 { "id": "sec-flagged", "type": "section", "title": "Flagged — corrected before approval", "md": "Optional prose under the header." }
 ```
 
+`writers` lists the tailnet device names that may post notes on the section, such as `["yphone", "yasyf-forge"]`. Any other device gets a 403 on a note and still reads and taps the board. `/p/<ref>?thread=<section id>` draws the section's notes, replies and cards as one scrolling thread with a composer; a card's `re` names the note it sits beneath.
+
 ### `card` — decision unit (top level only)
 
 ```json

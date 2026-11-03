@@ -111,11 +111,14 @@ type Doc struct {
 	Blocks       []Block           `json:"blocks"`
 }
 
-// Section is a top-level header marker with optional prose.
+// Section is a top-level header marker with optional prose. Writers, when set,
+// names the tailnet devices that may post notes on it; any other device still
+// reads the board and taps its blocks.
 type Section struct {
 	base
-	Title string `json:"title"`
-	Md    string `json:"md,omitempty"`
+	Title   string   `json:"title"`
+	Md      string   `json:"md,omitempty"`
+	Writers []string `json:"writers,omitempty"`
 }
 
 // Chip is a small labelled tag on a card.
@@ -129,9 +132,11 @@ type Chip struct {
 // links the cc-slack ask card that asks the same question; an answer on either
 // surface answers both. Mirror false keeps a card on the board only; a card that
 // states nothing mirrors. Design says what the card's mockup proposes, and a
-// card that nests a plan.mock must set it.
+// card that nests a plan.mock must set it. Re names the note a thread view draws
+// the card beneath.
 type Card struct {
 	base
+	Re         string     `json:"re,omitempty"`
 	Title      string     `json:"title,omitempty"`
 	Summary    string     `json:"summary,omitempty"`
 	Chips      []Chip     `json:"chips,omitempty"`

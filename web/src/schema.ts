@@ -42,6 +42,7 @@ export interface Section {
   type: 'section';
   title: string;
   md?: string;
+  writers?: string[];
 }
 
 export type ChipTone = 'default' | 'flag' | 'demo';
@@ -56,6 +57,7 @@ export type CardStatus = 'open' | 'resolved' | 'redrafted';
 export interface Card {
   id: string;
   type: 'card';
+  re?: string;
   title?: string;
   // Single-line inline markdown shown under the card title.
   summary?: string;

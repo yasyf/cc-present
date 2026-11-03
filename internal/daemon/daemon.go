@@ -127,7 +127,7 @@ func BuildServer(ctx context.Context, p paths.Paths, spec daemonkit.Daemon, runt
 	s.Register(OpMoveVerdicts, handleMoveVerdicts)
 	s.Register(OpCarryVerdict, handleCarryVerdict)
 	s.Register(OpBlockShow, handleBlockShow)
-	mountREST(s, ast, loader, runtimeBuild)
+	mountREST(s, ast, loader, runtimeBuild, tp)
 	return s, nil
 }
 
