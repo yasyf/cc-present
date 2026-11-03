@@ -197,13 +197,14 @@ func handleStart(hc ccd.HandlerCtx, pt doc.PackTypes, display displayFunc) ccd.R
 		return errReply(err.Error())
 	}
 	var warnings []string
+	var seq int64
 	if d != nil {
-		if warnings, err = appendSeedDoc(hc, sub.ID, b.Doc, d, b.Reopen, b.Reask); err != nil {
+		if warnings, seq, err = appendSeedDoc(hc, sub.ID, b.Doc, d, b.Writer, b.Reopen, b.Reask); err != nil {
 			return errReply(err.Error())
 		}
 	}
 	cs := channelState(hc.Activity, sub.ID, hc.Scope, hc.Window.ClaudePID)
-	res := result{URL: artifactURL(hc.HTTPPort, sub.Slug), TailnetURLs: display(hc.Ctx, sub.Slug, hc.HTTPPort), Slug: sub.Slug, ChannelState: cs, Warnings: warnings}
+	res := result{URL: artifactURL(hc.HTTPPort, sub.Slug), TailnetURLs: display(hc.Ctx, sub.Slug, hc.HTTPPort), Slug: sub.Slug, ChannelState: cs, Warnings: warnings, Rev: seq}
 	raw, _ := json.Marshal(res)
 	return ccd.Reply{OK: true, SubjectID: sub.ID, HTTPPort: hc.HTTPPort, Body: raw}
 }
@@ -238,35 +239,39 @@ func displayPage(d *doc.Doc) bool {
 // top-level block to a round the human has engaged, an unspecified round intent
 // is rejected; --round new closes the dirty round into history and opens the
 // next before the replacement lands.
-func appendSeedDoc(hc ccd.HandlerCtx, subID string, raw json.RawMessage, d *doc.Doc, reopen []string, reask Reask) ([]string, error) {
+func appendSeedDoc(hc ccd.HandlerCtx, subID string, raw json.RawMessage, d *doc.Doc, w Writer, reopen []string, reask Reask) ([]string, int64, error) {
 	writeMu.Lock()
 	defer writeMu.Unlock()
 	board, err := caughtUp(hc.Ctx, hc.DB, subID)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	defer board.mu.Unlock()
 	st := &board.st
 	if err := claimThreads(hc.Ctx, hc.DB, subID, st.Doc, d.Blocks); err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	gate, err := newAdmitGate(hc.Ctx, hc.DB, subID, st, board.retired, reopen, reask)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	raw, warnings, err := gate.admitDoc(d, raw)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
+	}
+	retained := retainedTopIDs(st, d)
+	if err := w.admit(st, board.seq, changedTops(st, d, retained)...); err != nil {
+		return nil, 0, err
 	}
 	rev, err := nextRevision(hc.Ctx, hc.DB, subID)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
-	_, err = appendEvent(hc.Ctx, hc.Append, &ccevent.Event{
+	seq, err := appendEvent(hc.Ctx, hc.Append, &ccevent.Event{
 		SubjectID: subID, Origin: ccevent.OriginAgent, Type: EventDocReplaced,
-		Payload: docReplacedPayload(raw, rev, retainedTopIDs(st, d)),
+		Payload: docReplacedPayload(raw, rev, retained, w),
 	})
-	return warnings, err
+	return warnings, seq, err
 }
 
 func handlePush(hc ccd.HandlerCtx, pt doc.PackTypes, display displayFunc) ccd.Reply {
@@ -314,6 +319,9 @@ func handlePush(hc ccd.HandlerCtx, pt doc.PackTypes, display displayFunc) ccd.Re
 		return errReply(err.Error())
 	}
 	retained := retainedTopIDs(st, d)
+	if err := b.admit(st, board.seq, changedTops(st, d, retained)...); err != nil {
+		return errReply(err.Error())
+	}
 	round := 0
 	if intent == roundNew && roundDirty(st) {
 		if _, err := appendEvent(hc.Ctx, hc.Append, &ccevent.Event{
@@ -328,13 +336,14 @@ func handlePush(hc ccd.HandlerCtx, pt doc.PackTypes, display displayFunc) ccd.Re
 	if err != nil {
 		return errReply(err.Error())
 	}
-	if _, err := appendEvent(hc.Ctx, hc.Append, &ccevent.Event{
+	seq, err := appendEvent(hc.Ctx, hc.Append, &ccevent.Event{
 		SubjectID: sub.ID, Origin: ccevent.OriginAgent, Type: EventDocReplaced,
-		Payload: docReplacedPayload(raw, rev, retained),
-	}); err != nil {
+		Payload: docReplacedPayload(raw, rev, retained, b.Writer),
+	})
+	if err != nil {
 		return errReply(err.Error())
 	}
-	return okReply(result{Revision: rev, URL: artifactURL(hc.HTTPPort, sub.Slug), TailnetURLs: display(hc.Ctx, sub.Slug, hc.HTTPPort), Round: round, Warnings: warnings})
+	return okReply(result{Revision: rev, Rev: seq, URL: artifactURL(hc.HTTPPort, sub.Slug), TailnetURLs: display(hc.Ctx, sub.Slug, hc.HTTPPort), Round: round, Warnings: warnings})
 }
 
 // handleUpsertBlock inserts or replaces a single block. An unknown type, a block
@@ -415,6 +424,9 @@ func handleUpsertBlock(hc ccd.HandlerCtx, pt doc.PackTypes) ccd.Reply {
 	if err := roundGuard(st, intent, "update-block", newTops); err != nil {
 		return errReply(err.Error())
 	}
+	if err := b.admit(st, board.seq, st.UpsertTop(blk, b.After)); err != nil {
+		return errReply(err.Error())
+	}
 	// Validation is done; only appends follow. A clean round skips round.started,
 	// so a post-submit --round new stays a no-op.
 	round := 0
@@ -427,13 +439,14 @@ func handleUpsertBlock(hc ccd.HandlerCtx, pt doc.PackTypes) ccd.Reply {
 		}
 		round = st.Rounds.Current + 1
 	}
-	if _, err := appendEvent(hc.Ctx, hc.Append, &ccevent.Event{
+	seq, err := appendEvent(hc.Ctx, hc.Append, &ccevent.Event{
 		SubjectID: sub.ID, Origin: ccevent.OriginAgent, Type: EventBlockUpserted,
-		Payload: blockUpsertedPayload(blockJSON, b.After),
-	}); err != nil {
+		Payload: blockUpsertedPayload(blockJSON, b.After, b.Writer),
+	})
+	if err != nil {
 		return errReply(err.Error())
 	}
-	return okReply(result{Round: round, Warnings: warnings})
+	return okReply(result{Round: round, Rev: seq, Warnings: warnings})
 }
 
 // upsertedDoc returns the document the upsert of blk (after `after`) produces
@@ -479,13 +492,17 @@ func handleRemoveBlock(hc ccd.HandlerCtx) ccd.Reply {
 	if err := held.refuse(loc.Block, "remove", true); err != nil {
 		return errReply(err.Error())
 	}
-	if _, err := appendEvent(hc.Ctx, hc.Append, &ccevent.Event{
-		SubjectID: sub.ID, Origin: ccevent.OriginAgent, Type: EventBlockRemoved,
-		Payload: mustJSON(map[string]string{"id": b.ID}),
-	}); err != nil {
+	if err := b.admit(st, board.seq, loc.TopID); err != nil {
 		return errReply(err.Error())
 	}
-	return okReply(result{})
+	seq, err := appendEvent(hc.Ctx, hc.Append, &ccevent.Event{
+		SubjectID: sub.ID, Origin: ccevent.OriginAgent, Type: EventBlockRemoved,
+		Payload: blockRemovedPayload(b.ID, b.Writer),
+	})
+	if err != nil {
+		return errReply(err.Error())
+	}
+	return okReply(result{Rev: seq})
 }
 
 // handleReply appends an agent reply to a block's thread, anchored under the
@@ -812,20 +829,36 @@ func artifactURL(port int, slug string) string {
 	return fmt.Sprintf("http://127.0.0.1:%d/p/%s", port, slug)
 }
 
-func docReplacedPayload(rawDoc json.RawMessage, revision int, retained []string) json.RawMessage {
+func docReplacedPayload(rawDoc json.RawMessage, revision int, retained []string, w Writer) json.RawMessage {
 	return mustJSON(struct {
 		Doc      json.RawMessage `json:"doc"`
 		Revision int             `json:"revision"`
 		Retained []string        `json:"retained,omitempty"`
-	}{rawDoc, revision, retained})
+		writtenBy
+	}{rawDoc, revision, retained, by(w)})
 }
 
-func blockUpsertedPayload(rawBlock json.RawMessage, after string) json.RawMessage {
+func blockUpsertedPayload(rawBlock json.RawMessage, after string, w Writer) json.RawMessage {
 	return mustJSON(struct {
 		Block json.RawMessage `json:"block"`
 		After string          `json:"after,omitempty"`
-	}{rawBlock, after})
+		writtenBy
+	}{rawBlock, after, by(w)})
 }
+
+func blockRemovedPayload(id string, w Writer) json.RawMessage {
+	return mustJSON(struct {
+		ID string `json:"id"`
+		writtenBy
+	}{id, by(w)})
+}
+
+type writtenBy struct {
+	Lane     string `json:"lane,omitempty"`
+	TakeOver bool   `json:"takeOver,omitempty"`
+}
+
+func by(w Writer) writtenBy { return writtenBy{Lane: w.Lane, TakeOver: w.TakeOver} }
 
 func revisingChangedPayload(blockIDs []string, note string) json.RawMessage {
 	return mustJSON(struct {
