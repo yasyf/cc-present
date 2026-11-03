@@ -2,9 +2,11 @@ package slackcards_test
 
 import (
 	"encoding/json"
+	"fmt"
 	"slices"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/yasyf/cc-present/internal/doc"
 	"github.com/yasyf/cc-present/internal/slackcards"
@@ -34,8 +36,14 @@ func TestCheckHoldsACardToTheRulesBothSurfacesShare(t *testing.T) {
 	if _, err := slackcards.Check(card(t, askCard(ok))); err != nil {
 		t.Fatalf("a card with one recommended answer: %v", err)
 	}
+	if _, err := slackcards.Check(card(t, askCard(`{"id":"o1","label":"Merge"},{"id":"o2","label":"Hold"}`))); err != nil {
+		t.Fatalf("a card with no recommendation still asks a simple question: %v", err)
+	}
 	tests := map[string]string{
-		"no recommendation":   askCard(`{"id":"o1","label":"Merge"},{"id":"o2","label":"Hold"}`),
+		"mirror false":        strings.Replace(askCard(ok), `"type":"card",`, `"type":"card","mirror":false,`, 1),
+		"five answers":        askCard(`{"id":"o1","label":"A"},{"id":"o2","label":"B"},{"id":"o3","label":"C"},{"id":"o4","label":"D"},{"id":"o5","label":"E"}`),
+		"two questions":       `{"id":"c","type":"card","title":"Both?","children":[{"id":"a","type":"approval"},{"id":"b","type":"input","label":"Why?"}]}`,
+		"no words":            `{"id":"c","type":"card","children":[{"id":"a","type":"approval"}]}`,
 		"two recommendations": askCard(`{"id":"o1","label":"Merge","recommended":true},{"id":"o2","label":"Hold","recommended":true}`),
 		"an Other answer":     askCard(`{"id":"o1","label":"Merge","recommended":true},{"id":"o2","label":"Other"}`),
 		"a marked label":      askCard(`{"id":"o1","label":"Merge (Recommended)","recommended":true}`),
@@ -109,7 +117,8 @@ func TestFromSlackBuildsACardThatPassesCheckAndKeepsItsLinks(t *testing.T) {
 
 func TestAnAnswerCrossesBetweenSurfacesUnchanged(t *testing.T) {
 	c := card(t, askCard(`{"id":"o1","label":"Merge","recommended":true},{"id":"o2","label":"Hold"}`))
-	ch, _ := slackcards.Question(c)
+	q, _ := slackcards.Question(c)
+	ch := q.(*doc.Choice)
 	tests := []struct {
 		label string
 		other bool
@@ -127,6 +136,150 @@ func TestAnAnswerCrossesBetweenSurfacesUnchanged(t *testing.T) {
 		}
 		if label, other := slackcards.Label(ch, ids, text); label != tt.label || other != tt.other {
 			t.Errorf("Label(%v, %q) = %q %v, want %q %v", ids, text, label, other, tt.label, tt.other)
+		}
+	}
+}
+
+func TestAnApprovalAndAnInputAskInSlack(t *testing.T) {
+	approval := card(t, `{"id":"ship","type":"card","title":"Ship it?","children":[{"id":"a","type":"approval","prompt":"Approve the release"}]}`)
+	q, err := slackcards.Check(approval)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := slackcards.ToSlack(approval, q)
+	if !slices.Equal(got.Options, []string{"Approve", "Reject"}) || got.Recommended != "" || got.Body != "Approve the release" {
+		t.Fatalf("approval = %+v, want Approve and Reject, with its prompt in the body", got)
+	}
+
+	input := card(t, `{"id":"name","type":"card","children":[{"id":"i","type":"input","label":"What should it be called?"}]}`)
+	if q, err = slackcards.Check(input); err != nil {
+		t.Fatal(err)
+	}
+	got = slackcards.ToSlack(input, q)
+	if len(got.Options) != 0 || got.Title != "What should it be called?" || got.Waits != "name" {
+		t.Fatalf("input = %+v, want its label as the question and no preset answers", got)
+	}
+}
+
+func TestAnApprovalAnswerCrossesBetweenSurfaces(t *testing.T) {
+	tests := []struct {
+		label   string
+		other   bool
+		verdict string
+		note    string
+	}{
+		{"Approve", false, "approved", ""},
+		{"Reject", false, "rejected", ""},
+		{"Only after the freeze", true, "rejected", "Only after the freeze"},
+	}
+	for _, tt := range tests {
+		if verdict, note := slackcards.ApprovalVerdict(tt.label, tt.other); verdict != tt.verdict || note != tt.note {
+			t.Errorf("ApprovalVerdict(%q, %v) = %q %q, want %q %q", tt.label, tt.other, verdict, note, tt.verdict, tt.note)
+		}
+	}
+	if got := slackcards.ApprovalLabel("approved"); got != "Approve" {
+		t.Errorf("ApprovalLabel(approved) = %q", got)
+	}
+	if got := slackcards.ApprovalLabel("rejected"); got != "Reject" {
+		t.Errorf("ApprovalLabel(rejected) = %q", got)
+	}
+}
+
+func TestALongAnswerIsCutForItsButtonAndStillNamesItsOption(t *testing.T) {
+	long := strings.Repeat("Refuse with rebuild ", 5)
+	c := card(t, askCard(`{"id":"o1","label":"`+long+`","hint":"keeps your line","recommended":true},{"id":"o2","label":"Hold","hint":"waits"}`))
+	q, err := slackcards.Check(c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := slackcards.ToSlack(c, q)
+	button := got.Options[0]
+	if n := utf8.RuneCountInString(button); n != 61 || !strings.HasSuffix(button, "…") || got.Recommended != button {
+		t.Fatalf("button %q is %d characters, recommended %q; want it cut to 61 with an ellipsis", button, n, got.Recommended)
+	}
+	for _, want := range []string{"• *" + long + ":* keeps your line", "• *Hold:* waits"} {
+		if !strings.Contains(got.Body, want) {
+			t.Errorf("body %q lacks %q", got.Body, want)
+		}
+	}
+	ch := q.(*doc.Choice)
+	if ids, text := slackcards.Selection(ch, button, false); !slices.Equal(ids, []string{"o1"}) || text != "" {
+		t.Errorf("a tap on the cut button selected %v %q, want o1", ids, text)
+	}
+	if label, other := slackcards.Label(ch, []string{"o1"}, ""); label != button || other {
+		t.Errorf("a board pick answered Slack with %q %v, want the button's own words", label, other)
+	}
+}
+
+func TestALongBodyIsCutToWhatSlackTakes(t *testing.T) {
+	md := strings.Repeat("word ", 700)
+	c := card(t, `{"id":"c","type":"card","title":"T?","children":[{"id":"m","type":"markdown","md":"`+md+`"},{"id":"a","type":"approval"}]}`)
+	q, err := slackcards.Check(c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n := utf8.RuneCountInString(slackcards.ToSlack(c, q).Body); n != 2800 {
+		t.Fatalf("body is %d characters, want 2800", n)
+	}
+}
+
+func TestImagesNamesEachPicture(t *testing.T) {
+	sha := strings.Repeat("a", 64)
+	c := card(t, `{"id":"layout","type":"card","title":"Which layout?","children":[`+
+		`{"id":"now","type":"image","src":"asset:`+sha+`","alt":"the dashboard","caption":"Today"},`+
+		`{"id":"plain","type":"image","src":"https://example.com/a.png","alt":"a chart"},`+
+		`{"id":"q","type":"choice","options":[`+
+		`{"id":"a","label":"Feed first","visual":{"id":"va","type":"image","src":"asset:`+sha+`","alt":"feed"}},`+
+		`{"id":"b","label":"Pieces first"}]}]}`)
+	want := []slackcards.Image{
+		{Src: "asset:" + sha, Title: "Today"},
+		{Src: "https://example.com/a.png", Title: "a chart"},
+		{Src: "asset:" + sha, Title: "Feed first"},
+	}
+	if got := slackcards.Images(c); !slices.Equal(got, want) {
+		t.Fatalf("Images = %+v, want %+v", got, want)
+	}
+}
+
+func TestSameIsFalseWhenWhatSlackShowsChanges(t *testing.T) {
+	base := `{"id":"c","type":"card","title":"Ship it?","children":[%s{"id":"a","type":"approval"}]}`
+	plain := card(t, fmt.Sprintf(base, ""))
+	if !slackcards.Same(plain, card(t, fmt.Sprintf(base, ""))) {
+		t.Error("two identical cards differ")
+	}
+	if slackcards.Same(plain, card(t, fmt.Sprintf(base, `{"id":"m","type":"markdown","md":"New context."},`))) {
+		t.Error("new context left the post unchanged")
+	}
+	if slackcards.Same(plain, card(t, fmt.Sprintf(base, `{"id":"i","type":"image","src":"https://example.com/a.png","alt":"a"},`))) {
+		t.Error("a new image left the post unchanged")
+	}
+}
+
+func TestNudgeNamesWhatStaysOffSlackUnlessTheAuthorSaidSo(t *testing.T) {
+	block := func(raw string) doc.Block {
+		b, err := doc.DecodeBlock(json.RawMessage(raw))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return b
+	}
+	twoParts := `{"id":"c","type":"card",%s"title":"Both?","children":[{"id":"a","type":"approval","prompt":"One?"},{"id":"b","type":"approval","prompt":"Two?"}]}`
+	if got := slackcards.Nudge(block(fmt.Sprintf(twoParts, ""))); !strings.Contains(got, `"mirror": false`) {
+		t.Errorf("a multi-part card: nudge %q, want it to name the mirror field", got)
+	}
+	if got := slackcards.Nudge(block(fmt.Sprintf(twoParts, `"mirror":false,`))); got != "" {
+		t.Errorf("a card that says mirror false: nudge %q", got)
+	}
+	if got := slackcards.Nudge(block(`{"id":"q","type":"approval"}`)); !strings.Contains(got, "put it in a card") {
+		t.Errorf("a bare question: nudge %q", got)
+	}
+	for _, simple := range []string{
+		`{"id":"c","type":"card","title":"Ship?","children":[{"id":"a","type":"approval"}]}`,
+		`{"id":"c","type":"card","title":"Notes","children":[{"id":"m","type":"markdown","md":"No question."}]}`,
+		`{"id":"m","type":"markdown","md":"No question."}`,
+	} {
+		if got := slackcards.Nudge(block(simple)); got != "" {
+			t.Errorf("%s: nudge %q", simple, got)
 		}
 	}
 }

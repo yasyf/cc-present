@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- A board card now reaches Slack by default. `push`, `update-block`, and `start --doc` post each simple question they write: one single-select choice of up to 4 answers, an approval, or an input. Its screenshots go on the card above its buttons, and an answer on either surface answers both. A card that says `"mirror": false` stays on the board only, and a multi-part card that does not say so gets a warning on the write and in `--dry-run`.
 - `display/src/arch-map.js` renders an architecture doc (arch/v1): one JSON file whose nested nodes say what each box expands into, with edges, steps and notes that may name nodes at any depth. A reader zooms from the top level into any system, and the trail zooms back out; deeper edges roll up to the visible box, and outside callers show as outside boxes. `validate`, `project` and `toMarkdown` work without a page. The schema is `arch-map.schema.json` and the guide is `reference/arch.md`.
 - The system map takes `skin: "clean"`: crisp lines with rounded corners, sans type, flat stickies and soft fills, with no hand-drawn library needed. Its `fill` option keeps the full map at the container's height instead of the names-only glimpse.
 - A `display.system` note can stick to a link with `link: {from, to}` instead of a box.

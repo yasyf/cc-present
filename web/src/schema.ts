@@ -63,6 +63,7 @@ export interface Card {
   flagged?: boolean;
   status?: CardStatus;
   slack?: { url: string };
+  mirror?: boolean;
   children: ChildBlock[];
 }
 

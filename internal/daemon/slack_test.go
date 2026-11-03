@@ -108,6 +108,128 @@ func TestSlackAnswerSelectsResolvesAndRepliesOnce(t *testing.T) {
 	}
 }
 
+func syncedQuestion(id, control string) string {
+	return `{"id":"` + id + `","type":"card","title":"Ask?","slack":{"url":"` + slackPermalink + `"},"children":[` + control + `]}`
+}
+
+func TestASlackAnswerResolvesAnApprovalOrAnInputOnTheBoard(t *testing.T) {
+	const approval, input = `{"id":"q","type":"approval"}`, `{"id":"q","type":"input","label":"Why?"}`
+	tests := []struct {
+		name    string
+		control string
+		answer  string
+		check   func(st state.State) bool
+	}{
+		{"an approve tap", approval, `{"waits":"c","label":"Approve","at":"2026-10-23T17:21:00Z","permalink":"` + slackPermalink + `"}`, func(st state.State) bool {
+			return st.Interactions.Decisions["q"].Verdict == "approved"
+		}},
+		{"a reject tap", approval, `{"waits":"c","label":"Reject","at":"2026-10-23T17:21:00Z","permalink":"` + slackPermalink + `"}`, func(st state.State) bool {
+			return st.Interactions.Decisions["q"].Verdict == "rejected"
+		}},
+		{"words written in on an approval", approval, `{"waits":"c","label":"After the freeze","other":true,"at":"2026-10-23T17:21:00Z","permalink":"` + slackPermalink + `"}`, func(st state.State) bool {
+			d := st.Interactions.Decisions["q"]
+			return d.Verdict == "rejected" && d.Note == "After the freeze"
+		}},
+		{"a written answer to an input", input, `{"waits":"c","label":"Because of the freeze","other":true,"at":"2026-10-23T17:21:00Z","permalink":"` + slackPermalink + `"}`, func(st state.State) bool {
+			return st.Interactions.Inputs["q"].Text == "Because of the freeze"
+		}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := newHarness(t)
+			r := handleSlackCard(slackWindow(h, body{Block: json.RawMessage(syncedQuestion("c", tt.control))}), doc.NoPacks, nilDisplay)
+			if !r.OK {
+				t.Fatal(r.Error)
+			}
+			if a := handleSlackAnswer(slackWindow(h, body{Answer: json.RawMessage(tt.answer)})); !a.OK {
+				t.Fatal(a.Error)
+			}
+			st := reduceSubject(t, h, r.SubjectID)
+			if !tt.check(st) {
+				t.Errorf("board interactions %+v do not carry the answer", st.Interactions)
+			}
+			if got := syncedCardOf(t, st, "c").Status; got != slackcards.Resolved {
+				t.Errorf("card status = %q, want resolved", got)
+			}
+		})
+	}
+}
+
+func TestABoardAnswerOnAnApprovalOrAnInputAnswersItsSlackCard(t *testing.T) {
+	tests := []struct {
+		name        string
+		control     string
+		interaction string
+		label       string
+		other       bool
+	}{
+		{"an approval", `{"id":"q","type":"approval"}`, `{"type":"decision.created","blockId":"q","verdict":"approved"}`, "Approve", false},
+		{"a rejection", `{"id":"q","type":"approval"}`, `{"type":"decision.created","blockId":"q","verdict":"rejected","note":"Not yet"}`, "Reject", false},
+		{"an input", `{"id":"q","type":"input","label":"Why?"}`, `{"type":"input.submitted","blockId":"q","text":"Because"}`, "Because", true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var calls []string
+			h := newRestHarnessWith(t, `{"version":1,"title":"T","blocks":[`+syncedQuestion("c", tt.control)+`]}`, emptyPackLoader(t))
+			h.rs.answerSlack = func(_ context.Context, waits, _, label string, other bool, _ string) (slackcards.SlackAnswer, error) {
+				calls = append(calls, fmt.Sprintf("%s|%s|%v", waits, label, other))
+				return slackcards.SlackAnswer{Answered: true, Label: label, Other: other}, nil
+			}
+			if w := h.post(t, `{"subject":"board--abcd0000","nonce":"n1","interaction":`+tt.interaction+`}`); w.Code != http.StatusOK {
+				t.Fatalf("answer = %d %s", w.Code, w.Body)
+			}
+			if want := []string{fmt.Sprintf("c|%s|%v", tt.label, tt.other)}; !slices.Equal(calls, want) {
+				t.Fatalf("cc-slack calls = %q, want %q", calls, want)
+			}
+			st := h.reduce(t)
+			if got := syncedCardOf(t, st, "c").Status; got != slackcards.Resolved {
+				t.Errorf("card status = %q, want resolved", got)
+			}
+			if d := st.Interactions.Decisions["q"]; tt.name == "a rejection" && d.Note != "Not yet" {
+				t.Errorf("decision %+v lost the note the human wrote", d)
+			}
+		})
+	}
+}
+
+func TestClearingAnApprovalOrBlankingAnInputAsksSlackNothing(t *testing.T) {
+	for name, tt := range map[string]struct{ control, interaction string }{
+		"a cleared approval": {`{"id":"q","type":"approval"}`, `{"type":"decision.created","blockId":"q","verdict":"cleared"}`},
+		"a blank input":      {`{"id":"q","type":"input","label":"Why?"}`, `{"type":"input.submitted","blockId":"q","text":"  "}`},
+	} {
+		t.Run(name, func(t *testing.T) {
+			h := newRestHarnessWith(t, `{"version":1,"title":"T","blocks":[`+syncedQuestion("c", tt.control)+`]}`, emptyPackLoader(t))
+			h.rs.answerSlack = func(context.Context, string, string, string, bool, string) (slackcards.SlackAnswer, error) {
+				t.Fatal("cc-slack was asked to answer")
+				return slackcards.SlackAnswer{}, nil
+			}
+			if w := h.post(t, `{"subject":"board--abcd0000","nonce":"n1","interaction":`+tt.interaction+`}`); w.Code != http.StatusOK {
+				t.Fatalf("answer = %d %s", w.Code, w.Body)
+			}
+			if got := syncedCardOf(t, h.reduce(t), "c").Status; got == slackcards.Resolved {
+				t.Error("the card resolved on no answer")
+			}
+		})
+	}
+}
+
+func TestRewritingACardKeepsItsSlackPost(t *testing.T) {
+	h := newHarness(t)
+	r := handleSlackCard(slackWindow(h, body{Block: json.RawMessage(syncedCardJSON)}), doc.NoPacks, nilDisplay)
+	if !r.OK {
+		t.Fatal(r.Error)
+	}
+	unlinked := strings.Replace(syncedCardJSON, `"slack":{"url":"`+slackPermalink+`"},`, "", 1)
+	reworded := strings.Replace(unlinked, "Merge #41 now?", "Merge #41 today?", 1)
+	if u := handleUpsertBlock(slackWindow(h, body{Block: json.RawMessage(reworded)}), doc.NoPacks); !u.OK {
+		t.Fatal(u.Error)
+	}
+	card := syncedCardOf(t, reduceSubject(t, h, r.SubjectID), "step-3:merge")
+	if card.Title != "Merge #41 today?" || card.Slack == nil || card.Slack.URL != slackPermalink {
+		t.Fatalf("card = %+v, want the new title and its Slack post kept", card)
+	}
+}
+
 func newSyncedRestHarness(t *testing.T, answer slackAnswerer) *restHarness {
 	t.Helper()
 	h := newRestHarnessWith(t, `{"version":1,"title":"T","blocks":[`+syncedCardJSON+`]}`, emptyPackLoader(t))

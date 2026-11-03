@@ -38,7 +38,7 @@ Reference links.
 | Block | Level | Fields | Notes |
 |---|---|---|---|
 | `section` | top | `id`, `type`, `title`, `md?` | Header marker with optional prose. |
-| `card` | top | `id`, `type`, `title?`, `chips?`, `flagged?`, `status?`, `slack?`, `children` | `chips[].tone` is one of `default`, `flag`, `demo`. `status` is one of `open`, `resolved`, `redrafted` and is agent-owned. `slack` is `{url}`, the permalink of the cc-slack ask card that asks the same question (see Slack ask cards). `children` nests one level of leaf blocks. |
+| `card` | top | `id`, `type`, `title?`, `chips?`, `flagged?`, `status?`, `slack?`, `mirror?`, `children` | `chips[].tone` is one of `default`, `flag`, `demo`. `status` is one of `open`, `resolved`, `redrafted` and is agent-owned. `slack` is `{url}`, the permalink of the cc-slack ask card that asks the same question (see Slack ask cards). `mirror` defaults to true; false keeps the card on the board only. `children` nests one level of leaf blocks. |
 | `approval` | top or child | `id`, `type`, `prompt?`, `detail?` | `detail` is a `Detail` (see Validation). |
 | `choice` | top or child | `id`, `type`, `prompt?`, `multi?`, `options` | `options[]` is `{id, label, hint?, md?, facts?, detail?, recommended?, visual?}`; option ids are unique within the block. `facts` is `Fact[]`, `detail` a `Detail` (see Validation). `recommended` marks the author's suggested pick (at most one per single-select). `visual` is a restricted leaf (`code`, `diagram`, `image`, `diff`, `chart`, `term`, `filetree`, or `record`) with its own doc-unique id. |
 | `input` | top or child | `id`, `type`, `label`, `placeholder?`, `multiline?` | Free-text field. |
@@ -920,25 +920,50 @@ that block's card title, and the round it left the board in.
 
 A card whose `slack.url` is set is synced with a cc-slack ask card: one
 question asked on both surfaces, answered on either. The card's `id` is the
-Slack card's `waits` id, and its one `choice` child is the question. Both
+Slack card's `waits` id, and its one `choice`, `approval`, or `input` child is
+the question. Both
 surfaces follow the same rules, which `cc-present ask` and the `slack-card`
 op enforce:
 
 - The id is 1 to 64 letters, digits, dots, colons, underscores, or hyphens.
-- The title is the question. Slack shows at most 140 characters of it, so a
-  longer title reaches Slack cut to 139 characters and an ellipsis; the board
-  keeps it whole.
-- The choice is single-select, with 1 to 4 answers of at most 30 characters.
-- Exactly one answer is `recommended`. No answer is named Other or Explain
+- The title is the question, or the child's `prompt` or `label` when the card
+  has none. Slack shows at most 140 characters of it, so a longer title reaches
+  Slack cut to 139 characters and an ellipsis; the board keeps it whole.
+- A choice is single-select, with 1 to 4 answers. Slack shows at most 61
+  characters of an answer on its button, so a longer one is cut to 60 and an
+  ellipsis, and the card's body carries it whole.
+- At most one answer is `recommended`. No answer is named Other or Explain
   more, and no label carries "(Recommended)", because each surface draws those
   itself.
+- An approval asks with Approve and Reject buttons. Words written in instead
+  reject, with those words as the note. An input has no preset answers: its one
+  button, Answer, opens a box for the text.
 
-A card's `markdown` children join its summary in the Slack card's body, their
+A card breaking these rules stays on the board only, and the write that put it
+there warns its author to set `"mirror": false`. `mirror` defaults to true. A
+complex or multi-part card sets it false, and no write or `send` posts it.
+
+A card's `markdown` children join its summary in the Slack card's body, along
+with the question's `prompt` and each answer's `hint`, cut to 2,800 characters
+in all, their
 links as Slack links, and a card's `pr` children become the Slack card's
 `refs`, each also linked in its body as `<url|repo PR N>`. A Slack card's PR refs become `pr` children on the
 board.
 
-`cc-present send` sends the board's open question cards to Slack in one call.
+A card's `image` children, and the `image` an answer carries as its `visual`,
+go on the Slack card above its buttons, each named by its caption, its alt text,
+or the answer it belongs to. Slack shows PNG, JPEG, and GIF; any other image
+stays on the board with a warning.
+
+Every `push`, `update-block`, and `start --doc` posts the simple question cards
+it wrote when cc-slack is installed, to the session's status thread. It prints
+`sent:` or `failed:` for each and sets each card's `slack.url`. It edits a card
+already posted only when what Slack shows changed, and a rewrite that states no
+`slack` keeps the card's link. The block lands on the board whatever Slack does;
+the command exits non-zero when a post failed.
+
+`cc-present send` sends the board's open question cards to Slack in one call,
+for cards written before they could be posted or to name another thread.
 It takes every top-level card of the current round with one question that
 neither surface has answered, or only the cards `--blocks` names, posts each to the session's Slack
 status thread through `cc-slack dm-status --mirrored`, or to the DM thread
