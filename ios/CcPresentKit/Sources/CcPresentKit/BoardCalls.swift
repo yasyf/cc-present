@@ -181,6 +181,65 @@ public extension HTTPClient {
     func assetRequest(sha: String) -> URLRequest {
         request("assets/\(sha)")
     }
+
+    func pr(subject: String, blockId: String, repo: String, number: Int) async throws -> PRLive {
+        try await get("api/pr", query: [
+            URLQueryItem(name: "subject", value: subject),
+            URLQueryItem(name: "block", value: blockId),
+            URLQueryItem(name: "repo", value: repo),
+            URLQueryItem(name: "number", value: String(number)),
+        ])
+    }
+}
+
+public struct PRLive: Decodable, Equatable, Sendable {
+    public enum State: String, Decodable, Sendable {
+        case open, draft, merged, landed, closed
+    }
+
+    public struct Checks: Decodable, Equatable, Sendable {
+        public let state: String
+        public let total: Int
+        public let passed: Int
+        public let failed: Int
+        public let pending: Int
+        public let skipped: Int
+        public let failing: [String]?
+    }
+
+    public struct Review: Decodable, Equatable, Sendable {
+        public let author: String
+        public let state: String
+    }
+
+    public struct File: Decodable, Equatable, Sendable {
+        public let path: String
+        public let previousPath: String?
+        public let status: String
+        public let additions: Int
+        public let deletions: Int
+        public let patch: String?
+    }
+
+    public let repo: String
+    public let number: Int
+    public let title: String
+    public let url: URL
+    public let author: String
+    public let state: State
+    public let base: String
+    public let head: String
+    public let headSha: String
+    public let mergedSha: String?
+    public let additions: Int
+    public let deletions: Int
+    public let changedFiles: Int
+    public let checks: Checks
+    public let reviewDecision: String
+    public let reviews: [Review]
+    public let labels: [String]
+    public let files: [File]
+    public let fetchedAt: String
 }
 
 /// InteractionRequest is the POST /api/interactions body: the subject, a fresh

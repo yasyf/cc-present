@@ -81,7 +81,7 @@ public struct BlockView: View {
         case let .pr(pr):
             PRBlockView(block: pr, context: packContext)
         case let .prGroups(groups):
-            PRGroupsBlockView(block: groups, context: packContext)
+            PRGroupsBlockView(block: groups, store: store, context: packContext)
         case let .pack(pack):
             if let packContext {
                 PackBlockWebView(block: pack, context: packContext, viewed: store.viewed)

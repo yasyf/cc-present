@@ -158,7 +158,16 @@ struct RoundGroupView: View {
             if let verdicts = record.triage[block.id], !verdicts.isEmpty {
                 store.triageDecide(
                     blockId: block.id,
-                    verdicts: verdicts.mapValues { TriageVerdict(verdict: $0.verdict, note: $0.note) }
+                    verdicts: verdicts.mapValues {
+                        TriageVerdict(
+                            verdict: $0.verdict,
+                            note: $0.note,
+                            head: $0.head,
+                            at: $0.at,
+                            carriedFrom: $0.carriedFrom,
+                            carryNote: $0.carryNote
+                        )
+                    }
                 )
             }
         }
