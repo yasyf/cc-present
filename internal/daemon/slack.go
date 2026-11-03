@@ -326,6 +326,9 @@ func slackQuestion(st *state.State, it *interaction) (*doc.Card, doc.Block) {
 	if err != nil || q.BlockID() != it.BlockID {
 		return nil, nil
 	}
+	if ch, ok := q.(*doc.Choice); ok && slackcards.ExplainsMore(ch, it.OptionIDs) {
+		return nil, nil
+	}
 	return card, q
 }
 
