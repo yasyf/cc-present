@@ -22,7 +22,25 @@
       "id": "card-open",
       "type": "card",
       "title": "Tapping a cited row opens the lines it cites.",
+      "design": {
+        "changes": "the plan.calls call tree",
+        "live": "calls-live",
+        "inPlace": "calls-in-place",
+        "record": "plugin/.claude/components/plan/reference/blocks.md, plan.calls"
+      },
       "children": [
+        {
+          "id": "calls-live",
+          "type": "image",
+          "src": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0NDAiIGhlaWdodD0iNzIiPjxyZWN0IHg9IjEiIHk9IjEiIHdpZHRoPSI0MzgiIGhlaWdodD0iMzAiIHJ4PSI2IiBmaWxsPSIjZmZmIiBzdHJva2U9IiNlM2UzZTMiLz48dGV4dCB4PSIxMCIgeT0iMjEiIGZvbnQtZmFtaWx5PSJzeXN0ZW0tdWksc2Fucy1zZXJpZiIgZm9udC1zaXplPSIxMyIgZmlsbD0iI2IyNmEwMCIgZm9udC13ZWlnaHQ9IjcwMCI+fjwvdGV4dD48dGV4dCB4PSIyNiIgeT0iMjEiIGZvbnQtZmFtaWx5PSJzeXN0ZW0tdWksc2Fucy1zZXJpZiIgZm9udC1zaXplPSIxMyIgZm9udC1mYW1pbHk9InVpLW1vbm9zcGFjZSxtb25vc3BhY2UiPmZpbGxDb2RlKGN0eCwgZGQuQmxvY2tzLCByb290KTwvdGV4dD48dGV4dCB4PSI0MzAiIHk9IjIxIiBmb250LWZhbWlseT0ic3lzdGVtLXVpLHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMTMiIGZvbnQtc2l6ZT0iMTIiIGZpbGw9IiM4ODgiIHRleHQtYW5jaG9yPSJlbmQiPmNvZGVmaWxsLmdvOjE4NDwvdGV4dD48cmVjdCB4PSIxIiB5PSIzNyIgd2lkdGg9IjQzOCIgaGVpZ2h0PSIzMCIgcng9IjYiIGZpbGw9IiNmZmYiIHN0cm9rZT0iI2UzZTNlMyIvPjx0ZXh0IHg9IjEwIiB5PSI1NyIgZm9udC1mYW1pbHk9InN5c3RlbS11aSxzYW5zLXNlcmlmIiBmb250LXNpemU9IjEzIiBmaWxsPSIjYjI2YTAwIiBmb250LXdlaWdodD0iNzAwIj4rPC90ZXh0Pjx0ZXh0IHg9IjI2IiB5PSI1NyIgZm9udC1mYW1pbHk9InN5c3RlbS11aSxzYW5zLXNlcmlmIiBmb250LXNpemU9IjEzIiBmb250LWZhbWlseT0idWktbW9ub3NwYWNlLG1vbm9zcGFjZSI+Z3JvdW5kQ29kZShjdHgsIGMsIHJvb3QpPC90ZXh0Pjx0ZXh0IHg9IjQzMCIgeT0iNTciIGZvbnQtZmFtaWx5PSJzeXN0ZW0tdWksc2Fucy1zZXJpZiIgZm9udC1zaXplPSIxMyIgZm9udC1zaXplPSIxMiIgZmlsbD0iIzg4OCIgdGV4dC1hbmNob3I9ImVuZCI+Y29kZWZpbGwuZ286MjAxPC90ZXh0Pjwvc3ZnPg==",
+          "alt": "The call tree as it is: two closed rows, each a call and its file:line"
+        },
+        {
+          "id": "calls-in-place",
+          "type": "image",
+          "src": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0NDAiIGhlaWdodD0iMTY0Ij48cmVjdCB4PSIxIiB5PSIxIiB3aWR0aD0iNDM4IiBoZWlnaHQ9IjMwIiByeD0iNiIgZmlsbD0iI2ZmZiIgc3Ryb2tlPSIjZTNlM2UzIi8+PHRleHQgeD0iMTAiIHk9IjIxIiBmb250LWZhbWlseT0ic3lzdGVtLXVpLHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMTMiIGZpbGw9IiNiMjZhMDAiIGZvbnQtd2VpZ2h0PSI3MDAiPn48L3RleHQ+PHRleHQgeD0iMjYiIHk9IjIxIiBmb250LWZhbWlseT0ic3lzdGVtLXVpLHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMTMiIGZvbnQtZmFtaWx5PSJ1aS1tb25vc3BhY2UsbW9ub3NwYWNlIj5maWxsQ29kZShjdHgsIGRkLkJsb2Nrcywgcm9vdCk8L3RleHQ+PHRleHQgeD0iNDMwIiB5PSIyMSIgZm9udC1mYW1pbHk9InN5c3RlbS11aSxzYW5zLXNlcmlmIiBmb250LXNpemU9IjEzIiBmb250LXNpemU9IjEyIiBmaWxsPSIjODg4IiB0ZXh0LWFuY2hvcj0iZW5kIj5jb2RlZmlsbC5nbzoxODQ8L3RleHQ+PHJlY3QgeD0iMSIgeT0iMzEiIHdpZHRoPSI0MzgiIGhlaWdodD0iOTAiIGZpbGw9IiNmN2Y3ZjciIHN0cm9rZT0iI2UzZTNlMyIvPjxyZWN0IHg9IjIiIHk9IjY4IiB3aWR0aD0iNDM2IiBoZWlnaHQ9IjE2IiBmaWxsPSIjZmZmNGQ2Ii8+PHRleHQgeD0iMTIiIHk9IjUwIiBmb250LWZhbWlseT0idWktbW9ub3NwYWNlLG1vbm9zcGFjZSIgZm9udC1zaXplPSIxMiIgZmlsbD0iIzg4OCI+MTgyIH08L3RleHQ+PHRleHQgeD0iMTIiIHk9IjY2IiBmb250LWZhbWlseT0idWktbW9ub3NwYWNlLG1vbm9zcGFjZSIgZm9udC1zaXplPSIxMiIgZmlsbD0iIzg4OCI+MTgzPC90ZXh0Pjx0ZXh0IHg9IjEyIiB5PSI4MiIgZm9udC1mYW1pbHk9InVpLW1vbm9zcGFjZSxtb25vc3BhY2UiIGZvbnQtc2l6ZT0iMTIiIGZpbGw9IiMzMzMiPjE4NCBmdW5jIGZpbGxDb2RlKGN0eCBjb250ZXh0LkNvbnRleHQsIOKApjwvdGV4dD48dGV4dCB4PSIxMiIgeT0iOTgiIGZvbnQtZmFtaWx5PSJ1aS1tb25vc3BhY2UsbW9ub3NwYWNlIiBmb250LXNpemU9IjEyIiBmaWxsPSIjODg4Ij4xODUgCXZhciBncm91bmRlZCBbXSpkb2MuQ29kZTwvdGV4dD48dGV4dCB4PSIxMiIgeT0iMTE0IiBmb250LWZhbWlseT0idWktbW9ub3NwYWNlLG1vbm9zcGFjZSIgZm9udC1zaXplPSIxMiIgZmlsbD0iIzg4OCI+MTg2IAlmb3IgXywgYiA6PSByYW5nZSBibG9ja3MgezwvdGV4dD48cmVjdCB4PSIxIiB5PSIxMjkiIHdpZHRoPSI0MzgiIGhlaWdodD0iMzAiIHJ4PSI2IiBmaWxsPSIjZmZmIiBzdHJva2U9IiNlM2UzZTMiLz48dGV4dCB4PSIxMCIgeT0iMTQ5IiBmb250LWZhbWlseT0ic3lzdGVtLXVpLHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMTMiIGZpbGw9IiNiMjZhMDAiIGZvbnQtd2VpZ2h0PSI3MDAiPis8L3RleHQ+PHRleHQgeD0iMjYiIHk9IjE0OSIgZm9udC1mYW1pbHk9InN5c3RlbS11aSxzYW5zLXNlcmlmIiBmb250LXNpemU9IjEzIiBmb250LWZhbWlseT0idWktbW9ub3NwYWNlLG1vbm9zcGFjZSI+Z3JvdW5kQ29kZShjdHgsIGMsIHJvb3QpPC90ZXh0Pjx0ZXh0IHg9IjQzMCIgeT0iMTQ5IiBmb250LWZhbWlseT0ic3lzdGVtLXVpLHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMTMiIGZvbnQtc2l6ZT0iMTIiIGZpbGw9IiM4ODgiIHRleHQtYW5jaG9yPSJlbmQiPmNvZGVmaWxsLmdvOjIwMTwvdGV4dD48L3N2Zz4=",
+          "alt": "The same tree with the first row open on its five cited lines"
+        },
         {
           "id": "open-mock",
           "type": "plan.mock",

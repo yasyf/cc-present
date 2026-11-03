@@ -194,6 +194,19 @@ A board with any decision unit opens in focus mode by default: one step at a tim
 
 `chips[].tone` is `default`, `flag`, or `demo`. `status` is agent-owned: `open`, `resolved` (verdict landed), or `redrafted` (you replaced the content after feedback). `flagged` marks a card needing extra scrutiny. `mirror` defaults to true: a card asking one simple question also goes to Slack with its images and buttons. Set `"mirror": false` on a complex or multi-part card to keep it on the board only. `summary` is the card's lede: one line of inline markdown, at most 2 sentences, saying what is being decided and why now (see "Write a card"). A newline in it fails validation, naming the block id. It must say something the card's children do not: never restate the context markdown that follows it. A `summary` takes the lede slot and collapses every other non-decidable child into Background.
 
+A card that proposes a design sets `design`, and a card that nests a `plan.mock` is rejected without it. When it changes an artifact that exists, such as a dashboard, a board, a Slack card format, or a skill's UI, open that artifact and its design record before drawing anything, then set:
+
+```json
+"design": {
+  "changes": "the drive dashboard",
+  "live": "dash-live",
+  "inPlace": "dash-in-place",
+  "record": "ccn doc 4f1e2a7; answers 9b3c2d1, 77ae01c"
+}
+```
+
+`live` and `inPlace` are the ids of two images on the card, as children or option visuals: a screenshot of the artifact as it is, and a screenshot of the change rendered inside it. `record` cites where the artifact's design history lives and the user's earlier picks on it. Only when nothing like it exists yet set `"design": {"new": "<why>"}` instead. A push or `ask` that leaves out a field fails and names it.
+
 ### `approval` — approve/reject verdict
 
 ```json
@@ -786,7 +799,7 @@ Write no TL;DR, `intro`, or steps list. Read the card titles aloud: they must te
 
 | The claim is about | Exhibit |
 |---|---|
-| UI that doesn't exist yet | `plan.mock` |
+| UI that doesn't exist yet | `plan.mock`, with the card's `design` set (see `card`) |
 | A lifecycle, with the screen in each state | `plan.machine` |
 | The calls a change adds, removes, or changes | `plan.calls` |
 | Code that exists today | `code` with `src` and `lines` |

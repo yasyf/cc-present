@@ -64,8 +64,16 @@ export interface Card {
   status?: CardStatus;
   slack?: { url: string };
   mirror?: boolean;
+  design?: Design;
   children: ChildBlock[];
 }
+
+// What a card proposes for an artifact: the existing one it changes, with ids of
+// images on the card showing it as it is and the change inside it plus a cite of
+// its design record, or why no artifact like it exists yet.
+export type Design =
+  | { changes: string; live: string; inPlace: string; record: string }
+  | { new: string };
 
 // --- Interactive child blocks ---
 

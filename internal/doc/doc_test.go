@@ -419,6 +419,55 @@ func TestValidate(t *testing.T) {
 	}
 }
 
+func TestValidateDesignCard(t *testing.T) {
+	mock := `{"id":"m1","type":"plan.mock","html":"<main>v4</main>"}`
+	live := `{"id":"shot-live","type":"image","src":"https://x/live.png","alt":"the dashboard today"}`
+	inPlace := `{"id":"shot-in-place","type":"image","src":"https://x/in-place.png","alt":"the milestone row inside today's dashboard"}`
+	approval := `{"id":"a1","type":"approval","prompt":"Ship the milestone row?"}`
+	designCard := func(design string, children ...string) string {
+		return fmt.Sprintf(`{"id":"c1","type":"card","title":"Add a milestone row?","design":%s,"children":[%s]}`, design, strings.Join(children, ","))
+	}
+	full := `{"changes":"the v3 drive dashboard","live":"shot-live","inPlace":"shot-in-place","record":"ccn doc 4f1e2a7; answers 9b3c2d1, 77ae01c"}`
+	tests := []struct {
+		name    string
+		doc     string
+		wantErr string
+	}{
+		{"both screenshots and a record cite", docWith(designCard(full, mock, live, inPlace, approval)), ""},
+		{"in-place render as an option visual", docWith(designCard(full, live, `{"id":"ch1","type":"choice","prompt":"Which row?","options":[{"id":"o1","label":"Milestones","visual":`+inPlace+`}]}`)), ""},
+		{"a new artifact", docWith(designCard(`{"new":"no Slack digest card exists yet"}`, mock, approval)), ""},
+		{"images without a mock", docWith(card("c1", live+","+approval)), ""},
+		{"mock without a design", docWith(card("c1", mock+","+approval)), `card "c1": nests a plan.mock but sets no design`},
+		{"missing the live screenshot", docWith(designCard(`{"changes":"the v3 drive dashboard","inPlace":"shot-in-place","record":"ccn doc 4f1e2a7"}`, mock, inPlace)), `proposes a change to the v3 drive dashboard but is missing design.live, a screenshot of the live artifact as it is`},
+		{"missing the in-place render", docWith(designCard(`{"changes":"the v3 drive dashboard","live":"shot-live","record":"ccn doc 4f1e2a7"}`, mock, live)), `is missing design.inPlace, a screenshot of the change rendered inside the live artifact`},
+		{"missing the record cite", docWith(designCard(`{"changes":"the v3 drive dashboard","live":"shot-live","inPlace":"shot-in-place"}`, mock, live, inPlace)), `is missing design.record, a cite of the artifact's design record`},
+		{"missing all three", docWith(designCard(`{"changes":"the v3 drive dashboard"}`, mock)), `is missing design.live, a screenshot of the live artifact as it is; design.inPlace, a screenshot of the change rendered inside the live artifact; design.record`},
+		{"live names a mock, not an image", docWith(designCard(`{"changes":"the v3 drive dashboard","live":"m1","inPlace":"shot-in-place","record":"ccn doc 4f1e2a7"}`, mock, inPlace)), `design.live "m1" names no image on this card`},
+		{"in-place render missing from the card", docWith(designCard(full, mock, live)), `design.inPlace "shot-in-place" names no image on this card`},
+		{"one image for both", docWith(designCard(`{"changes":"the v3 drive dashboard","live":"shot-live","inPlace":"shot-live","record":"ccn doc 4f1e2a7"}`, mock, live)), `design.live and design.inPlace both name image "shot-live"`},
+		{"both changes and new", docWith(designCard(`{"changes":"the v3 drive dashboard","new":"nothing like it"}`, mock)), "design sets exactly one of changes"},
+		{"neither changes nor new", docWith(designCard(`{"record":"ccn doc 4f1e2a7"}`, mock)), "design sets exactly one of changes"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var d doc.Doc
+			if err := json.Unmarshal([]byte(tt.doc), &d); err != nil {
+				t.Fatalf("unmarshal: %v", err)
+			}
+			err := d.Validate(&stubPacks{valid: map[string]bool{"plan.mock": true}})
+			if tt.wantErr == "" {
+				if err != nil {
+					t.Fatalf("Validate() = %v, want nil", err)
+				}
+				return
+			}
+			if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+				t.Fatalf("Validate() = %v, want substring %q", err, tt.wantErr)
+			}
+		})
+	}
+}
+
 // TestChartNonFiniteValueRejected pins the finite-value guard on a constructed
 // struct, since JSON literals cannot carry NaN or Inf. The block is decoded from
 // a valid chart so its base (id/type) is set, then a single value is poisoned.
