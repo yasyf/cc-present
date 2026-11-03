@@ -230,6 +230,42 @@ func TestRewritingACardKeepsItsSlackPost(t *testing.T) {
 	}
 }
 
+func TestASlackAnswerReachesAWatcherAsTheHumansOwn(t *testing.T) {
+	tests := []struct {
+		name    string
+		control string
+		answer  string
+		event   string
+		payload string
+	}{
+		{"a button on a choice", `{"id":"q","type":"choice","options":[{"id":"a","label":"Merge"},{"id":"b","label":"Hold"}]}`, `"label":"Hold"`, EventChoiceSelected, `"optionIds":["b"]`},
+		{"words written in on a choice", `{"id":"q","type":"choice","options":[{"id":"a","label":"Merge"}]}`, `"label":"After the freeze","other":true`, EventChoiceSelected, `"other":"After the freeze"`},
+		{"a button on an approval", `{"id":"q","type":"approval"}`, `"label":"Approve"`, EventDecisionCreated, `"verdict":"approved"`},
+		{"words written in on an approval", `{"id":"q","type":"approval"}`, `"label":"After the freeze","other":true`, EventDecisionCreated, `"note":"After the freeze"`},
+		{"words answering an input", `{"id":"q","type":"input","label":"Why?"}`, `"label":"The freeze","other":true`, EventInputSubmitted, `"text":"The freeze"`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := newHarness(t)
+			r := handleSlackCard(slackWindow(h, body{Block: json.RawMessage(syncedQuestion("c", tt.control))}), doc.NoPacks, nilDisplay)
+			if !r.OK {
+				t.Fatal(r.Error)
+			}
+			answer := `{"waits":"c",` + tt.answer + `,"at":"2026-10-23T17:21:00Z","permalink":"` + slackPermalink + `"}`
+			if a := handleSlackAnswer(slackWindow(h, body{Answer: json.RawMessage(answer)})); !a.OK {
+				t.Fatal(a.Error)
+			}
+			events := h.eventsOfType(t, r.SubjectID, tt.event)
+			if len(events) != 1 || events[0].Origin != ccevent.OriginHuman {
+				t.Fatalf("%s events = %+v, want one from the human", tt.event, events)
+			}
+			if !strings.Contains(string(events[0].Payload), tt.payload) {
+				t.Errorf("payload %s lacks %s", events[0].Payload, tt.payload)
+			}
+		})
+	}
+}
+
 func newSyncedRestHarness(t *testing.T, answer slackAnswerer) *restHarness {
 	t.Helper()
 	h := newRestHarnessWith(t, `{"version":1,"title":"T","blocks":[`+syncedCardJSON+`]}`, emptyPackLoader(t))

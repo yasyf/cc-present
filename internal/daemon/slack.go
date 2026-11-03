@@ -275,7 +275,7 @@ func recordAnswer(ctx context.Context, appendFn ccd.AppendFunc, subID string, q 
 		eventType, p["text"] = EventInputSubmitted, label
 	}
 	_, err := appendEvent(ctx, appendFn, &ccevent.Event{
-		SubjectID: subID, Origin: ccevent.OriginAgent, Type: eventType, Payload: mustJSON(p),
+		SubjectID: subID, Origin: ccevent.OriginHuman, Type: eventType, Payload: mustJSON(p),
 	})
 	return err
 }

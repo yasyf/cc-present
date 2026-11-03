@@ -999,8 +999,9 @@ A board answer names the Slack card by its permalink as well as its `waits`
 id, so another session's card with the same id is never answered.
 
 A `choice.selected` on a resolved synced card returns 409. The daemon writes
-the Slack answer with agent origin, so the session's channel carries only the
-human events.
+the Slack answer with human origin, because the human gave it, so `watch` and
+`outcomes` carry an answer from either surface the same way: a button as its
+`optionIds` or `verdict`, and words written in as `other`, `note`, or `text`.
 
 ## Session listing
 

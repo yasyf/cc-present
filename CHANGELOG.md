@@ -22,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- An answer given on a Slack card now reaches `cc-present watch` and `outcomes` as the human's own, the same as an answer on the board. It was written with agent origin, so a watcher saw only board answers.
 - `cc-present outcomes --block <id>` reads a block that has left the board, by remove-block or by a push that dropped it, the way `block show` does: the doc carries the block as it last showed, `onBoard` says it is gone, and `answers` lists every verdict, pick, write-in and note with its time and round. A card id now keeps its children's answers, where a card's answers live. An id the board never carried says `was never on this board`. `outcomes --no-doc` lists each answered block no longer on the board under `removed`, with the card that held it and the round it left. A board answer whose card was later removed used to read as `no block in the current document` under `outcomes --block`, and two lanes reported the owner's write-in as unanswered.
 - The daemon picks up a pack directory added to `packDirs` in `~/.cc-present/config.json` on its next scan, as the author-pack guide says. It used to read the config only at start, so `cc-present pack list` showed a new dev pack while every push of a doc that used it failed with `pack block type ... is not installed` until the daemon restarted.
 - An actor block's role wraps clear of its figure instead of running under it.
