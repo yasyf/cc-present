@@ -97,6 +97,9 @@ func (m *slackMirror) settle(ctx context.Context, db *sql.DB, subID string, owed
 	}
 	board := boardFor(db, subID)
 	board.mu.Lock()
+	defer board.mu.Unlock()
 	board.settling = false
-	board.mu.Unlock()
+	if slices.ContainsFunc(slices.Collect(maps.Keys(board.owed)), func(seq int64) bool { _, tried := owed[seq]; return !tried }) {
+		board.settleOwed(ctx, db, subID)
+	}
 }
