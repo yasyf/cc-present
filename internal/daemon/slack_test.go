@@ -527,7 +527,7 @@ func TestABoardTapOnATriageCardRedrawsItsSlackRows(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("the Slack card never redrew after the tap")
 	}
-	var rows []string
+	rows := make([]string, 0, len(card.Rows))
 	for _, r := range card.Rows {
 		rows = append(rows, r.ID)
 	}

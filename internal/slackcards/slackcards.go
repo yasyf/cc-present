@@ -658,13 +658,15 @@ func (d Decided) Verdict() (block, row, head, verdict string, err error) {
 }
 
 // Item is the triage verdict a tap on a triage card's row gives: the triage
-// block, its item, and approved or rejected.
+// block, its item, and approved or rejected. A tap with any other label still
+// names its block and item, so the caller can tell a triage row's wrong label
+// from another block's row.
 func (d Decided) Item() (block, item, verdict string, err error) {
+	block, item, _ = strings.Cut(d.Row, ":")
 	verdict, ok := itemVerdicts[d.Label]
 	if !ok {
-		return "", "", "", fmt.Errorf("a triage row tap answers %s or %s, not %q", approveLabel, rejectLabel, d.Label)
+		return block, item, "", fmt.Errorf("a triage row tap answers %s or %s, not %q", approveLabel, rejectLabel, d.Label)
 	}
-	block, item, _ = strings.Cut(d.Row, ":")
 	return block, item, verdict, nil
 }
 

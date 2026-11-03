@@ -86,7 +86,7 @@ func TestATriagePastTwentyRowsAsksOnOneCardPerTwenty(t *testing.T) {
 		t.Fatal(err)
 	}
 	cards := slackcards.Cards(c, q, nil)
-	var groups, titles []string
+	groups, titles := make([]string, 0, len(cards)), make([]string, 0, len(cards))
 	rows := 0
 	for _, sc := range cards {
 		groups, titles, rows = append(groups, sc.Group), append(titles, sc.Title), rows+len(sc.Rows)
