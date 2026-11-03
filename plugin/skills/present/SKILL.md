@@ -111,7 +111,9 @@ When cc-slack is installed, every simple question waits on both surfaces, by
 default. Write each as a card whose `id` is the question id, such as
 `step-3:merge`, with the question as its `title` and one child that asks it: a
 single-select `choice` of 1 to 4 answers, at most one `recommended`, an
-`approval`, or an `input`. Add no Other answer; both surfaces draw it. An
+`approval`, an `input`, or a `triage` when the pick is one verdict per row, such
+as tag or remove for each device. Slack asks a triage row by row, so never fold
+its rows into a few bundled answers. Add no Other answer; both surfaces draw it. An
 Explain more option may stay: Slack shows its own button in its place, and a
 board pick of it answers nothing and leaves the card open. Put each PR the question is about in a `pr` child, with `head` set to the
 commit you ask about so the board flags a head that moves, and each

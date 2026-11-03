@@ -122,14 +122,11 @@ func answerBlocks(c *doc.Card) []doc.Block {
 // Asks reports whether a card takes any answer from the human.
 func Asks(c *doc.Card) bool { return len(answerBlocks(c)) > 0 }
 
-// Question returns a synced card's one question, the choice, approval, or input
-// both surfaces ask. A card with more than one, or with a triage, has none.
+// Question returns a synced card's one question, the choice, approval, input,
+// or triage both surfaces ask. A card with more than one has none.
 func Question(c *doc.Card) (doc.Block, bool) {
 	found := answerBlocks(c)
 	if len(found) != 1 {
-		return nil, false
-	}
-	if _, triage := found[0].(*doc.Triage); triage {
 		return nil, false
 	}
 	return found[0], true
@@ -143,6 +140,8 @@ func prompt(q doc.Block) string {
 		return q.Prompt
 	case *doc.Input:
 		return q.Label
+	case *doc.Triage:
+		return q.Prompt
 	}
 	return ""
 }
@@ -151,8 +150,9 @@ func prompt(q doc.Block) string {
 // question, in words, and a choice takes one of at most four distinct answers,
 // at most one of them recommended and none of them Other, since both surfaces
 // draw it themselves. An Explain more option is no answer: cc-slack draws its
-// own, so it never counts or reaches Slack. cc-slack holds the card to Slack's
-// own limits when it posts it.
+// own, so it never counts or reaches Slack. A triage asks each item as its own
+// row, so its card and row ids fit cc-slack's ids. cc-slack holds the card to
+// Slack's own limits when it posts it.
 func Check(c *doc.Card) (doc.Block, error) {
 	if !c.Mirrors() {
 		return nil, fmt.Errorf("card %q says mirror false, so it stays on the board", c.ID)
@@ -163,6 +163,9 @@ func Check(c *doc.Card) (doc.Block, error) {
 	}
 	if cmp.Or(c.Title, prompt(q)) == "" {
 		return nil, fmt.Errorf("card %q needs a title, which Slack shows as the question", c.ID)
+	}
+	if tr, ok := q.(*doc.Triage); ok {
+		return tr, checkRows(c, tr)
 	}
 	ch, ok := q.(*doc.Choice)
 	if !ok {
@@ -198,6 +201,18 @@ func Check(c *doc.Card) (doc.Block, error) {
 	return ch, nil
 }
 
+func checkRows(c *doc.Card, tr *doc.Triage) error {
+	if len(c.ID)+len(":1") > maxSlackID {
+		return fmt.Errorf("card %q asks per row in Slack, which names each page of it by its id and :N; keep the id under %d characters", c.ID, maxSlackID-1)
+	}
+	for _, item := range tr.Items {
+		if !rowPart.MatchString(tr.ID) || !rowPart.MatchString(item.ID) || len(tr.ID)+len(":")+len(item.ID) > maxSlackID {
+			return fmt.Errorf("triage %q item %q: Slack names a row <triage>:<item>, at most %d letters, digits, dots, underscores, or hyphens", tr.ID, item.ID, maxSlackID)
+		}
+	}
+	return nil
+}
+
 // Answers is a choice's options minus its Explain more, the answers Slack
 // shows as buttons beside its own Other and Explain more.
 func Answers(ch *doc.Choice) []doc.Option {
@@ -223,7 +238,7 @@ func Nudge(b doc.Block) string {
 		if _, err := Check(b); err != nil {
 			return fmt.Sprintf(`%v; it stays on the board only, so set "mirror": false on it`, err)
 		}
-	case *doc.Choice, *doc.Approval, *doc.Input:
+	case *doc.Choice, *doc.Approval, *doc.Input, *doc.Triage:
 		return fmt.Sprintf("%s %q stays on the board only; put it in a card to reach Slack", b.BlockType(), b.BlockID())
 	}
 	return ""
@@ -269,6 +284,64 @@ func ToSlack(c *doc.Card, q doc.Block) StatusCard {
 	}
 	sc.Body = clip(strings.Join(slices.DeleteFunc(parts, func(s string) bool { return s == "" }), "\n"), maxBody)
 	return sc
+}
+
+// Cards is the cc-slack cards that ask a card Check passed: its one waiting card,
+// or for a triage one group card per maxGroupRows items, each item still open a
+// row with the board's Approve and Reject, and each decided one a line naming
+// its verdict.
+func Cards(c *doc.Card, q doc.Block, verdicts map[string]state.Decision) []StatusCard {
+	sc := ToSlack(c, q)
+	tr, ok := q.(*doc.Triage)
+	if !ok {
+		return []StatusCard{sc}
+	}
+	pages := slices.Collect(slices.Chunk(tr.Items, maxGroupRows))
+	cards := make([]StatusCard, len(pages))
+	for i, items := range pages {
+		page := StatusCard{Status: "done", Title: sc.Title, Group: c.ID}
+		summary := ""
+		if i == 0 {
+			summary, page.Refs, page.Supersedes = sc.Body, sc.Refs, sc.Supersedes
+		} else {
+			page.Group = fmt.Sprintf("%s:%d", c.ID, i+1)
+		}
+		if len(pages) > 1 {
+			page.Title = clip(fmt.Sprintf("%s (%d of %d)", cmp.Or(c.Title, prompt(q)), i+1, len(pages)), maxTitle)
+		}
+		var settled []string
+		for _, item := range items {
+			if d, decided := verdicts[item.ID]; decided {
+				settled = append(settled, "*"+mrkdwn(item.Label)+"* · "+verdictLine(d, "Rejected"))
+				continue
+			}
+			page.Rows = append(page.Rows, Row{ID: tr.ID + ":" + item.ID, Text: itemText(item), Buttons: []string{approveLabel, rejectLabel}})
+		}
+		if len(page.Rows) > 0 {
+			page.Status = "needs_you"
+		}
+		page.Body = groupBody(summary, settled)
+		cards[i] = page
+	}
+	return cards
+}
+
+func itemText(item doc.Item) string {
+	lines := []string{"*" + mrkdwn(item.Label) + "*"}
+	if item.Hint != "" {
+		lines = append(lines, mrkdwn(item.Hint))
+	}
+	for _, f := range item.Facts {
+		if f.Label != "" {
+			lines = append(lines, "*"+mrkdwn(f.Label)+":* "+mrkdwn(f.Value))
+		} else {
+			lines = append(lines, mrkdwn(f.Value))
+		}
+	}
+	if item.Md != "" {
+		lines = append(lines, mrkdwn(item.Md))
+	}
+	return clip(strings.Join(lines, "\n"), maxRowText)
 }
 
 func optionLine(o doc.Option, label string) string {
@@ -331,7 +404,7 @@ func Images(c *doc.Card) []Image {
 func Same(a, b *doc.Card) bool {
 	qa, oka := Question(a)
 	qb, okb := Question(b)
-	return oka && okb && reflect.DeepEqual(ToSlack(a, qa), ToSlack(b, qb)) && slices.Equal(Images(a), Images(b))
+	return oka && okb && reflect.DeepEqual(Cards(a, qa, nil), Cards(b, qb, nil)) && slices.Equal(Images(a), Images(b))
 }
 
 // Installed reports whether cc-slack is here to carry a card to Slack.
@@ -431,9 +504,15 @@ const (
 	maxBody      = 2800
 	maxMore      = 32
 	maxGroupRows = 20
+	maxSlackID   = 64
 )
 
-var rowVerdicts = map[string]string{approveLabel: "approved", holdLabel: "rejected"}
+var rowPart = regexp.MustCompile(`^[A-Za-z0-9._-]+$`)
+
+var (
+	rowVerdicts  = map[string]string{approveLabel: "approved", holdLabel: "rejected"}
+	itemVerdicts = map[string]string{approveLabel: "approved", rejectLabel: "rejected"}
+)
 
 var rowFacts = []struct {
 	label string
@@ -461,7 +540,7 @@ func GroupCard(g *doc.PRGroups, group doc.PRGroup, verdicts map[string]state.Dec
 		d, decided := verdicts[doc.RowID(r.Number)]
 		switch {
 		case decided && (r.Stands(d.Head) || !live):
-			settled = append(settled, prLink(g.Repo, r)+" · "+verdictLine(d))
+			settled = append(settled, prLink(g.Repo, r)+" · "+verdictLine(d, "Held"))
 		case !live:
 			settled = append(settled, prLink(g.Repo, r)+" · left the board")
 		default:
@@ -519,7 +598,7 @@ func rowText(repo string, r doc.PRRow, d state.Decision, decided bool) string {
 		lines = append(lines, "*One tap also decides:* "+stackLine(repo, r.Stack))
 	}
 	if decided {
-		lines = append(lines, "_"+verdictLine(d)+"; new head "+r.Head[:shortHead]+" needs your tap._")
+		lines = append(lines, "_"+verdictLine(d, "Held")+"; new head "+r.Head[:shortHead]+" needs your tap._")
 	}
 	text := []rune(strings.Join(lines, "\n"))
 	if len(text) <= maxRowText {
@@ -536,8 +615,8 @@ func stackLine(repo string, stack []doc.StackMember) string {
 	return strings.Join(members, ", ")
 }
 
-func verdictLine(d state.Decision) string {
-	word := "Held"
+func verdictLine(d state.Decision, rejected string) string {
+	word := rejected
 	if d.Verdict == "approved" {
 		word = "Approved"
 	}
@@ -578,6 +657,17 @@ func (d Decided) Verdict() (block, row, head, verdict string, err error) {
 	return block, row, head, verdict, nil
 }
 
+// Item is the triage verdict a tap on a triage card's row gives: the triage
+// block, its item, and approved or rejected.
+func (d Decided) Item() (block, item, verdict string, err error) {
+	verdict, ok := itemVerdicts[d.Label]
+	if !ok {
+		return "", "", "", fmt.Errorf("a triage row tap answers %s or %s, not %q", approveLabel, rejectLabel, d.Label)
+	}
+	block, item, _ = strings.Cut(d.Row, ":")
+	return block, item, verdict, nil
+}
+
 func cutLast(s string) (string, string, bool) {
 	i := strings.LastIndex(s, ":")
 	if i < 0 {
@@ -614,14 +704,18 @@ func GroupCards(before, g *doc.PRGroups, verdicts map[string]state.Decision) []S
 }
 
 // PostGroupCard posts or edits a group card at the DM root, keeping the message
-// it is bound to watched, and returns its permalink; a card cc-slack never posted and has nothing
-// to ask returns none.
+// it is bound to watched, the session's own when thread is "", and returns its
+// permalink; a card cc-slack never posted and has nothing to ask returns none.
 func PostGroupCard(ctx context.Context, session, thread string, card StatusCard) (string, error) {
 	raw, err := json.Marshal(card)
 	if err != nil {
 		return "", err
 	}
-	out, err := CCSlack(ctx, "dm-status", "--card", string(raw), "--session", session, "--thread", thread)
+	args := []string{"dm-status", "--card", string(raw), "--session", session}
+	if thread != "" {
+		args = append(args, "--thread", thread)
+	}
+	out, err := CCSlack(ctx, args...)
 	if err != nil {
 		return "", fmt.Errorf("group %q: %w", card.Group, err)
 	}

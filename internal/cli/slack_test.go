@@ -246,6 +246,24 @@ func TestAnAnsweredQuestionIsNotSentAgain(t *testing.T) {
 	}
 }
 
+func TestATriageCardIsSentUntilEveryRowHasAVerdict(t *testing.T) {
+	const raw = `{"id":"devices","type":"card","title":"Tag or remove each device?","children":[` +
+		`{"id":"tr","type":"triage","items":[{"id":"mbp-1","label":"MacBook"},{"id":"ipad-2","label":"iPad"}]}]}`
+	after := writtenBoard(t, raw)
+	after.Interactions.Triage = map[string]map[string]state.Decision{"tr": {"ipad-2": {Verdict: "rejected"}}}
+	picked, nudges := writtenQuestions(&sendBoard{}, after, after.Doc.Blocks)
+	if got := ids(picked); !slices.Equal(got, []string{"devices"}) || len(nudges) != 0 {
+		t.Fatalf("sent %v nudges %q, want devices: one row still waits", got, nudges)
+	}
+	if picked[0].verdicts["ipad-2"].Verdict != "rejected" {
+		t.Errorf("verdicts = %+v, want the iPad's so its row reads as decided", picked[0].verdicts)
+	}
+	after.Interactions.Triage["tr"]["mbp-1"] = state.Decision{Verdict: "approved"}
+	if picked, _ = writtenQuestions(&sendBoard{}, after, after.Doc.Blocks); len(picked) != 0 {
+		t.Fatalf("sent %v, want nothing: every row has a verdict", ids(picked))
+	}
+}
+
 const fakeCCSlack = `#!/bin/sh
 log="$FAKE_CC_SLACK_DIR/args"
 for arg in "$@"; do printf '%s\n' "$arg" >> "$log"; done
@@ -298,7 +316,7 @@ func TestABoardCardReachesCCSlackWithItsButtonsAndImageBytes(t *testing.T) {
 		t.Fatal(err)
 	}
 	var warn bytes.Buffer
-	posted, err := postCard(t.Context(), "s1", port, card, q, "", &warn)
+	posted, err := postCard(t.Context(), "s1", port, question{card, q, nil}, "", &warn)
 	if err != nil {
 		t.Fatal(err)
 	}
