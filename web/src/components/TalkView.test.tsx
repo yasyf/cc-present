@@ -64,6 +64,16 @@ describe('TalkPane', () => {
     expect(container.querySelector('.thread-item.pending')?.textContent).toContain('on its way');
   });
 
+  it('takes a draft from the page around it without sending it', async () => {
+    const post = vi.fn(async () => true);
+    await pressEnter(post, '', true);
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent('message', { source: window, data: { type: 'cc-present.draft', text: 'why is it red?' } }));
+    });
+    expect(container.querySelector('textarea')!.value).toBe('why is it red?');
+    expect(post).not.toHaveBeenCalled();
+  });
+
   it('puts the text back when the post fails', async () => {
     const post = vi.fn(async () => false);
     await pressEnter(post, 'lost?');

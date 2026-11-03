@@ -51,6 +51,16 @@ export function TalkPane({ talkId, entries, interactions, closed }: TalkPaneProp
     if (el && stuck.current) el.scrollTop = el.scrollHeight;
   }, [entries.length, waiting.length]);
 
+  useEffect(() => {
+    const onMessage = (e: MessageEvent) => {
+      if (e.source === window.parent && e.data?.type === 'cc-present.draft') {
+        draftStore.set(talkId, 'note', String(e.data.text));
+      }
+    };
+    window.addEventListener('message', onMessage);
+    return () => window.removeEventListener('message', onMessage);
+  }, [talkId]);
+
   function send() {
     const body = text.trim();
     if (body) void sendNote(body);
