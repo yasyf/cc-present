@@ -1031,19 +1031,21 @@ name, never the token.
 | Port | the HTTP plane's bound port |
 | TXT records | `v=1`, `name=<hostname>` |
 
-`cc-present pair` carries the secret the advertisement omits. It writes
-`"bind": "0.0.0.0"` to the host config, ensures the token, restarts the daemon
-when its effective bind differs or the token changed (open browser tabs
-reconnect on their own), and prints a terminal QR code plus the same payload as
-copyable text:
+`cc-present pair` carries the secret the advertisement omits. With no tailnet it
+writes `"bind": "0.0.0.0"` to the host config; when the synckit mesh and
+tailscale are up it writes `"bind": "127.0.0.1"`, since the daemon then serves
+its own tailnet addresses and advertises nothing. It ensures the token, restarts
+the daemon when its effective bind differs or the token changed (open browser
+tabs reconnect on their own), and prints a terminal QR code plus the same payload
+as copyable text:
 
 ```ts
 PairPayload = { v: 1, url: "http://<host>:<port>", token: string }
 ```
 
 `host` is the machine's bare MagicDNS label when the synckit mesh and tailscale
-are up, so a phone on the tailnet reaches the daemon off the LAN too; otherwise,
-it is the first LAN IPv4 address.
+are up, and `port` the daemon's tailnet listener; otherwise, they are the first
+LAN IPv4 address and the HTTP plane's port.
 
 `v` is the pairing-payload schema version. `--reset-token` regenerates the token
 before pairing; `--off` rebinds the daemon to loopback, taking the plane off the

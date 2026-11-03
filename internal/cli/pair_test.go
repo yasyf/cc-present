@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/yasyf/cc-interact/cmd"
+	ccd "github.com/yasyf/cc-interact/daemon"
 )
 
 // ipNet wraps a parsed IP as a *net.IPNet, the concrete net.Addr the real
@@ -138,6 +139,34 @@ func TestPairHost(t *testing.T) {
 			}
 			if got != tt.want {
 				t.Fatalf("pairHost = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestPairBindOpensTheLANOnlyWithoutATailnet(t *testing.T) {
+	if got := pairBind("studio"); got != bindLoopback {
+		t.Errorf("pairBind with a tailnet label = %q, want %q", got, bindLoopback)
+	}
+	if got := pairBind(""); got != bindLAN {
+		t.Errorf("pairBind with no tailnet = %q, want %q", got, bindLAN)
+	}
+}
+
+func TestPairPort(t *testing.T) {
+	tests := []struct {
+		name string
+		info ccd.HTTPInfo
+		want int
+	}{
+		{"primary with no tailnet listener", ccd.HTTPInfo{Port: 61118}, 61118},
+		{"tailnet listener on another port", ccd.HTTPInfo{Port: 61118, ExtraAddrs: []string{"100.113.56.52:52668"}}, 52668},
+		{"ipv6 tailnet listener", ccd.HTTPInfo{Port: 61118, ExtraAddrs: []string{"[fd7a:115c:a1e0::1]:52668"}}, 52668},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := pairPort(tt.info); got != tt.want {
+				t.Fatalf("pairPort = %d, want %d", got, tt.want)
 			}
 		})
 	}

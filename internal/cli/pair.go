@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/netip"
 	"os"
 	"strconv"
 
@@ -26,16 +27,17 @@ const (
 	bindLoopback = "127.0.0.1"
 )
 
-// newPairCmd exposes the daemon to the LAN and prints a QR code the iOS client
-// scans to pair. It restarts the daemon when its bind or token must change; open
-// browser tabs reconnect on their own.
+// newPairCmd prints a QR code the iOS client scans to pair, exposing the daemon
+// to the LAN only when no tailnet reaches it. It restarts the daemon when its
+// bind or token must change; open browser tabs reconnect on their own.
 func newPairCmd(d cmd.Deps) *cobra.Command {
 	var resetToken, off bool
 	c := &cobra.Command{
 		Use:   "pair",
-		Short: "Expose the daemon to the LAN and print a QR code to pair the iOS client",
-		Long: "Pair rebinds the daemon to the LAN (0.0.0.0), mints a bearer token, and prints a QR " +
-			"code the cc-present iOS app scans to connect.\n\n" +
+		Short: "Print a QR code to pair the iOS client, exposing the daemon to the LAN only without a tailnet",
+		Long: "Pair mints a bearer token and prints a QR code the cc-present iOS app scans to connect. " +
+			"On a tailnet the daemon stays on loopback and its own tailnet addresses; with no tailnet, " +
+			"pair rebinds it to the LAN (0.0.0.0).\n\n" +
 			"Open browser tabs reconnect on their own after the daemon restarts, so pairing never " +
 			"interrupts a live session.",
 		Args: cobra.NoArgs,
@@ -51,11 +53,13 @@ func newPairCmd(d cmd.Deps) *cobra.Command {
 	return c
 }
 
-// runPair rebinds the daemon to the LAN, ensures a bearer token, restarts the
-// daemon if needed, then prints the tailnet and LAN candidates, a QR code, and
+// runPair binds the daemon per pairBind, ensures a bearer token, restarts the
+// daemon if needed, then prints the tailnet or LAN candidates, a QR code, and
 // the pairing payload as copyable text.
 func runPair(ctx context.Context, d cmd.Deps, out io.Writer, resetToken bool) error {
-	if err := setBind(bindLAN); err != nil {
+	label := tailnetLabel(ctx)
+	bind := pairBind(label)
+	if err := setBind(bind); err != nil {
 		return err
 	}
 	prev, err := app.ReadToken()
@@ -73,24 +77,26 @@ func runPair(ctx context.Context, d cmd.Deps, out io.Writer, resetToken bool) er
 	}
 	tokenChanged := resetToken || prev == ""
 
-	info, err := ensureDaemon(ctx, d, bindLAN, tokenChanged)
+	info, err := ensureDaemon(ctx, d, bind, tokenChanged)
 	if err != nil {
 		return err
 	}
 
-	ips, err := lanIPs()
-	if err != nil {
-		return err
+	var ips []net.IP
+	if bind == bindLAN {
+		if ips, err = lanIPs(); err != nil {
+			return err
+		}
 	}
-	label := tailnetLabel(ctx)
 	host, err := pairHost(label, ips)
 	if err != nil {
 		return err
 	}
+	port := pairPort(info)
 
 	if label != "" {
 		_, _ = fmt.Fprintln(out, "Tailnet address:")
-		_, _ = fmt.Fprintf(out, "  %s:%d\n\n", label, info.Port)
+		_, _ = fmt.Fprintf(out, "  %s:%d\n\n", label, port)
 	}
 	if len(ips) > 0 {
 		_, _ = fmt.Fprintln(out, "LAN addresses:")
@@ -100,7 +106,7 @@ func runPair(ctx context.Context, d cmd.Deps, out io.Writer, resetToken bool) er
 		_, _ = fmt.Fprintln(out)
 	}
 
-	_, payload, err := composePairPayload(host, info.Port, token)
+	_, payload, err := composePairPayload(host, port, token)
 	if err != nil {
 		return err
 	}
@@ -113,7 +119,7 @@ func runPair(ctx context.Context, d cmd.Deps, out io.Writer, resetToken bool) er
 	})
 	_, _ = fmt.Fprintln(out)
 	_, _ = fmt.Fprintf(out, "pair payload: %s\n", payload)
-	_, _ = fmt.Fprintf(out, "host: %s:%d\n", host, info.Port)
+	_, _ = fmt.Fprintf(out, "host: %s:%d\n", host, port)
 	_, _ = fmt.Fprintln(out, "\nOpen browser tabs reconnect on their own after the daemon restarts.")
 	return nil
 }
@@ -214,6 +220,26 @@ func tailnetLabel(ctx context.Context) string {
 		return ""
 	}
 	return tp.SelfHostLabel(ctx)
+}
+
+// pairBind keeps the daemon on loopback when a tailnet label names it, since
+// the daemon then serves its own tailnet addresses and the LAN adds only
+// exposure; with no tailnet, the LAN is the phone's one way in.
+func pairBind(label string) string {
+	if label != "" {
+		return bindLoopback
+	}
+	return bindLAN
+}
+
+// pairPort is the port the phone connects to: a tailnet listener's when the
+// daemon has one, whose first bind can differ from the primary's, else the
+// primary's, which a tailnet listener bound later reuses.
+func pairPort(info ccd.HTTPInfo) int {
+	if len(info.ExtraAddrs) == 0 {
+		return info.Port
+	}
+	return int(netip.MustParseAddrPort(info.ExtraAddrs[0]).Port())
 }
 
 // pairHost picks the host the pairing URL names: the tailnet label, which the
