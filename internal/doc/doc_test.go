@@ -259,6 +259,11 @@ func TestValidate(t *testing.T) {
 		{"choice one recommended single-select", docWith(card("c1", `{"id":"ch1","type":"choice","options":[{"id":"o1","label":"A","recommended":true},{"id":"o2","label":"B"}]}`)), ""},
 		{"choice recommended label says recommended", docWith(card("c1", `{"id":"ch1","type":"choice","options":[{"id":"o1","label":"A (Recommended)","recommended":true},{"id":"o2","label":"B"}]}`)), "label repeats \"recommended\""},
 		{"choice two recommended single-select", docWith(card("c1", `{"id":"ch1","type":"choice","options":[{"id":"o1","label":"A","recommended":true},{"id":"o2","label":"B","recommended":true}]}`)), "at most one recommended"},
+		{"option build branch", docWith(card("c1", `{"id":"ch1","type":"choice","options":[{"id":"o1","label":"A","recommended":true,"build":{"repo":"yasyf/cc-present","branch":"faster-boards"}},{"id":"o2","label":"B"}]}`)), ""},
+		{"option build nothing to build", docWith(card("c1", `{"id":"ch1","type":"choice","options":[{"id":"o1","label":"A","recommended":true,"build":{"none":"a process pick"}},{"id":"o2","label":"B"}]}`)), ""},
+		{"option build branch and none", docWith(card("c1", `{"id":"ch1","type":"choice","options":[{"id":"o1","label":"A","build":{"repo":"a/b","branch":"x","none":"why"}}]}`)), "never both"},
+		{"option build bare repo", docWith(card("c1", `{"id":"ch1","type":"choice","options":[{"id":"o1","label":"A","build":{"repo":"cc-present","branch":"x"}}]}`)), "name the repo as OWNER/NAME"},
+		{"option build no branch", docWith(card("c1", `{"id":"ch1","type":"choice","options":[{"id":"o1","label":"A","build":{"repo":"a/b"}}]}`)), "name the repo as OWNER/NAME"},
 		{"choice two recommended multi-select", docWith(card("c1", `{"id":"ch1","type":"choice","multi":true,"options":[{"id":"o1","label":"A","recommended":true},{"id":"o2","label":"B","recommended":true}]}`)), ""},
 
 		{"option visual code", docWith(card("c1", `{"id":"ch1","type":"choice","options":[{"id":"o1","label":"A","visual":{"id":"v1","type":"code","lang":"go","code":"x"}}]}`)), ""},

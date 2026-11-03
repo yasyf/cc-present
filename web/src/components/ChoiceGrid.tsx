@@ -6,7 +6,7 @@ import { renderInlineMarkdown } from '../markdown';
 import { Clamped } from './Clamped';
 import { DetailDisclosure } from './Detail';
 import { Mark } from './Mark';
-import { RecommendedMark } from './OptionCard';
+import { BuildNote, RecommendedMark } from './OptionCard';
 import { fromRef } from '../refs';
 
 export function ChoiceGrid({
@@ -70,6 +70,7 @@ export function ChoiceGrid({
               <div className="option-hint" dangerouslySetInnerHTML={{ __html: renderInlineMarkdown(option.hint) }} />
             )}
             {option.md && <Clamped html={renderInlineMarkdown(option.md)} lines={4} className="option-md prose" />}
+            {option.build && <BuildNote build={option.build} />}
           </div>
         );
       })}

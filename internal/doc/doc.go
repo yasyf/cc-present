@@ -190,7 +190,8 @@ type Detail struct {
 // Option is one selectable choice within a Choice block. Recommended marks the
 // author's suggested pick (at most one per single-select choice). Visual is an
 // optional restricted leaf — a code, diagram, image, or diff block — rendered in
-// the option's visual stage rather than inside the row.
+// the option's visual stage rather than inside the row. Build names what the
+// option already built for the human to try before answering.
 type Option struct {
 	ID          string  `json:"id"`
 	Label       string  `json:"label"`
@@ -200,6 +201,23 @@ type Option struct {
 	Detail      *Detail `json:"detail,omitempty"`
 	Recommended bool    `json:"recommended,omitempty"`
 	Visual      Block   `json:"visual,omitempty"`
+	Build       *Build  `json:"build,omitempty"`
+}
+
+// Build is the branch an option is built on, in Repo as OWNER/NAME, or None,
+// the reason the option has nothing to build.
+type Build struct {
+	Repo   string `json:"repo,omitempty"`
+	Branch string `json:"branch,omitempty"`
+	None   string `json:"none,omitempty"`
+}
+
+// URL is the branch on GitHub, or "" for an option with nothing to build.
+func (b Build) URL() string {
+	if b.Branch == "" {
+		return ""
+	}
+	return "https://github.com/" + b.Repo + "/tree/" + b.Branch
 }
 
 func decodeOption(data json.RawMessage, unmarshal unmarshalFunc) (Option, error) {
@@ -212,6 +230,7 @@ func decodeOption(data json.RawMessage, unmarshal unmarshalFunc) (Option, error)
 		Detail      *Detail         `json:"detail"`
 		Recommended bool            `json:"recommended"`
 		Visual      json.RawMessage `json:"visual"`
+		Build       *Build          `json:"build"`
 	}
 	if err := unmarshal(data, &raw); err != nil {
 		return Option{}, fmt.Errorf("unmarshal option: %w", err)
@@ -229,6 +248,7 @@ func decodeOption(data json.RawMessage, unmarshal unmarshalFunc) (Option, error)
 		Detail:      raw.Detail,
 		Recommended: raw.Recommended,
 		Visual:      v,
+		Build:       raw.Build,
 	}, nil
 }
 
@@ -1217,6 +1237,9 @@ func validateChoice(c *Choice) error {
 				return fmt.Errorf("choice %q: option %q visual: %w", c.ID, o.ID, err)
 			}
 		}
+		if err := validateBuild(o.Build); err != nil {
+			return fmt.Errorf("choice %q: option %q build: %w", c.ID, o.ID, err)
+		}
 		if o.Recommended {
 			recommended++
 			if strings.Contains(strings.ToLower(o.Label), "recommended") {
@@ -1226,6 +1249,23 @@ func validateChoice(c *Choice) error {
 	}
 	if !c.Multi && recommended > 1 {
 		return fmt.Errorf("choice %q: single-select allows at most one recommended option, got %d", c.ID, recommended)
+	}
+	return nil
+}
+
+func validateBuild(b *Build) error {
+	switch {
+	case b == nil:
+		return nil
+	case b.None != "" && (b.Repo != "" || b.Branch != ""):
+		return errors.New("names a branch or the reason nothing builds, never both")
+	case b.None != "":
+		if isMultiline(b.None) {
+			return errors.New("none must be a single line")
+		}
+		return nil
+	case !repoPattern.MatchString(b.Repo) || b.Branch == "" || strings.ContainsAny(b.Branch, " \t\n"):
+		return fmt.Errorf("repo %q branch %q: name the repo as OWNER/NAME and the branch it is built on, or none with the reason nothing builds", b.Repo, b.Branch)
 	}
 	return nil
 }

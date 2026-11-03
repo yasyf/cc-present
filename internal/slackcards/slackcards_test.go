@@ -357,3 +357,20 @@ func TestALongTitleReachesSlackCutTo140CharactersWithAnEllipsis(t *testing.T) {
 		t.Fatalf("a 140-character title changed to %q", got)
 	}
 }
+
+func TestTheSlackCardNamesWhatEachAnswerIsBuiltOn(t *testing.T) {
+	c := card(t, askCard(`{"id":"o1","label":"Ship it","recommended":true,"build":{"repo":"yasyf/cc-present","branch":"faster-boards"}},{"id":"o2","label":"Hold","build":{"none":"a process pick"}}`))
+	q, err := slackcards.Check(c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := slackcards.ToSlack(c, q).Body
+	for _, want := range []string{
+		"• *Ship it* is built on <https://github.com/yasyf/cc-present/tree/faster-boards|yasyf/cc-present faster-boards>",
+		"• *Hold* builds nothing: a process pick",
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("body %q lacks %q", body, want)
+		}
+	}
+}
