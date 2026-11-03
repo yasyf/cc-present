@@ -113,7 +113,8 @@ default. Write each as a card whose `id` is the question id, such as
 single-select `choice` of 1 to 4 answers, at most one `recommended`, an
 `approval`, or an `input`. Add no Other answer; both surfaces draw it. An
 Explain more option may stay: Slack shows its own button in its place, and a
-board pick of it answers nothing and leaves the card open. Put each PR the question is about in a `pr` child, and each
+board pick of it answers nothing and leaves the card open. Put each PR the question is about in a `pr` child, with `head` set to the
+commit you ask about so the board flags a head that moves, and each
 screenshot in an `image` child or an answer's `visual`.
 
 `push`, `update-block`, and `start --doc` post the cards they write to the

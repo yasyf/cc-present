@@ -335,6 +335,8 @@ func TestValidate(t *testing.T) {
 		{"pr valid", docWith(`{"id":"pr1","type":"pr","repo":"yasyf/cc-present","number":8,"title":"Bump cc-interact","summary":"Why it is here.","files":["go.mod","internal/*.go"]}`), ""},
 		{"pr card child", docWith(card("c1", `{"id":"pr1","type":"pr","repo":"yasyf/cc-present","number":8}`)), ""},
 		{"pr missing number", docWith(`{"id":"pr1","type":"pr","repo":"yasyf/cc-present"}`), `pr "pr1": number must be a positive integer`},
+		{"pr asked at a head", docWith(`{"id":"pr1","type":"pr","repo":"yasyf/cc-present","number":8,"head":"713f07d"}`), ""},
+		{"pr head not a sha", docWith(`{"id":"pr1","type":"pr","repo":"yasyf/cc-present","number":8,"head":"main"}`), `pr "pr1": head must be a 7 to 40 character lowercase hex sha`},
 		{"pr missing repo", docWith(`{"id":"pr1","type":"pr","number":8}`), `pr "pr1": repo must be owner/name`},
 		{"pr repo without owner", docWith(`{"id":"pr1","type":"pr","repo":"cc-present","number":8}`), "repo must be owner/name"},
 		{"pr multiline title", docWith(`{"id":"pr1","type":"pr","repo":"a/b","number":1,"title":"a\nb"}`), "title must be a single line"},
