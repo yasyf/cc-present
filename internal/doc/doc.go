@@ -647,11 +647,12 @@ func decodeDoc(data []byte, unmarshal unmarshalFunc) (*Doc, error) {
 		Stats        []Stat            `json:"stats"`
 		Submit       *Submit           `json:"submit"`
 		Presentation *string           `json:"presentation"`
+		Proof        bool              `json:"proof"`
 		Sources      map[string]string `json:"sources"`
 		Blocks       []json.RawMessage `json:"blocks"`
 	}
 	if err := unmarshal(data, &raw); err != nil {
-		return nil, fmt.Errorf("unmarshal doc: %w (a doc's keys are version, title, intro, stats, submit, presentation, sources, and blocks; sections and cards are siblings in blocks)", err)
+		return nil, fmt.Errorf("unmarshal doc: %w (a doc's keys are version, title, intro, stats, submit, presentation, proof, sources, and blocks; sections and cards are siblings in blocks)", err)
 	}
 	blocks, err := decodeBlocks(raw.Blocks, unmarshal)
 	if err != nil {
@@ -664,6 +665,7 @@ func decodeDoc(data []byte, unmarshal unmarshalFunc) (*Doc, error) {
 		Stats:        raw.Stats,
 		Submit:       raw.Submit,
 		Presentation: raw.Presentation,
+		Proof:        raw.Proof,
 		Sources:      raw.Sources,
 		Blocks:       blocks,
 	}, nil
