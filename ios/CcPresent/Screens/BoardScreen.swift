@@ -1,4 +1,7 @@
 import CcPresentKit
+import CcPresentUI
+import IOSKit
+import IOSKitUI
 import SwiftUI
 
 /// BoardScreen renders one subject's live board. It owns a BoardStore for the
@@ -19,16 +22,14 @@ struct BoardScreen: View {
     @State private var packManifest: PacksResponse?
     @State private var commentsModel = CommentsModel()
     @State private var loadError: String?
-    private let client: APIClient
+    private let client: HTTPClient
     private let bearerToken: String?
 
-    init(machine: Machine, subject: String) {
+    init(machine: Machine, client: HTTPClient, subject: String) {
         self.machine = machine
         self.subject = subject
-        let token = (try? TokenStore.token(machineID: machine.id)) ?? nil
-        let client = APIClient(baseURL: machine.baseURL, bearerToken: token)
         self.client = client
-        bearerToken = token
+        bearerToken = client.bearerToken
         _store = State(initialValue: BoardStore(subject: subject, transport: client))
         do {
             _viewOverride = try State(initialValue: loadViewOverride(subject: subject))
@@ -210,12 +211,12 @@ struct BoardScreen: View {
                 if !state.doc.title.isEmpty {
                     Text(state.doc.title)
                         .font(.title.weight(.semibold))
-                        .foregroundStyle(BlockPalette.ink)
+                        .foregroundStyle(Palette.ink)
                 }
                 if let intro = state.doc.intro, !intro.isEmpty {
                     Text(intro)
                         .font(.subheadline)
-                        .foregroundStyle(BlockPalette.muted)
+                        .foregroundStyle(Palette.muted)
                 }
                 if let stats = state.doc.stats, !stats.isEmpty {
                     HStack(spacing: 16) {
@@ -223,9 +224,9 @@ struct BoardScreen: View {
                             HStack(spacing: 4) {
                                 Text(stat.value)
                                     .fontWeight(.bold)
-                                    .foregroundStyle(BlockPalette.ink)
+                                    .foregroundStyle(Palette.ink)
                                 Text(stat.label)
-                                    .foregroundStyle(BlockPalette.muted)
+                                    .foregroundStyle(Palette.muted)
                             }
                             .font(.caption)
                         }
@@ -239,7 +240,7 @@ struct BoardScreen: View {
     private var currentRoundHeader: some View {
         Text(currentRoundTitle)
             .font(.caption)
-            .foregroundStyle(BlockPalette.accentInk)
+            .foregroundStyle(Palette.accentInk)
             .monospacedDigit()
     }
 
@@ -293,9 +294,9 @@ struct BoardScreen: View {
     private var connectionBanner: some View {
         switch store.connectionState {
         case .connecting:
-            BannerBar(text: "Connecting…", systemImage: "wifi", tint: BlockPalette.muted)
+            BannerBar(text: "Connecting…", systemImage: "wifi", tint: Palette.muted)
         case .reconnecting:
-            BannerBar(text: "Reconnecting…", systemImage: "wifi.exclamationmark", tint: BlockPalette.reject)
+            BannerBar(text: "Reconnecting…", systemImage: "wifi.exclamationmark", tint: Palette.reject)
         case .live:
             EmptyView()
         }
@@ -346,10 +347,10 @@ private struct ClosedBannerView: View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Closed")
                 .font(.caption.weight(.semibold))
-                .foregroundStyle(BlockPalette.monoBg)
+                .foregroundStyle(Palette.monoBg)
                 .padding(.vertical, 4)
                 .padding(.horizontal, 8)
-                .background(BlockPalette.accentInk, in: Capsule())
+                .background(Palette.accentInk, in: Capsule())
             if let summary, !summary.isEmpty {
                 MarkdownText(summary)
                     .font(.subheadline)
@@ -357,9 +358,9 @@ private struct ClosedBannerView: View {
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(BlockPalette.monoBg, in: RoundedRectangle(cornerRadius: Metrics.radiusLg))
+        .background(Palette.monoBg, in: RoundedRectangle(cornerRadius: Metrics.radiusLg))
         .overlay(
-            RoundedRectangle(cornerRadius: Metrics.radiusLg).strokeBorder(BlockPalette.line)
+            RoundedRectangle(cornerRadius: Metrics.radiusLg).strokeBorder(Palette.line)
         )
     }
 }
@@ -375,10 +376,10 @@ private struct WaitingPanelView: View {
             ProgressView()
             Text("Waiting for round \(round)")
                 .font(.headline)
-                .foregroundStyle(BlockPalette.ink)
+                .foregroundStyle(Palette.ink)
             Text(subline)
                 .font(.subheadline)
-                .foregroundStyle(BlockPalette.muted)
+                .foregroundStyle(Palette.muted)
                 .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity)
@@ -410,7 +411,7 @@ private struct SectionHeaderView: View {
             .background(Color(.systemBackground))
             .overlay(alignment: .bottom) {
                 Rectangle()
-                    .fill(BlockPalette.line)
+                    .fill(Palette.line)
                     .frame(height: 1)
             }
     }
@@ -422,12 +423,12 @@ private struct BoardSkeletonView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
             RoundedRectangle(cornerRadius: Metrics.radiusLg)
-                .fill(BlockPalette.chipBg)
+                .fill(Palette.chipBg)
                 .frame(height: 32)
                 .frame(maxWidth: 220)
             ForEach(0 ..< 3, id: \.self) { _ in
                 RoundedRectangle(cornerRadius: Metrics.radiusLg)
-                    .fill(BlockPalette.chipBg)
+                    .fill(Palette.chipBg)
                     .frame(height: 96)
             }
             Spacer()

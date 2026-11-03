@@ -1,5 +1,8 @@
 @testable import CcPresentApp
 import CcPresentKit
+import CcPresentUI
+import IOSKit
+import IOSKitUI
 import SwiftUI
 import Testing
 
@@ -44,29 +47,29 @@ private let dotCases: [DotCase] = [
     DotCase(
         name: "a context run is an untallied tick",
         blocks: [markdown("m1")],
-        expected: DotAppearance(size: 4, fill: BlockPalette.borderStrong, stroke: nil)
+        expected: DotAppearance(size: 4, fill: Palette.borderStrong, stroke: nil)
     ),
     DotCase(
         name: "an input-only step is a tick despite its decision kind",
         blocks: [input("i1")],
-        expected: DotAppearance(size: 4, fill: BlockPalette.borderStrong, stroke: nil)
+        expected: DotAppearance(size: 4, fill: Palette.borderStrong, stroke: nil)
     ),
     DotCase(
         name: "an undecided approval is a hollow warn ring",
         blocks: [approval("a1")],
-        expected: DotAppearance(size: 9, fill: .clear, stroke: BlockPalette.warn)
+        expected: DotAppearance(size: 9, fill: .clear, stroke: Palette.warn)
     ),
     DotCase(
         name: "an approved approval fills approve, not a tick",
         blocks: [approval("a1")],
         interactions: Interactions(decisions: ["a1": Decision(verdict: "approved")]),
-        expected: DotAppearance(size: 9, fill: BlockPalette.approve, stroke: BlockPalette.borderStrong)
+        expected: DotAppearance(size: 9, fill: Palette.approve, stroke: Palette.borderStrong)
     ),
     DotCase(
         name: "a rejected approval fills reject",
         blocks: [approval("a1")],
         interactions: Interactions(decisions: ["a1": Decision(verdict: "rejected")]),
-        expected: DotAppearance(size: 9, fill: BlockPalette.reject, stroke: BlockPalette.borderStrong)
+        expected: DotAppearance(size: 9, fill: Palette.reject, stroke: Palette.borderStrong)
     ),
     DotCase(
         name: "a multi-item decided card fills accentInk",
@@ -75,7 +78,7 @@ private let dotCases: [DotCase] = [
             decisions: ["c1a": Decision(verdict: "approved")],
             choices: ["c1c": Selection(optionIds: ["c1co1"])]
         ),
-        expected: DotAppearance(size: 9, fill: BlockPalette.accentInk, stroke: BlockPalette.borderStrong)
+        expected: DotAppearance(size: 9, fill: Palette.accentInk, stroke: Palette.borderStrong)
     ),
 ]
 

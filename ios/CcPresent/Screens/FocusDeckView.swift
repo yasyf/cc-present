@@ -1,43 +1,8 @@
 import CcPresentKit
+import CcPresentUI
+import IOSKit
+import IOSKitUI
 import SwiftUI
-
-/// FocusComposer is the deck-scoped signal the auto-advance timer consults: an
-/// approval's feedback composer registers itself while open so a verdict's 450ms
-/// advance is cancelled mid-compose, the native mirror of the web `data-composing`
-/// attribute. FocusDeckView owns one and injects it; board mode leaves it nil.
-@MainActor
-@Observable
-final class FocusComposer {
-    private var open: Set<String> = []
-
-    var isComposing: Bool {
-        !open.isEmpty
-    }
-
-    func set(_ id: String, composing: Bool) {
-        if composing {
-            open.insert(id)
-        } else {
-            open.remove(id)
-        }
-    }
-}
-
-extension EnvironmentValues {
-    /// focusComposer is the open-composer signal ApprovalBlockView writes to while
-    /// its feedback composer is up, so the focus deck can hold its auto-advance.
-    @Entry var focusComposer: FocusComposer? = nil
-
-    /// focusHeadlineId names the decidable whose prompt the focus card hoisted into the
-    /// step headline, so ChoiceBlockView/ApprovalBlockView suppress the now-duplicate
-    /// inline prompt (keeping it as an accessibility label). nil in board mode.
-    @Entry var focusHeadlineId: String? = nil
-
-    /// inFocusCard is true for the focal block of a focus step, so CardView drops its
-    /// head — the card's title, status, and chips are hoisted into the deck's meta row.
-    /// false in board mode, where the card renders its head as authored.
-    @Entry var inFocusCard: Bool = false
-}
 
 /// FocusDeckModel owns the deck's position as an anchor block id (re-derived to an
 /// index on every recompute and clamped when the anchor vanishes) plus the approval
@@ -191,7 +156,7 @@ struct FocusDeckView: View {
     let steps: [FocusStep]
     let store: BoardStore
     let packTypes: PackTypes
-    var client: APIClient?
+    var client: HTTPClient?
     var packContext: PackContext?
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -204,7 +169,7 @@ struct FocusDeckView: View {
         steps: [FocusStep],
         store: BoardStore,
         packTypes: PackTypes,
-        client: APIClient? = nil,
+        client: HTTPClient? = nil,
         packContext: PackContext? = nil
     ) {
         self.steps = steps
@@ -372,7 +337,7 @@ struct FocusProgressView: View {
             HStack(spacing: Metrics.space2) {
                 Text(tier)
                     .voice(.stamp, .caption, weight: .semibold)
-                    .foregroundStyle(BlockPalette.accentInk)
+                    .foregroundStyle(Palette.accentInk)
                     .lineLimit(1)
                 Spacer(minLength: 0)
             }
@@ -429,7 +394,7 @@ struct FocusStepDots: View {
                 .frame(width: 9, height: 9)
                 .overlay {
                     if current {
-                        Circle().strokeBorder(BlockPalette.accentInk, lineWidth: 2)
+                        Circle().strokeBorder(Palette.accentInk, lineWidth: 2)
                     } else {
                         RevisionDotOverlay(state: revState)
                     }
@@ -460,9 +425,9 @@ struct FocusStepDots: View {
     private func bar(shown: Int, total: Int) -> some View {
         GeometryReader { proxy in
             ZStack(alignment: .leading) {
-                Capsule().fill(BlockPalette.chipBg)
+                Capsule().fill(Palette.chipBg)
                 Capsule()
-                    .fill(BlockPalette.accentInk)
+                    .fill(Palette.accentInk)
                     .frame(width: proxy.size.width * CGFloat(shown) / CGFloat(max(total, 1)))
             }
         }
@@ -488,15 +453,15 @@ struct DotAppearance: Equatable {
 func dotAppearance(_ status: StepStatus?) -> DotAppearance {
     switch status {
     case nil:
-        DotAppearance(size: 4, fill: BlockPalette.borderStrong, stroke: nil)
+        DotAppearance(size: 4, fill: Palette.borderStrong, stroke: nil)
     case .undecided:
-        DotAppearance(size: 9, fill: .clear, stroke: BlockPalette.warn)
+        DotAppearance(size: 9, fill: .clear, stroke: Palette.warn)
     case .approved:
-        DotAppearance(size: 9, fill: BlockPalette.approve, stroke: BlockPalette.borderStrong)
+        DotAppearance(size: 9, fill: Palette.approve, stroke: Palette.borderStrong)
     case .rejected:
-        DotAppearance(size: 9, fill: BlockPalette.reject, stroke: BlockPalette.borderStrong)
+        DotAppearance(size: 9, fill: Palette.reject, stroke: Palette.borderStrong)
     case .decided:
-        DotAppearance(size: 9, fill: BlockPalette.accentInk, stroke: BlockPalette.borderStrong)
+        DotAppearance(size: 9, fill: Palette.accentInk, stroke: Palette.borderStrong)
     }
 }
 
@@ -516,7 +481,7 @@ private struct RevisionDotOverlay: View {
             EmptyView()
         case .revising:
             Circle()
-                .strokeBorder(BlockPalette.accentInk, lineWidth: 1.5)
+                .strokeBorder(Palette.accentInk, lineWidth: 1.5)
                 .opacity(reduceMotion ? 1 : (pulse ? 0.3 : 1))
                 .animation(
                     reduceMotion ? nil : .easeInOut(duration: 0.8).repeatForever(autoreverses: true),
@@ -526,15 +491,15 @@ private struct RevisionDotOverlay: View {
                 .onDisappear { pulse = false }
         case .added:
             Circle()
-                .strokeBorder(BlockPalette.accentInk, lineWidth: 2)
+                .strokeBorder(Palette.accentInk, lineWidth: 2)
                 .overlay(alignment: .topTrailing) {
                     Circle()
-                        .fill(BlockPalette.accentInk)
+                        .fill(Palette.accentInk)
                         .frame(width: 4, height: 4)
                         .offset(x: 1.5, y: -1.5)
                 }
         case .changed:
-            Circle().strokeBorder(BlockPalette.accentInk, lineWidth: 1)
+            Circle().strokeBorder(Palette.accentInk, lineWidth: 1)
         }
     }
 }
@@ -553,7 +518,7 @@ private struct FocusDraftingLine: View {
                 .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 0)
         }
-        .foregroundStyle(BlockPalette.muted)
+        .foregroundStyle(Palette.muted)
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .combine)
     }
@@ -582,12 +547,12 @@ private struct RevisingBanner: View {
             }
             Spacer(minLength: 0)
         }
-        .foregroundStyle(decayed ? BlockPalette.muted : BlockPalette.warn)
+        .foregroundStyle(decayed ? Palette.muted : Palette.warn)
         .padding(.vertical, 6)
         .padding(.horizontal, 10)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
-            decayed ? BlockPalette.chipBg : BlockPalette.warn.opacity(0.12),
+            decayed ? Palette.chipBg : Palette.warn.opacity(0.12),
             in: RoundedRectangle(cornerRadius: Metrics.radiusLg)
         )
         .accessibilityElement(children: .combine)
@@ -609,11 +574,11 @@ private struct RevisionCallout: View {
                 .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 0)
         }
-        .foregroundStyle(BlockPalette.accentInk)
+        .foregroundStyle(Palette.accentInk)
         .padding(.vertical, 6)
         .padding(.horizontal, 10)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(BlockPalette.accentInk.opacity(0.1), in: RoundedRectangle(cornerRadius: Metrics.radiusLg))
+        .background(Palette.accentInk.opacity(0.1), in: RoundedRectangle(cornerRadius: Metrics.radiusLg))
         .accessibilityElement(children: .combine)
     }
 }
@@ -649,23 +614,23 @@ struct FocusPeekView: View {
             if let tier = step.tier, !tier.isEmpty {
                 Text(tier)
                     .voice(.stamp, .caption2)
-                    .foregroundStyle(BlockPalette.accentInk)
+                    .foregroundStyle(Palette.accentInk)
             }
             Text(stepTitle(step))
                 .voice(.display, .headline)
-                .foregroundStyle(BlockPalette.ink)
+                .foregroundStyle(Palette.ink)
                 .lineLimit(2)
             if case let .card(card) = step.block, let summary = card.summary, !summary.isEmpty {
                 Text(summary)
                     .font(.subheadline)
-                    .foregroundStyle(BlockPalette.muted)
+                    .foregroundStyle(Palette.muted)
                     .lineLimit(2)
             }
         }
         .padding(Metrics.space4)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(BlockPalette.monoBg, in: RoundedRectangle(cornerRadius: Metrics.radiusLg))
-        .overlay(RoundedRectangle(cornerRadius: Metrics.radiusLg).strokeBorder(BlockPalette.line))
+        .background(Palette.monoBg, in: RoundedRectangle(cornerRadius: Metrics.radiusLg))
+        .overlay(RoundedRectangle(cornerRadius: Metrics.radiusLg).strokeBorder(Palette.line))
     }
 }
 
@@ -676,7 +641,7 @@ struct FocusPeekView: View {
 struct FocusCardView: View {
     let step: FocusStep
     let store: BoardStore
-    var client: APIClient?
+    var client: HTTPClient?
     var packContext: PackContext?
     let revisions: RevisionState
     let answered: Bool
@@ -706,7 +671,7 @@ struct FocusCardView: View {
             if let text = headline.text, !text.isEmpty {
                 Text(text)
                     .voice(.display, .title2, weight: .semibold)
-                    .foregroundStyle(BlockPalette.ink)
+                    .foregroundStyle(Palette.ink)
                     .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .accessibilityAddTraits(.isHeader)
@@ -743,8 +708,8 @@ struct FocusCardView: View {
         }
         .padding(Metrics.space4)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(BlockPalette.monoBg, in: RoundedRectangle(cornerRadius: Metrics.radiusLg))
-        .overlay(RoundedRectangle(cornerRadius: Metrics.radiusLg).strokeBorder(BlockPalette.line))
+        .background(Palette.monoBg, in: RoundedRectangle(cornerRadius: Metrics.radiusLg))
+        .overlay(RoundedRectangle(cornerRadius: Metrics.radiusLg).strokeBorder(Palette.line))
     }
 
     @ViewBuilder
@@ -757,7 +722,7 @@ struct FocusCardView: View {
                 if let eyebrow, !eyebrow.isEmpty {
                     Text(eyebrow)
                         .voice(.stamp, .caption2)
-                        .foregroundStyle(BlockPalette.accentInk)
+                        .foregroundStyle(Palette.accentInk)
                         .lineLimit(1)
                 }
                 if let status, !status.isEmpty {
@@ -783,7 +748,7 @@ struct FocusCardView: View {
 struct FocusContextBlock: View {
     let block: Block
     let store: BoardStore
-    var client: APIClient?
+    var client: HTTPClient?
     var packContext: PackContext?
 
     @State private var expanded = false
@@ -801,10 +766,10 @@ struct FocusContextBlock: View {
             } label: {
                 Text(focusContextTitle(block))
                     .font(.system(.caption, design: .monospaced))
-                    .foregroundStyle(BlockPalette.accentInk)
+                    .foregroundStyle(Palette.accentInk)
                     .lineLimit(1)
             }
-            .tint(BlockPalette.accentInk)
+            .tint(Palette.accentInk)
         default:
             BlockView(block: block, store: store, client: client, packContext: packContext)
         }
@@ -833,9 +798,9 @@ private struct FocusMetaChip: View {
 
     private var foreground: Color {
         switch chip.tone {
-        case "flag": BlockPalette.reject
-        case "demo": BlockPalette.accentInk
-        default: BlockPalette.muted
+        case "flag": Palette.reject
+        case "demo": Palette.accentInk
+        default: Palette.muted
         }
     }
 
@@ -845,8 +810,8 @@ private struct FocusMetaChip: View {
             .foregroundStyle(foreground)
             .padding(.vertical, 2)
             .padding(.horizontal, 8)
-            .background(chip.tone == "flag" ? BlockPalette.reject.opacity(0.12) : BlockPalette.chipBg, in: Capsule())
-            .overlay(Capsule().strokeBorder(chip.tone == "flag" ? BlockPalette.reject.opacity(0.4) : BlockPalette.line))
+            .background(chip.tone == "flag" ? Palette.reject.opacity(0.12) : Palette.chipBg, in: Capsule())
+            .overlay(Capsule().strokeBorder(chip.tone == "flag" ? Palette.reject.opacity(0.4) : Palette.line))
             .lineLimit(1)
     }
 }
@@ -861,7 +826,7 @@ private struct FocusMetaChip: View {
 struct SwipeableFocusCard: View {
     let step: FocusStep
     let store: BoardStore
-    var client: APIClient?
+    var client: HTTPClient?
     var packContext: PackContext?
     let revisions: RevisionState
     let answered: Bool
@@ -889,10 +854,10 @@ struct SwipeableFocusCard: View {
     var body: some View {
         FocusCardView(step: step, store: store, client: client, packContext: packContext, revisions: revisions, answered: answered)
             .overlay(alignment: .topLeading) {
-                verdictLabel("APPROVE", color: BlockPalette.approve, tilt: -12, magnitude: offset.width)
+                verdictLabel("APPROVE", color: Palette.approve, tilt: -12, magnitude: offset.width)
             }
             .overlay(alignment: .topTrailing) {
-                verdictLabel("REJECT", color: BlockPalette.reject, tilt: 12, magnitude: -offset.width)
+                verdictLabel("REJECT", color: Palette.reject, tilt: 12, magnitude: -offset.width)
             }
             .offset(offset)
             .rotationEffect(.degrees(offset.width / 28))
@@ -1022,25 +987,25 @@ struct FocusSummaryView: View {
         VStack(alignment: .leading, spacing: Metrics.space3) {
             Text("REVIEW")
                 .voice(.stamp, .caption, weight: .semibold)
-                .foregroundStyle(BlockPalette.muted)
+                .foregroundStyle(Palette.muted)
             if revisingCount > 0 {
                 Label("Claude is still revising \(revisingCount) steps", systemImage: "pencil.line")
                     .font(.caption.weight(.medium))
-                    .foregroundStyle(BlockPalette.warn)
+                    .foregroundStyle(Palette.warn)
             }
             VStack(spacing: 0) {
                 ForEach(Array(steps.enumerated()), id: \.element.id) { position, step in
                     receipt(step)
                     if position < steps.count - 1 {
-                        Divider().overlay(BlockPalette.line)
+                        Divider().overlay(Palette.line)
                     }
                 }
             }
         }
         .padding(Metrics.space4)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(BlockPalette.monoBg, in: RoundedRectangle(cornerRadius: Metrics.radiusLg))
-        .overlay(RoundedRectangle(cornerRadius: Metrics.radiusLg).strokeBorder(BlockPalette.line))
+        .background(Palette.monoBg, in: RoundedRectangle(cornerRadius: Metrics.radiusLg))
+        .overlay(RoundedRectangle(cornerRadius: Metrics.radiusLg).strokeBorder(Palette.line))
     }
 
     private func receipt(_ step: FocusStep) -> some View {
@@ -1050,13 +1015,13 @@ struct FocusSummaryView: View {
             HStack {
                 Text(stepTitle(step))
                     .font(.subheadline)
-                    .foregroundStyle(BlockPalette.ink)
+                    .foregroundStyle(Palette.ink)
                     .lineLimit(1)
                 Spacer(minLength: Metrics.space2)
                 if status == .undecided {
                     Button("Decide") { onJump(step.id) }
                         .voice(.stamp, .caption, weight: .semibold)
-                        .foregroundStyle(BlockPalette.accentInk)
+                        .foregroundStyle(Palette.accentInk)
                         .buttonStyle(.plain)
                 } else {
                     Text(status?.rawValue ?? "—")
@@ -1067,13 +1032,13 @@ struct FocusSummaryView: View {
             if !answers.isEmpty {
                 Text(answers.joined(separator: " · "))
                     .font(.footnote)
-                    .foregroundStyle(BlockPalette.muted)
+                    .foregroundStyle(Palette.muted)
                     .lineLimit(2)
             }
             if hasNote(step) {
                 Label("note", systemImage: "text.bubble")
                     .font(.caption2)
-                    .foregroundStyle(BlockPalette.accentInk)
+                    .foregroundStyle(Palette.accentInk)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -1108,10 +1073,10 @@ struct FocusSummaryView: View {
 
     private func color(_ status: StepStatus?) -> Color {
         switch status {
-        case .approved: BlockPalette.approve
-        case .rejected: BlockPalette.reject
-        case .decided: BlockPalette.accentInk
-        case .undecided, nil: BlockPalette.muted
+        case .approved: Palette.approve
+        case .rejected: Palette.reject
+        case .decided: Palette.accentInk
+        case .undecided, nil: Palette.muted
         }
     }
 }
@@ -1149,11 +1114,11 @@ struct FocusNavView: View {
                     Label("Back", systemImage: "chevron.left")
                         .labelStyle(.iconOnly)
                 }
-                .buttonStyle(GhostButtonStyle(tint: BlockPalette.muted))
+                .buttonStyle(GhostButtonStyle(tint: Palette.muted))
                 .disabled(index <= 0)
 
                 Button("Skip", action: onSkip)
-                    .buttonStyle(GhostButtonStyle(tint: BlockPalette.muted))
+                    .buttonStyle(GhostButtonStyle(tint: Palette.muted))
                     .disabled(onSummary)
             }
 
@@ -1170,7 +1135,7 @@ struct FocusNavView: View {
                 )
                 Text("\(shown) / \(total)")
                     .voice(.mono, .caption2, weight: .semibold)
-                    .foregroundStyle(BlockPalette.muted)
+                    .foregroundStyle(Palette.muted)
                     .monospacedDigit()
                     .accessibilityHidden(true)
             }
