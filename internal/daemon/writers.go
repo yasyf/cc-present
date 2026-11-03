@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"fmt"
+	"reflect"
 
 	"github.com/yasyf/cc-present/internal/doc"
 	"github.com/yasyf/cc-present/internal/state"
@@ -49,6 +50,27 @@ func (w Writer) fresh(st *state.State, head int64, ids ...string) error {
 		}
 	}
 	return nil
+}
+
+// headOnly reports whether b rewrites a pr block already on the board with
+// nothing changed but its head, the redraw any lane may make of a moved PR on a
+// card another lane owns.
+func headOnly(st *state.State, b doc.Block) bool {
+	next, ok := b.(*doc.PR)
+	if !ok {
+		return false
+	}
+	loc, ok := doc.Locate(st.Doc, next.BlockID())
+	if !ok {
+		return false
+	}
+	prior, ok := loc.Block.(*doc.PR)
+	if !ok {
+		return false
+	}
+	moved := *prior
+	moved.Head = next.Head
+	return reflect.DeepEqual(&moved, next)
 }
 
 // LaneName names the lane a write recorded, or says the writer named none.

@@ -424,7 +424,11 @@ func handleUpsertBlock(hc ccd.HandlerCtx, pt doc.PackTypes) ccd.Reply {
 	if err := roundGuard(st, intent, "update-block", newTops); err != nil {
 		return errReply(err.Error())
 	}
-	if err := b.admit(st, board.seq, st.UpsertTop(blk, b.After)); err != nil {
+	admit := b.admit
+	if b.After == "" && headOnly(st, blk) {
+		admit = b.fresh
+	}
+	if err := admit(st, board.seq, st.UpsertTop(blk, b.After)); err != nil {
 		return errReply(err.Error())
 	}
 	// Validation is done; only appends follow. A clean round skips round.started,
