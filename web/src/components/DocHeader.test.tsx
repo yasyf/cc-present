@@ -110,6 +110,14 @@ describe('DocHeader', () => {
     expect([...controls.children].map((c) => c.className)).toEqual(['view-toggle', 'header-menu-toggle', 'header-menu']);
   });
 
+  it('renders a markdown link in the intro as a link', () => {
+    render({ doc: { version: 1, title, intro: 'See [the plan](https://example.com/plan) first.', blocks: [] } });
+    const link = container.querySelector<HTMLAnchorElement>('.doc-intro a')!;
+    expect(link.textContent).toBe('the plan');
+    expect(link.getAttribute('href')).toBe('https://example.com/plan');
+    expect(container.querySelector('.doc-intro')!.textContent).toBe('See the plan first.');
+  });
+
   it('tucks shortcuts and theme behind the menu, adding notes only below the rail breakpoint', () => {
     render();
     expect(menu().hasAttribute('open')).toBe(false);

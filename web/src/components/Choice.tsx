@@ -157,7 +157,7 @@ export function Choice({ block, interactions }: { block: ChoiceBlock; interactio
     [ref],
   );
 
-  const shownId = pointed ?? picks.at(-1);
+  const shownId = pointed ?? picks.at(-1) ?? block.options.find((option) => option.visual)?.id;
   const shownVisual = block.options.find((option) => option.id === shownId)?.visual;
   const feedback = interactions.feedback[block.id] ?? [];
   const replies = interactions.replies[block.id] ?? [];
@@ -265,7 +265,7 @@ export function Choice({ block, interactions }: { block: ChoiceBlock; interactio
           {other}
         </div>
       ) : (
-        <div className="options" role={multi ? 'group' : 'radiogroup'} aria-label={block.prompt} {...pointing}>
+        <div className="options" role={multi ? 'group' : 'radiogroup'} aria-label={block.prompt}>
           {block.options.map((option, i) => (
             <div key={option.id} className="option-row" data-option-id={option.id}>
               <OptionCard
@@ -279,7 +279,7 @@ export function Choice({ block, interactions }: { block: ChoiceBlock; interactio
                 axes={axes}
                 onToggle={() => pick(i)}
               />
-              {option.visual && option.id === shownId && (
+              {option.visual && (
                 <div className="option-visual">
                   <BlockBody block={option.visual} interactions={interactions} />
                 </div>

@@ -321,6 +321,16 @@ describe('FocusCard question-first anatomy', () => {
     expect(background.querySelector('.markdown-block')?.textContent?.trim()).toBe('history');
   });
 
+  it('keeps card images and option visuals on the face before any interaction', () => {
+    const shot: Block = { id: 'i1', type: 'image', src: 'data:,x', alt: 'mockup' };
+    renderStep([card('k1', 'Which layout?', [markdown('m1', 'lead'), shot, staged('c1'), code('code1')])]);
+    const face = container.querySelector('.focus-card-body')!;
+    expect(face.querySelector<HTMLImageElement>('.card img')?.alt).toBe('mockup');
+    expect(face.querySelector('.option-row .option-visual .code-block')).not.toBeNull();
+    expect(container.querySelector('.focus-background img')).toBeNull();
+    expect(container.querySelector('.focus-background .cc-group-expanded')).toBeNull();
+  });
+
   it('collects the remaining context into one collapsed Background disclosure', () => {
     const table: Block = { id: 't1', type: 'table', columns: [{ key: 'pr', label: 'PR' }], rows: [] };
     renderStep([markdown('m1', 'lead'), table, code('code1'), approval('a1', 'Ship it?')]);

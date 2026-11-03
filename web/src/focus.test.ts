@@ -523,6 +523,15 @@ describe('stepFace', () => {
     expect([...f.hoisted]).toEqual(['m1']);
   });
 
+  it('keeps images on the card face instead of folding them into Background', () => {
+    const image = (id: string): Block => ({ id, type: 'image', src: 'data:,x', alt: id });
+    const k = card('k', [markdown('m1'), image('i1'), approval('a1'), image('i2'), code('c1')]);
+    const f = face([image('i0'), code('k0'), k]);
+    expect(ids(f.prelude)).toEqual(['i0']);
+    expect(ids(f.background)).toEqual(['k0', 'c1']);
+    expect([...f.hoisted]).toEqual(['m1', 'c1']);
+  });
+
   it('keeps an interactive pack child on the card face', () => {
     const k = card('k', [pack('p1'), markdown('m1')]);
     const step = focusSteps([k], new Set(['ex.rating']))[0]!;
