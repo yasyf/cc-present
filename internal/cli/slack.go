@@ -74,7 +74,7 @@ func newAskCmd(d cmd.Deps) *cobra.Command {
 			if err := inlineImages([]doc.Block{card}, httpUploader(port)); err != nil {
 				return err
 			}
-			res, _, err := mirror(ctx, cl, board{sess, scope, pid, w}, w, card, ch, ts, c.ErrOrStderr())
+			res, _, err := mirror(ctx, cl, board{sess, scope, pid, w}, w, false, card, ch, ts, c.ErrOrStderr())
 			if err != nil {
 				return err
 			}
@@ -329,7 +329,7 @@ func sendQuestions(ctx context.Context, cl *ccdaemon.Client, b board, rev int64,
 	var res ccdaemon.StartResult
 	var errs []error
 	for _, q := range questions {
-		r, posted, err := mirror(ctx, cl, b, ccdaemon.Writer{Lane: b.writer.Lane, Rev: rev}, q.card, q.control, ts, warn)
+		r, posted, err := mirror(ctx, cl, b, ccdaemon.Writer{Lane: b.writer.Lane, Rev: rev}, true, q.card, q.control, ts, warn)
 		if err != nil {
 			errs = append(errs, err)
 			_, _ = fmt.Fprintf(w, "failed: %s: %v\n", q.card.ID, err)
@@ -406,7 +406,7 @@ func answeredOnBoard(b *sendBoard, q doc.Block) bool {
 	return false
 }
 
-func mirror(ctx context.Context, cl *ccdaemon.Client, b board, wr ccdaemon.Writer, card *doc.Card, q doc.Block, ts string, warn io.Writer) (ccdaemon.StartResult, string, error) {
+func mirror(ctx context.Context, cl *ccdaemon.Client, b board, wr ccdaemon.Writer, onBoard bool, card *doc.Card, q doc.Block, ts string, warn io.Writer) (ccdaemon.StartResult, string, error) {
 	unposted, err := json.Marshal(card)
 	if err != nil {
 		return ccdaemon.StartResult{}, "", err
@@ -427,7 +427,7 @@ func mirror(ctx context.Context, cl *ccdaemon.Client, b board, wr ccdaemon.Write
 	if err != nil {
 		return ccdaemon.StartResult{}, "", err
 	}
-	res, err := cl.SlackCard(ctx, b.session, b.scope, b.pid, wr, blockJSON)
+	res, err := cl.SlackCard(ctx, b.session, b.scope, b.pid, wr, onBoard, blockJSON)
 	if err != nil {
 		return ccdaemon.StartResult{}, "", fmt.Errorf("card %q is posted in Slack at %s but not on the board: %w", card.ID, posted.Permalink, err)
 	}
@@ -608,7 +608,7 @@ func newSlackSyncCmd(d cmd.Deps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			_, err = cl.SlackCard(ctx, sess, mustCwd(cwd), pid, ccdaemon.Writer{}, blockJSON)
+			_, err = cl.SlackCard(ctx, sess, mustCwd(cwd), pid, ccdaemon.Writer{}, false, blockJSON)
 			return err
 		},
 	}

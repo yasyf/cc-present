@@ -192,14 +192,26 @@ func handleStart(hc ccd.HandlerCtx, pt doc.PackTypes, display displayFunc) ccd.R
 		}
 	}
 	slug := slugify(titleBase) + "--" + randomHex(4)
+	writeMu.Lock()
+	if b.Replace {
+		if err := admitReplace(hc, b.Writer); err != nil {
+			writeMu.Unlock()
+			return errReply(err.Error())
+		}
+	}
 	sub, _, err := hc.Subjects.Start(hc.Ctx, hc.Window, hc.Scope, slug, lifecycle, fresh)
+	writeMu.Unlock()
 	if err != nil {
 		return errReply(err.Error())
+	}
+	seedWriter := b.Writer
+	if fresh {
+		seedWriter.Rev = 0
 	}
 	var warnings []string
 	var seq int64
 	if d != nil {
-		if warnings, seq, err = appendSeedDoc(hc, sub.ID, b.Doc, d, b.Writer, b.Reopen, b.Reask); err != nil {
+		if warnings, seq, err = appendSeedDoc(hc, sub.ID, b.Doc, d, seedWriter, b.Reopen, b.Reask); err != nil {
 			return errReply(err.Error())
 		}
 	}
@@ -260,7 +272,7 @@ func appendSeedDoc(hc ccd.HandlerCtx, subID string, raw json.RawMessage, d *doc.
 		return nil, 0, err
 	}
 	retained := retainedTopIDs(st, d)
-	if err := w.admit(st, board.seq, changedTops(st, d, retained)...); err != nil {
+	if err := w.admitDoc(st, board.seq, d, retained); err != nil {
 		return nil, 0, err
 	}
 	rev, err := nextRevision(hc.Ctx, hc.DB, subID)
@@ -319,7 +331,7 @@ func handlePush(hc ccd.HandlerCtx, pt doc.PackTypes, display displayFunc) ccd.Re
 		return errReply(err.Error())
 	}
 	retained := retainedTopIDs(st, d)
-	if err := b.admit(st, board.seq, changedTops(st, d, retained)...); err != nil {
+	if err := b.admitDoc(st, board.seq, d, retained); err != nil {
 		return errReply(err.Error())
 	}
 	round := 0
@@ -425,7 +437,7 @@ func handleUpsertBlock(hc ccd.HandlerCtx, pt doc.PackTypes) ccd.Reply {
 		return errReply(err.Error())
 	}
 	w := b.Writer
-	w.keepOwner = b.After == "" && headOnly(st, blk)
+	w.keepOwner = !w.TakeOver && b.After == "" && headOnly(st, blk)
 	if err := w.admit(st, board.seq, st.UpsertTop(blk, b.After)); err != nil {
 		return errReply(err.Error())
 	}
@@ -695,6 +707,17 @@ func handleRevising(hc ccd.HandlerCtx) ccd.Reply {
 // is closed, its assets become collectable, so the close drives a GC sweep of
 // the asset store; a sweep failure surfaces in the reply even though the close
 // itself has already taken effect.
+func closeSubject(hc ccd.HandlerCtx, subID string, payload json.RawMessage) error {
+	writeMu.Lock()
+	defer writeMu.Unlock()
+	if _, err := appendEvent(hc.Ctx, hc.Append, &ccevent.Event{
+		SubjectID: subID, Origin: ccevent.OriginSystem, Type: EventPresentClosed, Payload: payload,
+	}); err != nil {
+		return err
+	}
+	return hc.Subjects.Store.SetStatus(hc.Ctx, subID, statusClosed)
+}
+
 func handleClose(hc ccd.HandlerCtx, ast *assets.Store) ccd.Reply {
 	b := decodeBody(hc.Env.Body)
 	sub, err := resolve(hc)
@@ -708,12 +731,7 @@ func handleClose(hc ccd.HandlerCtx, ast *assets.Store) ccd.Reply {
 	if b.Summary != "" {
 		payload = mustJSON(map[string]string{"summary": b.Summary})
 	}
-	if _, err := appendEvent(hc.Ctx, hc.Append, &ccevent.Event{
-		SubjectID: sub.ID, Origin: ccevent.OriginSystem, Type: EventPresentClosed, Payload: payload,
-	}); err != nil {
-		return errReply(err.Error())
-	}
-	if err := hc.Subjects.Store.SetStatus(hc.Ctx, sub.ID, statusClosed); err != nil {
+	if err := closeSubject(hc, sub.ID, payload); err != nil {
 		return errReply(err.Error())
 	}
 	if err := gcAssets(hc.Ctx, hc.DB, ast); err != nil {

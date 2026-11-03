@@ -10,6 +10,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/yasyf/cc-present/internal/doc"
+	"github.com/yasyf/cc-present/internal/state"
 )
 
 func readRev(t *testing.T, h *harness) int64 {
@@ -282,6 +283,119 @@ func TestAWriteFromTheRevASlackPostPrintedIsNotRefusedByThatPost(t *testing.T) {
 	}
 	if r := upsertAs(h, Writer{Lane: "card-mirror-2", Rev: posted.Rev}, syncedCardJSON); !r.OK {
 		t.Fatalf("a write from the rev the post replied %d: %s", posted.Rev, r.Error)
+	}
+}
+
+func TestASendLeavesTheCardUnownedAndAnotherLanesRedrawOfItsCardIsRefused(t *testing.T) {
+	h := newHarness(t)
+	unposted := strings.Replace(syncedCardJSON, `"slack":{"url":"`+slackPermalink+`"},`, "", 1)
+	startAs(t, h, "", `{"version":1,"title":"Board","blocks":[`+unposted+`]}`)
+	post := func(w Writer, posted bool, card string) ccd.Reply {
+		return handleSlackCard(h.hc(body{Writer: w, Posted: posted, Block: json.RawMessage(card)}), doc.NoPacks, nilDisplay)
+	}
+	if r := post(Writer{Lane: "card-mirror-2"}, true, syncedCardJSON); !r.OK {
+		t.Fatalf("the send: %s", r.Error)
+	}
+	st := reduceSubject(t, h, subjectOf(t, h))
+	if last, _ := st.Written("step-3:merge"); last.Lane != "card-mirror-2" || last.Owner != "" {
+		t.Fatalf("after a send the last write is %+v, want the sender named and no owner", last)
+	}
+	if r := upsertAs(h, Writer{Lane: "card-mirror-3"}, syncedCardJSON); !r.OK {
+		t.Fatalf("the write that claims the card: %s", r.Error)
+	}
+	redrawn := strings.Replace(syncedCardJSON, `"type":"card",`, `"type":"card","summary":"Redrawn.",`, 1)
+	if r := post(Writer{Lane: "card-mirror-2"}, false, redrawn); r.OK || !strings.Contains(r.Error, "lane card-mirror-3 owns it") {
+		t.Fatalf("another lane's Slack write of a changed card: %+v", r)
+	}
+}
+
+func TestAPostBindsToTheCardAsItStandsAfterAWriteLandedDuringThePost(t *testing.T) {
+	h := newHarness(t)
+	unposted := strings.Replace(syncedCardJSON, `"slack":{"url":"`+slackPermalink+`"},`, "", 1)
+	startAs(t, h, "card-mirror-2", `{"version":1,"title":"Board","blocks":[`+unposted+`]}`)
+	read := readRev(t, h)
+	redrawn := strings.Replace(unposted, `"type":"card",`, `"type":"card","summary":"Redrawn during the post.",`, 1)
+	if r := upsertAs(h, Writer{Lane: "card-mirror-2", Rev: read}, redrawn); !r.OK {
+		t.Fatalf("the write during the post: %s", r.Error)
+	}
+	r := handleSlackCard(h.hc(body{Writer: Writer{Lane: "board-refresher-6", Rev: read}, Posted: true, Block: json.RawMessage(syncedCardJSON)}), doc.NoPacks, nilDisplay)
+	if !r.OK {
+		t.Fatalf("recording the post: %s", r.Error)
+	}
+	card := reduceSubject(t, h, subjectOf(t, h)).Doc.Blocks[0].(*doc.Card)
+	if card.Slack == nil || card.Slack.URL != slackPermalink || card.Summary != "Redrawn during the post." {
+		t.Fatalf("card = %+v, want the redraw kept and the post bound to it", card)
+	}
+	if r := handleRemoveBlock(h.hc(body{Writer: Writer{Lane: "card-mirror-2"}, ID: card.ID})); !r.OK {
+		t.Fatalf("remove: %s", r.Error)
+	}
+	gone := handleSlackCard(h.hc(body{Writer: Writer{Lane: "board-refresher-6"}, Posted: true, Block: json.RawMessage(syncedCardJSON)}), doc.NoPacks, nilDisplay)
+	if gone.OK || !strings.Contains(gone.Error, "left the board") {
+		t.Fatalf("recording a post for a removed card: %+v", gone)
+	}
+}
+
+func TestAReplaceRefusedByAnOwnerLeavesTheBoardOpenAndATakeOverReplacesIt(t *testing.T) {
+	h := newHarness(t)
+	sub := startAs(t, h, "card-mirror-2", cardDoc)
+	replace := func(w Writer) ccd.Reply {
+		return handleStart(h.hc(body{Writer: w, Replace: true, Doc: json.RawMessage(`{"version":1,"title":"New","blocks":[]}`)}), doc.NoPacks, nilDisplay)
+	}
+	if r := replace(Writer{Lane: "board-refresher-6", Rev: 100000}); r.OK {
+		t.Fatalf("a replace from a rev past the board = ok, want a refusal")
+	}
+	if r := replace(Writer{Lane: "board-refresher-6"}); r.OK || !strings.Contains(r.Error, "lane card-mirror-2 owns it") {
+		t.Fatalf("another lane's replace: %+v", r)
+	}
+	if got := subjectOf(t, h); got != sub {
+		t.Fatalf("a refused replace moved the window to subject %s, want %s still open", got, sub)
+	}
+	if r := replace(Writer{Lane: "card-mirror-3", TakeOver: true}); !r.OK {
+		t.Fatalf("the successor's replace: %s", r.Error)
+	}
+	if got := subjectOf(t, h); got == sub {
+		t.Fatalf("the successor's replace left the old subject open")
+	}
+}
+
+func TestAStalePushCannotRevertATitleOrOrderAnotherLaneWrote(t *testing.T) {
+	h := newHarness(t)
+	startAs(t, h, "", `{"version":1,"title":"Board","blocks":[{"id":"m1","type":"markdown","md":"a"},{"id":"m2","type":"markdown","md":"b"}]}`)
+	read := readRev(t, h)
+	push := func(w Writer, d string) ccd.Reply {
+		return handlePush(h.hc(body{Writer: w, Doc: json.RawMessage(d), Round: "current"}), doc.NoPacks, nilDisplay)
+	}
+	if r := push(Writer{Lane: "card-mirror-2", Rev: read}, `{"version":1,"title":"Renamed","blocks":[{"id":"m2","type":"markdown","md":"b"},{"id":"m1","type":"markdown","md":"a"}]}`); !r.OK {
+		t.Fatalf("the rename: %s", r.Error)
+	}
+	if r := push(Writer{Lane: "board-refresher-6", Rev: read}, `{"version":1,"title":"Board","blocks":[{"id":"m1","type":"markdown","md":"a"},{"id":"m2","type":"markdown","md":"b"}]}`); r.OK || !strings.Contains(r.Error, "lane card-mirror-2 wrote them") {
+		t.Fatalf("a stale push of the old title and order: %+v", r)
+	}
+	if r := push(Writer{Lane: "board-refresher-6", Rev: read}, `{"version":1,"title":"Renamed","blocks":[{"id":"m2","type":"markdown","md":"b"},{"id":"m1","type":"markdown","md":"a"}]}`); !r.OK {
+		t.Fatalf("a stale push that keeps the title and order: %s", r.Error)
+	}
+}
+
+func TestAClosedBoardRefusesAWriteThatReachesTheLockAfterTheClose(t *testing.T) {
+	st := state.New()
+	st.Interactions.Closed.Value = true
+	if err := (Writer{Lane: "card-mirror-2"}).admit(&st, 1, "m1"); err == nil || !strings.Contains(err.Error(), "closed") {
+		t.Fatalf("admit on a closed board = %v", err)
+	}
+}
+
+func TestATakeOverIsKeptOnAHeadOnlyWriteAndEmptyFilesCountAsNoChange(t *testing.T) {
+	h := newHarness(t)
+	startAs(t, h, "card-mirror-2", `{"version":1,"title":"Board","blocks":[{"id":"c1","type":"card","children":[{"id":"p1","type":"pr","repo":"o/r","number":7,"head":"abc1234","files":[]}]}]}`)
+	if r := upsertAs(h, Writer{Lane: "board-refresher-7"}, `{"id":"p1","type":"pr","repo":"o/r","number":7,"head":"def5678"}`); !r.OK {
+		t.Fatalf("a head move that omits empty files: %s", r.Error)
+	}
+	if r := upsertAs(h, Writer{Lane: "card-mirror-3", TakeOver: true}, `{"id":"p1","type":"pr","repo":"o/r","number":7,"head":"0123456"}`); !r.OK {
+		t.Fatalf("a head move that takes the card over: %s", r.Error)
+	}
+	st := reduceSubject(t, h, subjectOf(t, h))
+	if last, _ := st.Written("c1"); last.Owner != "card-mirror-3" || last.TakenFrom != "card-mirror-2" {
+		t.Fatalf("last write = %+v, want card-mirror-3 owning it, taken from card-mirror-2", last)
 	}
 }
 

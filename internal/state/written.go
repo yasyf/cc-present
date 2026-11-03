@@ -1,6 +1,11 @@
 package state
 
-import "github.com/yasyf/cc-present/internal/doc"
+import (
+	"encoding/json"
+	"strings"
+
+	"github.com/yasyf/cc-present/internal/doc"
+)
 
 // Write is the agent write that last landed on a top-level block: the board
 // revision (event seq) it landed at, the lane that wrote it, whether it took
@@ -31,6 +36,26 @@ func (s *State) UpsertTop(b doc.Block, after string) string {
 		return loc.TopID
 	}
 	return b.BlockID()
+}
+
+// DocWritten returns the last agent write that changed the board's title,
+// header or block order.
+func (s *State) DocWritten() Write { return s.docWrite }
+
+// DocShape is what of d a block's own write rev does not cover: its header and
+// the order of its top-level blocks.
+func DocShape(d *doc.Doc) string {
+	header := *d
+	header.Blocks = nil
+	raw, err := json.Marshal(&header)
+	if err != nil {
+		panic(err)
+	}
+	ids := make([]string, len(d.Blocks))
+	for i, b := range d.Blocks {
+		ids[i] = b.BlockID()
+	}
+	return string(raw) + strings.Join(ids, ",")
 }
 
 type writer struct {

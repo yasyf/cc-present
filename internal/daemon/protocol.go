@@ -60,6 +60,7 @@ const (
 // envelope itself.
 type body struct {
 	Writer
+	Posted   bool            `json:"posted,omitempty"`   // slack-card: the card's Slack post is out; bind it to the card as it now stands
 	New      bool            `json:"new,omitempty"`      // start
 	Replace  bool            `json:"replace,omitempty"`  // start | import-verdicts
 	Title    string          `json:"title,omitempty"`    // start | round | push,upsert-block round-title

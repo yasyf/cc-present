@@ -190,6 +190,7 @@ type State struct {
 	Revising      Revising     `json:"revising"`
 	removed       map[string]Removed
 	writes        map[string]Write
+	docWrite      Write
 	roundStarts   RoundStarts
 }
 
@@ -320,6 +321,9 @@ func (s *State) apply(ev Event, up upsert) error {
 		prior := s.Rounds.BlockRounds
 		s.dropMissing(s.Doc.Blocks, p.Doc.doc.Blocks)
 		s.wroteDoc(ev.Seq, p.writer, s.Doc.Blocks, p.Doc.doc.Blocks, p.Retained)
+		if DocShape(s.Doc) != DocShape(p.Doc.doc) {
+			s.docWrite = Write{Rev: ev.Seq, Lane: p.Lane}
+		}
 		s.Doc = p.Doc.doc
 		s.Rounds.BlockRounds = map[string]int{}
 		for _, b := range s.Doc.Blocks {

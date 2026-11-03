@@ -209,9 +209,11 @@ func (cl *Client) OutcomesSince(ctx context.Context, session, scope string, pid 
 }
 
 // SlackCard puts a card synced with a Slack ask card on the window's board as
-// w, starting the board when the window has none open.
-func (cl *Client) SlackCard(ctx context.Context, session, scope string, pid int, w Writer, blockJSON json.RawMessage) (StartResult, error) {
-	reply, res, err := cl.do(ctx, OpSlackCard, session, scope, pid, body{Writer: w, Block: blockJSON})
+// w, starting the board when the window has none open. A posted card was read
+// off the board and its Slack post is out: the board binds the post to the card
+// as it now stands, whatever changed during the post.
+func (cl *Client) SlackCard(ctx context.Context, session, scope string, pid int, w Writer, posted bool, blockJSON json.RawMessage) (StartResult, error) {
+	reply, res, err := cl.do(ctx, OpSlackCard, session, scope, pid, body{Writer: w, Posted: posted, Block: blockJSON})
 	if err != nil {
 		return StartResult{}, err
 	}

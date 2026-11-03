@@ -2,7 +2,8 @@ package daemon
 
 import (
 	"fmt"
-	"reflect"
+
+	ccd "github.com/yasyf/cc-interact/daemon"
 
 	"github.com/yasyf/cc-present/internal/doc"
 	"github.com/yasyf/cc-present/internal/state"
@@ -25,6 +26,9 @@ type Writer struct {
 // another lane owns and w does not take it over. head is the board's revision
 // now.
 func (w Writer) admit(st *state.State, head int64, ids ...string) error {
+	if st.Interactions.Closed.Value {
+		return fmt.Errorf("refusing to write: this board is closed; start a new one")
+	}
 	if w.TakeOver && w.Lane == "" {
 		return fmt.Errorf("--take-over needs --lane naming the lane that takes the card over")
 	}
@@ -50,6 +54,35 @@ func (w Writer) admit(st *state.State, head int64, ids ...string) error {
 	return nil
 }
 
+// admitDoc is admit for a write of a whole document d, which also refuses to
+// overwrite a title, header or block order written after the revision w read.
+func (w Writer) admitDoc(st *state.State, head int64, d *doc.Doc, retained []string) error {
+	if last := st.DocWritten(); w.Rev > 0 && last.Rev > w.Rev && state.DocShape(st.Doc) != state.DocShape(d) {
+		return fmt.Errorf("refusing to write this board's title, header or block order: %s wrote them at rev %d, after rev %d that you read; read the board again, rebuild this write from that read, and retry with the rev it prints",
+			LaneName(last.Lane), last.Rev, w.Rev)
+	}
+	return w.admit(st, head, changedTops(st, d, retained)...)
+}
+
+// admitReplace refuses w's replacing the window's open board when w's write to
+// every block on that board would be refused.
+func admitReplace(hc ccd.HandlerCtx, w Writer) error {
+	cur, ok, err := hc.Subjects.Find(hc.Ctx, hc.Window, hc.Scope)
+	if err != nil || !ok || cur.Status == statusClosed {
+		return err
+	}
+	board, err := caughtUp(hc.Ctx, hc.DB, cur.ID)
+	if err != nil {
+		return err
+	}
+	defer board.mu.Unlock()
+	ids := make([]string, 0, len(board.st.Doc.Blocks))
+	for _, b := range board.st.Doc.Blocks {
+		ids = append(ids, b.BlockID())
+	}
+	return w.admit(&board.st, board.seq, ids...)
+}
+
 // headOnly reports whether b rewrites a pr block already on the board with
 // nothing changed but its head, the redraw any lane may make of a moved PR on a
 // card another lane owns.
@@ -68,7 +101,7 @@ func headOnly(st *state.State, b doc.Block) bool {
 	}
 	moved := *prior
 	moved.Head = next.Head
-	return reflect.DeepEqual(&moved, next)
+	return string(mustJSON(&moved)) == string(mustJSON(next))
 }
 
 // LaneName names the lane a write recorded, or says the writer named none.

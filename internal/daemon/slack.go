@@ -74,6 +74,17 @@ func handleSlackCard(hc ccd.HandlerCtx, pt doc.PackTypes, display displayFunc) c
 	}
 	defer board.mu.Unlock()
 	st := &board.st
+	cardJSON := b.Block
+	if b.Posted {
+		loc, ok := doc.Locate(st.Doc, card.ID)
+		current, isCard := loc.Block.(*doc.Card)
+		if !ok || !isCard {
+			return errReply(fmt.Sprintf("card %q left the board while its Slack card posted", card.ID))
+		}
+		bound := *current
+		bound.Slack = card.Slack
+		card, cardJSON = &bound, mustJSON(&bound)
+	}
 	if err := admitCard(hc, sub.ID, st, board.retired, card); err != nil {
 		return errReply(err.Error())
 	}
@@ -81,7 +92,10 @@ func handleSlackCard(hc ccd.HandlerCtx, pt doc.PackTypes, display displayFunc) c
 		return errReply(err.Error())
 	}
 	w := b.Writer
-	w.keepOwner = postsCurrent(st.Doc, card)
+	w.keepOwner = !w.TakeOver && postsCurrent(st.Doc, card)
+	if b.Posted {
+		w.Rev = 0
+	}
 	if err := w.admit(st, board.seq, card.ID); err != nil {
 		return errReply(err.Error())
 	}
@@ -103,7 +117,7 @@ func handleSlackCard(hc ccd.HandlerCtx, pt doc.PackTypes, display displayFunc) c
 		}
 	} else if seq, err = appendEvent(hc.Ctx, hc.Append, &ccevent.Event{
 		SubjectID: sub.ID, Origin: ccevent.OriginAgent, Type: EventBlockUpserted,
-		Payload: blockUpsertedPayload(b.Block, "", w),
+		Payload: blockUpsertedPayload(cardJSON, "", w),
 	}); err != nil {
 		return errReply(err.Error())
 	}
@@ -166,7 +180,7 @@ func handleSlackCardCheck(hc ccd.HandlerCtx, pt doc.PackTypes) ccd.Reply {
 		return errReply(err.Error())
 	}
 	w := b.Writer
-	w.keepOwner = postsCurrent(st.Doc, card)
+	w.keepOwner = !w.TakeOver && postsCurrent(st.Doc, card)
 	if err := w.admit(st, head, card.ID); err != nil {
 		return errReply(err.Error())
 	}
@@ -312,6 +326,8 @@ func recordAnswer(ctx context.Context, appendFn ccd.AppendFunc, subID string, ca
 	return err
 }
 
+const slackAnswerLane = "slack-answer"
+
 func settleCard(ctx context.Context, appendFn ccd.AppendFunc, subID string, card *doc.Card, note string) error {
 	resolved := *card
 	resolved.Status = slackcards.Resolved
@@ -320,7 +336,7 @@ func settleCard(ctx context.Context, appendFn ccd.AppendFunc, subID string, card
 		return err
 	}
 	if _, err := appendEvent(ctx, appendFn, &ccevent.Event{
-		SubjectID: subID, Origin: ccevent.OriginAgent, Type: EventBlockUpserted, Payload: blockUpsertedPayload(raw, "", Writer{}),
+		SubjectID: subID, Origin: ccevent.OriginAgent, Type: EventBlockUpserted, Payload: blockUpsertedPayload(raw, "", Writer{Lane: slackAnswerLane, keepOwner: true}),
 	}); err != nil {
 		return err
 	}

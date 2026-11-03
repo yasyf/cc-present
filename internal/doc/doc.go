@@ -106,6 +106,7 @@ type Doc struct {
 	Stats        []Stat            `json:"stats,omitempty"`
 	Submit       *Submit           `json:"submit,omitempty"`
 	Presentation *string           `json:"presentation,omitempty"`
+	Proof        bool              `json:"proof,omitempty"`
 	Sources      map[string]string `json:"sources,omitempty"`
 	Blocks       []Block           `json:"blocks"`
 }
