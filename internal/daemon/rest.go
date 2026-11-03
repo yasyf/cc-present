@@ -199,7 +199,7 @@ func (rs *restServer) handleInteractions(w http.ResponseWriter, r *http.Request)
 	board := boardFor(rs.db(), id)
 	board.answering.Lock()
 	defer board.answering.Unlock()
-	seq, card, ch, status, err := rs.recordInteraction(r.Context(), board, id, &req)
+	seq, card, q, status, err := rs.recordInteraction(r.Context(), board, id, &req)
 	if err != nil {
 		http.Error(w, err.Error(), status)
 		return
@@ -217,7 +217,7 @@ func (rs *restServer) handleInteractions(w http.ResponseWriter, r *http.Request)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		if err := rs.answerOnSlack(context.WithoutCancel(r.Context()), board, id, card, ch, &req.Interaction, "http://"+r.Host+"/p/"+slug); err != nil {
+		if err := rs.answerOnSlack(context.WithoutCancel(r.Context()), board, id, card, q, &req.Interaction, "http://"+r.Host+"/p/"+slug); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -225,7 +225,7 @@ func (rs *restServer) handleInteractions(w http.ResponseWriter, r *http.Request)
 	writeJSON(w, http.StatusOK, map[string]any{"seq": seq})
 }
 
-func (rs *restServer) recordInteraction(ctx context.Context, board *reducedBoard, id string, req *interactionReq) (int64, *doc.Card, *doc.Choice, int, error) {
+func (rs *restServer) recordInteraction(ctx context.Context, board *reducedBoard, id string, req *interactionReq) (int64, *doc.Card, doc.Block, int, error) {
 	if err := board.lock(ctx, rs.db(), id); err != nil {
 		return 0, nil, nil, http.StatusInternalServerError, err
 	}
@@ -238,7 +238,7 @@ func (rs *restServer) recordInteraction(ctx context.Context, board *reducedBoard
 	if err != nil {
 		return 0, nil, nil, http.StatusBadRequest, err
 	}
-	card, ch := slackQuestion(st, &req.Interaction)
+	card, q := slackQuestion(st, &req.Interaction)
 	if card != nil && card.Status == slackcards.Resolved {
 		return 0, nil, nil, http.StatusConflict, fmt.Errorf("card %q is already answered", card.ID)
 	}
@@ -250,7 +250,7 @@ func (rs *restServer) recordInteraction(ctx context.Context, board *reducedBoard
 	if err != nil {
 		return 0, nil, nil, http.StatusInternalServerError, err
 	}
-	return seq, card, ch, http.StatusOK, nil
+	return seq, card, q, http.StatusOK, nil
 }
 
 // validateInteraction checks one interaction against the reduced document and

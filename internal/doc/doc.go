@@ -124,7 +124,8 @@ type Chip struct {
 // Card is a top-level container that nests one level of child blocks. Status is
 // agent-owned display state; it never records a human verdict. Slack, when set,
 // links the cc-slack ask card that asks the same question; an answer on either
-// surface answers both.
+// surface answers both. Mirror false keeps a card on the board only; a card that
+// states nothing mirrors.
 type Card struct {
 	base
 	Title    string     `json:"title,omitempty"`
@@ -133,8 +134,12 @@ type Card struct {
 	Flagged  bool       `json:"flagged,omitempty"`
 	Status   string     `json:"status,omitempty"`
 	Slack    *CardSlack `json:"slack,omitempty"`
+	Mirror   *bool      `json:"mirror,omitempty"`
 	Children []Block    `json:"children"`
 }
+
+// Mirrors reports whether the card's question also goes to Slack.
+func (c *Card) Mirrors() bool { return c.Mirror == nil || *c.Mirror }
 
 // CardSlack is the Slack ask card a card is synced with: URL is its permalink.
 type CardSlack struct {
@@ -509,21 +514,26 @@ func (g *PRGroups) Thread() string {
 
 // KeepSlack gives every incoming pr-groups block that states no slack the
 // thread its namesake in cur is bound to, so a binding holds until a push
-// states an empty slack. It reports whether it bound any block.
+// states an empty slack, and every incoming card that states no slack the Slack
+// card its namesake is synced with, so rewriting a card never orphans its post.
+// It reports whether it bound any block.
 func KeepSlack(cur *Doc, blocks []Block) bool {
 	kept := false
 	for _, b := range blocks {
 		Walk(b, func(b Block) {
-			g, ok := b.(*PRGroups)
-			if !ok || g.Slack != nil {
-				return
-			}
-			loc, found := Locate(cur, g.ID)
-			if !found {
-				return
-			}
-			if prev, ok := loc.Block.(*PRGroups); ok && prev.Thread() != "" {
-				g.Slack, kept = prev.Slack, true
+			switch b := b.(type) {
+			case *PRGroups:
+				if loc, found := Locate(cur, b.ID); found && b.Slack == nil {
+					if prev, ok := loc.Block.(*PRGroups); ok && prev.Thread() != "" {
+						b.Slack, kept = prev.Slack, true
+					}
+				}
+			case *Card:
+				if loc, found := Locate(cur, b.ID); found && b.Slack == nil {
+					if prev, ok := loc.Block.(*Card); ok && prev.Slack != nil {
+						b.Slack, kept = prev.Slack, true
+					}
+				}
 			}
 		})
 	}
@@ -626,6 +636,7 @@ func decodeCard(data json.RawMessage, unmarshal unmarshalFunc) (Block, error) {
 		Flagged  bool              `json:"flagged"`
 		Status   string            `json:"status"`
 		Slack    *CardSlack        `json:"slack"`
+		Mirror   *bool             `json:"mirror"`
 		Children []json.RawMessage `json:"children"`
 	}
 	if err := unmarshal(data, &raw); err != nil {
@@ -643,6 +654,7 @@ func decodeCard(data json.RawMessage, unmarshal unmarshalFunc) (Block, error) {
 		Flagged:  raw.Flagged,
 		Status:   raw.Status,
 		Slack:    raw.Slack,
+		Mirror:   raw.Mirror,
 		Children: children,
 	}, nil
 }

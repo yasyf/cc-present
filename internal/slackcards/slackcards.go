@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"os/exec"
+	"reflect"
 	"regexp"
 	"slices"
 	"strings"
@@ -25,6 +26,8 @@ const (
 	explainLabel    = "Explain more"
 	recommendedMark = "(Recommended)"
 	maxTitle        = 140
+	maxLabel        = 61
+	maxAnswers      = 4
 )
 
 // Resolved is the status a synced card takes once either surface answers it.
@@ -104,64 +107,133 @@ type SlackAnswer struct {
 // AnswerID is the id FromSlack gives the choice holding a card's answers.
 func AnswerID(cardID string) string { return cardID + answerSuffix }
 
-// Question returns a synced card's one choice, the question both surfaces ask.
-func Question(c *doc.Card) (*doc.Choice, bool) {
-	var question *doc.Choice
+func answerBlocks(c *doc.Card) []doc.Block {
+	var found []doc.Block
 	for _, child := range c.Children {
-		if ch, ok := child.(*doc.Choice); ok {
-			if question != nil {
-				return nil, false
-			}
-			question = ch
+		switch child.(type) {
+		case *doc.Choice, *doc.Approval, *doc.Input, *doc.Triage:
+			found = append(found, child)
 		}
 	}
-	return question, question != nil
+	return found
 }
 
-// Check enforces the rules a card follows on both surfaces: one single-select
-// question whose answers are distinct, exactly one of them recommended, and none
-// of them Other or Explain more, since both surfaces draw those themselves.
-// cc-slack holds the card to Slack's own limits when it posts it.
-func Check(c *doc.Card) (*doc.Choice, error) {
-	ch, ok := Question(c)
+// Asks reports whether a card takes any answer from the human.
+func Asks(c *doc.Card) bool { return len(answerBlocks(c)) > 0 }
+
+// Question returns a synced card's one question, the choice, approval, or input
+// both surfaces ask. A card with more than one, or with a triage, has none.
+func Question(c *doc.Card) (doc.Block, bool) {
+	found := answerBlocks(c)
+	if len(found) != 1 {
+		return nil, false
+	}
+	if _, triage := found[0].(*doc.Triage); triage {
+		return nil, false
+	}
+	return found[0], true
+}
+
+func prompt(q doc.Block) string {
+	switch q := q.(type) {
+	case *doc.Choice:
+		return q.Prompt
+	case *doc.Approval:
+		return q.Prompt
+	case *doc.Input:
+		return q.Label
+	}
+	return ""
+}
+
+// Check enforces the rules a card follows on both surfaces: it asks one
+// question, in words, and a choice takes one of at most four distinct answers,
+// at most one of them recommended and none of them Other or Explain more, since
+// both surfaces draw those themselves. cc-slack holds the card to Slack's own
+// limits when it posts it.
+func Check(c *doc.Card) (doc.Block, error) {
+	if !c.Mirrors() {
+		return nil, fmt.Errorf("card %q says mirror false, so it stays on the board", c.ID)
+	}
+	q, ok := Question(c)
 	if !ok {
-		return nil, fmt.Errorf("card %q asks one question: exactly one choice child", c.ID)
+		return nil, fmt.Errorf("card %q asks one question in Slack: exactly one choice, approval, or input child", c.ID)
+	}
+	if cmp.Or(c.Title, prompt(q)) == "" {
+		return nil, fmt.Errorf("card %q needs a title, which Slack shows as the question", c.ID)
+	}
+	ch, ok := q.(*doc.Choice)
+	if !ok {
+		return q, nil
 	}
 	if ch.Multi {
-		return nil, fmt.Errorf("choice %q takes one answer; it must be single-select", ch.ID)
+		return nil, fmt.Errorf("choice %q takes one answer in Slack; it must be single-select", ch.ID)
+	}
+	if len(ch.Options) > maxAnswers {
+		return nil, fmt.Errorf("choice %q offers %d answers; Slack shows at most %d", ch.ID, len(ch.Options), maxAnswers)
 	}
 	var labels []string
 	recommended := 0
 	for _, o := range ch.Options {
+		label := clip(o.Label, maxLabel)
 		switch {
 		case o.Label == otherLabel || o.Label == explainLabel:
 			return nil, fmt.Errorf("choice %q answer %q: both surfaces draw %s and %s themselves", ch.ID, o.ID, otherLabel, explainLabel)
 		case strings.Contains(o.Label, recommendedMark):
 			return nil, fmt.Errorf("choice %q answer %q: mark the recommended answer with recommended, never %s in its label", ch.ID, o.ID, recommendedMark)
-		case slices.Contains(labels, o.Label):
-			return nil, fmt.Errorf("choice %q repeats the answer %q", ch.ID, o.Label)
+		case slices.Contains(labels, label):
+			return nil, fmt.Errorf("choice %q repeats the answer %q", ch.ID, label)
 		}
-		labels = append(labels, o.Label)
+		labels = append(labels, label)
 		if o.Recommended {
 			recommended++
 		}
 	}
-	if recommended != 1 {
-		return nil, fmt.Errorf("choice %q recommends %d answers; a synced card recommends exactly one", ch.ID, recommended)
+	if recommended > 1 {
+		return nil, fmt.Errorf("choice %q recommends %d answers; a synced card recommends at most one", ch.ID, recommended)
 	}
 	return ch, nil
 }
 
+// Nudge says why a top-level block that asks something stays off Slack and what
+// its author should do about it, or "" when it reaches Slack or says it will not.
+func Nudge(b doc.Block) string {
+	switch b := b.(type) {
+	case *doc.Card:
+		if !b.Mirrors() || !Asks(b) {
+			return ""
+		}
+		if _, err := Check(b); err != nil {
+			return fmt.Sprintf(`%v; it stays on the board only, so set "mirror": false on it`, err)
+		}
+	case *doc.Choice, *doc.Approval, *doc.Input:
+		return fmt.Sprintf("%s %q stays on the board only; put it in a card to reach Slack", b.BlockType(), b.BlockID())
+	}
+	return ""
+}
+
 // ToSlack is the cc-slack card for a card Check passed.
-func ToSlack(c *doc.Card, ch *doc.Choice) StatusCard {
-	sc := StatusCard{Status: "needs_you", Title: bounded(c.Title), Body: c.Summary, Waits: c.ID}
-	for _, o := range ch.Options {
-		sc.Options = append(sc.Options, o.Label)
-		if o.Recommended {
-			sc.Recommended = o.Label
+func ToSlack(c *doc.Card, q doc.Block) StatusCard {
+	sc := StatusCard{Status: "needs_you", Title: clip(cmp.Or(c.Title, prompt(q)), maxTitle), Waits: c.ID}
+	parts := []string{c.Summary}
+	if c.Title != "" {
+		parts = append(parts, prompt(q))
+	}
+	switch q := q.(type) {
+	case *doc.Approval:
+		sc.Options = []string{approveLabel, rejectLabel}
+	case *doc.Choice:
+		for _, o := range q.Options {
+			label := clip(o.Label, maxLabel)
+			sc.Options = append(sc.Options, label)
+			if o.Recommended {
+				sc.Recommended = label
+			}
+			if line := optionLine(o, label); line != "" {
+				parts = append(parts, line)
+			}
 		}
 	}
-	parts := []string{c.Summary}
 	for _, child := range c.Children {
 		switch b := child.(type) {
 		case *doc.Markdown:
@@ -175,16 +247,67 @@ func ToSlack(c *doc.Card, ch *doc.Choice) StatusCard {
 			parts = append(parts, fmt.Sprintf("<%s|%s PR %d>", url, name, b.Number))
 		}
 	}
-	sc.Body = strings.Join(slices.DeleteFunc(parts, func(s string) bool { return s == "" }), "\n")
+	sc.Body = clip(strings.Join(slices.DeleteFunc(parts, func(s string) bool { return s == "" }), "\n"), maxBody)
 	return sc
 }
 
-func bounded(title string) string {
-	runes := []rune(title)
-	if len(runes) <= maxTitle {
-		return title
+func optionLine(o doc.Option, label string) string {
+	switch {
+	case o.Hint != "" && label != o.Label:
+		return "• *" + o.Label + ":* " + o.Hint
+	case o.Hint != "":
+		return "• *" + label + ":* " + o.Hint
+	case label != o.Label:
+		return "• *" + o.Label + "*"
 	}
-	return string(runes[:maxTitle-1]) + "…"
+	return ""
+}
+
+func clip(s string, limit int) string {
+	runes := []rune(s)
+	if len(runes) <= limit {
+		return s
+	}
+	return string(runes[:limit-1]) + "…"
+}
+
+// Image is a picture a card shows, and the words that say which one it is.
+type Image struct {
+	Src   string
+	Title string
+}
+
+// Images is every picture a card shows: its image children, and the image each
+// option carries, named for that option.
+func Images(c *doc.Card) []Image {
+	var images []Image
+	for _, child := range c.Children {
+		switch b := child.(type) {
+		case *doc.Image:
+			images = append(images, Image{b.Src, cmp.Or(b.Caption, b.Alt)})
+		case *doc.Choice:
+			for _, o := range b.Options {
+				if v, ok := o.Visual.(*doc.Image); ok {
+					images = append(images, Image{v.Src, o.Label})
+				}
+			}
+		}
+	}
+	return images
+}
+
+// Same reports whether two cards ask the same thing in Slack, so posting the
+// second over the first would change nothing.
+func Same(a, b *doc.Card) bool {
+	qa, oka := Question(a)
+	qb, okb := Question(b)
+	return oka && okb && reflect.DeepEqual(ToSlack(a, qa), ToSlack(b, qb)) && slices.Equal(Images(a), Images(b))
+}
+
+// Installed reports whether cc-slack is here to carry a card to Slack.
+func Installed() bool {
+	_, err := exec.LookPath("cc-slack")
+	return err == nil
 }
 
 // FromSlack is the board card for a waiting card cc-slack posted, as block JSON.
@@ -216,7 +339,7 @@ func FromSlack(p Posted) (json.RawMessage, error) {
 func Selection(ch *doc.Choice, label string, other bool) ([]string, string) {
 	if !other {
 		for _, o := range ch.Options {
-			if o.Label == label {
+			if clip(o.Label, maxLabel) == label {
 				return []string{o.ID}, ""
 			}
 		}
@@ -228,10 +351,30 @@ func Selection(ch *doc.Choice, label string, other bool) ([]string, string) {
 func Label(ch *doc.Choice, optionIDs []string, other string) (string, bool) {
 	for _, o := range ch.Options {
 		if len(optionIDs) > 0 && o.ID == optionIDs[0] {
-			return o.Label, false
+			return clip(o.Label, maxLabel), false
 		}
 	}
 	return other, true
+}
+
+// ApprovalVerdict is the verdict an answer given on Slack makes on an approval,
+// and its note: words written in instead of a button reject, with those words.
+func ApprovalVerdict(label string, other bool) (verdict, note string) {
+	switch {
+	case other:
+		return "rejected", label
+	case label == approveLabel:
+		return "approved", ""
+	}
+	return "rejected", ""
+}
+
+// ApprovalLabel is the button a board verdict presses in Slack.
+func ApprovalLabel(verdict string) string {
+	if verdict == "approved" {
+		return approveLabel
+	}
+	return rejectLabel
 }
 
 // CCSlack runs the cc-slack CLI with args and returns its stdout, or an error
@@ -250,6 +393,7 @@ func CCSlack(ctx context.Context, args ...string) ([]byte, error) {
 
 const (
 	approveLabel = "Approve"
+	rejectLabel  = "Reject"
 	holdLabel    = "Hold"
 	shortHead    = 7
 	rowHead      = 12
@@ -302,7 +446,7 @@ func GroupCard(g *doc.PRGroups, group doc.PRGroup, verdicts map[string]state.Dec
 	key := g.ID + ":" + group.ID
 	cards := make([]StatusCard, max(1, len(pages), (max(len(group.PRs), held)+maxGroupRows-1)/maxGroupRows))
 	for i := range cards {
-		cards[i] = StatusCard{Status: "done", Title: bounded(group.Title), Group: key}
+		cards[i] = StatusCard{Status: "done", Title: clip(group.Title, maxTitle), Group: key}
 		if i > 0 {
 			cards[i].Group = fmt.Sprintf("%s:%d", key, i+1)
 		}
@@ -312,7 +456,7 @@ func GroupCard(g *doc.PRGroups, group doc.PRGroup, verdicts map[string]state.Dec
 		}
 		cards[i].Rows, cards[i].Status = pages[i], "needs_you"
 		if len(pages) > 1 {
-			cards[i].Title = bounded(fmt.Sprintf("%s (%d of %d)", group.Title, i+1, len(pages)))
+			cards[i].Title = clip(fmt.Sprintf("%s (%d of %d)", group.Title, i+1, len(pages)), maxTitle)
 		}
 	}
 	cards[0].Body = groupBody(group.Summary, settled)

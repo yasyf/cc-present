@@ -180,16 +180,18 @@ func handleSlackAnswer(hc ccd.HandlerCtx) ccd.Reply {
 	}
 	defer board.mu.Unlock()
 	st := &board.st
-	card, ch, err := syncedCard(st.Doc, a.Waits)
+	card, q, err := syncedCard(st.Doc, a.Waits)
 	if err != nil {
 		return errReply(err.Error())
 	}
 	if card.Status == slackcards.Resolved {
 		return okReply(result{})
 	}
-	ids, other := slackcards.Selection(ch, a.Label, a.Other)
+	if err := recordAnswer(hc.Ctx, hc.Append, sub.ID, q, a.Label, a.Other); err != nil {
+		return errReply(err.Error())
+	}
 	note := fmt.Sprintf("Answered on [Slack](%s) at %s: **%s**", a.Permalink, a.At.Local().Format(time.Kitchen), a.Label)
-	if err := settleCard(hc.Ctx, hc.Append, sub.ID, card, ch, ids, other, note); err != nil {
+	if err := settleCard(hc.Ctx, hc.Append, sub.ID, card, note); err != nil {
 		return errReply(err.Error())
 	}
 	return okReply(result{})
@@ -237,7 +239,7 @@ func handleSlackDecided(hc ccd.HandlerCtx) ccd.Reply {
 	return okReply(result{})
 }
 
-func syncedCard(d *doc.Doc, id string) (*doc.Card, *doc.Choice, error) {
+func syncedCard(d *doc.Doc, id string) (*doc.Card, doc.Block, error) {
 	loc, ok := doc.Locate(d, id)
 	if !ok || loc.Kind != doc.TopLevel {
 		return nil, nil, fmt.Errorf("no card %q on this board", id)
@@ -246,25 +248,39 @@ func syncedCard(d *doc.Doc, id string) (*doc.Card, *doc.Choice, error) {
 	if !ok || card.Slack == nil {
 		return nil, nil, fmt.Errorf("block %q is not a card synced with Slack", id)
 	}
-	ch, ok := slackcards.Question(card)
+	q, ok := slackcards.Question(card)
 	if !ok {
 		return nil, nil, fmt.Errorf("card %q asks no single question", id)
 	}
-	return card, ch, nil
+	return card, q, nil
 }
 
-func settleCard(ctx context.Context, appendFn ccd.AppendFunc, subID string, card *doc.Card, ch *doc.Choice, ids []string, other, note string) error {
-	if ids != nil {
-		p := map[string]any{"blockId": ch.ID, "optionIds": ids}
-		if other != "" {
-			p["other"] = other
+func recordAnswer(ctx context.Context, appendFn ccd.AppendFunc, subID string, q doc.Block, label string, other bool) error {
+	p := map[string]any{"blockId": q.BlockID()}
+	var eventType string
+	switch q := q.(type) {
+	case *doc.Choice:
+		ids, written := slackcards.Selection(q, label, other)
+		eventType, p["optionIds"] = EventChoiceSelected, ids
+		if written != "" {
+			p["other"] = written
 		}
-		if _, err := appendEvent(ctx, appendFn, &ccevent.Event{
-			SubjectID: subID, Origin: ccevent.OriginAgent, Type: EventChoiceSelected, Payload: mustJSON(p),
-		}); err != nil {
-			return err
+	case *doc.Approval:
+		verdict, note := slackcards.ApprovalVerdict(label, other)
+		eventType, p["verdict"] = EventDecisionCreated, verdict
+		if note != "" {
+			p["note"] = note
 		}
+	case *doc.Input:
+		eventType, p["text"] = EventInputSubmitted, label
 	}
+	_, err := appendEvent(ctx, appendFn, &ccevent.Event{
+		SubjectID: subID, Origin: ccevent.OriginAgent, Type: eventType, Payload: mustJSON(p),
+	})
+	return err
+}
+
+func settleCard(ctx context.Context, appendFn ccd.AppendFunc, subID string, card *doc.Card, note string) error {
 	resolved := *card
 	resolved.Status = slackcards.Resolved
 	raw, err := json.Marshal(&resolved)
@@ -286,29 +302,51 @@ func settleCard(ctx context.Context, appendFn ccd.AppendFunc, subID string, card
 	return err
 }
 
-func slackQuestion(st *state.State, it *interaction) (*doc.Card, *doc.Choice) {
-	if it.Type != EventChoiceSelected {
+func answersQuestion(it *interaction) bool {
+	switch it.Type {
+	case EventChoiceSelected:
+		return true
+	case EventDecisionCreated:
+		return it.Verdict != "cleared"
+	case EventInputSubmitted:
+		return !visuallyEmpty(it.Text)
+	}
+	return false
+}
+
+func slackQuestion(st *state.State, it *interaction) (*doc.Card, doc.Block) {
+	if !answersQuestion(it) {
 		return nil, nil
 	}
 	loc, ok := doc.Locate(st.Doc, it.BlockID)
 	if !ok || loc.Kind != doc.CardChild {
 		return nil, nil
 	}
-	card, ch, err := syncedCard(st.Doc, loc.TopID)
-	if err != nil || ch.ID != it.BlockID {
+	card, q, err := syncedCard(st.Doc, loc.TopID)
+	if err != nil || q.BlockID() != it.BlockID {
 		return nil, nil
 	}
-	return card, ch
+	return card, q
 }
 
-func (rs *restServer) answerOnSlack(ctx context.Context, board *reducedBoard, subID string, card *doc.Card, ch *doc.Choice, it *interaction, via string) error {
-	label, other := slackcards.Label(ch, it.OptionIDs, it.Other)
+func boardLabel(q doc.Block, it *interaction) (string, bool) {
+	switch q := q.(type) {
+	case *doc.Choice:
+		return slackcards.Label(q, it.OptionIDs, it.Other)
+	case *doc.Approval:
+		return slackcards.ApprovalLabel(it.Verdict), false
+	}
+	return it.Text, true
+}
+
+func (rs *restServer) answerOnSlack(ctx context.Context, board *reducedBoard, subID string, card *doc.Card, q doc.Block, it *interaction, via string) error {
+	label, other := boardLabel(q, it)
 	res, err := rs.answerSlack(ctx, card.ID, card.Slack.URL, label, other, via)
 	if lerr := board.lock(ctx, rs.db(), subID); lerr != nil {
 		return lerr
 	}
 	defer board.mu.Unlock()
-	current, currentCh, lerr := syncedCard(board.st.Doc, card.ID)
+	current, currentQ, lerr := syncedCard(board.st.Doc, card.ID)
 	if lerr != nil || current.Status == slackcards.Resolved || current.Slack.URL != card.Slack.URL {
 		return nil
 	}
@@ -320,11 +358,12 @@ func (rs *restServer) answerOnSlack(ctx context.Context, board *reducedBoard, su
 		})
 		return err
 	case res.Answered:
-		ids, written := slackcards.Selection(currentCh, label, other)
-		return settleCard(ctx, rs.append, subID, current, currentCh, ids, written, "")
+		return settleCard(ctx, rs.append, subID, current, "")
 	default:
-		ids, written := slackcards.Selection(currentCh, res.Label, res.Other)
-		return settleCard(ctx, rs.append, subID, current, currentCh, ids, written, fmt.Sprintf("The [Slack card](%s) was answered first: **%s**. This pick did not count.", card.Slack.URL, res.Label))
+		if err := recordAnswer(ctx, rs.append, subID, currentQ, res.Label, res.Other); err != nil {
+			return err
+		}
+		return settleCard(ctx, rs.append, subID, current, fmt.Sprintf("The [Slack card](%s) was answered first: **%s**. This pick did not count.", card.Slack.URL, res.Label))
 	}
 }
 

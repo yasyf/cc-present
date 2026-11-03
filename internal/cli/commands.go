@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -162,10 +163,16 @@ func dryRunReport(ctx context.Context, dd *doc.Doc, pt doc.PackTypes, root strin
 	if err := dd.Validate(pt); err != nil {
 		return err.Error(), false
 	}
+	lines := []string{"ok"}
 	if hint := unresolvedRefsHint(unresolved); hint != "" {
-		return "ok\n" + hint, true
+		lines = append(lines, hint)
 	}
-	return "ok", true
+	for _, b := range dd.Blocks {
+		if nudge := slackcards.Nudge(b); nudge != "" {
+			lines = append(lines, "warning: "+nudge)
+		}
+	}
+	return strings.Join(lines, "\n"), true
 }
 
 // liveSources reads the source aliases of the artifact's current document, so
@@ -284,6 +291,8 @@ func newStartCmd(d cmd.Deps) *cobra.Command {
 			defer func() { _ = cl.CloseSession() }()
 			sess, scope, pid := sessionOr(session), mustCwd(cwd), d.ClaudePID()
 			var docJSON json.RawMessage
+			var blocks []doc.Block
+			before := &sendBoard{}
 			if docPath != "" {
 				raw, err := readInput(docPath, c.InOrStdin())
 				if err != nil {
@@ -296,7 +305,7 @@ func newStartCmd(d cmd.Deps) *cobra.Command {
 				if err := fillCode(ctx, dd.Blocks, root); err != nil {
 					return err
 				}
-				_, port, err := cl.Resolve(ctx, sess, scope, pid)
+				subjectID, port, err := cl.Resolve(ctx, sess, scope, pid)
 				if err != nil {
 					return err
 				}
@@ -313,6 +322,12 @@ func newStartCmd(d cmd.Deps) *cobra.Command {
 				if docJSON, err = json.Marshal(dd); err != nil {
 					return err
 				}
+				blocks = dd.Blocks
+				if subjectID != "" && !replace && !fresh {
+					if before, err = readBoard(ctx, cl, board{sess, scope, pid}); err != nil {
+						return err
+					}
+				}
 			}
 			res, err := cl.Start(ctx, sess, scope, pid, startMode(fresh, replace), namedOther(session), reopen, reask, title, docJSON)
 			if err != nil {
@@ -320,6 +335,12 @@ func newStartCmd(d cmd.Deps) *cobra.Command {
 			}
 			printStart(c, res.SubjectID, res.URL, res.TailnetURLs, res.ChannelState)
 			printWarnings(c, res.Warnings)
+			if len(blocks) == 0 {
+				return nil
+			}
+			if err := syncSlack(ctx, cl, board{sess, scope, pid}, c.OutOrStdout(), c.ErrOrStderr(), before, blocks); err != nil {
+				return fmt.Errorf("started the board, but Slack did not take all of it: %w", err)
+			}
 			return nil
 		},
 	}
@@ -446,8 +467,7 @@ func newPushCmd(d cmd.Deps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			ids := prGroupIDs(dd.Blocks)
-			before, err := groupsBefore(ctx, cl, board{sess, scope, pid})
+			before, err := readBoard(ctx, cl, board{sess, scope, pid})
 			if err != nil {
 				return err
 			}
@@ -471,11 +491,8 @@ func newPushCmd(d cmd.Deps) *cobra.Command {
 			if hint := unresolvedRefsHint(unresolved); hint != "" {
 				_, _ = fmt.Fprintln(c.ErrOrStderr(), hint)
 			}
-			if len(ids) == 0 && len(before) == 0 {
-				return nil
-			}
-			if err := syncGroups(ctx, cl, board{sess, scope, pid}, out, ids, before); err != nil {
-				return fmt.Errorf("pushed revision %d, but its Slack group cards did not all update: %w", res.Revision, err)
+			if err := syncSlack(ctx, cl, board{sess, scope, pid}, out, c.ErrOrStderr(), before, dd.Blocks); err != nil {
+				return fmt.Errorf("pushed revision %d, but Slack did not take all of it: %w", res.Revision, err)
 			}
 			return nil
 		},
@@ -567,8 +584,7 @@ func newUpdateBlockCmd(d cmd.Deps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			ids := prGroupIDs([]doc.Block{blk})
-			before, err := groupsBefore(ctx, cl, board{sess, scope, pid})
+			before, err := readBoard(ctx, cl, board{sess, scope, pid})
 			if err != nil {
 				return err
 			}
@@ -586,11 +602,8 @@ func newUpdateBlockCmd(d cmd.Deps) *cobra.Command {
 			if hint := unresolvedRefsHint(unresolved); hint != "" {
 				_, _ = fmt.Fprintln(c.ErrOrStderr(), hint)
 			}
-			if len(ids) == 0 && len(before) == 0 {
-				return nil
-			}
-			if err := syncGroups(ctx, cl, board{sess, scope, pid}, c.OutOrStdout(), ids, before); err != nil {
-				return fmt.Errorf("updated %q, but its Slack group cards did not all update: %w", blk.BlockID(), err)
+			if err := syncSlack(ctx, cl, board{sess, scope, pid}, c.OutOrStdout(), c.ErrOrStderr(), before, []doc.Block{blk}); err != nil {
+				return fmt.Errorf("updated %q, but Slack did not take all of it: %w", blk.BlockID(), err)
 			}
 			return nil
 		},

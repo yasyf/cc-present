@@ -107,24 +107,28 @@ To preview a visually heavy board yourself — many images, diffs, or pack block
 
 ### Ask a question on the board and in Slack at once
 
-When cc-slack is installed, every question waits on both surfaces. Write each
-as a card whose `id` is the question id, such as `step-3:merge`, with the
-question as its `title` and one single-select `choice` of 1 to 4 answers,
-exactly one `recommended`. Add no Other or Explain more answer; both surfaces
-draw them. Put each PR the question is about in a `pr` child. Put the cards on
-the board with `push` or `update-block`, then send them all at once:
+When cc-slack is installed, every simple question waits on both surfaces, by
+default. Write each as a card whose `id` is the question id, such as
+`step-3:merge`, with the question as its `title` and one child that asks it: a
+single-select `choice` of 1 to 4 answers, at most one `recommended`, an
+`approval`, or an `input`. Add no Other or Explain more answer; both surfaces
+draw them. Put each PR the question is about in a `pr` child, and each
+screenshot in an `image` child or an answer's `visual`.
 
-```bash
-cc-present send --session "$CLAUDE_CODE_SESSION_ID"
-```
+`push`, `update-block`, and `start --doc` post the cards they write to this
+session's Slack status thread, images and buttons included, link each card to
+its post, and print `sent: <id> ts=<ts> <permalink>` or
+`failed: <id>: <error>` for each. A card already posted is edited in place when
+what Slack shows changes.
 
-It posts each open question card to this session's Slack status thread, links
-each card on the board to its post, and prints one line per card,
-`sent: <id> ts=<ts> <permalink>` or `failed: <id>: <error>`, then `url:` and
-any `tailnet:` lines. `--slack <ts|permalink>`
-posts in another thread of your DM, and `--blocks a,b` sends only those cards.
-Running it again edits the cards already posted instead of posting them twice.
-`cc-present ask "$CARD"` puts one card on the board and sends it in one step.
+A complex or multi-part card, such as one with several questions or a
+multi-select, stays on the board: set `"mirror": false` on it. Without that,
+the write warns you.
+
+`cc-present send` posts open questions a write has not, and `--slack <ts|permalink>`
+posts in another thread of your DM, while `--blocks a,b` sends only those cards.
+`cc-present ask "$CARD"` puts one card on the board and sends it in one step,
+and `--slack` takes it to another thread the same way.
 The user answers wherever they are. The first answer wins, the card resolves
 on both surfaces, and the session gets one cc-slack `slack.action` capture
 with the answer; act on that capture, not on the board's `choice.selected`.
