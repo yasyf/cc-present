@@ -2,4 +2,4 @@
 
 package daemon
 
-const raceSlowdown = 10
+const raceSlowdown = 20
