@@ -1,0 +1,65 @@
+{
+  "name": "choice-heads-a-pick-keeps-the-heads-its-card-asked-about",
+  "events": [
+    {
+      "origin": "agent",
+      "type": "doc.replaced",
+      "seq": 1,
+      "payload": {
+        "schemaVersion": 1,
+        "type": "doc.replaced",
+        "revision": 1,
+        "doc": {
+          "version": 1,
+          "title": "T",
+          "blocks": [
+            {
+              "id": "c1",
+              "type": "card",
+              "children": [
+                { "id": "p1", "type": "pr", "repo": "o/r", "number": 7, "head": "abc1234" },
+                {
+                  "id": "ch1",
+                  "type": "choice",
+                  "options": [
+                    { "id": "o1", "label": "One" },
+                    { "id": "o2", "label": "Two" }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    { "origin": "human", "type": "choice.selected", "seq": 2, "payload": { "schemaVersion": 1, "type": "choice.selected", "blockId": "ch1", "optionIds": ["o1"], "heads": { "o/r#7": "abc1234" } } }
+  ],
+  "expected": {
+    "schemaVersion": 1,
+    "doc": {
+      "version": 1,
+      "title": "T",
+      "blocks": [
+        {
+          "id": "c1",
+          "type": "card",
+          "children": [
+            { "id": "p1", "type": "pr", "repo": "o/r", "number": 7, "head": "abc1234" },
+            {
+              "id": "ch1",
+              "type": "choice",
+              "options": [
+                { "id": "o1", "label": "One" },
+                { "id": "o2", "label": "Two" }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "interactions": {
+      "choices": { "ch1": { "optionIds": ["o1"], "heads": { "o/r#7": "abc1234" } } }
+    },
+    "rounds": { "current": 1, "blockRounds": { "c1": 1 }, "history": [] }
+  }
+}

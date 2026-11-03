@@ -91,3 +91,18 @@ func findPRBlock(st *state.State, id, repo string, number int) *doc.PR {
 	}
 	return nil
 }
+
+// askedHeads maps each pr block on card that names a head to that head, keyed
+// owner/name#number, so a pick records the version it was made on.
+func askedHeads(card *doc.Card) map[string]string {
+	heads := map[string]string{}
+	if card == nil {
+		return heads
+	}
+	for _, child := range card.Children {
+		if b, ok := child.(*doc.PR); ok && b.Head != "" {
+			heads[fmt.Sprintf("%s#%d", b.Repo, b.Number)] = b.Head
+		}
+	}
+	return heads
+}

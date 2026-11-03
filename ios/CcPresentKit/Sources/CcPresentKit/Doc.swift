@@ -590,7 +590,8 @@ public enum Block: Codable, Equatable, Sendable {
     }
 
     /// PR is a GitHub pull request the daemon reads live through ccx; `repo` is
-    /// owner/name, `title` overrides the PR's own, `files` narrows its changed files.
+    /// owner/name, `title` overrides the PR's own, `files` narrows its changed files,
+    /// and `head` is the commit a card asks about.
     public struct PR: Codable, Equatable, Sendable {
         public var id: String
         public var repo: String
@@ -598,14 +599,16 @@ public enum Block: Codable, Equatable, Sendable {
         public var title: String?
         public var summary: String?
         public var files: [String]?
+        public var head: String?
 
-        public init(id: String, repo: String, number: Int, title: String? = nil, summary: String? = nil, files: [String]? = nil) {
+        public init(id: String, repo: String, number: Int, title: String? = nil, summary: String? = nil, files: [String]? = nil, head: String? = nil) {
             self.id = id
             self.repo = repo
             self.number = number
             self.title = title
             self.summary = summary
             self.files = files
+            self.head = head
         }
     }
 

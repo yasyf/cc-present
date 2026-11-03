@@ -142,9 +142,10 @@ export function applyEvent(state: PresentState, ev: PresentEvent): PresentState 
       return withInteractions(state, { decisions });
     }
     case 'choice.selected': {
-      const { blockId, optionIds, other } = ev.payload;
+      const { blockId, optionIds, other, heads } = ev.payload;
       const selection: Selection = { optionIds: optionIds ?? [] };
       if (other) selection.other = other;
+      if (heads) selection.heads = heads;
       return withInteractions(state, { choices: { ...state.interactions.choices, [blockId]: selection } });
     }
     case 'feedback.created': {

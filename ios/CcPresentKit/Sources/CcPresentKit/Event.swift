@@ -82,6 +82,7 @@ public struct ChoiceSelectedPayload: Decodable, Equatable, Sendable {
     public var blockId: String
     public var optionIds: [String]
     public var other: String?
+    public var heads: [String: String]?
 }
 
 /// FeedbackCreatedPayload appends to a block's feedback list.

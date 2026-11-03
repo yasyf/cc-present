@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"slices"
@@ -928,5 +929,27 @@ func TestATapDecodesOnlyTheEventsSinceThePreviousTap(t *testing.T) {
 	}
 	if w := h.post(t, `{"subject":"board--abcd0000","nonce":"n3","interaction":{"type":"choice.selected","blockId":"ch1","optionIds":["o1"]}}`); w.Code != http.StatusBadRequest || !strings.Contains(w.Body.String(), "unknown block") {
 		t.Fatalf("tap on a removed block = %d %s, want 400 unknown block from the caught-up state", w.Code, w.Body)
+	}
+}
+
+func TestAPickRecordsTheHeadsItsCardAskedAbout(t *testing.T) {
+	const asked = `{"version":1,"title":"T","blocks":[{"id":"c1","type":"card","children":[` +
+		`{"id":"p1","type":"pr","repo":"o/r","number":7,"head":"abc1234"},` +
+		`{"id":"p2","type":"pr","repo":"o/r","number":8},` +
+		`{"id":"ch1","type":"choice","options":[{"id":"o1","label":"One"}]}]},` +
+		`{"id":"c2","type":"card","children":[{"id":"ch2","type":"choice","options":[{"id":"o1","label":"One"}]}]}]}`
+	h := newRestHarnessWith(t, asked, emptyPackLoader(t))
+	if w := h.post(t, `{"subject":"board--abcd0000","nonce":"n1","interaction":{"type":"choice.selected","blockId":"ch1","optionIds":["o1"],"heads":{"o/r#7":"fff0000"}}}`); w.Code != http.StatusOK {
+		t.Fatalf("pick = %d %s", w.Code, w.Body)
+	}
+	if w := h.post(t, `{"subject":"board--abcd0000","nonce":"n2","interaction":{"type":"choice.selected","blockId":"ch2","optionIds":["o1"]}}`); w.Code != http.StatusOK {
+		t.Fatalf("pick = %d %s", w.Code, w.Body)
+	}
+	st := h.reduce(t)
+	if got := st.Interactions.Choices["ch1"].Heads; !maps.Equal(got, map[string]string{"o/r#7": "abc1234"}) {
+		t.Fatalf("heads = %v, want the card's own o/r#7 at abc1234, never the client's", got)
+	}
+	if got := st.Interactions.Choices["ch2"].Heads; got != nil {
+		t.Fatalf("heads on a card naming no head = %v, want none", got)
 	}
 }
