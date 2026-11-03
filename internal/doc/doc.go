@@ -43,6 +43,8 @@ const (
 	MaxPRGroupRows  = 150
 )
 
+const mockType = "plan.mock"
+
 var (
 	validStatus        = map[string]bool{"open": true, "resolved": true, "redrafted": true}
 	validTone          = map[string]bool{"default": true, "flag": true, "demo": true}
@@ -125,7 +127,8 @@ type Chip struct {
 // agent-owned display state; it never records a human verdict. Slack, when set,
 // links the cc-slack ask card that asks the same question; an answer on either
 // surface answers both. Mirror false keeps a card on the board only; a card that
-// states nothing mirrors.
+// states nothing mirrors. Design says what the card's mockup proposes, and a
+// card that nests a plan.mock must set it.
 type Card struct {
 	base
 	Title    string     `json:"title,omitempty"`
@@ -135,6 +138,7 @@ type Card struct {
 	Status   string     `json:"status,omitempty"`
 	Slack    *CardSlack `json:"slack,omitempty"`
 	Mirror   *bool      `json:"mirror,omitempty"`
+	Design   *Design    `json:"design,omitempty"`
 	Children []Block    `json:"children"`
 }
 
@@ -144,6 +148,19 @@ func (c *Card) Mirrors() bool { return c.Mirror == nil || *c.Mirror }
 // CardSlack is the Slack ask card a card is synced with: URL is its permalink.
 type CardSlack struct {
 	URL string `json:"url"`
+}
+
+// Design is what a card proposes for an artifact. Changes names the existing
+// artifact the card changes, and the card then carries Live, the id of an image
+// on the card showing that artifact as it is, InPlace, the id of an image on the
+// card showing the change rendered inside it, and Record, a cite of the
+// artifact's design record. New instead says why no artifact like it exists yet.
+type Design struct {
+	Changes string `json:"changes,omitempty"`
+	Live    string `json:"live,omitempty"`
+	InPlace string `json:"inPlace,omitempty"`
+	Record  string `json:"record,omitempty"`
+	New     string `json:"new,omitempty"`
 }
 
 // Approval is an approve/reject control whose verdict may carry a note.
@@ -637,6 +654,7 @@ func decodeCard(data json.RawMessage, unmarshal unmarshalFunc) (Block, error) {
 		Status   string            `json:"status"`
 		Slack    *CardSlack        `json:"slack"`
 		Mirror   *bool             `json:"mirror"`
+		Design   *Design           `json:"design"`
 		Children []json.RawMessage `json:"children"`
 	}
 	if err := unmarshal(data, &raw); err != nil {
@@ -655,6 +673,7 @@ func decodeCard(data json.RawMessage, unmarshal unmarshalFunc) (Block, error) {
 		Status:   raw.Status,
 		Slack:    raw.Slack,
 		Mirror:   raw.Mirror,
+		Design:   raw.Design,
 		Children: children,
 	}, nil
 }
@@ -932,7 +951,59 @@ func validateCard(c *Card) error {
 			return fmt.Errorf("card %q: %w", c.ID, err)
 		}
 	}
+	if err := validateDesign(c); err != nil {
+		return fmt.Errorf("card %q: %w", c.ID, err)
+	}
 	return validateCardPrompts(c)
+}
+
+func validateDesign(c *Card) error {
+	images := map[string]bool{}
+	mocked := false
+	Walk(c, func(b Block) {
+		switch b.BlockType() {
+		case "image":
+			images[b.BlockID()] = true
+		case mockType:
+			mocked = true
+		}
+	})
+	d := c.Design
+	if d == nil {
+		if mocked {
+			return fmt.Errorf("nests a %s but sets no design; set design.changes to the existing artifact it changes, with design.live, design.inPlace and design.record, or design.new saying why no artifact like it exists yet", mockType)
+		}
+		return nil
+	}
+	if (d.Changes == "") == (d.New == "") {
+		return errors.New("design sets exactly one of changes, the existing artifact the card changes, and new, why no artifact like it exists yet")
+	}
+	if d.New != "" {
+		return nil
+	}
+	var missing []string
+	if d.Live == "" {
+		missing = append(missing, "design.live, a screenshot of the live artifact as it is")
+	}
+	if d.InPlace == "" {
+		missing = append(missing, "design.inPlace, a screenshot of the change rendered inside the live artifact")
+	}
+	if d.Record == "" {
+		missing = append(missing, "design.record, a cite of the artifact's design record and the prior picks on it")
+	}
+	if len(missing) > 0 {
+		return fmt.Errorf("proposes a change to %s but is missing %s", d.Changes, strings.Join(missing, "; "))
+	}
+	if !images[d.Live] {
+		return fmt.Errorf("design.live %q names no image on this card", d.Live)
+	}
+	if !images[d.InPlace] {
+		return fmt.Errorf("design.inPlace %q names no image on this card", d.InPlace)
+	}
+	if d.Live == d.InPlace {
+		return fmt.Errorf("design.live and design.inPlace both name image %q; the in-place render is a second screenshot, of the change inside the live artifact", d.Live)
+	}
+	return nil
 }
 
 func validateCardPrompts(c *Card) error {
