@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"slices"
 	"strings"
 	"testing"
 
@@ -1015,5 +1016,20 @@ func TestProofSurvivesEveryDecodeAndMarshal(t *testing.T) {
 		if !d.Proof || !strings.Contains(string(raw), `"proof":true`) {
 			t.Errorf("%s: proof = %v, marshal = %s, want the mark kept", name, d.Proof, raw)
 		}
+	}
+}
+
+func TestAThreadSectionAndItsCardsKeepTheirFields(t *testing.T) {
+	d, err := parse(docWith(`{"id":"talk","type":"section","title":"Talk","writers":["yphone"]},{"id":"r1","type":"card","re":"n1","children":[{"id":"r1-md","type":"markdown","md":"hi"}]}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	section, ok := d.Blocks[0].(*doc.Section)
+	if !ok || !slices.Equal(section.Writers, []string{"yphone"}) {
+		t.Fatalf("section = %+v, want writers kept", d.Blocks[0])
+	}
+	card, ok := d.Blocks[1].(*doc.Card)
+	if !ok || card.Re != "n1" {
+		t.Fatalf("card = %+v, want re kept", d.Blocks[1])
 	}
 }

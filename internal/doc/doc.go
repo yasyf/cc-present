@@ -679,6 +679,7 @@ func decodeDoc(data []byte, unmarshal unmarshalFunc) (*Doc, error) {
 func decodeCard(data json.RawMessage, unmarshal unmarshalFunc) (Block, error) {
 	var raw struct {
 		base
+		Re         string            `json:"re"`
 		Title      string            `json:"title"`
 		Summary    string            `json:"summary"`
 		Chips      []Chip            `json:"chips"`
@@ -699,6 +700,7 @@ func decodeCard(data json.RawMessage, unmarshal unmarshalFunc) (Block, error) {
 	}
 	return &Card{
 		base:       raw.base,
+		Re:         raw.Re,
 		Title:      raw.Title,
 		Summary:    raw.Summary,
 		Chips:      raw.Chips,
