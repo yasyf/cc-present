@@ -544,7 +544,7 @@ func TestDecodeRejectsUnknownFields(t *testing.T) {
 		{
 			name: "sections envelope",
 			doc:  string(sectionsEnvelope),
-			want: `unmarshal doc: json: unknown field "sections" (a doc's keys are version, title, intro, stats, submit, presentation, sources, and blocks; sections and cards are siblings in blocks)`,
+			want: `unmarshal doc: json: unknown field "sections" (a doc's keys are version, title, intro, stats, submit, presentation, proof, sources, and blocks; sections and cards are siblings in blocks)`,
 		},
 		{
 			name: "section children",
@@ -994,5 +994,26 @@ func TestPresentationRoundTrip(t *testing.T) {
 			}
 			tt.check(t, &d, string(out))
 		})
+	}
+}
+
+func TestProofSurvivesEveryDecodeAndMarshal(t *testing.T) {
+	const marked = `{"version":1,"title":"T","proof":true,"blocks":[]}`
+	var strict doc.Doc
+	if err := json.Unmarshal([]byte(marked), &strict); err != nil {
+		t.Fatalf("a doc marked proof = %v, want it accepted", err)
+	}
+	stored, err := doc.DecodeStored([]byte(marked))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for name, d := range map[string]*doc.Doc{"strict": &strict, "stored": stored} {
+		raw, err := json.Marshal(d)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !d.Proof || !strings.Contains(string(raw), `"proof":true`) {
+			t.Errorf("%s: proof = %v, marshal = %s, want the mark kept", name, d.Proof, raw)
+		}
 	}
 }

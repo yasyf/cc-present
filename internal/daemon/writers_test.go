@@ -398,3 +398,18 @@ func TestATakeOverIsKeptOnAHeadOnlyWriteAndEmptyFilesCountAsNoChange(t *testing.
 		t.Fatalf("last write = %+v, want card-mirror-3 owning it, taken from card-mirror-2", last)
 	}
 }
+
+func TestAProofBoardKeepsItsMarkThroughStartAndAPush(t *testing.T) {
+	h := newHarness(t)
+	startAs(t, h, "card-mirror-2", `{"version":1,"title":"Board","proof":true,"blocks":[]}`)
+	if !reduceSubject(t, h, subjectOf(t, h)).Doc.Proof {
+		t.Fatal("start dropped the proof mark")
+	}
+	r := handlePush(h.hc(body{Doc: json.RawMessage(`{"version":1,"title":"Board","proof":true,"blocks":[{"id":"m1","type":"markdown","md":"x"}]}`), Round: "current"}), doc.NoPacks, nilDisplay)
+	if !r.OK {
+		t.Fatalf("push: %s", r.Error)
+	}
+	if !reduceSubject(t, h, subjectOf(t, h)).Doc.Proof {
+		t.Fatal("push dropped the proof mark")
+	}
+}
