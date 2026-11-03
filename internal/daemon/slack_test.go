@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"net/http"
 	"slices"
 	"strings"
@@ -431,7 +432,7 @@ func TestSlackDecidedRecordsTheBoardsOwnVerdict(t *testing.T) {
 		{"hold", "pg:9:def5678", "9", "Hold", state.Decision{Verdict: "rejected", Head: "def5678"}, ""},
 		{"a tap for a head since redrawn is recorded at that head", "pg:8:0001111", "8", "Approve", state.Decision{Verdict: "approved", Head: "0001111"}, ""},
 		{"a row not on the board is refused", "pg:77:abc1234", "77", "Approve", state.Decision{}, `has no pull request "77"`},
-		{"a triage block is refused", "tr1:i1:abc1234", "i1", "Approve", state.Decision{}, `"tr1" is not a pr-groups block`},
+		{"a markdown block is refused", "nope:8:abc1234", "8", "Approve", state.Decision{}, `"nope" is neither a triage nor a pr-groups block`},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -459,6 +460,79 @@ func TestSlackDecidedRecordsTheBoardsOwnVerdict(t *testing.T) {
 				t.Fatalf("verdict = %+v, want %+v stamped with a time", got, tt.want)
 			}
 		})
+	}
+}
+
+const triageCardDoc = `{"version":1,"title":"T","blocks":[{"id":"devices","type":"card","title":"Tag or remove each device?","slack":{"url":"` + slackPermalink + `"},"children":[` +
+	`{"id":"tr","type":"triage","items":[{"id":"mbp-1","label":"MacBook"},{"id":"ipad-2","label":"iPad"},{"id":"pi-3","label":"Raspberry Pi"}]}]}]}`
+
+func TestASlackRowTapOnATriageCardRecordsThatItemAlone(t *testing.T) {
+	tests := []struct {
+		name, row, label, wantErr string
+		want                      map[string]string
+	}{
+		{"reject", "tr:ipad-2", "Reject", "", map[string]string{"ipad-2": "rejected"}},
+		{"approve", "tr:mbp-1", "Approve", "", map[string]string{"mbp-1": "approved"}},
+		{"a pr-groups label is refused", "tr:mbp-1", "Hold", "answers Approve or Reject", nil},
+		{"an item not on the board is refused", "tr:tv-9", "Approve", `has no item "tv-9"`, nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := newHarness(t)
+			start := handleStart(h.hc(body{Doc: json.RawMessage(triageCardDoc)}), doc.NoPacks, nilDisplay)
+			if !start.OK {
+				t.Fatal(start.Error)
+			}
+			tap := `{"row":"` + tt.row + `","label":"` + tt.label + `","at":"2026-10-27T03:12:00Z","permalink":"` + slackPermalink + `"}`
+			r := handleSlackDecided(h.hc(body{Answer: json.RawMessage(tap)}))
+			if tt.wantErr != "" {
+				if r.OK || !strings.Contains(r.Error, tt.wantErr) {
+					t.Fatalf("reply = %+v, want an error with %q", r, tt.wantErr)
+				}
+				return
+			}
+			if !r.OK {
+				t.Fatal(r.Error)
+			}
+			if events := h.eventsOfType(t, start.SubjectID, EventTriageDecided); len(events) != 1 || events[0].Origin != ccevent.OriginHuman {
+				t.Fatalf("triage.decided events = %+v, want one from the human, as a board tap records it", events)
+			}
+			got := map[string]string{}
+			for id, d := range reduceSubject(t, h, start.SubjectID).Interactions.Triage["tr"] {
+				got[id] = d.Verdict
+			}
+			if !maps.Equal(got, tt.want) {
+				t.Fatalf("verdicts = %v, want %v and the other rows still open", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestABoardTapOnATriageCardRedrawsItsSlackRows(t *testing.T) {
+	calls := make(chan slackcards.StatusCard, 1)
+	h := newRestHarnessWith(t, triageCardDoc, emptyPackLoader(t))
+	h.rs.postGroup = func(_ context.Context, _, thread string, card slackcards.StatusCard) (string, error) {
+		if thread != "" {
+			t.Errorf("thread = %q, want the session's own", thread)
+		}
+		calls <- card
+		return slackPermalink, nil
+	}
+	if code := h.post(t, `{"subject":"board--abcd0000","nonce":"n1","interaction":{"type":"triage.decided","blockId":"tr","verdicts":{"ipad-2":{"verdict":"rejected"}}}}`).Code; code != http.StatusOK {
+		t.Fatalf("tap = %d, want 200", code)
+	}
+	var card slackcards.StatusCard
+	select {
+	case card = <-calls:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the Slack card never redrew after the tap")
+	}
+	rows := make([]string, 0, len(card.Rows))
+	for _, r := range card.Rows {
+		rows = append(rows, r.ID)
+	}
+	if card.Group != "devices" || card.Status != "needs_you" || !slices.Equal(rows, []string{"tr:mbp-1", "tr:pi-3"}) || !strings.Contains(card.Body, "*iPad* · Rejected") {
+		t.Fatalf("card = %+v, want the two open rows still asking and the iPad rejected in the body", card)
 	}
 }
 

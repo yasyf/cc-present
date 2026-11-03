@@ -74,7 +74,7 @@ func newAskCmd(d cmd.Deps) *cobra.Command {
 			if err := inlineImages([]doc.Block{card}, httpUploader(port)); err != nil {
 				return err
 			}
-			res, _, err := mirror(ctx, cl, board{sess, scope, pid, w}, w, false, card, ch, ts, c.ErrOrStderr())
+			res, _, err := mirror(ctx, cl, board{sess, scope, pid, w}, w, false, question{card, ch, nil}, ts, c.ErrOrStderr())
 			if err != nil {
 				return err
 			}
@@ -273,8 +273,9 @@ func prGroupIDs(blocks []doc.Block) []string {
 }
 
 type question struct {
-	card    *doc.Card
-	control doc.Block
+	card     *doc.Card
+	control  doc.Block
+	verdicts map[string]state.Decision
 }
 
 // writtenQuestions is what a write of blocks puts in front of Slack: each card it
@@ -301,7 +302,7 @@ func writtenQuestions(before, after *sendBoard, blocks []doc.Block) ([]question,
 		}
 		q, ok := slackcards.Question(card)
 		if ok && !settled(after, card, q) && !postedTheSame(before, card) {
-			picked = append(picked, question{card, q})
+			picked = append(picked, question{card, q, after.Interactions.Triage[q.BlockID()]})
 		}
 	}
 	return picked, nudges
@@ -329,7 +330,7 @@ func sendQuestions(ctx context.Context, cl *ccdaemon.Client, b board, rev int64,
 	var res ccdaemon.StartResult
 	var errs []error
 	for _, q := range questions {
-		r, posted, err := mirror(ctx, cl, b, ccdaemon.Writer{Lane: b.writer.Lane, Rev: rev}, true, q.card, q.control, ts, warn)
+		r, posted, err := mirror(ctx, cl, b, ccdaemon.Writer{Lane: b.writer.Lane, Rev: rev}, true, q, ts, warn)
 		if err != nil {
 			errs = append(errs, err)
 			_, _ = fmt.Fprintf(w, "failed: %s: %v\n", q.card.ID, err)
@@ -376,7 +377,7 @@ func openQuestions(b *sendBoard, named []string) ([]question, []string, error) {
 		case err != nil:
 			skipped = append(skipped, err.Error())
 		default:
-			picked = append(picked, question{card, q})
+			picked = append(picked, question{card, q, b.Interactions.Triage[q.BlockID()]})
 		}
 	}
 	for _, id := range named {
@@ -393,7 +394,7 @@ func frozen(b *sendBoard, id string) bool {
 }
 
 func answeredOnBoard(b *sendBoard, q doc.Block) bool {
-	switch q.(type) {
+	switch q := q.(type) {
 	case *doc.Choice:
 		sel := b.Interactions.Choices[q.BlockID()]
 		return len(sel.OptionIDs) > 0 || sel.Other != ""
@@ -402,11 +403,15 @@ func answeredOnBoard(b *sendBoard, q doc.Block) bool {
 		return verdict != "" && verdict != "cleared"
 	case *doc.Input:
 		return b.Interactions.Inputs[q.BlockID()].Text != ""
+	case *doc.Triage:
+		verdicts := b.Interactions.Triage[q.ID]
+		return !slices.ContainsFunc(q.Items, func(item doc.Item) bool { _, ok := verdicts[item.ID]; return !ok })
 	}
 	return false
 }
 
-func mirror(ctx context.Context, cl *ccdaemon.Client, b board, wr ccdaemon.Writer, onBoard bool, card *doc.Card, q doc.Block, ts string, warn io.Writer) (ccdaemon.StartResult, string, error) {
+func mirror(ctx context.Context, cl *ccdaemon.Client, b board, wr ccdaemon.Writer, onBoard bool, q question, ts string, warn io.Writer) (ccdaemon.StartResult, string, error) {
+	card := q.card
 	unposted, err := json.Marshal(card)
 	if err != nil {
 		return ccdaemon.StartResult{}, "", err
@@ -418,7 +423,7 @@ func mirror(ctx context.Context, cl *ccdaemon.Client, b board, wr ccdaemon.Write
 	if err != nil {
 		return ccdaemon.StartResult{}, "", err
 	}
-	posted, err := postCard(ctx, b.session, port, card, q, ts, warn)
+	posted, err := postCard(ctx, b.session, port, q, ts, warn)
 	if err != nil {
 		return ccdaemon.StartResult{}, "", fmt.Errorf("card %q: %w", card.ID, err)
 	}
@@ -439,8 +444,12 @@ type cardPost struct {
 	TS        string `json:"ts"`
 }
 
-func postCard(ctx context.Context, session string, port int, card *doc.Card, q doc.Block, ts string, warn io.Writer) (cardPost, error) {
-	sc, err := json.Marshal(slackcards.ToSlack(card, q))
+func postCard(ctx context.Context, session string, port int, q question, ts string, warn io.Writer) (cardPost, error) {
+	card := q.card
+	if _, rows := q.control.(*doc.Triage); rows {
+		return postRows(ctx, session, q, ts, warn)
+	}
+	sc, err := json.Marshal(slackcards.ToSlack(card, q.control))
 	if err != nil {
 		return cardPost{}, err
 	}
@@ -481,6 +490,41 @@ func postCard(ctx context.Context, session string, port int, card *doc.Card, q d
 		return cardPost{}, fmt.Errorf("cc-slack posted it but returned no permalink: %s", out)
 	}
 	return posted, nil
+}
+
+// postRows posts a triage card as cc-slack group cards, one row per item, and
+// returns the first page cc-slack posted. cc-slack carries images on a waiting
+// card alone, so a triage card's images stay on the board.
+func postRows(ctx context.Context, session string, q question, ts string, warn io.Writer) (cardPost, error) {
+	for _, image := range slackcards.Images(q.card) {
+		_, _ = fmt.Fprintf(warn, "warning: card %q: image %q stays on the board; a Slack card with rows carries no image\n", q.card.ID, image.Title)
+	}
+	var first cardPost
+	for _, sc := range slackcards.Cards(q.card, q.control, q.verdicts) {
+		raw, err := json.Marshal(sc)
+		if err != nil {
+			return cardPost{}, err
+		}
+		args := []string{"dm-status", "--card", string(raw), "--session", session}
+		if ts != "" {
+			args = append(args, "--thread", ts)
+		}
+		out, err := slackcards.CCSlack(ctx, args...)
+		if err != nil {
+			return cardPost{}, err
+		}
+		var posted cardPost
+		if err := json.Unmarshal(out, &posted); err != nil {
+			return cardPost{}, fmt.Errorf("decode cc-slack reply %q: %w", out, err)
+		}
+		if first.Permalink == "" {
+			first = posted
+		}
+	}
+	if first.Permalink == "" {
+		return cardPost{}, errors.New("cc-slack posted no page of it: no row waits on the human")
+	}
+	return first, nil
 }
 
 var slackImageExts = map[string]string{"image/png": ".png", "image/jpeg": ".jpg", "image/gif": ".gif"}

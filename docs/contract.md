@@ -972,8 +972,8 @@ that block's card title, and the round it left the board in.
 
 A card whose `slack.url` is set is synced with a cc-slack ask card: one
 question asked on both surfaces, answered on either. The card's `id` is the
-Slack card's `waits` id, and its one `choice`, `approval`, or `input` child is
-the question. Both
+Slack card's `waits` id, and its one `choice`, `approval`, `input`, or `triage`
+child is the question. Both
 surfaces follow the same rules, which `cc-present ask` and the `slack-card`
 op enforce:
 
@@ -990,6 +990,16 @@ op enforce:
 - An approval asks with Approve and Reject buttons. Words written in instead
   reject, with those words as the note. An input has no preset answers: its one
   button, Answer, opens a box for the text.
+- A triage asks each item as its own row with Approve and Reject buttons, on a
+  cc-slack group card named by the card's `id` instead of a waiting card. Its
+  `id` and every item `id` are letters, digits, dots, underscores, or hyphens,
+  `<triage>:<item>` at most 64 characters, the card's `id` at most 62. cc-slack
+  draws at most 20 rows on a card, so items 21 to 40 go on a second card named
+  `<id>:2` and 41 to 50 on `<id>:3`, each titled `(N of M)`. A row tap lands at
+  once as the same human `triage.decided` a board tap makes, so the others stay
+  open on both surfaces; the Slack card marks the tapped row answered, and a
+  board tap redraws it with each decided item as a line naming its verdict.
+  Images stay on the board: cc-slack carries them on a waiting card alone.
 
 A card breaking these rules stays on the board only, and the write that put it
 there warns its author to set `"mirror": false`. `mirror` defaults to true. A
