@@ -26,6 +26,7 @@ func (cl *Client) CloseSession() error { return cl.c.Close() }
 // StartResult is what a start reports back to the CLI.
 type StartResult struct {
 	SubjectID    string
+	Rev          int64
 	URL          string
 	ChannelState string
 	TailnetURLs  []string
@@ -36,6 +37,7 @@ type StartResult struct {
 // advanced into (0 when it did not open a new round).
 type PushResult struct {
 	Revision    int
+	Rev         int64
 	URL         string
 	TailnetURLs []string
 	Round       int
@@ -91,38 +93,49 @@ const (
 )
 
 // Start creates or resumes the window's artifact, optionally seeding it with a
-// document.
-func (cl *Client) Start(ctx context.Context, session, scope string, pid int, mode StartMode, named bool, reopen []string, reask Reask, title string, docJSON json.RawMessage) (StartResult, error) {
-	reply, res, err := cl.do(ctx, OpStart, session, scope, pid, body{New: mode == StartNew, Replace: mode == StartReplace, Named: named, Reopen: reopen, Reask: reask, Title: title, Doc: docJSON})
+// document w writes.
+func (cl *Client) Start(ctx context.Context, session, scope string, pid int, w Writer, mode StartMode, named bool, reopen []string, reask Reask, title string, docJSON json.RawMessage) (StartResult, error) {
+	reply, res, err := cl.do(ctx, OpStart, session, scope, pid, body{Writer: w, New: mode == StartNew, Replace: mode == StartReplace, Named: named, Reopen: reopen, Reask: reask, Title: title, Doc: docJSON})
 	if err != nil {
 		return StartResult{}, err
 	}
-	return StartResult{SubjectID: reply.SubjectID, URL: res.URL, ChannelState: res.ChannelState, TailnetURLs: res.TailnetURLs, Warnings: res.Warnings}, nil
+	return StartResult{SubjectID: reply.SubjectID, Rev: res.Rev, URL: res.URL, ChannelState: res.ChannelState, TailnetURLs: res.TailnetURLs, Warnings: res.Warnings}, nil
 }
 
-// Push replaces the document and returns the new revision, the artifact's
-// display URLs, and the round it advanced into. round is the caller's declared
-// round intent ("", "current", or "new"); roundTitle titles a newly opened round.
-func (cl *Client) Push(ctx context.Context, session, scope string, pid int, docJSON json.RawMessage, reopen []string, reask Reask, round, roundTitle string) (PushResult, error) {
-	_, res, err := cl.do(ctx, OpPush, session, scope, pid, body{Doc: docJSON, Reopen: reopen, Reask: reask, Round: round, Title: roundTitle})
+// Push replaces the document as w and returns the new revision, the board
+// revision the write landed at, the artifact's display URLs, and the round it
+// advanced into. round is the caller's declared round intent ("", "current", or
+// "new"); roundTitle titles a newly opened round.
+func (cl *Client) Push(ctx context.Context, session, scope string, pid int, w Writer, docJSON json.RawMessage, reopen []string, reask Reask, round, roundTitle string) (PushResult, error) {
+	_, res, err := cl.do(ctx, OpPush, session, scope, pid, body{Writer: w, Doc: docJSON, Reopen: reopen, Reask: reask, Round: round, Title: roundTitle})
 	if err != nil {
 		return PushResult{}, err
 	}
-	return PushResult{Revision: res.Revision, URL: res.URL, TailnetURLs: res.TailnetURLs, Round: res.Round, Warnings: res.Warnings}, nil
+	return PushResult{Revision: res.Revision, Rev: res.Rev, URL: res.URL, TailnetURLs: res.TailnetURLs, Round: res.Round, Warnings: res.Warnings}, nil
 }
 
-// UpsertBlock inserts or replaces a single block, optionally after another. round
-// is the caller's declared round intent ("", "current", or "new") and roundTitle
-// titles a newly opened round; it returns the round an advance opened (0 if none).
-func (cl *Client) UpsertBlock(ctx context.Context, session, scope string, pid int, blockJSON json.RawMessage, reopen []string, reask Reask, after, round, roundTitle string) (int, []string, error) {
-	_, res, err := cl.do(ctx, OpUpsertBlock, session, scope, pid, body{Block: blockJSON, Reopen: reopen, Reask: reask, After: after, Round: round, Title: roundTitle})
-	return res.Round, res.Warnings, err
+// UpsertResult is what an upsert reports back: the round an advance opened (0
+// if none), the board revision the write landed at (0 when the answer gate kept
+// the block off the board), and the gate's warnings.
+type UpsertResult struct {
+	Round    int
+	Rev      int64
+	Warnings []string
 }
 
-// RemoveBlock removes a block by id.
-func (cl *Client) RemoveBlock(ctx context.Context, session, scope string, pid int, id string) error {
-	_, _, err := cl.do(ctx, OpRemoveBlock, session, scope, pid, body{ID: id})
-	return err
+// UpsertBlock inserts or replaces a single block as w, optionally after another.
+// round is the caller's declared round intent ("", "current", or "new") and
+// roundTitle titles a newly opened round.
+func (cl *Client) UpsertBlock(ctx context.Context, session, scope string, pid int, w Writer, blockJSON json.RawMessage, reopen []string, reask Reask, after, round, roundTitle string) (UpsertResult, error) {
+	_, res, err := cl.do(ctx, OpUpsertBlock, session, scope, pid, body{Writer: w, Block: blockJSON, Reopen: reopen, Reask: reask, After: after, Round: round, Title: roundTitle})
+	return UpsertResult{Round: res.Round, Rev: res.Rev, Warnings: res.Warnings}, err
+}
+
+// RemoveBlock removes a block by id as w and returns the board revision the
+// removal landed at.
+func (cl *Client) RemoveBlock(ctx context.Context, session, scope string, pid int, w Writer, id string) (int64, error) {
+	_, res, err := cl.do(ctx, OpRemoveBlock, session, scope, pid, body{Writer: w, ID: id})
+	return res.Rev, err
 }
 
 // Reply appends an agent reply to a block's thread, under the feedback entry re
@@ -182,6 +195,7 @@ type OutcomesRead struct {
 	State   json.RawMessage
 	Retired []string
 	Delta   json.RawMessage
+	Rev     int64
 }
 
 // OutcomesSince reads the window's artifact for a caller draining it, as a
@@ -191,23 +205,25 @@ type OutcomesRead struct {
 // Every read moves the board's cursor to the log's head.
 func (cl *Client) OutcomesSince(ctx context.Context, session, scope string, pid int, view OutcomeView, since string) (OutcomesRead, error) {
 	_, res, err := cl.do(ctx, OpOutcomes, session, scope, pid, body{View: view, Since: since})
-	return OutcomesRead{State: res.State, Retired: res.Retired, Delta: res.Delta}, err
+	return OutcomesRead{State: res.State, Retired: res.Retired, Delta: res.Delta, Rev: res.Rev}, err
 }
 
-// SlackCard puts a card synced with a Slack ask card on the window's board,
-// starting the board when the window has none open.
-func (cl *Client) SlackCard(ctx context.Context, session, scope string, pid int, blockJSON json.RawMessage) (StartResult, error) {
-	reply, res, err := cl.do(ctx, OpSlackCard, session, scope, pid, body{Block: blockJSON})
+// SlackCard puts a card synced with a Slack ask card on the window's board as
+// w, starting the board when the window has none open. A posted card was read
+// off the board and its Slack post is out: the board binds the post to the card
+// as it now stands, whatever changed during the post.
+func (cl *Client) SlackCard(ctx context.Context, session, scope string, pid int, w Writer, posted bool, blockJSON json.RawMessage) (StartResult, error) {
+	reply, res, err := cl.do(ctx, OpSlackCard, session, scope, pid, body{Writer: w, Posted: posted, Block: blockJSON})
 	if err != nil {
 		return StartResult{}, err
 	}
-	return StartResult{SubjectID: reply.SubjectID, URL: res.URL, TailnetURLs: res.TailnetURLs}, nil
+	return StartResult{SubjectID: reply.SubjectID, Rev: res.Rev, URL: res.URL, TailnetURLs: res.TailnetURLs}, nil
 }
 
-// SlackCardCheck refuses a card the window's board would refuse, before its
-// Slack card is posted; it writes nothing.
-func (cl *Client) SlackCardCheck(ctx context.Context, session, scope string, pid int, blockJSON json.RawMessage) error {
-	_, _, err := cl.do(ctx, OpSlackCardCheck, session, scope, pid, body{Block: blockJSON})
+// SlackCardCheck refuses a card the window's board would refuse from w, before
+// its Slack card is posted; it writes nothing.
+func (cl *Client) SlackCardCheck(ctx context.Context, session, scope string, pid int, w Writer, blockJSON json.RawMessage) error {
+	_, _, err := cl.do(ctx, OpSlackCardCheck, session, scope, pid, body{Writer: w, Block: blockJSON})
 	return err
 }
 

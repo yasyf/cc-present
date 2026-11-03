@@ -7,6 +7,7 @@ import (
 	"time"
 
 	ccdaemon "github.com/yasyf/cc-present/internal/daemon"
+	"github.com/yasyf/cc-present/internal/state"
 )
 
 func TestWriteBlockShow(t *testing.T) {
@@ -15,6 +16,8 @@ func TestWriteBlockShow(t *testing.T) {
 		Top: json.RawMessage(`{"id":"c1","type":"card","title":"Route?","summary":"Pick a layer.","children":[` +
 			`{"id":"q1","type":"choice","prompt":"Which?","options":[{"id":"a","label":"A","hint":"local first","recommended":true},{"id":"b","label":"B"}]},` +
 			`{"id":"ok","type":"approval","prompt":"Ship?"}]}`),
+		Rev:   42,
+		Write: &state.Write{Rev: 40, Lane: "card-mirror-3", Owner: "card-mirror-3", TakenFrom: "card-mirror-2"},
 		Events: []ccdaemon.BlockEvent{
 			{Type: ccdaemon.EventDecisionCreated, Origin: "agent", At: at, Round: 2, Payload: json.RawMessage(`{"blockId":"ok","verdict":"approved","note":"carried"}`)},
 			{Type: ccdaemon.EventChoiceSelected, Origin: "human", At: at, Round: 1, Payload: json.RawMessage(`{"blockId":"q1","optionIds":[],"other":"same layer\nas before"}`)},
@@ -39,6 +42,10 @@ Answers, newest first:
   ` + stamp + `  round 2  ok  approved: carried (recorded by the agent)
   ` + stamp + `  round 1  q1  wrote in: same layer
     as before
+
+rev: 42
+  last written at rev 40 by lane card-mirror-3
+  owned by lane card-mirror-3, taken over from lane card-mirror-2
 `
 	if out.String() != want {
 		t.Fatalf("got:\n%s\nwant:\n%s", out.String(), want)

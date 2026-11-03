@@ -18,12 +18,15 @@ seq 0 reconstructs a fresh tab's state; there is no get-document endpoint.
 ## Document envelope
 
 ```ts
-Doc = { version: 1, title, intro?, stats?: {label, value}[], submit?: {label, note?}, presentation?: 'focus' | 'board', sources?: Record<string, string>, blocks: Block[] }
+Doc = { version: 1, title, intro?, stats?: {label, value}[], submit?: {label, note?}, proof?: boolean, presentation?: 'focus' | 'board', sources?: Record<string, string>, blocks: Block[] }
 ```
 
 `blocks` is a flat list of blocks. A `section`, a `card`, any of the built-in
 leaf blocks, or a pack block (see Block packs) may appear directly in `blocks`; a
 card nests leaf blocks only.
+
+`proof: true` marks a board made to prove a change: its interactions are an
+agent's, never the owner's word, and a drive's board watcher records none of them.
 
 `presentation` is a per-push hint for the client's default view; the viewer's own
 toggle overrides it.
@@ -593,6 +596,54 @@ one level of card children. `submittedRevision` is set only when a submit closed
 
 **Revision is not round.** The revision counts `doc.replaced` events only;
 `round.started` never bumps it, and a round can span many revisions or none.
+
+## Writers
+
+Many lanes write one board. Each agent write op (`start` with a doc, `push`,
+`upsert-block`, `remove-block`, `slack-card`) body carries an optional writer:
+`lane` names the writing lane, `rev` is the board revision the write was built
+from, and `takeOver` lets the lane take over the cards it writes. The daemon
+records `lane`, `takeOver` and, on a write that leaves a card's owner alone,
+`keepOwner` on the `doc.replaced`, `block.upserted` or `block.removed` payload
+it appends; reducers ignore these keys.
+
+**Rev.** A board's rev is the seq of its newest event. Every agent write
+replies with the rev it landed at, an `outcomes` read replies with the rev it
+read at, and `block-show` replies with the read's rev plus the last agent write
+to the block's top-level block: its rev, lane and, for a card, `owner` and
+`takenFrom`. A write that carries `rev` is refused when any top-level block it
+changes was last written after that rev, naming that write's lane and rev. A
+push changes every top-level block on either side of it that it does not leave
+byte-identical; an upsert changes the top-level block it lands in; a removal,
+the top-level block holding the removed id. A push or seeded `start` that changes
+the title, header or block order is also refused when another write changed them
+after that rev. Votes, notes and replies never move a block's write rev; an answer
+on Slack settles its card, a write the record names as lane `slack-answer`. A
+closed board refuses every write. A `rev` past the board's rev is refused. The check and the
+append run under the board's lock, so of two writes from one read the first
+lands and the second is refused.
+
+**Card ownership.** The first write that names a lane on a top-level card makes
+that lane the card's owner; a card written before any lane named itself has no
+owner until one does. A write by any other lane, or by a writer that names none,
+that changes an owned card is refused naming the owner. `takeOver` with `lane`
+makes that lane the owner and records the lane it took the card from; it needs
+`lane`. A removed card has no owner. `start --replace` counts as a write to every
+top-level block of the board it closes, so a refusal leaves that board open. A `slack-card` write whose card equals the
+board's card apart from its `slack` binding records a post and checks only
+`rev`, and it never makes the sending lane the owner. `slack-card-check` applies
+the same checks before anything is posted, so a refused card never reaches
+Slack. A `posted` write, which `send` makes once its post is out, binds the post
+to the card as it now stands and checks neither `rev` nor owner, so a write that
+lands during the post never strands an answer. An `upsert-block` with no `after` that changes nothing on a `pr` block
+already on the board but its `head` is admitted from any lane and checks only
+`rev`, so a lane can move a card's PR to its live head without owning the card;
+the write records the writer's lane and leaves the card's owner as it was, an
+unowned card included.
+
+**Answers live outside the document.** Verdicts, choices, inputs, notes and
+replies are interaction state keyed by block id. No agent document write,
+stale, refused or landed, adds, changes or removes one.
 
 ## Live revision
 

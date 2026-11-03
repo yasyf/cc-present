@@ -74,12 +74,32 @@ func handleSlackCard(hc ccd.HandlerCtx, pt doc.PackTypes, display displayFunc) c
 	}
 	defer board.mu.Unlock()
 	st := &board.st
+	cardJSON := b.Block
+	if b.Posted {
+		loc, ok := doc.Locate(st.Doc, card.ID)
+		current, isCard := loc.Block.(*doc.Card)
+		if !ok || !isCard {
+			return errReply(fmt.Sprintf("card %q left the board while its Slack card posted", card.ID))
+		}
+		bound := *current
+		bound.Slack = card.Slack
+		card, cardJSON = &bound, mustJSON(&bound)
+	}
 	if err := admitCard(hc, sub.ID, st, board.retired, card); err != nil {
 		return errReply(err.Error())
 	}
 	if err := fitsBoard(st.Doc, card); err != nil {
 		return errReply(err.Error())
 	}
+	w := b.Writer
+	w.keepOwner = !w.TakeOver && postsCurrent(st.Doc, card)
+	if b.Posted {
+		w.Rev = 0
+	}
+	if err := w.admit(st, board.seq, card.ID); err != nil {
+		return errReply(err.Error())
+	}
+	var seq int64
 	if st.Doc.Title == "" && len(st.Doc.Blocks) == 0 {
 		raw, err := json.Marshal(&doc.Doc{Version: 1, Title: slackBoardTitle, Blocks: []doc.Block{card}})
 		if err != nil {
@@ -89,25 +109,43 @@ func handleSlackCard(hc ccd.HandlerCtx, pt doc.PackTypes, display displayFunc) c
 		if err != nil {
 			return errReply(err.Error())
 		}
-		if _, err := appendEvent(hc.Ctx, hc.Append, &ccevent.Event{
+		if seq, err = appendEvent(hc.Ctx, hc.Append, &ccevent.Event{
 			SubjectID: sub.ID, Origin: ccevent.OriginAgent, Type: EventDocReplaced,
-			Payload: docReplacedPayload(raw, rev, nil),
+			Payload: docReplacedPayload(raw, rev, nil, w),
 		}); err != nil {
 			return errReply(err.Error())
 		}
-	} else if _, err := appendEvent(hc.Ctx, hc.Append, &ccevent.Event{
+	} else if seq, err = appendEvent(hc.Ctx, hc.Append, &ccevent.Event{
 		SubjectID: sub.ID, Origin: ccevent.OriginAgent, Type: EventBlockUpserted,
-		Payload: blockUpsertedPayload(b.Block, ""),
+		Payload: blockUpsertedPayload(cardJSON, "", w),
 	}); err != nil {
 		return errReply(err.Error())
 	}
-	res := result{URL: artifactURL(hc.HTTPPort, sub.Slug), TailnetURLs: display(hc.Ctx, sub.Slug, hc.HTTPPort), Slug: sub.Slug}
+	res := result{Rev: seq, URL: artifactURL(hc.HTTPPort, sub.Slug), TailnetURLs: display(hc.Ctx, sub.Slug, hc.HTTPPort), Slug: sub.Slug}
 	raw, _ := json.Marshal(res)
 	return ccd.Reply{OK: true, SubjectID: sub.ID, HTTPPort: hc.HTTPPort, Body: raw}
 }
 
+// postsCurrent reports whether card is the board's card of the same id as it
+// stands, with only its Slack binding changed: the write that records a post,
+// which takes no ownership of the card.
+func postsCurrent(d *doc.Doc, card *doc.Card) bool {
+	loc, ok := doc.Locate(d, card.ID)
+	if !ok {
+		return false
+	}
+	cur, ok := loc.Block.(*doc.Card)
+	if !ok {
+		return false
+	}
+	was, now := *cur, *card
+	was.Slack, now.Slack = nil, nil
+	return string(mustJSON(&was)) == string(mustJSON(&now))
+}
+
 func handleSlackCardCheck(hc ccd.HandlerCtx, pt doc.PackTypes) ccd.Reply {
-	blk, err := doc.DecodeBlock(decodeBody(hc.Env.Body).Block)
+	b := decodeBody(hc.Env.Body)
+	blk, err := doc.DecodeBlock(b.Block)
 	if err != nil {
 		return errReply(err.Error())
 	}
@@ -126,19 +164,24 @@ func handleSlackCardCheck(hc ccd.HandlerCtx, pt doc.PackTypes) ccd.Reply {
 		return errReply(err.Error())
 	}
 	empty := state.New()
-	st, retired := &empty, map[string]bool{}
+	st, retired, head := &empty, map[string]bool{}, int64(0)
 	if found && sub.Status != statusClosed {
 		board, err := caughtUp(hc.Ctx, hc.DB, sub.ID)
 		if err != nil {
 			return errReply(err.Error())
 		}
 		defer board.mu.Unlock()
-		st, retired = &board.st, board.retired
+		st, retired, head = &board.st, board.retired, board.seq
 	}
 	if err := admitCard(hc, sub.ID, st, retired, card); err != nil {
 		return errReply(err.Error())
 	}
 	if err := fitsBoard(st.Doc, card); err != nil {
+		return errReply(err.Error())
+	}
+	w := b.Writer
+	w.keepOwner = !w.TakeOver && postsCurrent(st.Doc, card)
+	if err := w.admit(st, head, card.ID); err != nil {
 		return errReply(err.Error())
 	}
 	return okReply(result{})
@@ -283,6 +326,8 @@ func recordAnswer(ctx context.Context, appendFn ccd.AppendFunc, subID string, ca
 	return err
 }
 
+const slackAnswerLane = "slack-answer"
+
 func settleCard(ctx context.Context, appendFn ccd.AppendFunc, subID string, card *doc.Card, note string) error {
 	resolved := *card
 	resolved.Status = slackcards.Resolved
@@ -291,7 +336,7 @@ func settleCard(ctx context.Context, appendFn ccd.AppendFunc, subID string, card
 		return err
 	}
 	if _, err := appendEvent(ctx, appendFn, &ccevent.Event{
-		SubjectID: subID, Origin: ccevent.OriginAgent, Type: EventBlockUpserted, Payload: blockUpsertedPayload(raw, ""),
+		SubjectID: subID, Origin: ccevent.OriginAgent, Type: EventBlockUpserted, Payload: blockUpsertedPayload(raw, "", Writer{Lane: slackAnswerLane, keepOwner: true}),
 	}); err != nil {
 		return err
 	}

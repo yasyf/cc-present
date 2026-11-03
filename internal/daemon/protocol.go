@@ -59,6 +59,8 @@ const (
 // only the fields its op uses. The window (session, pid) and scope ride on the
 // envelope itself.
 type body struct {
+	Writer
+	Posted   bool            `json:"posted,omitempty"`   // slack-card: the card's Slack post is out; bind it to the card as it now stands
 	New      bool            `json:"new,omitempty"`      // start
 	Replace  bool            `json:"replace,omitempty"`  // start | import-verdicts
 	Title    string          `json:"title,omitempty"`    // start | round | push,upsert-block round-title
@@ -90,6 +92,7 @@ type result struct {
 	Slug         string          `json:"slug,omitempty"`         // start | close
 	ChannelState string          `json:"channelState,omitempty"` // start
 	Revision     int             `json:"revision,omitempty"`     // push
+	Rev          int64           `json:"rev,omitempty"`          // start | push | upsert-block | remove-block | slack-card | outcomes | block-show
 	Round        int             `json:"round,omitempty"`        // round
 	State        json.RawMessage `json:"state,omitempty"`        // outcomes | import-verdicts | carry-verdict | block-show
 	Delta        json.RawMessage `json:"delta,omitempty"`        // outcomes

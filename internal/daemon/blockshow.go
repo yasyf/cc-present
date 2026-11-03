@@ -17,10 +17,13 @@ import (
 // BlockShow is one block as the board last showed it and the interactions on
 // it, newest first. Top is the block's enclosing top-level block, a card for a
 // card child; it is null when no write ever carried the block. OnBoard reports
-// whether the block is in the current document.
+// whether the block is in the current document. Rev is the board's revision at
+// the read, and Write the last agent write to the enclosing top-level block.
 type BlockShow struct {
 	Top     json.RawMessage `json:"top"`
 	OnBoard bool            `json:"onBoard"`
+	Rev     int64           `json:"rev"`
+	Write   *state.Write    `json:"write,omitempty"`
 	Events  []BlockEvent    `json:"events"`
 }
 
@@ -46,10 +49,14 @@ func handleBlockShow(hc ccd.HandlerCtx) ccd.Reply {
 	}
 	var top doc.Block
 	loc, onBoard := doc.Locate(board.st.Doc, id)
+	topID := id
 	if onBoard {
-		top = board.st.Doc.Blocks[loc.TopIndex]
+		top, topID = board.st.Doc.Blocks[loc.TopIndex], loc.TopID
 	}
-	show := BlockShow{OnBoard: onBoard}
+	show := BlockShow{OnBoard: onBoard, Rev: board.seq}
+	if w, ok := board.st.Written(topID); ok {
+		show.Write = &w
+	}
 	show.Top, err = json.Marshal(top)
 	rounds := board.st.RoundStarts()
 	board.mu.Unlock()

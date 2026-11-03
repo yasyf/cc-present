@@ -108,7 +108,7 @@ func newRestHarnessWith(t *testing.T, docJSON string, loader *packs.Loader) *res
 	}
 	if _, err := cc.AppendEvent(context.Background(), &ccevent.Event{
 		SubjectID: sub.ID, Origin: ccevent.OriginAgent, Type: EventDocReplaced,
-		Payload: injectIdentity(EventDocReplaced, docReplacedPayload(json.RawMessage(docJSON), 1, nil)),
+		Payload: injectIdentity(EventDocReplaced, docReplacedPayload(json.RawMessage(docJSON), 1, nil, Writer{})),
 	}); err != nil {
 		t.Fatalf("seed doc: %v", err)
 	}
@@ -447,7 +447,7 @@ func TestInteractionClosedRound(t *testing.T) {
 	// so the document now holds both a closed-round and a current-round block.
 	if _, err := h.cc.AppendEvent(context.Background(), &ccevent.Event{
 		SubjectID: h.id, Origin: ccevent.OriginAgent, Type: EventBlockUpserted,
-		Payload: injectIdentity(EventBlockUpserted, blockUpsertedPayload(json.RawMessage(`{"id":"b2","type":"approval"}`), "")),
+		Payload: injectIdentity(EventBlockUpserted, blockUpsertedPayload(json.RawMessage(`{"id":"b2","type":"approval"}`), "", Writer{})),
 	}); err != nil {
 		t.Fatalf("upsert round-2 block: %v", err)
 	}
@@ -475,7 +475,7 @@ func TestInteractionReUpsertedBlockNewRound(t *testing.T) {
 	// explicit carry mechanism now that round.started no longer carries ids.
 	if _, err := h.cc.AppendEvent(context.Background(), &ccevent.Event{
 		SubjectID: h.id, Origin: ccevent.OriginAgent, Type: EventBlockUpserted,
-		Payload: injectIdentity(EventBlockUpserted, blockUpsertedPayload(json.RawMessage(`{"id":"a1","type":"approval"}`), "")),
+		Payload: injectIdentity(EventBlockUpserted, blockUpsertedPayload(json.RawMessage(`{"id":"a1","type":"approval"}`), "", Writer{})),
 	}); err != nil {
 		t.Fatalf("re-upsert a1: %v", err)
 	}
@@ -833,7 +833,7 @@ func TestInteractionDraftTriageClosedRound(t *testing.T) {
 	}
 	if _, err := h.cc.AppendEvent(context.Background(), &ccevent.Event{
 		SubjectID: h.id, Origin: ccevent.OriginAgent, Type: EventBlockUpserted,
-		Payload: injectIdentity(EventBlockUpserted, blockUpsertedPayload(json.RawMessage(`{"id":"b2","type":"approval"}`), "")),
+		Payload: injectIdentity(EventBlockUpserted, blockUpsertedPayload(json.RawMessage(`{"id":"b2","type":"approval"}`), "", Writer{})),
 	}); err != nil {
 		t.Fatalf("upsert round-2 block: %v", err)
 	}

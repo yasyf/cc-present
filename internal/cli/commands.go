@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -275,6 +276,7 @@ func newStartCmd(d cmd.Deps) *cobra.Command {
 	var fresh, replace bool
 	var reopen []string
 	var reask ccdaemon.Reask
+	var w ccdaemon.Writer
 	c := &cobra.Command{
 		Use:   "start",
 		Short: "Create or resume this window's cc-present artifact and print its URL",
@@ -324,12 +326,12 @@ func newStartCmd(d cmd.Deps) *cobra.Command {
 				}
 				blocks = dd.Blocks
 				if subjectID != "" && !replace && !fresh {
-					if before, err = readBoard(ctx, cl, board{sess, scope, pid}); err != nil {
+					if before, err = readBoard(ctx, cl, board{sess, scope, pid, w}); err != nil {
 						return err
 					}
 				}
 			}
-			res, err := cl.Start(ctx, sess, scope, pid, startMode(fresh, replace), namedOther(session), reopen, reask, title, docJSON)
+			res, err := cl.Start(ctx, sess, scope, pid, w, startMode(fresh, replace), namedOther(session), reopen, reask, title, docJSON)
 			if err != nil {
 				return err
 			}
@@ -338,7 +340,8 @@ func newStartCmd(d cmd.Deps) *cobra.Command {
 			if len(blocks) == 0 {
 				return nil
 			}
-			if err := syncSlack(ctx, cl, board{sess, scope, pid}, c.OutOrStdout(), c.ErrOrStderr(), before, blocks); err != nil {
+			_, _ = fmt.Fprintf(c.OutOrStdout(), "rev: %d\n", res.Rev)
+			if err := syncSlack(ctx, cl, board{sess, scope, pid, w}, c.OutOrStdout(), c.ErrOrStderr(), before, blocks); err != nil {
 				return fmt.Errorf("started the board, but Slack did not take all of it: %w", err)
 			}
 			return nil
@@ -352,11 +355,27 @@ func newStartCmd(d cmd.Deps) *cobra.Command {
 	c.Flags().StringVar(&docPath, "doc", "", "seed the artifact with a document from a file (- for stdin)")
 	c.Flags().StringSliceVar(&reopen, "reopen", nil, reopenUsage)
 	reaskFlags(c, &reask)
+	writerFlags(c, &w)
 	c.Flags().StringVar(&root, "root", "", "checkout that code block src paths and markdown code cites resolve under (defaults to the git toplevel of the current directory)")
 	return c
 }
 
 const reopenUsage = "block id to ask again although the human already answered it (repeatable)"
+
+// writerFlags names the lane making a board write, the board rev the read it
+// was built from printed, and whether it takes over another lane's cards.
+func writerFlags(c *cobra.Command, w *ccdaemon.Writer) {
+	c.Flags().StringVar(&w.Lane, "lane", defaultLane(), "lane making this write (defaults to $CC_PRESENT_LANE, then $CLAUDE_LONG_RUNNING_LANE); the first lane to write a card owns it, and another lane's write to it is refused")
+	c.Flags().Int64Var(&w.Rev, "rev", 0, "board rev printed by the read this write was built from (outcomes, block show, or an earlier write); refused when a block it changes was written after that rev")
+	c.Flags().BoolVar(&w.TakeOver, "take-over", false, "as the successor of the lane that owns the cards this write changes, take them over; needs --lane")
+}
+
+func defaultLane() string {
+	if lane := os.Getenv("CC_PRESENT_LANE"); lane != "" {
+		return lane
+	}
+	return os.Getenv("CLAUDE_LONG_RUNNING_LANE")
+}
 
 func reaskFlags(c *cobra.Command, reask *ccdaemon.Reask) {
 	c.Flags().StringSliceVar(&reask.PRs, "owner-reask", nil, "pull request number to put back in front of the owner although they approved it at an earlier head, only when the owner asked to see it again (repeatable; needs --reason)")
@@ -404,6 +423,7 @@ func newPushCmd(d cmd.Deps) *cobra.Command {
 	var dryRun bool
 	var reopen []string
 	var reask ccdaemon.Reask
+	var w ccdaemon.Writer
 	c := &cobra.Command{
 		Use:   "push <file|->",
 		Short: "Replace the artifact's document",
@@ -467,17 +487,18 @@ func newPushCmd(d cmd.Deps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			before, err := readBoard(ctx, cl, board{sess, scope, pid})
+			before, err := readBoard(ctx, cl, board{sess, scope, pid, w})
 			if err != nil {
 				return err
 			}
-			res, err := cl.Push(ctx, sess, scope, pid, docJSON, reopen, reask, round, roundTitle)
+			res, err := cl.Push(ctx, sess, scope, pid, w, docJSON, reopen, reask, round, roundTitle)
 			if err != nil {
 				return err
 			}
 			printWarnings(c, res.Warnings)
 			out := c.OutOrStdout()
 			_, _ = fmt.Fprintf(out, "revision: %d\n", res.Revision)
+			_, _ = fmt.Fprintf(out, "rev: %d\n", res.Rev)
 			if res.Round > 0 {
 				_, _ = fmt.Fprintf(out, "round: %d\n", res.Round)
 			}
@@ -491,7 +512,7 @@ func newPushCmd(d cmd.Deps) *cobra.Command {
 			if hint := unresolvedRefsHint(unresolved); hint != "" {
 				_, _ = fmt.Fprintln(c.ErrOrStderr(), hint)
 			}
-			if err := syncSlack(ctx, cl, board{sess, scope, pid}, out, c.ErrOrStderr(), before, dd.Blocks); err != nil {
+			if err := syncSlack(ctx, cl, board{sess, scope, pid, w}, out, c.ErrOrStderr(), before, dd.Blocks); err != nil {
 				return fmt.Errorf("pushed revision %d, but Slack did not take all of it: %w", res.Revision, err)
 			}
 			return nil
@@ -505,6 +526,7 @@ func newPushCmd(d cmd.Deps) *cobra.Command {
 	c.Flags().StringVar(&root, "root", "", "checkout that code block src paths and markdown code cites resolve under (defaults to the git toplevel of the current directory)")
 	c.Flags().StringVar(&round, "round", "", `round intent when a new top-level block lands in an engaged round: "current" (add to it) or "new" (close it and open the next)`)
 	c.Flags().StringVar(&roundTitle, "round-title", "", "title for the round opened by --round new")
+	writerFlags(c, &w)
 	return c
 }
 
@@ -517,6 +539,7 @@ func newUpdateBlockCmd(d cmd.Deps) *cobra.Command {
 	var dryRun bool
 	var reopen []string
 	var reask ccdaemon.Reask
+	var w ccdaemon.Writer
 	c := &cobra.Command{
 		Use:   "update-block <file|->",
 		Short: "Insert or replace a single block",
@@ -584,17 +607,20 @@ func newUpdateBlockCmd(d cmd.Deps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			before, err := readBoard(ctx, cl, board{sess, scope, pid})
+			before, err := readBoard(ctx, cl, board{sess, scope, pid, w})
 			if err != nil {
 				return err
 			}
-			n, warnings, err := cl.UpsertBlock(ctx, sess, scope, pid, blockJSON, reopen, reask, after, round, roundTitle)
+			res, err := cl.UpsertBlock(ctx, sess, scope, pid, w, blockJSON, reopen, reask, after, round, roundTitle)
 			if err != nil {
 				return err
 			}
-			printWarnings(c, warnings)
-			if n > 0 {
-				_, _ = fmt.Fprintf(c.OutOrStdout(), "round: %d\n", n)
+			printWarnings(c, res.Warnings)
+			if res.Round > 0 {
+				_, _ = fmt.Fprintf(c.OutOrStdout(), "round: %d\n", res.Round)
+			}
+			if res.Rev > 0 {
+				_, _ = fmt.Fprintf(c.OutOrStdout(), "rev: %d\n", res.Rev)
 			}
 			if hint := longCodeNudge([]doc.Block{blk}); hint != "" {
 				_, _ = fmt.Fprintln(c.ErrOrStderr(), hint)
@@ -602,7 +628,7 @@ func newUpdateBlockCmd(d cmd.Deps) *cobra.Command {
 			if hint := unresolvedRefsHint(unresolved); hint != "" {
 				_, _ = fmt.Fprintln(c.ErrOrStderr(), hint)
 			}
-			if err := syncSlack(ctx, cl, board{sess, scope, pid}, c.OutOrStdout(), c.ErrOrStderr(), before, []doc.Block{blk}); err != nil {
+			if err := syncSlack(ctx, cl, board{sess, scope, pid, w}, c.OutOrStdout(), c.ErrOrStderr(), before, []doc.Block{blk}); err != nil {
 				return fmt.Errorf("updated %q, but Slack did not take all of it: %w", blk.BlockID(), err)
 			}
 			return nil
@@ -617,12 +643,14 @@ func newUpdateBlockCmd(d cmd.Deps) *cobra.Command {
 	c.Flags().StringVar(&root, "root", "", "checkout that code block src paths and markdown code cites resolve under (defaults to the git toplevel of the current directory)")
 	c.Flags().StringVar(&round, "round", "", `round intent when the block is a new top-level block in an engaged round: "current" (add to it) or "new" (close it and open the next)`)
 	c.Flags().StringVar(&roundTitle, "round-title", "", "title for the round opened by --round new")
+	writerFlags(c, &w)
 	return c
 }
 
 // newRemoveBlockCmd removes a block by id.
 func newRemoveBlockCmd(d cmd.Deps) *cobra.Command {
 	var session, cwd string
+	var w ccdaemon.Writer
 	c := &cobra.Command{
 		Use:   "remove-block <id>",
 		Short: "Remove a block by id",
@@ -638,11 +666,17 @@ func newRemoveBlockCmd(d cmd.Deps) *cobra.Command {
 			}
 			defer func() { _ = cl.CloseSession() }()
 			sess, pid := artifactWindow(d, session)
-			return cl.RemoveBlock(ctx, sess, mustCwd(cwd), pid, args[0])
+			rev, err := cl.RemoveBlock(ctx, sess, mustCwd(cwd), pid, w, args[0])
+			if err != nil {
+				return err
+			}
+			_, _ = fmt.Fprintf(c.OutOrStdout(), "rev: %d\n", rev)
+			return nil
 		},
 	}
 	c.Flags().StringVar(&session, "session", "", "Claude session id (defaults to $CLAUDE_CODE_SESSION_ID)")
 	c.Flags().StringVar(&cwd, "cwd", "", "working directory (recorded on the request; artifacts are per-window, not resolved by directory)")
+	writerFlags(c, &w)
 	return c
 }
 
@@ -799,6 +833,9 @@ func newOutcomesCmd(d cmd.Deps) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			if read.Delta, err = withRev(read.Delta, read.Rev); err != nil {
+				return err
+			}
 			raw := read.Delta
 			if raw == nil {
 				var show *ccdaemon.BlockShow
@@ -810,6 +847,9 @@ func newOutcomesCmd(d cmd.Deps) *cobra.Command {
 					show = &found
 				}
 				if raw, err = shapeState(read, show, block, noDoc); err != nil {
+					return err
+				}
+				if raw, err = withRev(raw, read.Rev); err != nil {
 					return err
 				}
 			}
@@ -830,6 +870,20 @@ func newOutcomesCmd(d cmd.Deps) *cobra.Command {
 	c.Flags().StringVar(&cwd, "cwd", "", "working directory (recorded on the request; artifacts are per-window, not resolved by directory)")
 	c.MarkFlagsMutuallyExclusive("since", "new", "all", "block")
 	return c
+}
+
+// withRev adds the board rev a read saw to its JSON object, the rev a write
+// built from the read passes as --rev.
+func withRev(raw json.RawMessage, rev int64) (json.RawMessage, error) {
+	if raw == nil {
+		return nil, nil
+	}
+	var m map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &m); err != nil {
+		return nil, err
+	}
+	m["rev"] = json.RawMessage(strconv.FormatInt(rev, 10))
+	return json.Marshal(m)
 }
 
 func shapeState(read ccdaemon.OutcomesRead, show *ccdaemon.BlockShow, block string, noDoc bool) (json.RawMessage, error) {

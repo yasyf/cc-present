@@ -30,6 +30,7 @@ import (
 
 func newAskCmd(d cmd.Deps) *cobra.Command {
 	var session, cwd, thread string
+	var w ccdaemon.Writer
 	c := &cobra.Command{
 		Use:   "ask <file|->",
 		Short: "Put one card on the board, then send its question to Slack, synced both ways",
@@ -73,23 +74,24 @@ func newAskCmd(d cmd.Deps) *cobra.Command {
 			if err := inlineImages([]doc.Block{card}, httpUploader(port)); err != nil {
 				return err
 			}
-			res, _, err := mirror(ctx, cl, board{sess, scope, pid}, card, ch, ts, c.ErrOrStderr())
+			res, _, err := mirror(ctx, cl, board{sess, scope, pid, w}, w, false, card, ch, ts, c.ErrOrStderr())
 			if err != nil {
 				return err
 			}
 			printBoard(c.OutOrStdout(), res)
-			_, _ = fmt.Fprintf(c.OutOrStdout(), "slack: %s\n", card.Slack.URL)
+			_, _ = fmt.Fprintf(c.OutOrStdout(), "slack: %s\nrev: %d\n", card.Slack.URL, res.Rev)
 			return nil
 		},
 	}
 	c.Flags().StringVar(&thread, "slack", "", "ts or permalink of a DM message to keep watched for replies; the cards post at the DM root")
 	c.Flags().StringVar(&session, "session", "", "Claude session id (defaults to $CLAUDE_CODE_SESSION_ID)")
 	c.Flags().StringVar(&cwd, "cwd", "", "working directory (recorded on the request; artifacts are per-window, not resolved by directory)")
+	writerFlags(c, &w)
 	return c
 }
 
 func newSendCmd(d cmd.Deps) *cobra.Command {
-	var session, cwd, thread string
+	var session, cwd, thread, lane string
 	var blocks []string
 	c := &cobra.Command{
 		Use:   "send",
@@ -110,7 +112,7 @@ func newSendCmd(d cmd.Deps) *cobra.Command {
 			}
 			defer func() { _ = cl.CloseSession() }()
 			sess, pid := artifactWindow(d, session)
-			b := board{sess, mustCwd(cwd), pid}
+			b := board{sess, mustCwd(cwd), pid, ccdaemon.Writer{Lane: lane}}
 			st, err := readBoard(ctx, cl, b)
 			if err != nil {
 				return err
@@ -126,7 +128,7 @@ func newSendCmd(d cmd.Deps) *cobra.Command {
 				_, _ = fmt.Fprintln(c.OutOrStdout(), "no open question on the board")
 				return nil
 			}
-			res, err := sendQuestions(ctx, cl, b, questions, ts, c.OutOrStdout(), c.ErrOrStderr())
+			res, err := sendQuestions(ctx, cl, b, st.rev, questions, ts, c.OutOrStdout(), c.ErrOrStderr())
 			if res.URL != "" {
 				printBoard(c.OutOrStdout(), res)
 			}
@@ -135,6 +137,7 @@ func newSendCmd(d cmd.Deps) *cobra.Command {
 	}
 	c.Flags().StringVar(&thread, "slack", "", "ts or permalink of a DM message to keep watched for replies; the cards post at the DM root")
 	c.Flags().StringSliceVar(&blocks, "blocks", nil, "ids of the cards to send (defaults to every open question card)")
+	c.Flags().StringVar(&lane, "lane", defaultLane(), "lane sending the cards (defaults to $CC_PRESENT_LANE, then $CLAUDE_LONG_RUNNING_LANE); sending records each card's Slack post without changing who owns it")
 	c.Flags().StringVar(&session, "session", "", "Claude session id (defaults to $CLAUDE_CODE_SESSION_ID)")
 	c.Flags().StringVar(&cwd, "cwd", "", "working directory (recorded on the request; artifacts are per-window, not resolved by directory)")
 	return c
@@ -144,6 +147,7 @@ type board struct {
 	session string
 	scope   string
 	pid     int
+	writer  ccdaemon.Writer
 }
 
 type sendBoard struct {
@@ -159,15 +163,16 @@ type sendBoard struct {
 		Current     int            `json:"current"`
 		BlockRounds map[string]int `json:"blockRounds"`
 	} `json:"rounds"`
+	rev int64
 }
 
 func readBoard(ctx context.Context, cl *ccdaemon.Client, b board) (*sendBoard, error) {
-	raw, _, err := cl.Outcomes(ctx, b.session, b.scope, b.pid, ccdaemon.OutcomeLive)
+	read, err := cl.OutcomesSince(ctx, b.session, b.scope, b.pid, ccdaemon.OutcomeLive, "")
 	if err != nil {
 		return nil, err
 	}
-	var st sendBoard
-	if err := json.Unmarshal(raw, &st); err != nil {
+	st := sendBoard{rev: read.Rev}
+	if err := json.Unmarshal(read.State, &st); err != nil {
 		return nil, fmt.Errorf("decode the board: %w", err)
 	}
 	return &st, nil
@@ -193,7 +198,7 @@ func syncSlack(ctx context.Context, cl *ccdaemon.Client, b board, w, warn io.Wri
 		for _, nudge := range nudges {
 			_, _ = fmt.Fprintf(warn, "warning: %s\n", nudge)
 		}
-		_, err := sendQuestions(ctx, cl, b, questions, "", w, warn)
+		_, err := sendQuestions(ctx, cl, b, after.rev, questions, "", w, warn)
 		errs = append(errs, err)
 	}
 	return errors.Join(errs...)
@@ -318,18 +323,20 @@ func settled(b *sendBoard, card *doc.Card, q doc.Block) bool {
 	return card.Status == slackcards.Resolved || answeredOnBoard(b, q) || frozen(b, card.ID)
 }
 
-func sendQuestions(ctx context.Context, cl *ccdaemon.Client, b board, questions []question, ts string, w, warn io.Writer) (ccdaemon.StartResult, error) {
+// sendQuestions posts each question card, read off the board at rev, to Slack
+// and records each post on the board.
+func sendQuestions(ctx context.Context, cl *ccdaemon.Client, b board, rev int64, questions []question, ts string, w, warn io.Writer) (ccdaemon.StartResult, error) {
 	var res ccdaemon.StartResult
 	var errs []error
 	for _, q := range questions {
-		r, posted, err := mirror(ctx, cl, b, q.card, q.control, ts, warn)
+		r, posted, err := mirror(ctx, cl, b, ccdaemon.Writer{Lane: b.writer.Lane, Rev: rev}, true, q.card, q.control, ts, warn)
 		if err != nil {
 			errs = append(errs, err)
 			_, _ = fmt.Fprintf(w, "failed: %s: %v\n", q.card.ID, err)
 			continue
 		}
 		res = r
-		_, _ = fmt.Fprintf(w, "sent: %s ts=%s %s\n", q.card.ID, posted, q.card.Slack.URL)
+		_, _ = fmt.Fprintf(w, "sent: %s ts=%s %s\nrev: %d\n", q.card.ID, posted, q.card.Slack.URL, r.Rev)
 	}
 	return res, errors.Join(errs...)
 }
@@ -399,12 +406,12 @@ func answeredOnBoard(b *sendBoard, q doc.Block) bool {
 	return false
 }
 
-func mirror(ctx context.Context, cl *ccdaemon.Client, b board, card *doc.Card, q doc.Block, ts string, warn io.Writer) (ccdaemon.StartResult, string, error) {
+func mirror(ctx context.Context, cl *ccdaemon.Client, b board, wr ccdaemon.Writer, onBoard bool, card *doc.Card, q doc.Block, ts string, warn io.Writer) (ccdaemon.StartResult, string, error) {
 	unposted, err := json.Marshal(card)
 	if err != nil {
 		return ccdaemon.StartResult{}, "", err
 	}
-	if err := cl.SlackCardCheck(ctx, b.session, b.scope, b.pid, unposted); err != nil {
+	if err := cl.SlackCardCheck(ctx, b.session, b.scope, b.pid, wr, unposted); err != nil {
 		return ccdaemon.StartResult{}, "", fmt.Errorf("card %q, not posted to Slack: %w", card.ID, err)
 	}
 	_, port, err := cl.Resolve(ctx, b.session, b.scope, b.pid)
@@ -420,7 +427,7 @@ func mirror(ctx context.Context, cl *ccdaemon.Client, b board, card *doc.Card, q
 	if err != nil {
 		return ccdaemon.StartResult{}, "", err
 	}
-	res, err := cl.SlackCard(ctx, b.session, b.scope, b.pid, blockJSON)
+	res, err := cl.SlackCard(ctx, b.session, b.scope, b.pid, wr, onBoard, blockJSON)
 	if err != nil {
 		return ccdaemon.StartResult{}, "", fmt.Errorf("card %q is posted in Slack at %s but not on the board: %w", card.ID, posted.Permalink, err)
 	}
@@ -601,7 +608,7 @@ func newSlackSyncCmd(d cmd.Deps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			_, err = cl.SlackCard(ctx, sess, mustCwd(cwd), pid, blockJSON)
+			_, err = cl.SlackCard(ctx, sess, mustCwd(cwd), pid, ccdaemon.Writer{}, false, blockJSON)
 			return err
 		},
 	}
