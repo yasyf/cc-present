@@ -126,7 +126,7 @@ func TestAWriteSendsWhatItAskedAndLeavesTheRest(t *testing.T) {
 		bare     = `{"id":"bare","type":"approval"}`
 	)
 	blocks := func(raw ...string) []doc.Block {
-		var out []doc.Block
+		out := make([]doc.Block, 0, len(raw))
 		for _, r := range raw {
 			b, err := doc.DecodeBlock(json.RawMessage(r))
 			if err != nil {
@@ -258,6 +258,7 @@ printf '{"ts":"1800000001.000100","permalink":"https://example.slack.com/archive
 
 func TestABoardCardReachesCCSlackWithItsButtonsAndImageBytes(t *testing.T) {
 	dir := t.TempDir()
+	//nolint:gosec // G306: the fake cc-slack on PATH has to be executable.
 	if err := os.WriteFile(filepath.Join(dir, "cc-slack"), []byte(fakeCCSlack), 0o700); err != nil {
 		t.Fatal(err)
 	}
@@ -305,6 +306,7 @@ func TestABoardCardReachesCCSlackWithItsButtonsAndImageBytes(t *testing.T) {
 		t.Fatalf("posted = %+v", posted)
 	}
 
+	//nolint:gosec // G304: the test's own temp dir.
 	raw, err := os.ReadFile(filepath.Join(dir, "args"))
 	if err != nil {
 		t.Fatal(err)
@@ -320,6 +322,7 @@ func TestABoardCardReachesCCSlackWithItsButtonsAndImageBytes(t *testing.T) {
 	if !slices.Equal(sent.Options, []string{"Feed first", "Pieces first"}) || sent.Recommended != "Feed first" || sent.Waits != "layout" {
 		t.Errorf("card %+v, want the board's answers as its buttons", sent)
 	}
+	//nolint:gosec // G304: the test's own temp dir.
 	got, err := os.ReadFile(filepath.Join(dir, "Feed first.png"))
 	if err != nil {
 		t.Fatalf("the screenshot never reached cc-slack: %v (args %q)", err, args)
