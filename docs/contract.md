@@ -1032,9 +1032,10 @@ the command exits non-zero when a post failed.
 for cards written before they could be posted or to name another thread.
 It takes every top-level card of the current round with one question that
 neither surface has answered, or only the cards `--blocks` names, posts each as its own message at the
-Slack DM root through `cc-slack dm-status --mirrored`, keeps any DM message
-`--slack` names by ts or permalink watched for replies, and sets each card's
-`slack.url` to its post's permalink. It prints `sent: <id> ts=<ts> <permalink>` or
+Slack DM root through `cc-slack dm-status --mirrored`, or in the DM thread
+`--slack` names by ts or permalink, and sets each card's `slack.url` to its
+post's permalink. Nothing but `--slack` puts a card in a thread: a card goes
+there only when the call names that thread for its own question. It prints `sent: <id> ts=<ts> <permalink>` or
 `failed: <id>: <error>` for each card, and exits non-zero when any failed. A
 card already posted in that thread is edited in place, never posted twice. An unnamed card that breaks the rules above is skipped with a
 warning; a named one is an error. A closed board sends nothing. `cc-present ask <file|->` puts one card on

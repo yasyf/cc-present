@@ -83,7 +83,7 @@ func newAskCmd(d cmd.Deps) *cobra.Command {
 			return nil
 		},
 	}
-	c.Flags().StringVar(&thread, "slack", "", "ts or permalink of a DM message to keep watched for replies; the cards post at the DM root")
+	c.Flags().StringVar(&thread, "slack", "", "ts or permalink of the DM thread the cards post in, named only for that thread's own question; without it they post at the DM root")
 	c.Flags().StringVar(&session, "session", "", "Claude session id (defaults to $CLAUDE_CODE_SESSION_ID)")
 	c.Flags().StringVar(&cwd, "cwd", "", "working directory (recorded on the request; artifacts are per-window, not resolved by directory)")
 	writerFlags(c, &w)
@@ -135,7 +135,7 @@ func newSendCmd(d cmd.Deps) *cobra.Command {
 			return err
 		},
 	}
-	c.Flags().StringVar(&thread, "slack", "", "ts or permalink of a DM message to keep watched for replies; the cards post at the DM root")
+	c.Flags().StringVar(&thread, "slack", "", "ts or permalink of the DM thread the cards post in, named only for that thread's own question; without it they post at the DM root")
 	c.Flags().StringSliceVar(&blocks, "blocks", nil, "ids of the cards to send (defaults to every open question card)")
 	c.Flags().StringVar(&lane, "lane", defaultLane(), "lane sending the cards (defaults to $CC_PRESENT_LANE, then $CLAUDE_LONG_RUNNING_LANE); sending records each card's Slack post without changing who owns it")
 	c.Flags().StringVar(&session, "session", "", "Claude session id (defaults to $CLAUDE_CODE_SESSION_ID)")
