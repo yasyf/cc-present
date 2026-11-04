@@ -6,6 +6,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- A resumed session's channel reaches its window again: cc-interact 0.40.2 moves the channel onto the session's subject and leaves a live window's pid alone.
+
 ### Added
 
 - A card removed from the board closes its Slack card, whoever removes it. The Slack card keeps its title, its buttons go, it shows `Withdrawn: <reason>` from `remove-block --reason`, and it gets a reaction. A failed edit logs, never blocks the removal, and retries on the board's next event. A restart edits no card twice. A card already answered, or one with no Slack card, is left as it is. Needs a cc-slack with `card-answer --withdrawn`.
