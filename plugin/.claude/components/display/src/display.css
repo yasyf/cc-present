@@ -322,6 +322,15 @@ thead .ccpd-hl {
   background: #fff;
   transition: height 150ms ease;
 }
+.ccpd-designdoc-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.75rem;
+}
+.ccpd-designdoc iframe {
+  height: 640px;
+}
 
 .ccpd-system {
   --smap-paper: var(--surface);

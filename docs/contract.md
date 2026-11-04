@@ -686,6 +686,8 @@ a pointing error; an empty set skips id validation. The agent sends it with
 | `GET` | `/assets/{sha}` | none | Fetch a stored asset by its sha256. |
 | `GET` | `/api/sessions` | none | List the open artifacts, most-recently-updated first (see Session listing). |
 | `GET` | `/api/pr?subject=…&block=…&repo=…&number=…` | none | Read a `pr` block's live GitHub state through the daemon's `gh` (see Pull requests). |
+| `GET` | `/api/design-doc?slug=…&branch=…` | none | Fetch the branch into the checkout `DESIGN_DOCS_ROOT` names, then return `{src}`, the doc's page at the newer of the local and `origin` heads. `branch` defaults to `main`. A slug or branch that is not a plain name is `400`; a missing checkout, branch, or doc is `404` whose body is one line saying which. |
+| `GET` | `/design-docs/{commit}/{file}` | none | Read one file from a full commit sha in the checkout's git objects, never its working tree. Anything else is `404`. |
 | `GET` | `/api/packs` | none | List the installed block packs with inlined schemas, plus the dropped candidates (see Block packs). |
 | `GET` | `/packs/{pack}/{file}` | none | Fetch a pack's bundle asset from its `dist/` subtree (see Block packs). |
 
@@ -757,7 +759,8 @@ remote workspace can pin it so one static port forward reaches every artifact
 URL.
 
 The auth middleware wraps the whole plane: `GET /events`, the REST routes,
-`/assets/{sha}`, the pack routes (`/api/packs` and `/packs/{pack}/{file}`), and
+`/assets/{sha}`, the pack routes (`/api/packs` and `/packs/{pack}/{file}`), the
+design doc routes (`/api/design-doc` and `/design-docs/{commit}/{file}`), and
 the SPA. A request is accepted on exactly one of three paths:
 
 - **Loopback peer.** An unzoned loopback TCP peer passes without a token, under

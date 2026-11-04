@@ -11,6 +11,7 @@ import (
 	"mime"
 	"net/http"
 	"net/netip"
+	"os"
 	"slices"
 	"strings"
 	"time"
@@ -61,6 +62,8 @@ type restServer struct {
 	static      http.Handler
 	version     string
 	peerName    func(ctx context.Context, ip netip.Addr) string
+
+	designDocsRoot string
 }
 
 // interactionReq is the POST /api/interactions body: which subject, the browser
@@ -120,6 +123,8 @@ func mountREST(s *ccd.Server, ast *assets.Store, loader *packs.Loader, version s
 		static:      staticAssets(web.Dist(), sse.StaticHandler(web.Dist())),
 		version:     version,
 		peerName:    tailnetPeerName(tp),
+
+		designDocsRoot: os.Getenv("DESIGN_DOCS_ROOT"),
 	}
 	rs.routes(s.Mux())
 }
@@ -136,6 +141,8 @@ func (rs *restServer) routes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/assets", rs.handlePutAsset)
 	mux.HandleFunc("GET /api/packs", rs.handlePacks)
 	mux.HandleFunc("GET /api/pr", rs.handlePR)
+	mux.HandleFunc("GET /api/design-doc", rs.handleDesignDoc)
+	mux.HandleFunc("GET /design-docs/{commit}/{file...}", rs.handleDesignDocFile)
 	mux.HandleFunc("GET /packs/{pack}/{file...}", rs.handlePackFile)
 	mux.HandleFunc("GET /assets/{sha}", rs.handleGetAsset)
 	mux.HandleFunc("/api/", rs.handleAPINotFound)
