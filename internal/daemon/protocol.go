@@ -60,29 +60,30 @@ const (
 // envelope itself.
 type body struct {
 	Writer
-	Posted   bool            `json:"posted,omitempty"`   // slack-card: the card's Slack post is out; bind it to the card as it now stands
-	New      bool            `json:"new,omitempty"`      // start
-	Replace  bool            `json:"replace,omitempty"`  // start | import-verdicts
-	Title    string          `json:"title,omitempty"`    // start | round | push,upsert-block round-title
-	Doc      json.RawMessage `json:"doc,omitempty"`      // start | push
-	Block    json.RawMessage `json:"block,omitempty"`    // upsert-block
-	After    string          `json:"after,omitempty"`    // upsert-block
-	ID       string          `json:"id,omitempty"`       // remove-block | reply | block-show
-	Reason   string          `json:"reason,omitempty"`   // remove-block
-	BlockID  string          `json:"blockId,omitempty"`  // reply
-	Md       string          `json:"md,omitempty"`       // reply
-	Re       string          `json:"re,omitempty"`       // reply
-	Summary  string          `json:"summary,omitempty"`  // close
-	BlockIDs []string        `json:"blockIds,omitempty"` // revising
-	Note     string          `json:"note,omitempty"`     // revising
-	Round    string          `json:"round,omitempty"`    // push | upsert-block ("" | "current" | "new")
-	Answer   json.RawMessage `json:"answer,omitempty"`   // slack-answer | slack-decided
-	Verdicts json.RawMessage `json:"verdicts,omitempty"` // import-verdicts | move-verdicts | carry-verdict
-	Named    bool            `json:"named,omitempty"`
-	Reopen   []string        `json:"reopen,omitempty"`
-	Reask    Reask           `json:"reask,omitempty"` // start | push | upsert-block | import-verdicts | move-verdicts | carry-verdict
-	View     OutcomeView     `json:"view,omitempty"`  // outcomes
-	Since    string          `json:"since,omitempty"` // outcomes
+	Posted     bool            `json:"posted,omitempty"`     // slack-card: the card's Slack post is out; bind it to the card as it now stands
+	New        bool            `json:"new,omitempty"`        // start
+	Replace    bool            `json:"replace,omitempty"`    // start | import-verdicts
+	Title      string          `json:"title,omitempty"`      // start | round | push,upsert-block round-title
+	Doc        json.RawMessage `json:"doc,omitempty"`        // start | push
+	Block      json.RawMessage `json:"block,omitempty"`      // upsert-block
+	After      string          `json:"after,omitempty"`      // upsert-block
+	ID         string          `json:"id,omitempty"`         // remove-block | reply | block-show
+	Reason     string          `json:"reason,omitempty"`     // remove-block
+	OwnerOrder string          `json:"ownerOrder,omitempty"` // remove-block
+	BlockID    string          `json:"blockId,omitempty"`    // reply
+	Md         string          `json:"md,omitempty"`         // reply
+	Re         string          `json:"re,omitempty"`         // reply
+	Summary    string          `json:"summary,omitempty"`    // close
+	BlockIDs   []string        `json:"blockIds,omitempty"`   // revising
+	Note       string          `json:"note,omitempty"`       // revising
+	Round      string          `json:"round,omitempty"`      // push | upsert-block ("" | "current" | "new")
+	Answer     json.RawMessage `json:"answer,omitempty"`     // slack-answer | slack-decided
+	Verdicts   json.RawMessage `json:"verdicts,omitempty"`   // import-verdicts | move-verdicts | carry-verdict
+	Named      bool            `json:"named,omitempty"`
+	Reopen     []string        `json:"reopen,omitempty"`
+	Reask      Reask           `json:"reask,omitempty"` // start | push | upsert-block | import-verdicts | move-verdicts | carry-verdict
+	View       OutcomeView     `json:"view,omitempty"`  // outcomes
+	Since      string          `json:"since,omitempty"` // outcomes
 }
 
 // result is the domain payload a handler returns in Reply.Body. Envelope-level
