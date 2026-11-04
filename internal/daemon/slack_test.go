@@ -322,11 +322,38 @@ func TestBoardPickAnswersTheSlackCardOnce(t *testing.T) {
 	if sel := st.Interactions.Choices["step-3:merge-answer"]; !slices.Equal(sel.OptionIDs, []string{"answer-1"}) {
 		t.Fatalf("board selection = %v, want the winning Merge recorded with the resolution", sel.OptionIDs)
 	}
-	if w := h.post(t, `{"subject":"board--abcd0000","nonce":"n2","interaction":{"type":"choice.selected","blockId":"step-3:merge-answer","optionIds":["answer-2"]}}`); w.Code != http.StatusConflict {
-		t.Fatalf("second pick = %d, want 409", w.Code)
-	}
 	if len(calls) != 1 {
 		t.Fatalf("cc-slack was called %d times, want once", len(calls))
+	}
+}
+
+func TestALaterAnswerOnAResolvedCardCorrectsTheRecordedOne(t *testing.T) {
+	calls := 0
+	h := newSyncedRestHarness(t, func(_ context.Context, _, _, label string, _ bool, _ string) (slackcards.SlackAnswer, error) {
+		calls++
+		return slackcards.SlackAnswer{Answered: true, Label: label}, nil
+	})
+	if w := h.post(t, `{"subject":"board--abcd0000","nonce":"pick","interaction":{"type":"choice.selected","blockId":"step-3:merge-answer","optionIds":["answer-1"]}}`); w.Code != http.StatusOK {
+		t.Fatalf("pick = %d %s", w.Code, w.Body)
+	}
+	if w := h.post(t, `{"subject":"board--abcd0000","nonce":"repick","interaction":{"type":"choice.selected","blockId":"step-3:merge-answer","optionIds":["answer-2"]}}`); w.Code != http.StatusOK {
+		t.Fatalf("a corrected pick = %d %s", w.Code, w.Body)
+	}
+	if sel := h.reduce(t).Interactions.Choices["step-3:merge-answer"]; !slices.Equal(sel.OptionIDs, []string{"answer-2"}) {
+		t.Fatalf("selection = %v, want the corrected pick", sel.OptionIDs)
+	}
+	if w := h.post(t, `{"subject":"board--abcd0000","nonce":"typed","interaction":{"type":"choice.selected","blockId":"step-3:merge-answer","optionIds":[],"other":"Merge after the freeze"}}`); w.Code != http.StatusOK {
+		t.Fatalf("a typed Other after the pick = %d %s", w.Code, w.Body)
+	}
+	st := h.reduce(t)
+	if sel := st.Interactions.Choices["step-3:merge-answer"]; sel.Other != "Merge after the freeze" || len(sel.OptionIDs) != 0 {
+		t.Fatalf("selection = %+v, want the typed Other alone", sel)
+	}
+	if got := syncedCardOf(t, st, "step-3:merge").Status; got != slackcards.Resolved {
+		t.Errorf("card status = %q, want it still resolved", got)
+	}
+	if calls != 1 {
+		t.Errorf("cc-slack was called %d times, want only the first answer", calls)
 	}
 }
 

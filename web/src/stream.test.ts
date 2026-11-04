@@ -190,3 +190,30 @@ describe('toastFor reply', () => {
     expect(opened).toEqual(['k1']);
   });
 });
+
+describe('toastFor a card leaving the board', () => {
+  const card = {
+    id: 'c',
+    type: 'card',
+    title: 'How long?',
+    children: [{ id: 'q', type: 'choice', options: [{ id: 'a', label: '30 days' }] }],
+  } as unknown as Block;
+  const gone = { type: 'block.removed', id: 'c' } as unknown as WireFrame;
+  const onBoard = (): PresentState => {
+    const state = emptyState();
+    return { ...state, doc: { ...state.doc, blocks: [card] } };
+  };
+
+  it('says what was recorded when it carries an answer', () => {
+    const before = onBoard();
+    const answered = {
+      ...before,
+      interactions: { ...before.interactions, choices: { q: { optionIds: ['a'], other: 'in the team bucket' } } },
+    };
+    expect(toastFor(gone, answered, emptyState())?.text).toBe('Recorded: 30 days, in the team bucket');
+  });
+
+  it('keeps the plain removal toast when it carries none', () => {
+    expect(toastFor(gone, onBoard(), emptyState())?.text).toBe('A block was removed');
+  });
+});

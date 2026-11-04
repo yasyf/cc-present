@@ -31,6 +31,7 @@ import { revisionStore } from './revision';
 import { viewedStore } from './viewed';
 import type { ThreadEntry, ThreadProjection } from './threadFeed';
 import { interactionErrorText } from './interactionError';
+import { AFTER_ANSWER_MS, holdCard, holdWhileTyping } from './touchHold';
 import { BoardBlocks } from './components/BoardBlocks';
 import { DocHeader } from './components/DocHeader';
 import type { DocHeaderProps } from './components/DocHeader';
@@ -124,8 +125,8 @@ function PresentView({ subject }: { subject: string }) {
     gcTime: Infinity,
   });
 
-  const mutation = usePostInteraction(subject, (_err, interaction) =>
-    stream.notify({ kind: 'error', text: interactionErrorText(interaction) }),
+  const mutation = usePostInteraction(subject, (err, interaction) =>
+    stream.notify({ kind: 'error', text: interactionErrorText(interaction, err) }),
   );
 
   const phase = boardPhase(state);
@@ -148,17 +149,21 @@ function PresentView({ subject }: { subject: string }) {
   }, [boardReady, stream.connected]);
 
   useEffect(() => viewedStore.scope(subject, currentRound), [subject, currentRound]);
+  useEffect(() => holdWhileTyping(subject), [subject]);
 
   const api = useMemo<PresentApi>(
     () => ({
       post: (interaction) => {
-        if (interaction.type !== 'submit') viewedStore.mark([interaction.blockId]);
+        if (interaction.type !== 'submit') {
+          viewedStore.mark([interaction.blockId]);
+          holdCard(subject, interaction.blockId, AFTER_ANSWER_MS);
+        }
         return mutation.mutateAsync(interaction).then(() => true, () => false);
       },
       closed,
       currentRound,
     }),
-    [mutation, closed, currentRound],
+    [mutation, subject, closed, currentRound],
   );
 
   const packInteractive = useInteractivePackTypes();

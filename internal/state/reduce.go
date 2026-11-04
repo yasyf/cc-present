@@ -189,6 +189,7 @@ type State struct {
 	Rounds        Rounds       `json:"rounds"`
 	Revising      Revising     `json:"revising"`
 	removed       map[string]Removed
+	removedBlocks map[string]doc.Block
 	writes        map[string]Write
 	docWrite      Write
 	roundStarts   RoundStarts
@@ -232,6 +233,7 @@ func New() State {
 	return State{
 		SchemaVersion: SchemaVersion,
 		removed:       map[string]Removed{},
+		removedBlocks: map[string]doc.Block{},
 		writes:        map[string]Write{},
 		Doc:           &doc.Doc{Version: 1, Blocks: []doc.Block{}},
 		Interactions: Interactions{

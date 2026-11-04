@@ -12,7 +12,24 @@ import (
 	"github.com/yasyf/cc-present/internal/doc"
 )
 
-const touchHold = 30 * time.Minute
+const (
+	touchHold    = 30 * time.Minute
+	touchingHold = 30 * time.Second
+)
+
+type touching map[string]time.Time
+
+func (t touching) refuse(topID, op string) error {
+	at, ok := t[topID]
+	if !ok {
+		return nil
+	}
+	if time.Since(at) >= touchingHold {
+		delete(t, topID)
+		return nil
+	}
+	return fmt.Errorf("refusing to %s block %q: the human is working on it now, so it stays until they finish; retry on the next pass", op, topID)
+}
 
 type touch struct {
 	typ string

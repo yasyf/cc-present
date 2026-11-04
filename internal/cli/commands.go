@@ -674,7 +674,7 @@ func newRemoveBlockCmd(d cmd.Deps) *cobra.Command {
 			return nil
 		},
 	}
-	c.Flags().StringVar(&ownerOrder, "owner-order", "", "the human's message ordering this block off the board; passes the hold on a block he just touched, and only his explicit order may use it")
+	c.Flags().StringVar(&ownerOrder, "owner-order", "", "the human's message ordering this block off the board; passes the hold on a block he just touched, though never while his page reports him working on it, and only his explicit order may use it")
 	c.Flags().StringVar(&reason, "reason", "", "why the block leaves the board; a card synced with Slack shows it as \"Withdrawn: <reason>\" in place of its buttons")
 	c.Flags().StringVar(&session, "session", "", "Claude session id (defaults to $CLAUDE_CODE_SESSION_ID)")
 	c.Flags().StringVar(&cwd, "cwd", "", "working directory (recorded on the request; artifacts are per-window, not resolved by directory)")

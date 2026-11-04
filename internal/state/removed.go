@@ -51,9 +51,22 @@ func (in *Interactions) carries(id string) bool {
 	return decided || chosen || entered || packed || len(in.Feedback[id]) > 0 || len(in.Annotations[id]) > 0 || len(in.Triage[id]) > 0
 }
 
+// RemovedBlock returns a block no longer on the board and the top-level block
+// that held it.
+func (s *State) RemovedBlock(id string) (doc.Block, string, bool) {
+	b, ok := s.removedBlocks[id]
+	if !ok {
+		return nil, "", false
+	}
+	return b, s.removed[id].Top, true
+}
+
 func (s *State) markRemoved(top, b doc.Block) {
 	at := removedFrom(top, s.Rounds.Current)
-	doc.Walk(b, func(c doc.Block) { s.removed[c.BlockID()] = at })
+	doc.Walk(b, func(c doc.Block) {
+		s.removed[c.BlockID()] = at
+		s.removedBlocks[c.BlockID()] = c
+	})
 }
 
 func (s *State) dropMissing(before, after []doc.Block) {
@@ -66,11 +79,13 @@ func (s *State) dropMissing(before, after []doc.Block) {
 		doc.Walk(top, func(c doc.Block) {
 			if !shown[c.BlockID()] {
 				s.removed[c.BlockID()] = at
+				s.removedBlocks[c.BlockID()] = c
 			}
 		})
 	}
 	for id := range shown {
 		delete(s.removed, id)
+		delete(s.removedBlocks, id)
 	}
 }
 

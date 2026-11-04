@@ -248,6 +248,7 @@ export const FocusCard = forwardRef<
       <m.div
         ref={ref}
         className="focus-card"
+        data-block-id={step.block.id}
         tabIndex={-1}
         data-exiting={!present || undefined}
         aria-labelledby={headline.text ? headingId : undefined}

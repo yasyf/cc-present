@@ -133,3 +133,24 @@ func TestABlockTheHumanTouchedStaysUntilTheHoldPassesOrTheRoundIsSubmitted(t *te
 		}
 	})
 }
+
+func TestACardTheHumanIsWorkingOnStaysEvenAnsweredAndOrderedOff(t *testing.T) {
+	h, sub := touchedBoard(t)
+	answer(t, h, sub, "a1")
+	board := boardFor(h.cc.DB(), sub)
+	board.touching["c1"] = time.Now()
+
+	remove := handleRemoveBlock(h.hc(body{ID: "c1", OwnerOrder: "this one is still here"}))
+	if remove.OK || !strings.Contains(remove.Error, "working on it") {
+		t.Fatalf("remove while he works on it = %+v, want the hold's refusal", remove)
+	}
+	push := handlePush(h.hc(body{Doc: json.RawMessage(`{"version":1,"title":"Board","blocks":[{"id":"m1","type":"markdown","md":"hi"}]}`)}), doc.NoPacks, nilDisplay)
+	if push.OK || !strings.Contains(push.Error, "working on it") {
+		t.Fatalf("a push dropping it = %+v, want the hold's refusal", push)
+	}
+
+	board.touching["c1"] = time.Now().Add(-touchingHold)
+	if gone := handleRemoveBlock(h.hc(body{ID: "c1", OwnerOrder: "this one is still here"})); !gone.OK {
+		t.Fatalf("remove once he stopped: %s", gone.Error)
+	}
+}

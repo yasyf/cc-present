@@ -815,6 +815,43 @@ describe('Choice kept write-in', () => {
   });
 });
 
+describe('Choice delivery', () => {
+  const block = choice('c1', ['A', 'B']);
+  const line = (): string | null | undefined => container.querySelector('.choice-delivery')?.textContent;
+  const pick = { type: 'choice.selected', blockId: 'c1', optionIds: ['o0'], other: undefined };
+
+  it('says Saving until the daemon has it, then what was recorded', async () => {
+    const { settle, show } = renderPending(block);
+    show(empty());
+    act(() => (container.querySelector('.option') as HTMLElement).click());
+    show({ ...empty(), choices: { c1: { optionIds: ['o0'] } } });
+    expect(line()).toBe('Saving…');
+
+    await act(async () => settle[0]!(true));
+    expect(line()).toContain('Recorded: A');
+  });
+
+  it('says a refused post is not recorded and retries the same answer', async () => {
+    const { posted, settle, show } = renderPending(block);
+    show(empty());
+    act(() => (container.querySelector('.option') as HTMLElement).click());
+    await act(async () => settle[0]!(false));
+    expect(line()).toContain('Not recorded');
+
+    act(() => (container.querySelector('.choice-delivery button') as HTMLElement).click());
+    expect(posted).toEqual([pick, pick]);
+    await act(async () => settle[1]!(true));
+    expect(container.querySelector('.choice-delivery-failed')).toBeNull();
+  });
+
+  it('names kept Other text that has not been sent', () => {
+    draftStore.set('c1', 'other', 'never sent');
+    render(block, { ...empty(), choices: { c1: { optionIds: ['o0'] } } });
+    expect(line()).toContain('Recorded: A');
+    expect(line()).toContain('Your Other text is not sent');
+  });
+});
+
 describe('Choice submit chord', () => {
   it('leaves mod+Enter in the write-in to the global submit path', () => {
     const posted = renderCapturing(choice('c1', ['A', 'B']), empty());

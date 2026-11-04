@@ -382,6 +382,15 @@ a.ref:focus-visible {
   font-weight: 550;
   font-size: var(--text-base);
 }
+.choice-delivery {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+.choice-delivery-failed {
+  color: var(--danger);
+}
 .options {
   display: flex;
   flex-direction: column;
