@@ -325,11 +325,17 @@ func recordAnswer(ctx context.Context, appendFn ccd.AppendFunc, subID string, ca
 		if heads := askedHeads(card); len(heads) > 0 {
 			p["heads"] = heads
 		}
+		if words := shownWords(card); words != "" {
+			p["shown"], p["picked"] = words, pickedLabels(q, ids)
+		}
 	case *doc.Approval:
 		verdict, note := slackcards.ApprovalVerdict(label, other)
 		eventType, p["verdict"] = EventDecisionCreated, verdict
 		if note != "" {
 			p["note"] = note
+		}
+		if words := shownWords(card); words != "" {
+			p["shown"] = words
 		}
 	case *doc.Input:
 		eventType, p["text"] = EventInputSubmitted, label
