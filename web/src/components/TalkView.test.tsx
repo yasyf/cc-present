@@ -61,7 +61,7 @@ describe('TalkPane', () => {
   it('shows a sent note as sending until it echoes back', async () => {
     const post = vi.fn(async () => true);
     await pressEnter(post, 'on its way');
-    expect(container.querySelector('.thread-item.pending')?.textContent).toContain('on its way');
+    expect(container.querySelector('.talk-you.pending')?.textContent).toContain('on its way');
   });
 
   it('takes a draft from the page around it without sending it', async () => {
