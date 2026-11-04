@@ -267,15 +267,15 @@ func TestALongAnswerIsCutForItsButtonAndStillNamesItsOption(t *testing.T) {
 	}
 }
 
-func TestALongBodyIsCutToWhatSlackTakes(t *testing.T) {
+func TestALongBodyReachesCCSlackWhole(t *testing.T) {
 	md := strings.Repeat("word ", 700)
 	c := card(t, `{"id":"c","type":"card","title":"T?","children":[{"id":"m","type":"markdown","md":"`+md+`"},{"id":"a","type":"approval"}]}`)
 	q, err := slackcards.Check(c)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if n := utf8.RuneCountInString(slackcards.ToSlack(c, q).Body); n != 2800 {
-		t.Fatalf("body is %d characters, want 2800", n)
+	if n := utf8.RuneCountInString(slackcards.ToSlack(c, q).Body); n < len(strings.TrimSpace(md)) {
+		t.Fatalf("body is %d characters, want all %d of the markdown", n, len(strings.TrimSpace(md)))
 	}
 }
 
@@ -403,14 +403,13 @@ func TestTheSlackCardNamesWhatEachAnswerIsBuiltOn(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	body := slackcards.ToSlack(c, q).Body
-	for _, want := range []string{
-		"• *Ship it* is built on <https://github.com/yasyf/cc-present/tree/faster-boards|yasyf/cc-present faster-boards>",
-		"• *Hold* builds nothing: a process pick",
-	} {
-		if !strings.Contains(body, want) {
-			t.Errorf("body %q lacks %q", body, want)
-		}
+	got := slackcards.ToSlack(c, q)
+	want := map[string]string{
+		"Ship it": "Built on <https://github.com/yasyf/cc-present/tree/faster-boards|yasyf/cc-present faster-boards>",
+		"Hold":    "Builds nothing: a process pick",
+	}
+	if !reflect.DeepEqual(got.Hints, want) {
+		t.Errorf("hints = %q, want %q", got.Hints, want)
 	}
 }
 
