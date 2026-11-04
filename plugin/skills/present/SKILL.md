@@ -130,8 +130,10 @@ A complex or multi-part card, such as one with several questions or a
 multi-select, stays on the board: set `"mirror": false` on it. Without that,
 the write warns you.
 
-`cc-present send` posts open questions a write has not, and `--slack <ts|permalink>`
-posts in another thread of your DM, while `--blocks a,b` sends only those cards.
+`cc-present send` posts open questions a write has not, each at the DM root.
+`--slack <ts|permalink>` posts in that thread instead; name it only when that
+thread is the card's own question, since a card in a thread about something
+else goes unseen. `--blocks a,b` sends only those cards.
 `cc-present ask "$CARD"` puts one card on the board and sends it in one step,
 and `--slack` takes it to another thread the same way.
 The user answers wherever they are. The first answer wins, the card resolves
