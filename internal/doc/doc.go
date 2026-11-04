@@ -111,11 +111,16 @@ type Doc struct {
 	Blocks       []Block           `json:"blocks"`
 }
 
-// Section is a top-level header marker with optional prose.
+// Section is a top-level header marker with optional prose. Writers, when set,
+// names the tailnet devices that may post notes on it; any other device still
+// reads the board and taps its blocks. Href is the page the artifact belongs to,
+// which GET /api/sessions lists beside it.
 type Section struct {
 	base
-	Title string `json:"title"`
-	Md    string `json:"md,omitempty"`
+	Title   string   `json:"title"`
+	Md      string   `json:"md,omitempty"`
+	Writers []string `json:"writers,omitempty"`
+	Href    string   `json:"href,omitempty"`
 }
 
 // Chip is a small labelled tag on a card.
@@ -129,9 +134,11 @@ type Chip struct {
 // links the cc-slack ask card that asks the same question; an answer on either
 // surface answers both. Mirror false keeps a card on the board only; a card that
 // states nothing mirrors. Design says what the card's mockup proposes, and a
-// card that nests a plan.mock must set it.
+// card that nests a plan.mock must set it. Re names the note a thread view draws
+// the card beneath.
 type Card struct {
 	base
+	Re         string     `json:"re,omitempty"`
 	Title      string     `json:"title,omitempty"`
 	Summary    string     `json:"summary,omitempty"`
 	Chips      []Chip     `json:"chips,omitempty"`
@@ -403,9 +410,11 @@ type Image struct {
 
 // Column describes one column of a Table.
 type Column struct {
-	Key   string `json:"key"`
-	Label string `json:"label"`
-	Align string `json:"align,omitempty"`
+	Key    string `json:"key"`
+	Label  string `json:"label"`
+	Align  string `json:"align,omitempty"`
+	Filter bool   `json:"filter,omitempty"`
+	Sort   bool   `json:"sort,omitempty"`
 }
 
 // Table is a columnar block; each row maps a column key to an inline-markdown cell.
@@ -413,6 +422,17 @@ type Table struct {
 	base
 	Columns []Column            `json:"columns"`
 	Rows    []map[string]string `json:"rows"`
+	RowKey  string              `json:"rowKey,omitempty"`
+	Details map[string]string   `json:"details,omitempty"`
+	Actions []TableAction       `json:"actions,omitempty"`
+}
+
+// TableAction is a button on each row of a table with a rowKey. A press posts a
+// note naming the row on Target, or on the table when Target is empty.
+type TableAction struct {
+	ID     string `json:"id"`
+	Label  string `json:"label"`
+	Target string `json:"target,omitempty"`
 }
 
 // Progress is a progress bar; State is agent-owned display state.
@@ -674,6 +694,7 @@ func decodeDoc(data []byte, unmarshal unmarshalFunc) (*Doc, error) {
 func decodeCard(data json.RawMessage, unmarshal unmarshalFunc) (Block, error) {
 	var raw struct {
 		base
+		Re         string            `json:"re"`
 		Title      string            `json:"title"`
 		Summary    string            `json:"summary"`
 		Chips      []Chip            `json:"chips"`
@@ -694,6 +715,7 @@ func decodeCard(data json.RawMessage, unmarshal unmarshalFunc) (Block, error) {
 	}
 	return &Card{
 		base:       raw.base,
+		Re:         raw.Re,
 		Title:      raw.Title,
 		Summary:    raw.Summary,
 		Chips:      raw.Chips,
@@ -1474,6 +1496,33 @@ func validateTable(t *Table) error {
 		}
 		if col.Align != "" && col.Align != "left" && col.Align != "right" {
 			return fmt.Errorf("table %q: column %q invalid align %q", t.ID, col.Key, col.Align)
+		}
+	}
+	if t.RowKey == "" {
+		if len(t.Details) > 0 || len(t.Actions) > 0 {
+			return fmt.Errorf("table %q: details and actions need a rowKey", t.ID)
+		}
+		return nil
+	}
+	if !slices.ContainsFunc(t.Columns, func(col Column) bool { return col.Key == t.RowKey }) {
+		return fmt.Errorf("table %q: rowKey %q names no column", t.ID, t.RowKey)
+	}
+	keys := make(map[string]bool, len(t.Rows))
+	for i, row := range t.Rows {
+		key := row[t.RowKey]
+		if key == "" || keys[key] {
+			return fmt.Errorf("table %q: row %d needs its own %q", t.ID, i, t.RowKey)
+		}
+		keys[key] = true
+	}
+	for key := range t.Details {
+		if !keys[key] {
+			return fmt.Errorf("table %q: detail %q names no row", t.ID, key)
+		}
+	}
+	for _, action := range t.Actions {
+		if action.ID == "" || action.Label == "" {
+			return fmt.Errorf("table %q: an action needs an id and a label", t.ID)
 		}
 	}
 	return nil

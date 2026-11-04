@@ -42,6 +42,8 @@ export interface Section {
   type: 'section';
   title: string;
   md?: string;
+  writers?: string[];
+  href?: string;
 }
 
 export type ChipTone = 'default' | 'flag' | 'demo';
@@ -56,6 +58,7 @@ export type CardStatus = 'open' | 'resolved' | 'redrafted';
 export interface Card {
   id: string;
   type: 'card';
+  re?: string;
   title?: string;
   // Single-line inline markdown shown under the card title.
   summary?: string;
@@ -253,6 +256,8 @@ export interface Column {
   key: string;
   label: string;
   align?: ColumnAlign;
+  filter?: boolean;
+  sort?: boolean;
 }
 
 export interface Table {
@@ -262,6 +267,15 @@ export interface Table {
   // An inline index signature rather than `Record<…>`: the `Record` block type
   // declared below shadows the `Record` utility type within this module.
   rows: { [key: string]: string }[];
+  rowKey?: string;
+  details?: { [key: string]: string };
+  actions?: TableAction[];
+}
+
+export interface TableAction {
+  id: string;
+  label: string;
+  target?: string;
 }
 
 export type ProgressState = 'active' | 'done' | 'error';

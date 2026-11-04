@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"slices"
 	"strings"
 	"testing"
 
@@ -1015,5 +1016,50 @@ func TestProofSurvivesEveryDecodeAndMarshal(t *testing.T) {
 		if !d.Proof || !strings.Contains(string(raw), `"proof":true`) {
 			t.Errorf("%s: proof = %v, marshal = %s, want the mark kept", name, d.Proof, raw)
 		}
+	}
+}
+
+func TestAThreadSectionAndItsCardsKeepTheirFields(t *testing.T) {
+	d, err := parse(docWith(`{"id":"talk","type":"section","title":"Talk","writers":["yphone"]},{"id":"r1","type":"card","re":"n1","children":[{"id":"r1-md","type":"markdown","md":"hi"}]}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	section, ok := d.Blocks[0].(*doc.Section)
+	if !ok || !slices.Equal(section.Writers, []string{"yphone"}) {
+		t.Fatalf("section = %+v, want writers kept", d.Blocks[0])
+	}
+	card, ok := d.Blocks[1].(*doc.Card)
+	if !ok || card.Re != "n1" {
+		t.Fatalf("card = %+v, want re kept", d.Blocks[1])
+	}
+}
+
+func TestATableWithRowsThatOpenAndAct(t *testing.T) {
+	table := func(extra string) string {
+		return docWith(`{"id":"t1","type":"table","columns":[{"key":"name","label":"Name","filter":true,"sort":true}],"rows":[{"name":"a"},{"name":"b"}]` + extra + `}`)
+	}
+	tests := []struct {
+		name, extra, wantErr string
+	}{
+		{name: "plain"},
+		{name: "details and actions", extra: `,"rowKey":"name","details":{"a":"**more**"},"actions":[{"id":"why","label":"Why?","target":"talk"}]`},
+		{name: "details without a key", extra: `,"details":{"a":"x"}`, wantErr: "need a rowKey"},
+		{name: "unknown key column", extra: `,"rowKey":"nope"`, wantErr: "names no column"},
+		{name: "detail for no row", extra: `,"rowKey":"name","details":{"c":"x"}`, wantErr: "names no row"},
+		{name: "action with no label", extra: `,"rowKey":"name","actions":[{"id":"why"}]`, wantErr: "id and a label"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := parse(table(tt.extra))
+			if tt.wantErr == "" {
+				if err != nil {
+					t.Fatal(err)
+				}
+				return
+			}
+			if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+				t.Fatalf("err = %v, want %q", err, tt.wantErr)
+			}
+		})
 	}
 }

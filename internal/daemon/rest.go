@@ -10,6 +10,8 @@ import (
 	"log/slog"
 	"mime"
 	"net/http"
+	"net/netip"
+	"slices"
 	"strings"
 	"time"
 	"unicode"
@@ -19,6 +21,7 @@ import (
 	ccd "github.com/yasyf/cc-interact/daemon"
 	ccevent "github.com/yasyf/cc-interact/event"
 	"github.com/yasyf/cc-interact/sse"
+	"github.com/yasyf/synckit/meshtrust"
 
 	"github.com/yasyf/cc-present/internal/assets"
 	"github.com/yasyf/cc-present/internal/doc"
@@ -57,6 +60,7 @@ type restServer struct {
 	postGroup   groupPoster
 	static      http.Handler
 	version     string
+	peerName    func(ctx context.Context, ip netip.Addr) string
 }
 
 // interactionReq is the POST /api/interactions body: which subject, the browser
@@ -103,7 +107,7 @@ type triageEntry struct {
 // asset store, the pack registry and bundle routes, and the SPA static handler
 // on the daemon's mux. Go's pattern mux gives the more specific /api, /assets,
 // and /packs routes precedence over the catch-all.
-func mountREST(s *ccd.Server, ast *assets.Store, loader *packs.Loader, version string) {
+func mountREST(s *ccd.Server, ast *assets.Store, loader *packs.Loader, version string, tp *meshtrust.Provider) {
 	rs := &restServer{
 		db:          s.DB,
 		append:      s.Append,
@@ -115,6 +119,7 @@ func mountREST(s *ccd.Server, ast *assets.Store, loader *packs.Loader, version s
 		postGroup:   slackcards.PostGroupCard,
 		static:      staticAssets(web.Dist(), sse.StaticHandler(web.Dist())),
 		version:     version,
+		peerName:    tailnetPeerName(tp),
 	}
 	rs.routes(s.Mux())
 }
@@ -199,7 +204,7 @@ func (rs *restServer) handleInteractions(w http.ResponseWriter, r *http.Request)
 	board := boardFor(rs.db(), id)
 	board.answering.Lock()
 	defer board.answering.Unlock()
-	seq, card, q, status, err := rs.recordInteraction(r.Context(), board, id, &req)
+	seq, card, q, status, err := rs.recordInteraction(r.Context(), board, id, &req, r.RemoteAddr)
 	if err != nil {
 		http.Error(w, err.Error(), status)
 		return
@@ -225,7 +230,7 @@ func (rs *restServer) handleInteractions(w http.ResponseWriter, r *http.Request)
 	writeJSON(w, http.StatusOK, map[string]any{"seq": seq})
 }
 
-func (rs *restServer) recordInteraction(ctx context.Context, board *reducedBoard, id string, req *interactionReq) (int64, *doc.Card, doc.Block, int, error) {
+func (rs *restServer) recordInteraction(ctx context.Context, board *reducedBoard, id string, req *interactionReq, remoteAddr string) (int64, *doc.Card, doc.Block, int, error) {
 	if err := board.lock(ctx, rs.db(), id); err != nil {
 		return 0, nil, nil, http.StatusInternalServerError, err
 	}
@@ -233,6 +238,9 @@ func (rs *restServer) recordInteraction(ctx context.Context, board *reducedBoard
 	st := &board.st
 	if st.Interactions.Closed.Value {
 		return 0, nil, nil, http.StatusConflict, errors.New("presentation is closed")
+	}
+	if req.Interaction.Type == EventFeedbackCreated && !rs.mayPostNote(ctx, st.Doc.Blocks, req.Interaction.BlockID, remoteAddr) {
+		return 0, nil, nil, http.StatusForbidden, fmt.Errorf("this device may not post notes on %q", req.Interaction.BlockID)
 	}
 	payload, err := validateInteraction(st, board.revision, &req.Interaction, rs.packs.Current(), time.Now())
 	if err != nil {
@@ -251,6 +259,48 @@ func (rs *restServer) recordInteraction(ctx context.Context, board *reducedBoard
 		return 0, nil, nil, http.StatusInternalServerError, err
 	}
 	return seq, card, q, http.StatusOK, nil
+}
+
+func (rs *restServer) mayPostNote(ctx context.Context, blocks []doc.Block, blockID, remoteAddr string) bool {
+	for _, b := range blocks {
+		s, ok := b.(*doc.Section)
+		if !ok || s.BlockID() != blockID || len(s.Writers) == 0 {
+			continue
+		}
+		addr, err := netip.ParseAddrPort(remoteAddr)
+		if err != nil {
+			return false
+		}
+		ip := addr.Addr().Unmap()
+		return ip.IsLoopback() || slices.Contains(s.Writers, rs.peerName(ctx, ip))
+	}
+	return true
+}
+
+func tailnetPeerName(tp *meshtrust.Provider) func(context.Context, netip.Addr) string {
+	return func(ctx context.Context, ip netip.Addr) string {
+		if tp == nil {
+			return ""
+		}
+		if slices.Contains(tp.SelfAddrs(ctx), ip) {
+			return firstLabel(tp.SelfDNSName(ctx))
+		}
+		mesh := tp.Mesh(ctx)
+		for _, peer := range slices.Concat(mesh.Hosts, mesh.Devices) {
+			if slices.Contains(peer.Addrs, ip) {
+				return firstLabel(peer.Target)
+			}
+		}
+		return ""
+	}
+}
+
+func firstLabel(target string) string {
+	if _, host, found := strings.Cut(target, "@"); found {
+		target = host
+	}
+	label, _, _ := strings.Cut(target, ".")
+	return label
 }
 
 // validateInteraction checks one interaction against the reduced document and

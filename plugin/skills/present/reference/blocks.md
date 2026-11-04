@@ -177,6 +177,8 @@ A board with any decision unit opens in focus mode by default: one step at a tim
 { "id": "sec-flagged", "type": "section", "title": "Flagged — corrected before approval", "md": "Optional prose under the header." }
 ```
 
+`writers` lists the tailnet device names that may post notes on the section, such as `["yphone", "yasyf-forge"]`. Any other device gets a 403 on a note and still reads and taps the board. `/p/<ref>?thread=<section id>` draws the section's notes, replies and cards as one scrolling thread with a composer; a card's `re` names the note it sits beneath. `href` is the page the artifact belongs to, listed beside it in `GET /api/sessions`.
+
 ### `card` — decision unit (top level only)
 
 ```json
@@ -545,6 +547,8 @@ Three shapes carry labeled values; pick by what's being compared:
 ```
 
 Cells are inline markdown, keyed by column `key`. `align` is `left` or `right`.
+
+A table can be worked with in place. A column with `"filter": true` gets a chip per value beside a search box, and one with `"sort": true` sorts when its header is pressed. `rowKey` names the column whose values identify rows; each value must be unique. With it, `details` maps a row's key to markdown shown when the row opens, and `actions` adds buttons to an open row. A press posts a note reading `<label>: <row key>` on `target`, or on the table with no `target`.
 
 ### `progress` — live progress bar
 
