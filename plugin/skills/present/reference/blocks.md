@@ -365,7 +365,7 @@ Write only `repo` and `number`; the board reads everything else live from GitHub
 | `summary` | no | Markdown under the heading that says why this PR is on the board. |
 | `files` | no | Up to 50 globs or directory prefixes, such as `["internal/doc", "*.md"]`, that narrow the file list to the part worth reading. |
 
-`change`, `plan`, `risk` and `blocker` are its plain lines: what it changes for a user, what differed from the plan, the risk and what blocks it. A card whose `pr` carries them draws it in Slack with its link, live CI, the four lines as fields and its description from GitHub; cc-slack refuses a card with only some of them. The board shows `summary`, so repeat them there.
+`change`, `plan`, `risk` and `blocker` are its plain lines: what it changes for a user, what differed from the plan, the risk and what blocks it. A card whose `pr` carries any of them draws it in Slack with its link, live CI, the lines it has as fields and its description from GitHub. The board shows `summary`, so repeat them there.
 
 A PR mentioned on a board is a `pr` block, never a bare number or link. It works at the top level or inside a card, so a card that decides a merge leads with its PR.
 
@@ -422,7 +422,8 @@ When you regroup a board or re-key a row, move the human's verdict with it: `cc-
 | `repo` | yes | `owner/name` for every row. |
 | `groups[].summary` | yes | One line: what the group changes for a user. |
 | `prs[].head` | yes | The commit the verdict is given at, 7 to 40 lowercase hex characters. |
-| `prs[].change`, `plan`, `risk`, `review`, `blocker` | yes | One non-empty line of inline markdown each. |
+| `prs[].review` | yes | One non-empty line of inline markdown. |
+| `prs[].change`, `plan`, `risk`, `blocker` | no | One line of inline markdown each. A row leaves out a line it does not have yet. |
 | `prs[].md` | no | Full text, multi-line markdown, shown when the row is expanded. |
 | `prs[].carried` | no | Earlier heads whose verdict still stands for `head`. |
 | `prs[].files` | no | Globs that narrow the live file list, as on `pr`. |
