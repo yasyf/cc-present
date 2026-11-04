@@ -425,6 +425,28 @@ func TestToSlackTurnsALinkInTheSummaryIntoASlackLink(t *testing.T) {
 	}
 }
 
+func TestToSlackDrawsAResolvedReferenceAsItsLabelOrItsLink(t *testing.T) {
+	const sha = "ec72f20000000000000000000000000000000000000000000000000000000000"
+	for summary, want := range map[string]string{
+		`Doc [a5bbb4b](<> "ref:` + sha + `") says why.`:                                    "Doc a5bbb4b says why.",
+		`Plan [1cc85e1](<> "ref:` + sha + `") is the spec.`:                                "Plan 1cc85e1 is the spec.",
+		`See [pool.go:63](<https://github.com/o/r/blob/x/pool.go#L63> "ref:` + sha + `").`: "See <https://github.com/o/r/blob/x/pool.go#L63|pool.go:63>.",
+	} {
+		raw, err := json.Marshal(map[string]any{"id": "c", "type": "card", "title": "T", "summary": summary, "children": []any{map[string]any{"id": "q", "type": "choice", "options": []any{map[string]any{"id": "o1", "label": "Hold"}, map[string]any{"id": "o2", "label": "Go", "recommended": true}}}}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		c := card(t, string(raw))
+		ch, err := slackcards.Check(c)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := slackcards.ToSlack(c, ch).Body; got != want {
+			t.Errorf("Body of %q = %q, want %q", summary, got, want)
+		}
+	}
+}
+
 func TestACardShowsALeadItsSummaryRepeatsOnce(t *testing.T) {
 	for md, want := range map[string]string{
 		"Checks passed\non every job.\n\nIt ships tonight.": "Checks passed on every job.\nIt ships tonight.",
