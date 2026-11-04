@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/netip"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -930,6 +931,61 @@ func TestATapDecodesOnlyTheEventsSinceThePreviousTap(t *testing.T) {
 	}
 	if w := h.post(t, `{"subject":"board--abcd0000","nonce":"n3","interaction":{"type":"feedback.created","blockId":"ch1","text":"x"}}`); w.Code != http.StatusBadRequest || !strings.Contains(w.Body.String(), "unknown block") {
 		t.Fatalf("note on a removed block = %d %s, want 400 unknown block from the caught-up state", w.Code, w.Body)
+	}
+}
+
+func humanPayloads(t *testing.T, h *restHarness) []map[string]any {
+	t.Helper()
+	events, err := loadEvents(context.Background(), h.cc.DB(), h.id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var payloads []map[string]any
+	for _, event := range events {
+		if event.Origin != "human" {
+			continue
+		}
+		var payload map[string]any
+		if err := json.Unmarshal(event.Payload, &payload); err != nil {
+			t.Fatal(err)
+		}
+		payloads = append(payloads, payload)
+	}
+	return payloads
+}
+
+func TestAnAnswerKeepsWhatItsCardSaidAndNeverAClientsWords(t *testing.T) {
+	const asked = `{"version":1,"title":"T","blocks":[{"id":"c1","type":"card","title":"May I restart it?","summary":"meta-desk restarts pid 74452.","children":[` +
+		`{"id":"m1","type":"markdown","md":"It runs\nboard_watch.py."},` +
+		`{"id":"m2","type":"markdown","md":"An old draft.","struck":true},` +
+		`{"id":"ch1","type":"choice","prompt":"Restart?","options":[{"id":"o1","label":"Yes","hint":"Now"},{"id":"o2","label":"No"}]}]},` +
+		`{"id":"c2","type":"card","title":"Ship it?","children":[{"id":"a1","type":"approval","prompt":"Approve the ship?"}]},` +
+		`{"id":"ch3","type":"choice","options":[{"id":"o1","label":"One"}]}]}`
+	h := newRestHarnessWith(t, asked, emptyPackLoader(t))
+	for nonce, interaction := range []string{
+		`{"type":"choice.selected","blockId":"ch1","optionIds":["o1"],"shown":"kill pid 1","picked":["Yes, anything"]}`,
+		`{"type":"decision.created","blockId":"a1","verdict":"approved","shown":"kill pid 1"}`,
+		`{"type":"choice.selected","blockId":"ch3","optionIds":["o1"]}`,
+	} {
+		if w := h.post(t, fmt.Sprintf(`{"subject":"board--abcd0000","nonce":"n%d","interaction":%s}`, nonce, interaction)); w.Code != http.StatusOK {
+			t.Fatalf("answer %s = %d %s", interaction, w.Code, w.Body)
+		}
+	}
+	payloads := humanPayloads(t, h)
+	if len(payloads) != 3 {
+		t.Fatalf("payloads = %v", payloads)
+	}
+	if got, want := payloads[0]["shown"], "May I restart it? meta-desk restarts pid 74452. It runs board_watch.py. Restart? Yes Now No"; got != want {
+		t.Errorf("shown = %q, want %q", got, want)
+	}
+	if got := payloads[0]["picked"]; !reflect.DeepEqual(got, []any{"Yes"}) {
+		t.Errorf("picked = %v, want the label the card showed", got)
+	}
+	if got, want := payloads[1]["shown"], "Ship it? Approve the ship?"; got != want {
+		t.Errorf("approval shown = %q, want %q", got, want)
+	}
+	if _, stamped := payloads[2]["shown"]; stamped {
+		t.Errorf("a choice on no card stamped %v", payloads[2])
 	}
 }
 

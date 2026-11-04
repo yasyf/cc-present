@@ -384,6 +384,11 @@ func validateInteraction(st *state.State, revision int, it *interaction, reg *pa
 		if it.Note != "" {
 			p["note"] = it.Note
 		}
+		loc, _ := doc.Locate(st.Doc, topID)
+		card, _ := loc.Block.(*doc.Card)
+		if words := shownWords(card); words != "" {
+			p["shown"] = words
+		}
 		return mustJSON(p), nil
 	case EventChoiceSelected:
 		ch, topID, err := requireChoice(st, it.BlockID)
@@ -433,6 +438,9 @@ func validateInteraction(st *state.State, revision int, it *interaction, reg *pa
 		card, _ := loc.Block.(*doc.Card)
 		if heads := askedHeads(card); len(heads) > 0 {
 			p["heads"] = heads
+		}
+		if words := shownWords(card); words != "" {
+			p["shown"], p["picked"] = words, pickedLabels(ch, ids)
 		}
 		return mustJSON(p), nil
 	case EventFeedbackCreated:

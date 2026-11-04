@@ -109,6 +109,36 @@ func TestSlackAnswerSelectsResolvesAndRepliesOnce(t *testing.T) {
 	}
 }
 
+func TestASlackAnswerKeepsWhatItsCardSaid(t *testing.T) {
+	h := newHarness(t)
+	r := handleSlackCard(slackWindow(h, body{Block: json.RawMessage(syncedCardJSON)}), doc.NoPacks, nilDisplay)
+	if !r.OK {
+		t.Fatal(r.Error)
+	}
+	answer := `{"waits":"step-3:merge","label":"Merge","at":"2026-10-23T17:21:00Z","permalink":"` + slackPermalink + `"}`
+	if a := handleSlackAnswer(slackWindow(h, body{Answer: json.RawMessage(answer)})); !a.OK {
+		t.Fatal(a.Error)
+	}
+	events, err := loadEvents(context.Background(), h.cc.DB(), r.SubjectID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var payload struct {
+		Shown  string   `json:"shown"`
+		Picked []string `json:"picked"`
+	}
+	for _, event := range events {
+		if event.Origin == "human" {
+			if err := json.Unmarshal(event.Payload, &payload); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	if want := "Merge #41 now? Merge Hold"; payload.Shown != want || !slices.Equal(payload.Picked, []string{"Merge"}) {
+		t.Errorf("payload = %+v, want %q and the Merge label", payload, want)
+	}
+}
+
 func syncedQuestion(id, control string) string {
 	return `{"id":"` + id + `","type":"card","title":"Ask?","slack":{"url":"` + slackPermalink + `"},"children":[` + control + `]}`
 }
