@@ -246,7 +246,7 @@ function Row({ block, row, decision, locked, expanded, cursored, onFocus, onTogg
       </button>
 
       <dl className="prg-fields">
-        {FIELDS.map((f) => (
+        {FIELDS.filter((f) => row[f.key]).map((f) => (
           <div key={f.key} className={`prg-field prg-field-${f.key}`}>
             <dt>{f.label}</dt>
             <dd dangerouslySetInnerHTML={{ __html: renderInlineMarkdown(row[f.key]) }} />

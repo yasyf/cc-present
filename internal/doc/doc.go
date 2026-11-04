@@ -506,7 +506,9 @@ type Record struct {
 // owner/name, Title overrides the PR's own title, Summary is markdown under the
 // heading, Files narrows the changed-file list to matching paths, and Head is
 // the commit a question about the PR was asked at, which the board flags once
-// the PR's live head moves past it.
+// the PR's live head moves past it. Change, Plan, Risk and Blocker are the plain
+// lines a Slack card shows as fields; a card whose PR carries them draws the PR
+// in full there, with its live state and description.
 type PR struct {
 	base
 	Repo    string   `json:"repo"`
@@ -515,12 +517,17 @@ type PR struct {
 	Summary string   `json:"summary,omitempty"`
 	Files   []string `json:"files,omitempty"`
 	Head    string   `json:"head,omitempty"`
+	Change  string   `json:"change,omitempty"`
+	Plan    string   `json:"plan,omitempty"`
+	Risk    string   `json:"risk,omitempty"`
+	Blocker string   `json:"blocker,omitempty"`
 }
 
 // PRGroups is a set of GitHub pull requests in one repo, grouped by what they
-// change, each carrying a head-pinned approve or hold verdict. Every row states
-// what it changes for a user, how it differs from the plan, its risk, its review
-// and CI state, and what blocks it from landing; a tap reads the PR live.
+// change, each carrying a head-pinned approve or hold verdict. A row states what
+// it changes for a user, how it differs from the plan, its risk, its review and
+// CI state, and what blocks it from landing, leaving out a line it does not have
+// yet; a tap reads the PR live.
 type PRGroups struct {
 	base
 	Repo   string    `json:"repo"`
@@ -1796,13 +1803,16 @@ func validatePRRow(r *PRRow) error {
 			return fmt.Errorf("carried %w", err)
 		}
 	}
+	if r.Title == "" {
+		return errors.New("title must not be empty")
+	}
+	if r.Review == "" {
+		return errors.New("review must not be empty")
+	}
 	fields := []struct{ name, value string }{
 		{"title", r.Title}, {"change", r.Change}, {"plan", r.Plan}, {"risk", r.Risk}, {"review", r.Review}, {"blocker", r.Blocker},
 	}
 	for _, f := range fields {
-		if f.value == "" {
-			return fmt.Errorf("%s must not be empty", f.name)
-		}
 		if isMultiline(f.value) {
 			return fmt.Errorf("%s must be a single line", f.name)
 		}

@@ -6,6 +6,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- A card's Slack copy keeps its whole body and title, and sends each option's words as a hint beside its button. A `pr-groups` row and a `pr` block carrying its lines reach cc-slack as a PR it draws in one shape, at eight rows a card. A `pr-groups` row may leave out `change`, `plan`, `risk` or `blocker`.
+
 ### Fixed
 
 - A board refresh writes to Slack only the pr-groups cards it changed. A group the push left as it was writes nothing, a group whose rows are all settled is written once and not again, and a pull request that moved to another group leaves the card of the group it left. Each refresh used to re-send every group, so one pull request showed up under several group titles.

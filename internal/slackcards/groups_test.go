@@ -85,16 +85,13 @@ func TestGroupCardRowCarriesTheFiveFactsInSlackMarkup(t *testing.T) {
 	g, group := merges(row(41, "abc1234def"))
 	g.ID = "pg"
 	stale := map[string]state.Decision{"41": {Verdict: "rejected", Head: "0001111", At: decidedAt}}
-	text := slackcards.GroupCard(g, group, stale, true, 0)[0].Rows[0].Text
-	for _, want := range []string{
-		"*<https://github.com/acme/app/pull/41|app PR 41>* Fix the <https://x.test/l|login> &lt;form&gt; `abc1234`",
-		"*What changes:* Login works.", "*Against the plan:* Matches the plan.", "*Risk:* Low.",
-		"*Review and CI:* *Green*.", "*Blocks landing:* Nothing.",
-		"_Held at 0001111 on " + decidedClock + "; new head abc1234 needs your tap._",
-	} {
-		if !strings.Contains(text, want) {
-			t.Errorf("row text lacks %q:\n%s", want, text)
-		}
+	got := slackcards.GroupCard(g, group, stale, true, 0)[0].Rows[0]
+	want := slackcards.CardPR{URL: "https://github.com/acme/app/pull/41", Title: "Fix the [login](https://x.test/l) <form>", Head: "abc1234def", Review: "**Green**.", Change: "Login works.", Plan: "Matches the plan.", Risk: "Low.", Blocks: "Nothing."}
+	if got.PR == nil || *got.PR != want {
+		t.Errorf("row PR = %+v, want %+v, so cc-slack draws its link and four lines", got.PR, want)
+	}
+	if note := "_Held at 0001111 on " + decidedClock + "; new head abc1234 needs your tap._"; got.Text != note {
+		t.Errorf("row text = %q, want %q", got.Text, note)
 	}
 }
 
@@ -139,7 +136,7 @@ func pages(cards []slackcards.StatusCard) []page {
 	return got
 }
 
-func TestGroupCardPagesTwentyRowsACard(t *testing.T) {
+func TestGroupCardPagesEightRowsACard(t *testing.T) {
 	tests := []struct {
 		name     string
 		prs      int
@@ -147,10 +144,10 @@ func TestGroupCardPagesTwentyRowsACard(t *testing.T) {
 		held     int
 		want     []page
 	}{
-		{"twenty rows fit one card", 20, nil, 0, []page{{"pg:login", "Login", "needs_you", 20}}},
-		{"twenty-one rows page onto two cards", 21, nil, 0, []page{{"pg:login", "Login (1 of 2)", "needs_you", 20}, {"pg:login:2", "Login (2 of 2)", "needs_you", 1}}},
-		{"a tap that settles a row empties the second card", 21, map[string]state.Decision{"100": approvedAt("0000000100")}, 0, []page{{"pg:login", "Login", "needs_you", 20}, {"pg:login:2", "Login", "done", 0}}},
-		{"rows that left the group empty the second card", 19, nil, 21, []page{{"pg:login", "Login", "needs_you", 19}, {"pg:login:2", "Login", "done", 0}}},
+		{"eight rows fit one card", 8, nil, 0, []page{{"pg:login", "Login", "needs_you", 8}}},
+		{"nine rows page onto two cards", 9, nil, 0, []page{{"pg:login", "Login (1 of 2)", "needs_you", 8}, {"pg:login:2", "Login (2 of 2)", "needs_you", 1}}},
+		{"a tap that settles a row empties the second card", 9, map[string]state.Decision{"100": approvedAt("0000000100")}, 0, []page{{"pg:login", "Login", "needs_you", 8}, {"pg:login:2", "Login", "done", 0}}},
+		{"rows that left the group empty the second card", 7, nil, 9, []page{{"pg:login", "Login", "needs_you", 7}, {"pg:login:2", "Login", "done", 0}}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -164,11 +161,11 @@ func TestGroupCardPagesTwentyRowsACard(t *testing.T) {
 }
 
 func TestGroupCardsEmptyThePageAGroupNoLongerFills(t *testing.T) {
-	before, _ := merges(rows(21)...)
+	before, _ := merges(rows(9)...)
 	before.ID = "pg"
 	after := *before
-	after.Groups = []doc.PRGroup{{ID: "login", Title: "Login", PRs: rows(20)}}
-	want := []page{{"pg:login", "Login", "needs_you", 20}, {"pg:login:2", "Login", "done", 0}}
+	after.Groups = []doc.PRGroup{{ID: "login", Title: "Login", PRs: rows(8)}}
+	want := []page{{"pg:login", "Login", "needs_you", 8}, {"pg:login:2", "Login", "done", 0}}
 	if got := pages(slackcards.GroupCards(before, &after, nil)); !slices.Equal(got, want) {
 		t.Fatalf("cards = %+v, want %+v", got, want)
 	}
