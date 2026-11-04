@@ -3,6 +3,7 @@ package slackcards_test
 import (
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"slices"
 	"strconv"
 	"strings"
@@ -203,6 +204,42 @@ func TestAnApprovalAnswerCrossesBetweenSurfaces(t *testing.T) {
 	}
 }
 
+func TestALongBodyAndALongTitleReachSlackWhole(t *testing.T) {
+	c := card(t, askCard(`{"id":"o1","label":"Land","recommended":true},{"id":"o2","label":"Hold"}`))
+	c.Title = strings.Repeat("A long question. ", 12)
+	c.Summary = strings.Repeat("A long summary. ", 400)
+	q, err := slackcards.Check(c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := slackcards.ToSlack(c, q)
+	if !strings.Contains(got.Body, c.Summary) {
+		t.Errorf("body of %d characters lost the summary", len(got.Body))
+	}
+	if !strings.HasPrefix(got.Body, "*"+c.Title+"*") {
+		t.Errorf("body opens %q, want the whole of the clipped title", got.Body[:40])
+	}
+}
+
+func TestAPRCarryingItsLinesDrawsAsAPRNotALink(t *testing.T) {
+	c := card(t, `{"id":"card-r1","type":"card","title":"Land the relay fix?","children":[`+
+		`{"id":"p","type":"pr","repo":"acme/app","number":41,"title":"Relay fix","head":"abc1234","change":"Chats load","plan":"Nothing differed","risk":"Low","blocker":"Your tap"},`+
+		`{"id":"plain","type":"pr","repo":"acme/app","number":42},`+
+		`{"id":"q","type":"choice","options":[{"id":"o1","label":"Approve","recommended":true},{"id":"o2","label":"Hold"}]}]}`)
+	q, err := slackcards.Check(c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := slackcards.ToSlack(c, q)
+	want := []slackcards.CardPR{{URL: "https://github.com/acme/app/pull/41", Title: "Relay fix", Head: "abc1234", Change: "Chats load", Plan: "Nothing differed", Risk: "Low", Blocks: "Your tap"}}
+	if !slices.Equal(got.PRs, want) {
+		t.Errorf("prs = %+v, want %+v", got.PRs, want)
+	}
+	if strings.Contains(got.Body, "PR 41") || !strings.Contains(got.Body, "app PR 42") || len(got.Refs) != 1 {
+		t.Errorf("body %q refs %+v, want only the PR with no lines as a link", got.Body, got.Refs)
+	}
+}
+
 func TestALongAnswerIsCutForItsButtonAndStillNamesItsOption(t *testing.T) {
 	long := strings.Repeat("Refuse with rebuild ", 5)
 	c := card(t, askCard(`{"id":"o1","label":"`+long+`","hint":"keeps your line","recommended":true},{"id":"o2","label":"Hold","hint":"waits"}`))
@@ -215,10 +252,11 @@ func TestALongAnswerIsCutForItsButtonAndStillNamesItsOption(t *testing.T) {
 	if n := utf8.RuneCountInString(button); n != 61 || !strings.HasSuffix(button, "…") || got.Recommended != button {
 		t.Fatalf("button %q is %d characters, recommended %q; want it cut to 61 with an ellipsis", button, n, got.Recommended)
 	}
-	for _, want := range []string{"• *" + long + ":* keeps your line", "• *Hold:* waits"} {
-		if !strings.Contains(got.Body, want) {
-			t.Errorf("body %q lacks %q", got.Body, want)
-		}
+	if want := map[string]string{button: long + "\nkeeps your line", "Hold": "waits"}; !reflect.DeepEqual(got.Hints, want) {
+		t.Errorf("hints = %q, want %q", got.Hints, want)
+	}
+	if strings.Contains(got.Body, "keeps your line") {
+		t.Errorf("body %q repeats an option the card lists beside its button", got.Body)
 	}
 	ch := q.(*doc.Choice)
 	if ids, text := slackcards.Selection(ch, button, false); !slices.Equal(ids, []string{"o1"}) || text != "" {
@@ -350,7 +388,7 @@ func TestALongTitleReachesSlackCutTo140CharactersWithAnEllipsis(t *testing.T) {
 	}
 	got := slackcards.ToSlack(long, ch).Title
 	if n := len([]rune(got)); n != 140 || !strings.HasSuffix(got, "…") || !strings.HasPrefix(got, "“éé") {
-		t.Fatalf("a 209-character title reached Slack as %d characters: %q", n, got)
+		t.Fatalf("a 209-character title reached Slack's header as %d characters: %q", n, got)
 	}
 	exact := card(t, askCard(ok))
 	exact.Title = strings.Repeat("a", 140)

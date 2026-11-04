@@ -75,13 +75,31 @@ type StatusCard struct {
 	Group       string   `json:"group,omitempty"`
 	Rows        []Row    `json:"rows,omitempty"`
 	Supersedes  []string `json:"supersedes,omitempty"`
+	PRs         []CardPR `json:"prs,omitempty"`
+	// Hints are the words to read for an option, keyed by the option.
+	Hints map[string]string `json:"hints,omitempty"`
 }
 
-// Row is one pull request on a group card, with the board's verdict buttons.
+// Row is one item on a group card, with the board's verdict buttons. A pull
+// request's row carries it as PR, which cc-slack draws, and any line more as Text.
 type Row struct {
 	ID      string   `json:"id"`
-	Text    string   `json:"text"`
+	Text    string   `json:"text,omitempty"`
 	Buttons []string `json:"buttons"`
+	PR      *CardPR  `json:"pr,omitempty"`
+}
+
+// CardPR is a pull request as cc-slack draws it: its link and live state, its
+// four plain lines as fields, and its description, which cc-slack reads itself.
+type CardPR struct {
+	URL    string `json:"url"`
+	Title  string `json:"title,omitempty"`
+	Head   string `json:"head,omitempty"`
+	Review string `json:"review,omitempty"`
+	Change string `json:"change"`
+	Plan   string `json:"plan"`
+	Risk   string `json:"risk"`
+	Blocks string `json:"blocks"`
 }
 
 // Decided is a tap on a group card's row, as `cc-present slack-sync decided` reads it.
@@ -246,8 +264,12 @@ func Nudge(b doc.Block) string {
 
 // ToSlack is the cc-slack card for a card Check passed.
 func ToSlack(c *doc.Card, q doc.Block) StatusCard {
-	sc := StatusCard{Status: "needs_you", Title: clip(cmp.Or(c.Title, prompt(q)), maxTitle), Waits: c.ID, Supersedes: c.Supersedes}
+	title := cmp.Or(c.Title, prompt(q))
+	sc := StatusCard{Status: "needs_you", Title: clip(title, maxTitle), Waits: c.ID, Supersedes: c.Supersedes}
 	parts := []string{markdownLink.ReplaceAllString(c.Summary, "<$2|$1>")}
+	if sc.Title != title {
+		parts = slices.Insert(parts, 0, "*"+title+"*")
+	}
 	if c.Title != "" {
 		parts = append(parts, prompt(q))
 	}
@@ -261,11 +283,11 @@ func ToSlack(c *doc.Card, q doc.Block) StatusCard {
 			if o.Recommended {
 				sc.Recommended = label
 			}
-			if line := optionLine(o, label); line != "" {
-				parts = append(parts, line)
-			}
-			if line := buildLine(o); line != "" {
-				parts = append(parts, line)
+			if hint := optionHint(o, label); hint != "" {
+				if sc.Hints == nil {
+					sc.Hints = map[string]string{}
+				}
+				sc.Hints[label] = hint
 			}
 		}
 	}
@@ -277,12 +299,16 @@ func ToSlack(c *doc.Card, q doc.Block) StatusCard {
 			}
 		case *doc.PR:
 			url := fmt.Sprintf("https://github.com/%s/pull/%d", b.Repo, b.Number)
+			if b.Change != "" || b.Plan != "" || b.Risk != "" || b.Blocker != "" {
+				sc.PRs = append(sc.PRs, CardPR{URL: url, Title: b.Title, Head: b.Head, Change: b.Change, Plan: b.Plan, Risk: b.Risk, Blocks: b.Blocker})
+				continue
+			}
 			sc.Refs = append(sc.Refs, Ref{URL: url})
 			_, name, _ := strings.Cut(b.Repo, "/")
 			parts = append(parts, fmt.Sprintf("<%s|%s PR %d>", url, name, b.Number))
 		}
 	}
-	sc.Body = clip(strings.Join(slices.DeleteFunc(parts, func(s string) bool { return s == "" }), "\n"), maxBody)
+	sc.Body = strings.Join(slices.DeleteFunc(parts, func(s string) bool { return s == "" }), "\n")
 	return sc
 }
 
@@ -349,29 +375,25 @@ func itemText(item doc.Item) string {
 	if item.Md != "" {
 		lines = append(lines, mrkdwn(item.Md))
 	}
-	return clip(strings.Join(lines, "\n"), maxRowText)
+	return strings.Join(lines, "\n")
 }
 
-func optionLine(o doc.Option, label string) string {
-	switch {
-	case o.Hint != "" && label != o.Label:
-		return "• *" + o.Label + ":* " + o.Hint
-	case o.Hint != "":
-		return "• *" + label + ":* " + o.Hint
-	case label != o.Label:
-		return "• *" + o.Label + "*"
+func optionHint(o doc.Option, label string) string {
+	var lines []string
+	if label != o.Label {
+		lines = append(lines, o.Label)
 	}
-	return ""
-}
-
-func buildLine(o doc.Option) string {
+	if o.Hint != "" {
+		lines = append(lines, o.Hint)
+	}
 	switch {
 	case o.Build == nil:
-		return ""
 	case o.Build.None != "":
-		return "• *" + o.Label + "* builds nothing: " + o.Build.None
+		lines = append(lines, "Builds nothing: "+o.Build.None)
+	default:
+		lines = append(lines, fmt.Sprintf("Built on <%s|%s %s>", o.Build.URL(), o.Build.Repo, o.Build.Branch))
 	}
-	return fmt.Sprintf("• *%s* is built on <%s|%s %s>", o.Label, o.Build.URL(), o.Build.Repo, o.Build.Branch)
+	return strings.Join(lines, "\n")
 }
 
 func clip(s string, limit int) string {
@@ -508,10 +530,10 @@ const (
 	holdLabel    = "Hold"
 	shortHead    = 7
 	rowHead      = 12
-	maxRowText   = 3000
-	maxBody      = 2800
+	maxBody      = 40000
 	maxMore      = 32
 	maxGroupRows = 20
+	maxPRRows    = 8
 	maxSlackID   = 64
 )
 
@@ -522,21 +544,10 @@ var (
 	itemVerdicts = map[string]string{approveLabel: "approved", rejectLabel: "rejected"}
 )
 
-var rowFacts = []struct {
-	label string
-	value func(doc.PRRow) string
-}{
-	{"What changes", func(r doc.PRRow) string { return r.Change }},
-	{"Against the plan", func(r doc.PRRow) string { return r.Plan }},
-	{"Risk", func(r doc.PRRow) string { return r.Risk }},
-	{"Review and CI", func(r doc.PRRow) string { return r.Review }},
-	{"Blocks landing", func(r doc.PRRow) string { return r.Blocker }},
-}
-
 var mrkdwnEscapes = strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;", "**", "*")
 
 // GroupCard is the cc-slack cards for one group of a pr-groups block, one per
-// maxGroupRows rows: a row with buttons for each pull request whose verdict does
+// maxPRRows rows: a row with buttons for each pull request whose verdict does
 // not stand at its head, and a line naming the verdict for each one whose verdict
 // does. A group that left the board (live false) keeps no buttons: each row is its
 // last verdict or that it left. A page the group's rows or its held rows from the
@@ -554,14 +565,18 @@ func GroupCard(g *doc.PRGroups, group doc.PRGroup, verdicts map[string]state.Dec
 		default:
 			rows = append(rows, Row{
 				ID:      fmt.Sprintf("%s:%d:%s", g.ID, r.Number, r.Head[:min(len(r.Head), rowHead)]),
-				Text:    rowText(g.Repo, r, d, decided),
+				Text:    rowNote(g.Repo, r, d, decided),
 				Buttons: []string{approveLabel, holdLabel},
+				PR: &CardPR{
+					URL: fmt.Sprintf("https://github.com/%s/pull/%d", g.Repo, r.Number), Title: r.Title, Head: r.Head, Review: r.Review,
+					Change: r.Change, Plan: r.Plan, Risk: r.Risk, Blocks: r.Blocker,
+				},
 			})
 		}
 	}
-	pages := slices.Collect(slices.Chunk(rows, maxGroupRows))
+	pages := slices.Collect(slices.Chunk(rows, maxPRRows))
 	key := g.ID + ":" + group.ID
-	cards := make([]StatusCard, max(1, len(pages), (max(len(group.PRs), held)+maxGroupRows-1)/maxGroupRows))
+	cards := make([]StatusCard, max(1, len(pages), (max(len(group.PRs), held)+maxPRRows-1)/maxPRRows))
 	for i := range cards {
 		cards[i] = StatusCard{Status: "done", Title: clip(group.Title, maxTitle), Group: key}
 		if i > 0 {
@@ -597,22 +612,15 @@ func prLink(repo string, r doc.PRRow) string {
 	return fmt.Sprintf("*<https://github.com/%s/pull/%d|%s PR %d>* %s `%s`", repo, r.Number, name, r.Number, mrkdwn(r.Title), r.Head[:shortHead])
 }
 
-func rowText(repo string, r doc.PRRow, d state.Decision, decided bool) string {
-	lines := []string{prLink(repo, r)}
-	for _, f := range rowFacts {
-		lines = append(lines, "*"+f.label+":* "+mrkdwn(f.value(r)))
-	}
+func rowNote(repo string, r doc.PRRow, d state.Decision, decided bool) string {
+	var lines []string
 	if len(r.Stack) > 0 {
 		lines = append(lines, "*One tap also decides:* "+stackLine(repo, r.Stack))
 	}
 	if decided {
 		lines = append(lines, "_"+verdictLine(d, "Held")+"; new head "+r.Head[:shortHead]+" needs your tap._")
 	}
-	text := []rune(strings.Join(lines, "\n"))
-	if len(text) <= maxRowText {
-		return string(text)
-	}
-	return string(text[:maxRowText-1]) + "…"
+	return strings.Join(lines, "\n")
 }
 
 func stackLine(repo string, stack []doc.StackMember) string {

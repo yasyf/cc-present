@@ -365,6 +365,8 @@ Write only `repo` and `number`; the board reads everything else live from GitHub
 | `summary` | no | Markdown under the heading that says why this PR is on the board. |
 | `files` | no | Up to 50 globs or directory prefixes, such as `["internal/doc", "*.md"]`, that narrow the file list to the part worth reading. |
 
+`change`, `plan`, `risk` and `blocker` are its plain lines: what it changes for a user, what differed from the plan, the risk and what blocks it. A card whose `pr` carries them draws it in Slack with its link, live CI, the four lines as fields and its description from GitHub; cc-slack refuses a card with only some of them. The board shows `summary`, so repeat them there.
+
 A PR mentioned on a board is a `pr` block, never a bare number or link. It works at the top level or inside a card, so a card that decides a merge leads with its PR.
 
 ### `pr-groups` — pull requests grouped for a merge sign-off
