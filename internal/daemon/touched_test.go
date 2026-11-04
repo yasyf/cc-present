@@ -44,6 +44,13 @@ func wantHeld(t *testing.T, reply ccd.Reply, op, block string) {
 }
 
 func TestABlockTheHumanTouchedStaysUntilTheHoldPassesOrTheRoundIsSubmitted(t *testing.T) {
+	t.Run("an answered block leaves during the hold", func(t *testing.T) {
+		h, sub := touchedBoard(t)
+		answer(t, h, sub, "a1")
+		if reply := handleRemoveBlock(h.hc(body{ID: "c1"})); !reply.OK {
+			t.Fatalf("remove-block of an answered block not ok: %s", reply.Error)
+		}
+	})
 	t.Run("remove-block with the human's order passes the hold", func(t *testing.T) {
 		h, sub := touchedBoard(t)
 		if reply := handleRemoveBlock(h.hc(body{ID: "c1", OwnerOrder: "take it off, 10:28 PM"})); !reply.OK {
