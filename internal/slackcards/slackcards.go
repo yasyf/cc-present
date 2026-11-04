@@ -273,7 +273,7 @@ func ToSlack(c *doc.Card, q doc.Block) StatusCard {
 		switch b := child.(type) {
 		case *doc.Markdown:
 			if !b.Struck {
-				parts = append(parts, markdownLink.ReplaceAllString(b.Md, "<$2|$1>"))
+				parts = append(parts, markdownLink.ReplaceAllString(withoutLead(b.Md, c.Summary), "<$2|$1>"))
 			}
 		case *doc.PR:
 			url := fmt.Sprintf("https://github.com/%s/pull/%d", b.Repo, b.Number)
@@ -324,6 +324,14 @@ func Cards(c *doc.Card, q doc.Block, verdicts map[string]state.Decision) []Statu
 		cards[i] = page
 	}
 	return cards
+}
+
+func withoutLead(md, summary string) string {
+	lead, rest, _ := strings.Cut(strings.TrimSpace(md), "\n\n")
+	if strings.Join(strings.Fields(lead), " ") != strings.Join(strings.Fields(summary), " ") {
+		return md
+	}
+	return strings.TrimSpace(rest)
 }
 
 func itemText(item doc.Item) string {

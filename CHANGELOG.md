@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- A Slack card shows its summary once. A card whose markdown opens with the paragraph its summary already carries used to print that paragraph twice in one message; every card kind now drops the repeated lead.
 - A resumed session's channel reaches its window again: cc-interact 0.40.2 moves the channel onto the session's subject and leaves a live window's pid alone.
 
 ### Added
