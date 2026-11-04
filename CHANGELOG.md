@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- A board refresh writes to Slack only the pr-groups cards it changed. A group the push left as it was writes nothing, a group whose rows are all settled is written once and not again, and a pull request that moved to another group leaves the card of the group it left. Each refresh used to re-send every group, so one pull request showed up under several group titles.
+- A board reply that repeats the block's previous reply stays off Slack.
 - A Slack card shows its summary once. A card whose markdown opens with the paragraph its summary already carries used to print that paragraph twice in one message; every card kind now drops the repeated lead.
 - A resumed session's channel reaches its window again: cc-interact 0.40.2 moves the channel onto the session's subject and leaves a live window's pid alone.
 

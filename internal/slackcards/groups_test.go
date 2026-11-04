@@ -217,3 +217,43 @@ func TestGroupCardRowNamesTheStackItsTapDecides(t *testing.T) {
 		t.Fatalf("row text lacks %q:\n%s", want, text)
 	}
 }
+
+func TestGroupCardsWriteAGroupOnlyWhileItAsksAndChanged(t *testing.T) {
+	before, _ := merges(row(41, "abc1234def"), row(42, "fed4321abc"))
+	before.ID = "pg"
+	reworded := *before
+	reworded.Groups = []doc.PRGroup{before.Groups[0]}
+	reworded.Groups[0].Summary = "Everyone can sign in again."
+	approved := map[string]state.Decision{"41": approvedAt("abc1234def"), "42": approvedAt("fed4321abc")}
+	tests := []struct {
+		name     string
+		after    *doc.PRGroups
+		verdicts map[string]state.Decision
+		want     []page
+	}{
+		{"an unchanged group writes nothing", before, nil, []page{}},
+		{"a changed group that asks redraws", &reworded, nil, []page{{"pg:login", "Login", "needs_you", 2}}},
+		{"a settled group writes nothing more", &reworded, approved, []page{}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := pages(slackcards.GroupCards(before, tt.after, tt.verdicts)); !slices.Equal(got, tt.want) {
+				t.Fatalf("cards = %+v, want %+v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestARetiredGroupCardLeavesOutAPRThatMovedGroups(t *testing.T) {
+	before, _ := merges(row(41, "abc1234def"), row(42, "fed4321abc"))
+	before.ID = "pg"
+	after := *before
+	after.Groups = []doc.PRGroup{{ID: "signup", Title: "Signup", PRs: []doc.PRRow{row(42, "fed4321abc"), row(43, "0123456789")}}}
+	cards := slackcards.GroupCards(before, &after, nil)
+	if len(cards) != 2 || cards[0].Group != "pg:login" {
+		t.Fatalf("cards = %+v, want the retired login card then the signup card", cards)
+	}
+	if retired := cards[0].Body; !strings.Contains(retired, "app PR 41>") || strings.Contains(retired, "app PR 42>") {
+		t.Fatalf("retired body = %q, want PR 41 alone: PR 42 lives on in Signup", retired)
+	}
+}
