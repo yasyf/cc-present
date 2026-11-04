@@ -5,6 +5,7 @@
 // verdicts live in the separate event reduction (see Event.swift).
 
 import Foundation
+import IOSKit
 
 /// Doc is the document envelope: header metadata plus a flat list of top-level
 /// blocks. Version is the schema version and is always 1.
@@ -117,7 +118,7 @@ public enum Block: Codable, Equatable, Sendable {
 
     /// Card is a top-level container nesting one level of leaf blocks. Status is
     /// agent-owned display state (`open`, `resolved`, `redrafted`); it never
-    /// records a human verdict.
+    /// records a human verdict. `re` names the Talk note the card answers.
     public struct Card: Codable, Equatable, Sendable {
         public var id: String
         public var title: String?
@@ -125,6 +126,7 @@ public enum Block: Codable, Equatable, Sendable {
         public var chips: [Chip]?
         public var flagged: Bool?
         public var status: String?
+        public var re: String?
         public var children: [Block]
 
         public init(
@@ -134,6 +136,7 @@ public enum Block: Codable, Equatable, Sendable {
             chips: [Chip]? = nil,
             flagged: Bool? = nil,
             status: String? = nil,
+            re: String? = nil,
             children: [Block]
         ) {
             self.id = id
@@ -142,6 +145,7 @@ public enum Block: Codable, Equatable, Sendable {
             self.chips = chips
             self.flagged = flagged
             self.status = status
+            self.re = re
             self.children = children
         }
     }
@@ -438,24 +442,56 @@ public enum Block: Codable, Equatable, Sendable {
         public var key: String
         public var label: String
         public var align: String?
+        public var filter: Bool?
+        public var sort: Bool?
 
-        public init(key: String, label: String, align: String? = nil) {
+        public init(key: String, label: String, align: String? = nil, filter: Bool? = nil, sort: Bool? = nil) {
             self.key = key
             self.label = label
             self.align = align
+            self.filter = filter
+            self.sort = sort
+        }
+    }
+
+    /// TableAction is a button on each row of a table with a rowKey; a press posts a
+    /// note naming the row on `target`, or on the table when `target` is absent.
+    public struct TableAction: Codable, Equatable, Sendable {
+        public var id: String
+        public var label: String
+        public var target: String?
+
+        public init(id: String, label: String, target: String? = nil) {
+            self.id = id
+            self.label = label
+            self.target = target
         }
     }
 
     /// Table is a columnar block; each row maps a column key to an inline-markdown cell.
+    /// With a `rowKey`, a row can open to its markdown `details` and offer `actions`.
     public struct Table: Codable, Equatable, Sendable {
         public var id: String
         public var columns: [Column]
         public var rows: [[String: String]]
+        public var rowKey: String?
+        public var details: [String: String]?
+        public var actions: [TableAction]?
 
-        public init(id: String, columns: [Column], rows: [[String: String]]) {
+        public init(
+            id: String,
+            columns: [Column],
+            rows: [[String: String]],
+            rowKey: String? = nil,
+            details: [String: String]? = nil,
+            actions: [TableAction]? = nil
+        ) {
             self.id = id
             self.columns = columns
             self.rows = rows
+            self.rowKey = rowKey
+            self.details = details
+            self.actions = actions
         }
     }
 
@@ -613,39 +649,120 @@ public enum Block: Codable, Equatable, Sendable {
     }
 
     /// PRGroups is a set of pull requests grouped by what they change, each with a
-    /// head-pinned verdict. The client renders it through the SPA's single-block
-    /// page, so `raw` holds the whole block object verbatim, like a pack block;
-    /// `rows` keeps the fields the native tally reads.
+    /// head-pinned verdict. `raw` holds the whole block object verbatim, like a pack
+    /// block, so re-encoding never drops a field the client does not model.
     public struct PRGroups: Codable, Equatable, Sendable {
         public var id: String
+        public var repo: String
+        public var prompt: String?
+        public var groups: [Group]
         public var raw: JSONValue
-        public var rows: [Row]
 
-        /// Row is one pull request's verdict key and the heads its verdict stands at.
-        public struct Row: Decodable, Equatable, Sendable {
-            public var number: Int
-            public var head: String
-            public var carried: [String]?
+        public var rows: [Row] {
+            groups.flatMap(\.prs)
+        }
 
-            public init(number: Int, head: String, carried: [String]? = nil) {
-                self.number = number
-                self.head = head
-                self.carried = carried
+        public struct Group: Decodable, Equatable, Sendable {
+            public var id: String
+            public var title: String
+            public var summary: String
+            public var prs: [Row]
+
+            public init(id: String, title: String, summary: String, prs: [Row]) {
+                self.id = id
+                self.title = title
+                self.summary = summary
+                self.prs = prs
             }
         }
 
-        private struct Group: Decodable {
-            var prs: [Row]
+        /// Row is one pull request: its verdict key, the heads its verdict stands at,
+        /// and the merge facts the human decides on.
+        public struct Row: Decodable, Equatable, Sendable, Identifiable {
+            public var number: Int
+            public var head: String
+            public var title: String
+            public var change: String
+            public var plan: String
+            public var risk: String
+            public var review: String
+            public var blocker: String
+            public var md: String?
+            public var carried: [String]?
+            public var files: [String]?
+            public var stack: [StackMember]?
+
+            public var id: String {
+                String(number)
+            }
+
+            public init(
+                number: Int,
+                head: String,
+                title: String,
+                change: String,
+                plan: String,
+                risk: String,
+                review: String,
+                blocker: String,
+                md: String? = nil,
+                carried: [String]? = nil,
+                files: [String]? = nil,
+                stack: [StackMember]? = nil
+            ) {
+                self.number = number
+                self.head = head
+                self.title = title
+                self.change = change
+                self.plan = plan
+                self.risk = risk
+                self.review = review
+                self.blocker = blocker
+                self.md = md
+                self.carried = carried
+                self.files = files
+                self.stack = stack
+            }
+        }
+
+        public struct StackMember: Decodable, Equatable, Sendable {
+            public var number: Int
+            public var head: String
+
+            public init(number: Int, head: String) {
+                self.number = number
+                self.head = head
+            }
+        }
+
+        public enum RowVerdict: Equatable, Sendable {
+            case undecided
+            case current(Decision, carried: Bool)
+            case stale(Decision)
+        }
+
+        public struct Tally: Equatable, Sendable {
+            public var approved: Int
+            public var held: Int
+            public var open: Int
+
+            public init(approved: Int = 0, held: Int = 0, open: Int = 0) {
+                self.approved = approved
+                self.held = held
+                self.open = open
+            }
         }
 
         private enum CodingKeys: String, CodingKey {
-            case id, groups
+            case id, repo, prompt, groups
         }
 
         public init(from decoder: Decoder) throws {
             let container = try decoder.container(keyedBy: CodingKeys.self)
             id = try container.decode(String.self, forKey: .id)
-            rows = try container.decode([Group].self, forKey: .groups).flatMap(\.prs)
+            repo = try container.decode(String.self, forKey: .repo)
+            prompt = try container.decodeIfPresent(String.self, forKey: .prompt)
+            groups = try container.decode([Group].self, forKey: .groups)
             raw = try JSONValue(from: decoder)
         }
 
@@ -656,14 +773,90 @@ public enum Block: Codable, Equatable, Sendable {
         /// stands reports whether a recorded verdict holds for the row's current head:
         /// given at that head or at one the agent carried. Mirrors web/src/prgroups.ts.
         public static func stands(_ decision: Decision?, for row: Row) -> Bool {
-            guard let head = decision?.head else { return false }
-            return sameHead(head, row.head) || (row.carried ?? []).contains { sameHead(head, $0) }
+            if case .current = rowVerdict(row, decision) {
+                return true
+            }
+            return false
         }
 
         /// sameHead mirrors doc.SameHead: the shorter sha is a prefix of the longer.
         public static func sameHead(_ a: String, _ b: String) -> Bool {
             guard !a.isEmpty, !b.isEmpty else { return false }
             return a.count <= b.count ? b.hasPrefix(a) : a.hasPrefix(b)
+        }
+
+        public static func shortHead(_ head: String) -> String {
+            String(head.prefix(7))
+        }
+
+        public static func rowVerdict(_ row: Row, _ decision: Decision?) -> RowVerdict {
+            guard let decision else { return .undecided }
+            let head = decision.head ?? ""
+            if sameHead(head, row.head) {
+                return .current(decision, carried: false)
+            }
+            if (row.carried ?? []).contains(where: { sameHead($0, head) }) {
+                return .current(decision, carried: true)
+            }
+            return .stale(decision)
+        }
+
+        public static func tally(_ rows: [Row], _ verdicts: [String: Decision]) -> Tally {
+            var out = Tally()
+            for row in rows {
+                guard case let .current(decision, _) = rowVerdict(row, verdicts[row.id]) else {
+                    out.open += 1
+                    continue
+                }
+                if decision.verdict == "approved" {
+                    out.approved += 1
+                } else {
+                    out.held += 1
+                }
+            }
+            return out
+        }
+
+        public static func toggleEntry(_ row: Row, _ decision: Decision?, target: String) -> TriageVerdict {
+            if case let .current(standing, _) = rowVerdict(row, decision), standing.verdict == target {
+                return TriageVerdict(verdict: "cleared")
+            }
+            return TriageVerdict(verdict: target, note: decision?.note, head: row.head)
+        }
+
+        public static func approveGroup(_ group: Group, _ verdicts: [String: Decision]) -> [String: TriageVerdict] {
+            var out: [String: TriageVerdict] = [:]
+            for row in group.prs {
+                if case let .current(decision, _) = rowVerdict(row, verdicts[row.id]), decision.verdict == "approved" {
+                    continue
+                }
+                out[row.id] = TriageVerdict(verdict: "approved", note: verdicts[row.id]?.note, head: row.head)
+            }
+            return out
+        }
+
+        public static func staleLine(_ row: Row, _ decision: Decision) -> String {
+            let given = (decision.carriedFrom ?? decision.head).map { " at \(shortHead($0))" } ?? ""
+            return "\(verdictWord(decision.verdict))\(given) on \(formatAt(decision.at)); new head \(shortHead(row.head)) needs your tap."
+        }
+
+        public static func givenLine(_ row: Row, _ decision: Decision, carried: Bool) -> String {
+            let at = decision.at.map { " on \(formatAt($0))" } ?? ""
+            let head = shortHead(decision.head ?? row.head)
+            if let tapped = decision.carriedFrom {
+                return "Your tap at \(shortHead(tapped))\(at) carries to \(head): \(decision.carryNote ?? "")"
+            }
+            let carry = carried ? "; the agent carried it to \(shortHead(row.head))" : ""
+            return "\(verdictWord(decision.verdict)) at \(head)\(at)\(carry)"
+        }
+
+        private static func verdictWord(_ verdict: String) -> String {
+            verdict == "approved" ? "Approved" : "Held"
+        }
+
+        private static func formatAt(_ iso: String?) -> String {
+            guard let date = iso.flatMap(parseTimestamp) else { return "an earlier time" }
+            return date.formatted(.dateTime.month(.abbreviated).day().hour().minute())
         }
     }
 

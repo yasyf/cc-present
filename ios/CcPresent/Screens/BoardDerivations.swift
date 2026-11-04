@@ -1,5 +1,8 @@
 import CcPresentKit
+import CcPresentUI
 import Foundation
+import IOSKit
+import IOSKitUI
 
 /// flatten yields every top-level block plus every card child, so a tally or the
 /// review ring spans interactive blocks wherever they nest one level deep. Mirrors
@@ -13,20 +16,6 @@ func flatten(_ blocks: [Block]) -> [Block] {
         }
     }
     return out
-}
-
-/// showsNativeReplyThread reports whether BlockView renders a native reply thread below a
-/// block. Approval and choice own their integrated threads and a pack's renders in its
-/// WKWebView, so native rendering would double them; every other type shows it. The
-/// exhaustive switch forces a new block type to classify itself. Mirrors BlockRenderer.tsx.
-func showsNativeReplyThread(_ block: Block) -> Bool {
-    switch block {
-    case .approval, .choice, .pack:
-        false
-    case .section, .card, .draft, .triage, .input, .markdown, .code, .diff, .diagram, .image, .table, .progress,
-         .chart, .term, .filetree, .record, .pr, .prGroups:
-        true
-    }
 }
 
 /// SectionGroup is one header-led run of the board feed: a section header over the

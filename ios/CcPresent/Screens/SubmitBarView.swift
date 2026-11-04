@@ -1,4 +1,7 @@
 import CcPresentKit
+import CcPresentUI
+import IOSKit
+import IOSKitUI
 import SwiftUI
 
 /// SubmitBarView is the board's pinned bottom bar: a decided/total tally over the
@@ -59,20 +62,20 @@ struct SubmitBarView: View {
                     if hasHistory {
                         Text("Round \(store.state.rounds.current)")
                             .voice(.mono, .caption2, weight: .semibold)
-                            .foregroundStyle(BlockPalette.accentInk)
+                            .foregroundStyle(Palette.accentInk)
                             .monospacedDigit()
                     }
                     if total > 0 {
                         Text("\(decided)/\(total) decided")
                             .voice(.mono, .caption2, weight: .bold)
                             .monospacedDigit()
-                            .foregroundStyle(decided == total ? BlockPalette.approve : BlockPalette.muted)
+                            .foregroundStyle(decided == total ? Palette.approve : Palette.muted)
                     }
                 }
                 if let note = doc.submit?.note, !note.isEmpty {
                     Text(note)
                         .font(.caption2)
-                        .foregroundStyle(BlockPalette.muted)
+                        .foregroundStyle(Palette.muted)
                         .lineLimit(1)
                 }
             }
@@ -83,10 +86,10 @@ struct SubmitBarView: View {
         }
         .padding(.horizontal, Metrics.space4)
         .padding(.vertical, Metrics.space3)
-        .background(BlockPalette.cardLift)
+        .background(Palette.cardLift)
         .overlay(alignment: .top) {
             Rectangle()
-                .fill(BlockPalette.accentInk)
+                .fill(Palette.accentInk)
                 .frame(height: 2)
         }
         .confirmationDialog(

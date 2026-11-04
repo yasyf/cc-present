@@ -119,22 +119,34 @@ public struct AnnotationRemovedPayload: Decodable, Equatable, Sendable {
 /// (approved, rejected, or cleared) with an optional note. It is the wire shape
 /// shared by the outgoing interaction and the echoed payload; an empty note is
 /// omitted on the wire (the daemon's omitempty). A pr-groups row's verdict also
-/// carries the head it was given at and the daemon-stamped time.
+/// carries the head it was given at and the daemon-stamped time; an agent carry
+/// adds the head the human tapped and the agent's reason.
 public struct TriageVerdict: Codable, Equatable, Sendable {
     public var verdict: String
     public var note: String?
     public var head: String?
     public var at: String?
+    public var carriedFrom: String?
+    public var carryNote: String?
 
-    public init(verdict: String, note: String? = nil, head: String? = nil, at: String? = nil) {
+    public init(
+        verdict: String,
+        note: String? = nil,
+        head: String? = nil,
+        at: String? = nil,
+        carriedFrom: String? = nil,
+        carryNote: String? = nil
+    ) {
         self.verdict = verdict
         self.note = note
         self.head = head
         self.at = at
+        self.carriedFrom = carriedFrom
+        self.carryNote = carryNote
     }
 
     private enum CodingKeys: String, CodingKey {
-        case verdict, note, head, at
+        case verdict, note, head, at, carriedFrom, carryNote
     }
 
     public init(from decoder: Decoder) throws {
@@ -143,6 +155,8 @@ public struct TriageVerdict: Codable, Equatable, Sendable {
         note = try container.decodeIfPresent(String.self, forKey: .note)
         head = try container.decodeIfPresent(String.self, forKey: .head)
         at = try container.decodeIfPresent(String.self, forKey: .at)
+        carriedFrom = try container.decodeIfPresent(String.self, forKey: .carriedFrom)
+        carryNote = try container.decodeIfPresent(String.self, forKey: .carryNote)
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -153,6 +167,8 @@ public struct TriageVerdict: Codable, Equatable, Sendable {
         }
         try container.encodeIfPresent(head, forKey: .head)
         try container.encodeIfPresent(at, forKey: .at)
+        try container.encodeIfPresent(carriedFrom, forKey: .carriedFrom)
+        try container.encodeIfPresent(carryNote, forKey: .carryNote)
     }
 }
 

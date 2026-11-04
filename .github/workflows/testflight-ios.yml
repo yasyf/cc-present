@@ -1,12 +1,20 @@
 name: TestFlight (iOS)
 
-# Manual-only lane that archives the app and uploads the build to TestFlight via
-# App Store Connect. Cloud signing (-allowProvisioningUpdates + an App Store
+# Archives the app and uploads the build to TestFlight via App Store Connect on
+# every main push that touches the app, weekly so a build never reaches its
+# 90-day expiry, and by hand. Cloud signing (-allowProvisioningUpdates + an App Store
 # Connect API key) means no certificates or provisioning profiles live in CI.
 # The archive is ad-hoc signed (a dev profile would need a registered device);
 # export re-signs it for distribution via cloud-managed signing.
 # Pinned to the xcode-27 image for the Xcode 27 toolchain this app targets.
 on:
+  push:
+    branches: [main]
+    paths:
+      - "ios/**"
+      - "Package.swift"
+  schedule:
+    - cron: "17 9 * * 1"
   workflow_dispatch:
 
 concurrency:

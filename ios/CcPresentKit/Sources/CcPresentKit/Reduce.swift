@@ -8,18 +8,30 @@
 import Foundation
 
 /// Decision is a human's last-write-wins verdict on a block, with an optional
-/// note. A pr-groups row's verdict also records the head it was given at and when.
+/// note. A pr-groups row's verdict also records the head it was given at and when;
+/// an agent carry names the head the human tapped and why the tap stands at head.
 public struct Decision: Decodable, Equatable, Sendable {
     public var verdict: String
     public var note: String?
     public var head: String?
     public var at: String?
+    public var carriedFrom: String?
+    public var carryNote: String?
 
-    public init(verdict: String, note: String? = nil, head: String? = nil, at: String? = nil) {
+    public init(
+        verdict: String,
+        note: String? = nil,
+        head: String? = nil,
+        at: String? = nil,
+        carriedFrom: String? = nil,
+        carryNote: String? = nil
+    ) {
         self.verdict = verdict
         self.note = note
         self.head = head
         self.at = at
+        self.carriedFrom = carriedFrom
+        self.carryNote = carryNote
     }
 }
 
@@ -498,7 +510,14 @@ private extension BoardState {
                 if entry.verdict == "cleared" {
                     block.removeValue(forKey: itemID)
                 } else {
-                    block[itemID] = Decision(verdict: entry.verdict, note: entry.note, head: entry.head, at: entry.at)
+                    block[itemID] = Decision(
+                        verdict: entry.verdict,
+                        note: entry.note,
+                        head: entry.head,
+                        at: entry.at,
+                        carriedFrom: entry.carriedFrom,
+                        carryNote: entry.carryNote
+                    )
                 }
             }
             if block.isEmpty {

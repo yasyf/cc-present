@@ -9,6 +9,7 @@
 // and web/src/api.ts for the browser's behavioral reference.
 
 import Foundation
+import IOSKit
 import Observation
 
 /// BoardStore holds one subject's live board. It reduces the SSE-delivered server

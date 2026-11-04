@@ -8,7 +8,9 @@
 
 /* Begin PBXBuildFile section */
 		0000000000000000000000D5 /* CcPresentKit in Frameworks */ = {isa = PBXBuildFile; productRef = 0000000000000000000000D3 /* CcPresentKit */; };
-		0000000000000000000000D6 /* MarkdownUI in Frameworks */ = {isa = PBXBuildFile; productRef = 0000000000000000000000D4 /* MarkdownUI */; };
+		0000000000000000000000D6 /* CcPresentUI in Frameworks */ = {isa = PBXBuildFile; productRef = 0000000000000000000000D4 /* CcPresentUI */; };
+		0000000000000000000000D9 /* IOSKit in Frameworks */ = {isa = PBXBuildFile; productRef = 0000000000000000000000D7 /* IOSKit */; };
+		0000000000000000000000DA /* IOSKitUI in Frameworks */ = {isa = PBXBuildFile; productRef = 0000000000000000000000D8 /* IOSKitUI */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -58,7 +60,9 @@
 			buildActionMask = 2147483647;
 			files = (
 				0000000000000000000000D5 /* CcPresentKit in Frameworks */,
-				0000000000000000000000D6 /* MarkdownUI in Frameworks */,
+				0000000000000000000000D6 /* CcPresentUI in Frameworks */,
+				0000000000000000000000D9 /* IOSKit in Frameworks */,
+				0000000000000000000000DA /* IOSKitUI in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -111,7 +115,9 @@
 			name = "CcPresent";
 			packageProductDependencies = (
 				0000000000000000000000D3 /* CcPresentKit */,
-				0000000000000000000000D4 /* MarkdownUI */,
+				0000000000000000000000D4 /* CcPresentUI */,
+				0000000000000000000000D7 /* IOSKit */,
+				0000000000000000000000D8 /* IOSKitUI */,
 			);
 			productName = "CcPresent";
 			productReference = 0000000000000000000000B3 /* CcPresent.app */;
@@ -167,8 +173,8 @@
 			mainGroup = 0000000000000000000000A2;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				0000000000000000000000D1 /* XCLocalSwiftPackageReference "CcPresentKit" */,
-				0000000000000000000000D2 /* XCRemoteSwiftPackageReference "swift-markdown-ui" */,
+				0000000000000000000000D1 /* XCLocalSwiftPackageReference "cc-present" */,
+				0000000000000000000000D2 /* XCRemoteSwiftPackageReference "ioskit" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 0000000000000000000000A3 /* Products */;
@@ -468,19 +474,19 @@
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
-		0000000000000000000000D1 /* XCLocalSwiftPackageReference "CcPresentKit" */ = {
+		0000000000000000000000D1 /* XCLocalSwiftPackageReference "cc-present" */ = {
 			isa = XCLocalSwiftPackageReference;
-			relativePath = CcPresentKit;
+			relativePath = ..;
 		};
 /* End XCLocalSwiftPackageReference section */
 
 /* Begin XCRemoteSwiftPackageReference section */
-		0000000000000000000000D2 /* XCRemoteSwiftPackageReference "swift-markdown-ui" */ = {
+		0000000000000000000000D2 /* XCRemoteSwiftPackageReference "ioskit" */ = {
 			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/gonzalezreal/swift-markdown-ui";
+			repositoryURL = "https://github.com/yasyf/ioskit";
 			requirement = {
 				kind = upToNextMajorVersion;
-				minimumVersion = 2.4.1;
+				minimumVersion = 0.1.0;
 			};
 		};
 /* End XCRemoteSwiftPackageReference section */
@@ -490,10 +496,19 @@
 			isa = XCSwiftPackageProductDependency;
 			productName = CcPresentKit;
 		};
-		0000000000000000000000D4 /* MarkdownUI */ = {
+		0000000000000000000000D4 /* CcPresentUI */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = 0000000000000000000000D2 /* XCRemoteSwiftPackageReference "swift-markdown-ui" */;
-			productName = MarkdownUI;
+			productName = CcPresentUI;
+		};
+		0000000000000000000000D7 /* IOSKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 0000000000000000000000D2 /* XCRemoteSwiftPackageReference "ioskit" */;
+			productName = IOSKit;
+		};
+		0000000000000000000000D8 /* IOSKitUI */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 0000000000000000000000D2 /* XCRemoteSwiftPackageReference "ioskit" */;
+			productName = IOSKitUI;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

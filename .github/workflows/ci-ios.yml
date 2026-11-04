@@ -2,14 +2,16 @@ name: CI (iOS)
 
 on:
   push:
-    branches: [main]
+    branches: [main, "owner-apps/**"]
     paths:
       - "ios/**"
+      - "Package.swift"
       - ".github/workflows/ci-ios.yml"
   pull_request:
     branches: [main]
     paths:
       - "ios/**"
+      - "Package.swift"
       - ".github/workflows/ci-ios.yml"
 
 concurrency:
@@ -45,8 +47,22 @@ jobs:
         working-directory: ios
         continue-on-error: true
         run: swiftlint --quiet
-      - name: Test (CcPresentKit package)
-        run: swift test --package-path ios/CcPresentKit
+      - name: Test (CcPresentKit and CcPresentUI packages)
+        env:
+          TEST_RUNNER_SNAPSHOT_DIR: ${{ runner.temp }}/block-snapshots
+        run: >
+          mkdir -p "$TEST_RUNNER_SNAPSHOT_DIR" &&
+          xcodebuild test
+          -scheme cc-present-Package
+          -destination 'platform=iOS Simulator,name=iPhone 17'
+          CODE_SIGNING_ALLOWED=NO
+      - name: Upload block snapshots
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: block-snapshots
+          path: ${{ runner.temp }}/block-snapshots
+          if-no-files-found: warn
       - name: Test (iOS Simulator)
         run: >
           xcodebuild test

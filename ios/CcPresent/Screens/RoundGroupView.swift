@@ -1,4 +1,7 @@
 import CcPresentKit
+import CcPresentUI
+import IOSKit
+import IOSKitUI
 import SwiftUI
 
 /// RoundGroupView renders one closed round as a collapsible, read-only history
@@ -13,7 +16,7 @@ import SwiftUI
 /// read-only group — the seed is display state, never a live interaction.
 struct RoundGroupView: View {
     let record: RoundRecord
-    var client: APIClient?
+    var client: HTTPClient?
     var packContext: PackContext?
     let loadRounds: () async throws -> Void
 
@@ -23,7 +26,7 @@ struct RoundGroupView: View {
 
     init(
         record: RoundRecord,
-        client: APIClient? = nil,
+        client: HTTPClient? = nil,
         packContext: PackContext? = nil,
         loadRounds: @escaping () async throws -> Void = {}
     ) {
@@ -56,7 +59,7 @@ struct RoundGroupView: View {
         } label: {
             header
         }
-        .tint(BlockPalette.muted)
+        .tint(Palette.muted)
         .onChange(of: record) { _, next in
             store = RoundGroupView.seed(next)
         }
@@ -67,7 +70,7 @@ struct RoundGroupView: View {
         if loadFailed {
             Text("Earlier rounds didn't load. Collapse and expand to try again.")
                 .font(.caption)
-                .foregroundStyle(BlockPalette.muted)
+                .foregroundStyle(Palette.muted)
                 .padding(.top, 12)
                 .onDisappear { loadFailed = false }
         } else {
@@ -89,7 +92,7 @@ struct RoundGroupView: View {
             Text(headerTitle)
                 .font(.caption)
                 .fontWeight(.semibold)
-                .foregroundStyle(BlockPalette.ink)
+                .foregroundStyle(Palette.ink)
                 .monospacedDigit()
                 .lineLimit(1)
             Spacer(minLength: 8)
@@ -155,7 +158,16 @@ struct RoundGroupView: View {
             if let verdicts = record.triage[block.id], !verdicts.isEmpty {
                 store.triageDecide(
                     blockId: block.id,
-                    verdicts: verdicts.mapValues { TriageVerdict(verdict: $0.verdict, note: $0.note) }
+                    verdicts: verdicts.mapValues {
+                        TriageVerdict(
+                            verdict: $0.verdict,
+                            note: $0.note,
+                            head: $0.head,
+                            at: $0.at,
+                            carriedFrom: $0.carriedFrom,
+                            carryNote: $0.carryNote
+                        )
+                    }
                 )
             }
         }
@@ -171,11 +183,11 @@ private struct RoundChip: View {
         Text(text)
             .font(.caption2)
             .monospacedDigit()
-            .foregroundStyle(BlockPalette.muted)
+            .foregroundStyle(Palette.muted)
             .padding(.vertical, 2)
             .padding(.horizontal, 8)
             .overlay(
-                Capsule().strokeBorder(BlockPalette.line)
+                Capsule().strokeBorder(Palette.line)
             )
             .lineLimit(1)
     }

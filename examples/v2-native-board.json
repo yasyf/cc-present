@@ -1,0 +1,998 @@
+{
+  "version": 1,
+  "title": "Spike V2: thirty native blocks",
+  "intro": "Thirty chart blocks, each drawn natively on the phone. Open it right after a cold launch, wait until every chart is drawn, then long-press the title.",
+  "presentation": "board",
+  "blocks": [
+    {
+      "id": "v2-chart-00",
+      "type": "chart",
+      "kind": "bar",
+      "title": "Chart 1",
+      "unit": "ms",
+      "categories": [
+        "Mon",
+        "Tue",
+        "Wed",
+        "Thu"
+      ],
+      "series": [
+        {
+          "label": "p50",
+          "values": [
+            40,
+            38,
+            35,
+            31
+          ]
+        },
+        {
+          "label": "p95",
+          "values": [
+            180,
+            150,
+            122,
+            96
+          ]
+        }
+      ]
+    },
+    {
+      "id": "v2-chart-01",
+      "type": "chart",
+      "kind": "line",
+      "title": "Chart 2",
+      "unit": "ms",
+      "categories": [
+        "Mon",
+        "Tue",
+        "Wed",
+        "Thu"
+      ],
+      "series": [
+        {
+          "label": "p50",
+          "values": [
+            41,
+            38,
+            35,
+            31
+          ]
+        },
+        {
+          "label": "p95",
+          "values": [
+            180,
+            149,
+            122,
+            96
+          ]
+        }
+      ]
+    },
+    {
+      "id": "v2-chart-02",
+      "type": "chart",
+      "kind": "bar",
+      "title": "Chart 3",
+      "unit": "ms",
+      "categories": [
+        "Mon",
+        "Tue",
+        "Wed",
+        "Thu"
+      ],
+      "series": [
+        {
+          "label": "p50",
+          "values": [
+            42,
+            38,
+            35,
+            31
+          ]
+        },
+        {
+          "label": "p95",
+          "values": [
+            180,
+            148,
+            122,
+            96
+          ]
+        }
+      ]
+    },
+    {
+      "id": "v2-chart-03",
+      "type": "chart",
+      "kind": "line",
+      "title": "Chart 4",
+      "unit": "ms",
+      "categories": [
+        "Mon",
+        "Tue",
+        "Wed",
+        "Thu"
+      ],
+      "series": [
+        {
+          "label": "p50",
+          "values": [
+            43,
+            38,
+            35,
+            31
+          ]
+        },
+        {
+          "label": "p95",
+          "values": [
+            180,
+            147,
+            122,
+            96
+          ]
+        }
+      ]
+    },
+    {
+      "id": "v2-chart-04",
+      "type": "chart",
+      "kind": "bar",
+      "title": "Chart 5",
+      "unit": "ms",
+      "categories": [
+        "Mon",
+        "Tue",
+        "Wed",
+        "Thu"
+      ],
+      "series": [
+        {
+          "label": "p50",
+          "values": [
+            44,
+            38,
+            35,
+            31
+          ]
+        },
+        {
+          "label": "p95",
+          "values": [
+            180,
+            146,
+            122,
+            96
+          ]
+        }
+      ]
+    },
+    {
+      "id": "v2-chart-05",
+      "type": "chart",
+      "kind": "line",
+      "title": "Chart 6",
+      "unit": "ms",
+      "categories": [
+        "Mon",
+        "Tue",
+        "Wed",
+        "Thu"
+      ],
+      "series": [
+        {
+          "label": "p50",
+          "values": [
+            45,
+            38,
+            35,
+            31
+          ]
+        },
+        {
+          "label": "p95",
+          "values": [
+            180,
+            145,
+            122,
+            96
+          ]
+        }
+      ]
+    },
+    {
+      "id": "v2-chart-06",
+      "type": "chart",
+      "kind": "bar",
+      "title": "Chart 7",
+      "unit": "ms",
+      "categories": [
+        "Mon",
+        "Tue",
+        "Wed",
+        "Thu"
+      ],
+      "series": [
+        {
+          "label": "p50",
+          "values": [
+            46,
+            38,
+            35,
+            31
+          ]
+        },
+        {
+          "label": "p95",
+          "values": [
+            180,
+            144,
+            122,
+            96
+          ]
+        }
+      ]
+    },
+    {
+      "id": "v2-chart-07",
+      "type": "chart",
+      "kind": "line",
+      "title": "Chart 8",
+      "unit": "ms",
+      "categories": [
+        "Mon",
+        "Tue",
+        "Wed",
+        "Thu"
+      ],
+      "series": [
+        {
+          "label": "p50",
+          "values": [
+            47,
+            38,
+            35,
+            31
+          ]
+        },
+        {
+          "label": "p95",
+          "values": [
+            180,
+            143,
+            122,
+            96
+          ]
+        }
+      ]
+    },
+    {
+      "id": "v2-chart-08",
+      "type": "chart",
+      "kind": "bar",
+      "title": "Chart 9",
+      "unit": "ms",
+      "categories": [
+        "Mon",
+        "Tue",
+        "Wed",
+        "Thu"
+      ],
+      "series": [
+        {
+          "label": "p50",
+          "values": [
+            48,
+            38,
+            35,
+            31
+          ]
+        },
+        {
+          "label": "p95",
+          "values": [
+            180,
+            142,
+            122,
+            96
+          ]
+        }
+      ]
+    },
+    {
+      "id": "v2-chart-09",
+      "type": "chart",
+      "kind": "line",
+      "title": "Chart 10",
+      "unit": "ms",
+      "categories": [
+        "Mon",
+        "Tue",
+        "Wed",
+        "Thu"
+      ],
+      "series": [
+        {
+          "label": "p50",
+          "values": [
+            49,
+            38,
+            35,
+            31
+          ]
+        },
+        {
+          "label": "p95",
+          "values": [
+            180,
+            141,
+            122,
+            96
+          ]
+        }
+      ]
+    },
+    {
+      "id": "v2-chart-10",
+      "type": "chart",
+      "kind": "bar",
+      "title": "Chart 11",
+      "unit": "ms",
+      "categories": [
+        "Mon",
+        "Tue",
+        "Wed",
+        "Thu"
+      ],
+      "series": [
+        {
+          "label": "p50",
+          "values": [
+            50,
+            38,
+            35,
+            31
+          ]
+        },
+        {
+          "label": "p95",
+          "values": [
+            180,
+            140,
+            122,
+            96
+          ]
+        }
+      ]
+    },
+    {
+      "id": "v2-chart-11",
+      "type": "chart",
+      "kind": "line",
+      "title": "Chart 12",
+      "unit": "ms",
+      "categories": [
+        "Mon",
+        "Tue",
+        "Wed",
+        "Thu"
+      ],
+      "series": [
+        {
+          "label": "p50",
+          "values": [
+            51,
+            38,
+            35,
+            31
+          ]
+        },
+        {
+          "label": "p95",
+          "values": [
+            180,
+            139,
+            122,
+            96
+          ]
+        }
+      ]
+    },
+    {
+      "id": "v2-chart-12",
+      "type": "chart",
+      "kind": "bar",
+      "title": "Chart 13",
+      "unit": "ms",
+      "categories": [
+        "Mon",
+        "Tue",
+        "Wed",
+        "Thu"
+      ],
+      "series": [
+        {
+          "label": "p50",
+          "values": [
+            52,
+            38,
+            35,
+            31
+          ]
+        },
+        {
+          "label": "p95",
+          "values": [
+            180,
+            138,
+            122,
+            96
+          ]
+        }
+      ]
+    },
+    {
+      "id": "v2-chart-13",
+      "type": "chart",
+      "kind": "line",
+      "title": "Chart 14",
+      "unit": "ms",
+      "categories": [
+        "Mon",
+        "Tue",
+        "Wed",
+        "Thu"
+      ],
+      "series": [
+        {
+          "label": "p50",
+          "values": [
+            53,
+            38,
+            35,
+            31
+          ]
+        },
+        {
+          "label": "p95",
+          "values": [
+            180,
+            137,
+            122,
+            96
+          ]
+        }
+      ]
+    },
+    {
+      "id": "v2-chart-14",
+      "type": "chart",
+      "kind": "bar",
+      "title": "Chart 15",
+      "unit": "ms",
+      "categories": [
+        "Mon",
+        "Tue",
+        "Wed",
+        "Thu"
+      ],
+      "series": [
+        {
+          "label": "p50",
+          "values": [
+            54,
+            38,
+            35,
+            31
+          ]
+        },
+        {
+          "label": "p95",
+          "values": [
+            180,
+            136,
+            122,
+            96
+          ]
+        }
+      ]
+    },
+    {
+      "id": "v2-chart-15",
+      "type": "chart",
+      "kind": "line",
+      "title": "Chart 16",
+      "unit": "ms",
+      "categories": [
+        "Mon",
+        "Tue",
+        "Wed",
+        "Thu"
+      ],
+      "series": [
+        {
+          "label": "p50",
+          "values": [
+            55,
+            38,
+            35,
+            31
+          ]
+        },
+        {
+          "label": "p95",
+          "values": [
+            180,
+            135,
+            122,
+            96
+          ]
+        }
+      ]
+    },
+    {
+      "id": "v2-chart-16",
+      "type": "chart",
+      "kind": "bar",
+      "title": "Chart 17",
+      "unit": "ms",
+      "categories": [
+        "Mon",
+        "Tue",
+        "Wed",
+        "Thu"
+      ],
+      "series": [
+        {
+          "label": "p50",
+          "values": [
+            56,
+            38,
+            35,
+            31
+          ]
+        },
+        {
+          "label": "p95",
+          "values": [
+            180,
+            134,
+            122,
+            96
+          ]
+        }
+      ]
+    },
+    {
+      "id": "v2-chart-17",
+      "type": "chart",
+      "kind": "line",
+      "title": "Chart 18",
+      "unit": "ms",
+      "categories": [
+        "Mon",
+        "Tue",
+        "Wed",
+        "Thu"
+      ],
+      "series": [
+        {
+          "label": "p50",
+          "values": [
+            57,
+            38,
+            35,
+            31
+          ]
+        },
+        {
+          "label": "p95",
+          "values": [
+            180,
+            133,
+            122,
+            96
+          ]
+        }
+      ]
+    },
+    {
+      "id": "v2-chart-18",
+      "type": "chart",
+      "kind": "bar",
+      "title": "Chart 19",
+      "unit": "ms",
+      "categories": [
+        "Mon",
+        "Tue",
+        "Wed",
+        "Thu"
+      ],
+      "series": [
+        {
+          "label": "p50",
+          "values": [
+            58,
+            38,
+            35,
+            31
+          ]
+        },
+        {
+          "label": "p95",
+          "values": [
+            180,
+            132,
+            122,
+            96
+          ]
+        }
+      ]
+    },
+    {
+      "id": "v2-chart-19",
+      "type": "chart",
+      "kind": "line",
+      "title": "Chart 20",
+      "unit": "ms",
+      "categories": [
+        "Mon",
+        "Tue",
+        "Wed",
+        "Thu"
+      ],
+      "series": [
+        {
+          "label": "p50",
+          "values": [
+            59,
+            38,
+            35,
+            31
+          ]
+        },
+        {
+          "label": "p95",
+          "values": [
+            180,
+            131,
+            122,
+            96
+          ]
+        }
+      ]
+    },
+    {
+      "id": "v2-chart-20",
+      "type": "chart",
+      "kind": "bar",
+      "title": "Chart 21",
+      "unit": "ms",
+      "categories": [
+        "Mon",
+        "Tue",
+        "Wed",
+        "Thu"
+      ],
+      "series": [
+        {
+          "label": "p50",
+          "values": [
+            60,
+            38,
+            35,
+            31
+          ]
+        },
+        {
+          "label": "p95",
+          "values": [
+            180,
+            130,
+            122,
+            96
+          ]
+        }
+      ]
+    },
+    {
+      "id": "v2-chart-21",
+      "type": "chart",
+      "kind": "line",
+      "title": "Chart 22",
+      "unit": "ms",
+      "categories": [
+        "Mon",
+        "Tue",
+        "Wed",
+        "Thu"
+      ],
+      "series": [
+        {
+          "label": "p50",
+          "values": [
+            61,
+            38,
+            35,
+            31
+          ]
+        },
+        {
+          "label": "p95",
+          "values": [
+            180,
+            129,
+            122,
+            96
+          ]
+        }
+      ]
+    },
+    {
+      "id": "v2-chart-22",
+      "type": "chart",
+      "kind": "bar",
+      "title": "Chart 23",
+      "unit": "ms",
+      "categories": [
+        "Mon",
+        "Tue",
+        "Wed",
+        "Thu"
+      ],
+      "series": [
+        {
+          "label": "p50",
+          "values": [
+            62,
+            38,
+            35,
+            31
+          ]
+        },
+        {
+          "label": "p95",
+          "values": [
+            180,
+            128,
+            122,
+            96
+          ]
+        }
+      ]
+    },
+    {
+      "id": "v2-chart-23",
+      "type": "chart",
+      "kind": "line",
+      "title": "Chart 24",
+      "unit": "ms",
+      "categories": [
+        "Mon",
+        "Tue",
+        "Wed",
+        "Thu"
+      ],
+      "series": [
+        {
+          "label": "p50",
+          "values": [
+            63,
+            38,
+            35,
+            31
+          ]
+        },
+        {
+          "label": "p95",
+          "values": [
+            180,
+            127,
+            122,
+            96
+          ]
+        }
+      ]
+    },
+    {
+      "id": "v2-chart-24",
+      "type": "chart",
+      "kind": "bar",
+      "title": "Chart 25",
+      "unit": "ms",
+      "categories": [
+        "Mon",
+        "Tue",
+        "Wed",
+        "Thu"
+      ],
+      "series": [
+        {
+          "label": "p50",
+          "values": [
+            64,
+            38,
+            35,
+            31
+          ]
+        },
+        {
+          "label": "p95",
+          "values": [
+            180,
+            126,
+            122,
+            96
+          ]
+        }
+      ]
+    },
+    {
+      "id": "v2-chart-25",
+      "type": "chart",
+      "kind": "line",
+      "title": "Chart 26",
+      "unit": "ms",
+      "categories": [
+        "Mon",
+        "Tue",
+        "Wed",
+        "Thu"
+      ],
+      "series": [
+        {
+          "label": "p50",
+          "values": [
+            65,
+            38,
+            35,
+            31
+          ]
+        },
+        {
+          "label": "p95",
+          "values": [
+            180,
+            125,
+            122,
+            96
+          ]
+        }
+      ]
+    },
+    {
+      "id": "v2-chart-26",
+      "type": "chart",
+      "kind": "bar",
+      "title": "Chart 27",
+      "unit": "ms",
+      "categories": [
+        "Mon",
+        "Tue",
+        "Wed",
+        "Thu"
+      ],
+      "series": [
+        {
+          "label": "p50",
+          "values": [
+            66,
+            38,
+            35,
+            31
+          ]
+        },
+        {
+          "label": "p95",
+          "values": [
+            180,
+            124,
+            122,
+            96
+          ]
+        }
+      ]
+    },
+    {
+      "id": "v2-chart-27",
+      "type": "chart",
+      "kind": "line",
+      "title": "Chart 28",
+      "unit": "ms",
+      "categories": [
+        "Mon",
+        "Tue",
+        "Wed",
+        "Thu"
+      ],
+      "series": [
+        {
+          "label": "p50",
+          "values": [
+            67,
+            38,
+            35,
+            31
+          ]
+        },
+        {
+          "label": "p95",
+          "values": [
+            180,
+            123,
+            122,
+            96
+          ]
+        }
+      ]
+    },
+    {
+      "id": "v2-chart-28",
+      "type": "chart",
+      "kind": "bar",
+      "title": "Chart 29",
+      "unit": "ms",
+      "categories": [
+        "Mon",
+        "Tue",
+        "Wed",
+        "Thu"
+      ],
+      "series": [
+        {
+          "label": "p50",
+          "values": [
+            68,
+            38,
+            35,
+            31
+          ]
+        },
+        {
+          "label": "p95",
+          "values": [
+            180,
+            122,
+            122,
+            96
+          ]
+        }
+      ]
+    },
+    {
+      "id": "v2-chart-29",
+      "type": "chart",
+      "kind": "line",
+      "title": "Chart 30",
+      "unit": "ms",
+      "categories": [
+        "Mon",
+        "Tue",
+        "Wed",
+        "Thu"
+      ],
+      "series": [
+        {
+          "label": "p50",
+          "values": [
+            69,
+            38,
+            35,
+            31
+          ]
+        },
+        {
+          "label": "p95",
+          "values": [
+            180,
+            121,
+            122,
+            96
+          ]
+        }
+      ]
+    }
+  ]
+}
