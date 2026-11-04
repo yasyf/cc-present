@@ -37,6 +37,15 @@ var slackLink = regexp.MustCompile(`<(https?://[^|>\s]+)\|([^>]+)>`)
 
 var markdownLink = regexp.MustCompile(`\[([^\]]+)\]\((https?://[^)\s]+)\)`)
 
+var (
+	refWithURL = regexp.MustCompile(`\[([^\]]+)\]\(<(https?://[^>\s]+)>(?:\s+"ref:[0-9a-f]{64}")?\)`)
+	refNoURL   = regexp.MustCompile(`\[([^\]]+)\]\(<>\s+"ref:[0-9a-f]{64}"\)`)
+)
+
+func withoutRefs(md string) string {
+	return refNoURL.ReplaceAllString(refWithURL.ReplaceAllString(md, "[$1]($2)"), "$1")
+}
+
 // Posted is a waiting card cc-slack posted, as `cc-present slack-sync posted` reads it.
 type Posted struct {
 	Waits       string   `json:"waits"`
@@ -266,7 +275,7 @@ func Nudge(b doc.Block) string {
 func ToSlack(c *doc.Card, q doc.Block) StatusCard {
 	title := cmp.Or(c.Title, prompt(q))
 	sc := StatusCard{Status: "needs_you", Title: clip(title, maxTitle), Waits: c.ID, Supersedes: c.Supersedes}
-	parts := []string{markdownLink.ReplaceAllString(c.Summary, "<$2|$1>")}
+	parts := []string{markdownLink.ReplaceAllString(withoutRefs(c.Summary), "<$2|$1>")}
 	if sc.Title != title {
 		parts = slices.Insert(parts, 0, "*"+title+"*")
 	}
@@ -295,7 +304,7 @@ func ToSlack(c *doc.Card, q doc.Block) StatusCard {
 		switch b := child.(type) {
 		case *doc.Markdown:
 			if !b.Struck {
-				parts = append(parts, markdownLink.ReplaceAllString(withoutLead(b.Md, c.Summary), "<$2|$1>"))
+				parts = append(parts, markdownLink.ReplaceAllString(withoutRefs(withoutLead(b.Md, c.Summary)), "<$2|$1>"))
 			}
 		case *doc.PR:
 			url := fmt.Sprintf("https://github.com/%s/pull/%d", b.Repo, b.Number)
@@ -649,7 +658,7 @@ func verdictLine(d state.Decision, rejected string) string {
 }
 
 func mrkdwn(md string) string {
-	return markdownLink.ReplaceAllString(mrkdwnEscapes.Replace(md), "<$2|$1>")
+	return markdownLink.ReplaceAllString(mrkdwnEscapes.Replace(withoutRefs(md)), "<$2|$1>")
 }
 
 // Verdict is the board verdict a row tap gives: the pr-groups block, the row's
