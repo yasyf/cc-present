@@ -374,3 +374,15 @@ func TestTheSlackCardNamesWhatEachAnswerIsBuiltOn(t *testing.T) {
 		}
 	}
 }
+
+func TestToSlackTurnsALinkInTheSummaryIntoASlackLink(t *testing.T) {
+	c := card(t, `{"id":"step-3:merge","type":"card","title":"Merge?","summary":"Read [the plan](https://docs.example.com/plan) first.","children":[`+
+		`{"id":"q","type":"choice","options":[{"id":"o1","label":"Hold"},{"id":"o2","label":"Merge","recommended":true}]}]}`)
+	ch, err := slackcards.Check(c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := slackcards.ToSlack(c, ch).Body; got != "Read <https://docs.example.com/plan|the plan> first." {
+		t.Fatalf("Body = %q", got)
+	}
+}

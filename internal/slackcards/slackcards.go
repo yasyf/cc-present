@@ -247,7 +247,7 @@ func Nudge(b doc.Block) string {
 // ToSlack is the cc-slack card for a card Check passed.
 func ToSlack(c *doc.Card, q doc.Block) StatusCard {
 	sc := StatusCard{Status: "needs_you", Title: clip(cmp.Or(c.Title, prompt(q)), maxTitle), Waits: c.ID, Supersedes: c.Supersedes}
-	parts := []string{c.Summary}
+	parts := []string{markdownLink.ReplaceAllString(c.Summary, "<$2|$1>")}
 	if c.Title != "" {
 		parts = append(parts, prompt(q))
 	}
