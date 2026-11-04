@@ -95,6 +95,18 @@ func TestToSlackAsksTheSameQuestionAndLinksItsPRs(t *testing.T) {
 	}
 }
 
+func TestACardThatReplacesAPostTakesThatPostToSlack(t *testing.T) {
+	c := card(t, `{"id":"step-3:merge","type":"card","title":"Merge #41 now?","replaces":"`+permalink+`","children":[`+
+		`{"id":"q","type":"choice","options":[{"id":"o1","label":"Hold"},{"id":"o2","label":"Merge","recommended":true}]}]}`)
+	ch, err := slackcards.Check(c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := slackcards.ToSlack(c, ch); got.Replaces != permalink {
+		t.Fatalf("ToSlack = %+v, want it to replace %s", got, permalink)
+	}
+}
+
 func TestFromSlackBuildsACardThatPassesCheckAndKeepsItsLinks(t *testing.T) {
 	raw, err := slackcards.FromSlack(slackcards.Posted{
 		Waits: "step-3:merge", Title: "Merge #41 now?", Body: "CI is green on <https://github.com/acme/app/pull/41|app PR 41>.",

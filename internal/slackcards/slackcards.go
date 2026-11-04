@@ -84,6 +84,7 @@ type StatusCard struct {
 	Group       string   `json:"group,omitempty"`
 	Rows        []Row    `json:"rows,omitempty"`
 	Supersedes  []string `json:"supersedes,omitempty"`
+	Replaces    string   `json:"replaces,omitempty"`
 	PRs         []CardPR `json:"prs,omitempty"`
 	// Hints are the words to read for an option, keyed by the option.
 	Hints map[string]string `json:"hints,omitempty"`
@@ -276,7 +277,7 @@ func Nudge(b doc.Block) string {
 // ToSlack is the cc-slack card for a card Check passed.
 func ToSlack(c *doc.Card, q doc.Block) StatusCard {
 	title := cmp.Or(c.Title, prompt(q))
-	sc := StatusCard{Status: "needs_you", Title: clip(title, maxTitle), Waits: c.ID, Supersedes: c.Supersedes}
+	sc := StatusCard{Status: "needs_you", Title: clip(title, maxTitle), Waits: c.ID, Supersedes: c.Supersedes, Replaces: c.Replaces}
 	parts := []string{markdownLink.ReplaceAllString(withoutRefs(c.Summary), "<$2|$1>")}
 	if sc.Title != title {
 		parts = slices.Insert(parts, 0, "*"+title+"*")

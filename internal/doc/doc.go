@@ -148,6 +148,7 @@ type Card struct {
 	Mirror     *bool      `json:"mirror,omitempty"`
 	Design     *Design    `json:"design,omitempty"`
 	Supersedes []string   `json:"supersedes,omitempty"`
+	Replaces   string     `json:"replaces,omitempty"`
 	Children   []Block    `json:"children"`
 }
 
@@ -714,6 +715,7 @@ func decodeCard(data json.RawMessage, unmarshal unmarshalFunc) (Block, error) {
 		Mirror     *bool             `json:"mirror"`
 		Design     *Design           `json:"design"`
 		Supersedes []string          `json:"supersedes"`
+		Replaces   string            `json:"replaces"`
 		Children   []json.RawMessage `json:"children"`
 	}
 	if err := unmarshal(data, &raw); err != nil {
@@ -735,6 +737,7 @@ func decodeCard(data json.RawMessage, unmarshal unmarshalFunc) (Block, error) {
 		Mirror:     raw.Mirror,
 		Design:     raw.Design,
 		Supersedes: raw.Supersedes,
+		Replaces:   raw.Replaces,
 		Children:   children,
 	}, nil
 }
