@@ -330,6 +330,7 @@ thead .ccpd-hl {
 }
 .ccpd-designdoc iframe {
   height: 640px;
+  background: transparent;
 }
 
 .ccpd-system {
