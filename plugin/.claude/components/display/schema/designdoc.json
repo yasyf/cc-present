@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "display.designdoc",
+  "type": "object",
+  "required": ["id", "type", "slug"],
+  "additionalProperties": false,
+  "properties": {
+    "id": { "type": "string", "minLength": 1 },
+    "type": { "const": "display.designdoc" },
+    "title": { "type": "string", "minLength": 1, "pattern": "^[^\\n]*$" },
+    "slug": { "type": "string", "pattern": "^[A-Za-z0-9_][A-Za-z0-9_-]*(?:\\.[A-Za-z0-9_-]+)*$" },
+    "branch": { "type": "string", "pattern": "^[A-Za-z0-9_][A-Za-z0-9_-]*(?:[./][A-Za-z0-9_-]+)*$" }
+  }
+}

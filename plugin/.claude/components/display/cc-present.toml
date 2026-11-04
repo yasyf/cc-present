@@ -1,6 +1,6 @@
 host_api = 1
 name = "display"
-version = "0.4.0"
+version = "0.5.0"
 description = "Read-only explanation blocks: a Markdown page with Mermaid diagrams, an animated sequence of messages between actors, an animated timeline, a comparison grid, a system map, and a sandboxed one-off HTML or SVG artifact."
 entry = "dist/pack.js"
 styles = "dist/pack.css"
@@ -30,6 +30,11 @@ examples = ["examples/compare.json"]
 description = "A caller-supplied HTML document or SVG rendered in a sandboxed frame that sizes itself to its content."
 schema = "schema/artifact.json"
 examples = ["examples/artifact.json"]
+
+[blocks.designdoc]
+description = "A design doc from the local design-docs checkout, read from any branch with no publish step and shown in a scrolling frame."
+schema = "schema/designdoc.json"
+examples = ["examples/designdoc.json"]
 
 [blocks.system]
 description = "A hand-drawn map of a running system: blocks drawn by what they do, the main path as numbered steps, stories to walk, and a click into any block to see its parts."

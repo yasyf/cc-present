@@ -57,6 +57,23 @@ export function stepCount(panels: Panel[]): number {
   return Math.max(...panels.map((p) => p.steps.length));
 }
 
+export interface DesignDocLocation {
+  src?: string;
+  problem?: string;
+}
+
+export async function locateDesignDoc(
+  slug: string,
+  branch?: string,
+  request: (url: string) => Promise<Response> = fetch,
+): Promise<DesignDocLocation> {
+  const query = new URLSearchParams({ slug });
+  if (branch) query.set('branch', branch);
+  const response = await request(`/api/design-doc?${query}`);
+  if (!response.ok) return { problem: (await response.text()).trim() };
+  return (await response.json()) as DesignDocLocation;
+}
+
 export function artifactDocument(kind: 'html' | 'svg', source: string, frameId: string): string {
   const reporter =
     `<script>(()=>{const post=()=>parent.postMessage({ccPresentArtifact:${JSON.stringify(frameId)},` +

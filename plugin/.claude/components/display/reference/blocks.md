@@ -2,7 +2,8 @@
 
 The `display` pack holds read-only blocks for explanations: a Markdown page
 with Mermaid diagrams, an animated sequence of messages, an animated timeline,
-a comparison grid, a system map, and a sandboxed HTML or SVG artifact. None is interactive,
+a comparison grid, a system map, a sandboxed HTML or SVG artifact, and a design
+doc read from the local checkout. None is interactive,
 so none adds work to a round. Put them in any `Doc.blocks` array or a card's
 `children`, next to built-in blocks such as `table` and `diagram`.
 
@@ -513,3 +514,33 @@ frame grows to fit its content unless `height` pins it.
 | `source` | string | yes | The document, at most 512 KiB. |
 | `title` | string | no | One line above the frame. |
 | `height` | integer | no | Fixed height in pixels, 80 to 4000. |
+
+## display.designdoc
+
+A design doc from the design-docs checkout the daemon's `DESIGN_DOCS_ROOT`
+names, shown in a scrolling frame with a link to the full page. It reads git
+objects, so the doc can sit on any branch, pushed or not, and needs no publish
+step. The daemon fetches the branch first and shows the newer of the local and
+`origin` heads. It looks for the slug under `design-docs/`, `one-pagers/`,
+`incident-retros/`, then the top of the repository, and files the doc refers to
+come from the same commit. A missing branch or doc shows one line saying which;
+the rest of the card keeps working.
+
+The doc runs its own scripts on the board's origin, as it does on the published
+site, so embed only docs from your own repository.
+
+```json
+{
+  "id": "background",
+  "type": "display.designdoc",
+  "title": "Background",
+  "slug": "every-chat-is-an-agents-row",
+  "branch": "every-chat-is-an-agents-row"
+}
+```
+
+| Field | Type | Required | Notes |
+|-------|------|----------|-------|
+| `slug` | string | yes | The doc's directory name. |
+| `branch` | string | no | Defaults to `main`. |
+| `title` | string | no | One line above the frame. Defaults to `Design doc`. |

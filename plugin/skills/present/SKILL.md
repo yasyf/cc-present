@@ -62,6 +62,7 @@ In Background and option bodies, a bold sentence is never a heading: use a markd
 - `display.timeline`: dated events revealed one by one, for a history of PRs or deploys. Events whose `when` is a label, such as `Release 6`, render as a plain ordered list with no player.
 - `display.compare`: options as columns, criteria as rows, toned cells.
 - `display.artifact`: your own HTML or SVG in a sandboxed frame.
+- `display.designdoc`: a design doc from the local design-docs checkout, on any branch, with no publish step. Use it instead of linking a doc.
 - `display.system`: a hand-drawn system map with a main path, stories, and click-to-look-inside; read its section in the display fragment first.
 
 **Plan exhibits.** The plugin also ships a `plan` pack: one exhibit per card proves one claim of a plan. Its fields are in the reference path `cc-present pack list` prints for `plan`.

@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import example from '../examples/system.json';
-import { artifactDocument, isTimestamp, panelProblems, splitMermaid, stepCount, wrapLabel } from '../src/logic';
+import { artifactDocument, isTimestamp, locateDesignDoc, panelProblems, splitMermaid, stepCount, wrapLabel } from '../src/logic';
 import { validate } from '../src/system-map.js';
 import type { SystemMap } from '../src/system-map.js';
 import dense from './fixtures/dense.json';
@@ -53,6 +53,36 @@ test('stepCount is the longest panel', () => {
   const step = { from: 'a', label: 'x' };
   const actors = [{ id: 'a', label: 'a' }];
   expect(stepCount([{ actors, steps: [step] }, { actors, steps: [step, step, step] }])).toBe(3);
+});
+
+describe('locateDesignDoc', () => {
+  test('asks for the slug and branch and returns the frame source', async () => {
+    let asked = '';
+    const located = await locateDesignDoc('a-doc', 'yasyf/a branch', async (url) => {
+      asked = url;
+      return new Response(JSON.stringify({ src: '/design-docs/abc/design-docs/a-doc/index.html' }));
+    });
+    expect(asked).toBe('/api/design-doc?slug=a-doc&branch=yasyf%2Fa+branch');
+    expect(located).toEqual({ src: '/design-docs/abc/design-docs/a-doc/index.html' });
+  });
+
+  test('leaves the branch to the daemon when the block names none', async () => {
+    let asked = '';
+    await locateDesignDoc('a-doc', undefined, async (url) => {
+      asked = url;
+      return new Response('{}');
+    });
+    expect(asked).toBe('/api/design-doc?slug=a-doc');
+  });
+
+  test('turns a refusal into the line the card shows', async () => {
+    const located = await locateDesignDoc(
+      'a-doc',
+      'gone',
+      async () => new Response('no branch "gone" in the design-docs checkout\n', { status: 404 }),
+    );
+    expect(located).toEqual({ problem: 'no branch "gone" in the design-docs checkout' });
+  });
 });
 
 describe('artifactDocument', () => {

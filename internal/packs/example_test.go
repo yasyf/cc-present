@@ -128,7 +128,7 @@ func TestLintDisplayPack(t *testing.T) {
 	}
 	got := blockNames(p)
 	slices.Sort(got)
-	if want := []string{"artifact", "compare", "page", "sequence", "system", "timeline"}; !slices.Equal(got, want) {
+	if want := []string{"artifact", "compare", "designdoc", "page", "sequence", "system", "timeline"}; !slices.Equal(got, want) {
 		t.Fatalf("blocks = %v, want %v", got, want)
 	}
 	for _, bt := range p.Blocks {
