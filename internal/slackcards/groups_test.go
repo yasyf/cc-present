@@ -2,6 +2,7 @@ package slackcards_test
 
 import (
 	"fmt"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -87,7 +88,7 @@ func TestGroupCardRowCarriesTheFiveFactsInSlackMarkup(t *testing.T) {
 	stale := map[string]state.Decision{"41": {Verdict: "rejected", Head: "0001111", At: decidedAt}}
 	got := slackcards.GroupCard(g, group, stale, true, 0)[0].Rows[0]
 	want := slackcards.CardPR{URL: "https://github.com/acme/app/pull/41", Title: "Fix the [login](https://x.test/l) <form>", Head: "abc1234def", Review: "**Green**.", Change: "Login works.", Plan: "Matches the plan.", Risk: "Low.", Blocks: "Nothing."}
-	if got.PR == nil || *got.PR != want {
+	if got.PR == nil || !reflect.DeepEqual(*got.PR, want) {
 		t.Errorf("row PR = %+v, want %+v, so cc-slack draws its link and four lines", got.PR, want)
 	}
 	if note := "_Held at 0001111 on " + decidedClock + "; new head abc1234 needs your tap._"; got.Text != note {

@@ -508,7 +508,8 @@ type Record struct {
 // the commit a question about the PR was asked at, which the board flags once
 // the PR's live head moves past it. Change, Plan, Risk and Blocker are the plain
 // lines a Slack card shows as fields; a card whose PR carries them draws the PR
-// in full there, with its live state and description.
+// in full there, with its live state and description. Row is the PR ledger's row,
+// which cc-slack draws as the card's Work Object and the board leaves unread.
 type PR struct {
 	base
 	Repo    string   `json:"repo"`
@@ -521,6 +522,8 @@ type PR struct {
 	Plan    string   `json:"plan,omitempty"`
 	Risk    string   `json:"risk,omitempty"`
 	Blocker string   `json:"blocker,omitempty"`
+
+	Row json.RawMessage `json:"row,omitempty"`
 }
 
 // PRGroups is a set of GitHub pull requests in one repo, grouped by what they
