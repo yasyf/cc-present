@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- A card takes `replaces`, the Slack permalink of an earlier post in your DM. Its Slack card takes that message's place, buttons included, and posts nothing new.
 - A card's Slack copy keeps its whole body and title, and sends each option's words as a hint beside its button. A `pr-groups` row and a `pr` block carrying its lines reach cc-slack as a PR it draws in one shape, at eight rows a card. A `pr-groups` row may leave out `change`, `plan`, `risk` or `blocker`.
 
 ### Fixed
