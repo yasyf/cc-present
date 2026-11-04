@@ -138,6 +138,7 @@ func (rs *restServer) routes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/state", rs.handleState)
 	mux.HandleFunc("GET /api/rounds", rs.handleRounds)
 	mux.HandleFunc("POST /api/interactions", rs.handleInteractions)
+	mux.HandleFunc("POST /api/touching", rs.handleTouching)
 	mux.HandleFunc("POST /api/assets", rs.handlePutAsset)
 	mux.HandleFunc("GET /api/packs", rs.handlePacks)
 	mux.HandleFunc("GET /api/pr", rs.handlePR)
@@ -237,6 +238,39 @@ func (rs *restServer) handleInteractions(w http.ResponseWriter, r *http.Request)
 	writeJSON(w, http.StatusOK, map[string]any{"seq": seq})
 }
 
+func (rs *restServer) handleTouching(w http.ResponseWriter, r *http.Request) {
+	if !requireJSON(w, r) {
+		return
+	}
+	var req struct {
+		Subject string `json:"subject"`
+		BlockID string `json:"blockId"`
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxInteractionBytes)).Decode(&req); err != nil {
+		http.Error(w, "bad request: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+	id, ok, err := rs.resolve(r.Context(), req.Subject)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if !ok {
+		http.Error(w, "unknown subject: "+req.Subject, http.StatusNotFound)
+		return
+	}
+	board := boardFor(rs.db(), id)
+	if err := board.lock(r.Context(), rs.db(), id); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	defer board.mu.Unlock()
+	if loc, ok := doc.Locate(board.st.Doc, req.BlockID); ok {
+		board.touching[loc.TopID] = time.Now()
+	}
+	writeJSON(w, http.StatusOK, map[string]any{})
+}
+
 func (rs *restServer) recordInteraction(ctx context.Context, board *reducedBoard, id string, req *interactionReq, remoteAddr string) (int64, *doc.Card, doc.Block, int, error) {
 	if err := board.lock(ctx, rs.db(), id); err != nil {
 		return 0, nil, nil, http.StatusInternalServerError, err
@@ -255,7 +289,7 @@ func (rs *restServer) recordInteraction(ctx context.Context, board *reducedBoard
 	}
 	card, q := slackQuestion(st, &req.Interaction)
 	if card != nil && card.Status == slackcards.Resolved {
-		return 0, nil, nil, http.StatusConflict, fmt.Errorf("card %q is already answered", card.ID)
+		card, q = nil, nil
 	}
 	seq, err := appendEvent(ctx, rs.append, &ccevent.Event{
 		SubjectID: id, Origin: ccevent.OriginHuman, Type: req.Interaction.Type,
@@ -540,8 +574,19 @@ func validateInteraction(st *state.State, revision int, it *interaction, reg *pa
 	}
 }
 
-func requireApproval(st *state.State, id string) (*doc.Approval, string, error) {
+func onBoardOrRemoved(st *state.State, id string) (doc.Block, string, error) {
 	b, topID, err := findBlock(st.Doc, id)
+	if err == nil {
+		return b, topID, nil
+	}
+	if removed, topID, ok := st.RemovedBlock(id); ok {
+		return removed, topID, nil
+	}
+	return nil, "", err
+}
+
+func requireApproval(st *state.State, id string) (*doc.Approval, string, error) {
+	b, topID, err := onBoardOrRemoved(st, id)
 	if err != nil {
 		return nil, "", err
 	}
@@ -553,7 +598,7 @@ func requireApproval(st *state.State, id string) (*doc.Approval, string, error) 
 }
 
 func requireChoice(st *state.State, id string) (*doc.Choice, string, error) {
-	b, topID, err := findBlock(st.Doc, id)
+	b, topID, err := onBoardOrRemoved(st, id)
 	if err != nil {
 		return nil, "", err
 	}
@@ -565,7 +610,7 @@ func requireChoice(st *state.State, id string) (*doc.Choice, string, error) {
 }
 
 func requireInput(st *state.State, id string) (*doc.Input, string, error) {
-	b, topID, err := findBlock(st.Doc, id)
+	b, topID, err := onBoardOrRemoved(st, id)
 	if err != nil {
 		return nil, "", err
 	}
@@ -679,6 +724,9 @@ func prGroupsVerdicts(g *doc.PRGroups, verdicts map[string]triageEntry, now time
 // top-level block belongs to a round the reducer has already closed, so a human
 // can never act on a superseded round's blocks.
 func requireCurrentRound(st *state.State, id, topID string) error {
+	if _, _, removed := st.RemovedBlock(id); removed {
+		return nil
+	}
 	if r := st.Rounds.BlockRounds[topID]; r != st.Rounds.Current {
 		return fmt.Errorf("block %q belongs to closed round %d", id, r)
 	}

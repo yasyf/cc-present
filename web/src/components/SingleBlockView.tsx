@@ -21,6 +21,7 @@ import type { PresentApi } from '../present';
 import type { PresentState, RoundRecord } from '../events';
 import type { Block } from '../schema';
 import { interactionErrorText } from '../interactionError';
+import { AFTER_ANSWER_MS, holdCard, holdWhileTyping } from '../touchHold';
 import { BlockRenderer } from './BlockRenderer';
 import { ClosedBanner } from './ClosedBanner';
 
@@ -71,9 +72,11 @@ export function SingleBlockView({ subject, blockId, row }: { subject: string; bl
     gcTime: Infinity,
   });
 
-  const mutation = usePostInteraction(subject, (_err, interaction) =>
-    stream.notify({ kind: 'error', text: interactionErrorText(interaction) }),
+  const mutation = usePostInteraction(subject, (err, interaction) =>
+    stream.notify({ kind: 'error', text: interactionErrorText(interaction, err) }),
   );
+
+  useEffect(() => holdWhileTyping(subject, blockId), [subject, blockId]);
 
   const live = findIn(state.doc.blocks, blockId);
   const frozen = useRoundRecords(subject, state.rounds.history, live === undefined);
@@ -91,6 +94,7 @@ export function SingleBlockView({ subject, blockId, row }: { subject: string; bl
       post: (interaction) => {
         if (interaction.type !== 'submit') {
           window.webkit?.messageHandlers?.ccPresentInteraction?.postMessage({ type: 'interaction', blockId: interaction.blockId });
+          holdCard(subject, interaction.blockId, AFTER_ANSWER_MS);
         }
         return mutation.mutateAsync(interaction).then(() => true, () => false);
       },
@@ -98,7 +102,7 @@ export function SingleBlockView({ subject, blockId, row }: { subject: string; bl
       currentRound,
       roundOver,
     }),
-    [mutation, realClosed, currentRound, roundOver],
+    [mutation, subject, realClosed, currentRound, roundOver],
   );
 
   usePackToastSink(stream.notify);

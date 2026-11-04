@@ -40,6 +40,7 @@ type reducedBoard struct {
 	settling  bool
 	snapshot  encoded
 	rounds    encoded
+	touching  touching
 }
 
 type encoded struct {
@@ -57,7 +58,7 @@ func caughtUp(ctx context.Context, db *sql.DB, id string) (*reducedBoard, error)
 }
 
 func boardFor(db *sql.DB, id string) *reducedBoard {
-	cached, _ := boards.LoadOrStore(boardKey{db: db, id: id}, &reducedBoard{})
+	cached, _ := boards.LoadOrStore(boardKey{db: db, id: id}, &reducedBoard{touching: touching{}})
 	return cached.(*reducedBoard)
 }
 

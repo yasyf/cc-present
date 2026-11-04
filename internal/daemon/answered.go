@@ -13,14 +13,15 @@ import (
 )
 
 type answerGate struct {
-	ctx     context.Context
-	db      *sql.DB
-	subID   string
-	st      *state.State
-	retired map[string]bool
-	reopen  []string
-	prior   decidedGate
-	touches touches
+	ctx      context.Context
+	db       *sql.DB
+	subID    string
+	st       *state.State
+	retired  map[string]bool
+	reopen   []string
+	prior    decidedGate
+	touches  touches
+	touching touching
 }
 
 func newAnswerGate(ctx context.Context, db *sql.DB, subID string, st *state.State, retired map[string]bool, reopen []string) answerGate {
@@ -135,6 +136,9 @@ func (g answerGate) admitDoc(d *doc.Doc, raw json.RawMessage) (json.RawMessage, 
 	for _, b := range g.st.Doc.Blocks {
 		if _, kept := doc.Locate(d, b.BlockID()); kept {
 			continue
+		}
+		if err := g.touching.refuse(b.BlockID(), "drop"); err != nil {
+			return nil, nil, err
 		}
 		if _, answered := g.st.AnsweredBy(b); answered {
 			continue

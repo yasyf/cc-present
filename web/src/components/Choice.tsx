@@ -2,10 +2,10 @@ import { useCallback, useContext, useEffect, useRef, useState } from 'react';
 import type { FocusEvent, MouseEvent } from 'react';
 import { useGroupReadOnly } from '@cc-interact/react';
 import type { Choice as ChoiceBlock } from '../schema';
-import type { Interactions } from '../events';
+import type { Interaction, Interactions } from '../events';
 import { usePresent } from '../present';
 import { draftStore } from '../drafts';
-import { choiceToggle } from '../decide';
+import { choiceAnswer, choiceToggle } from '../decide';
 import { choiceShape, factAxes } from '../focus';
 import { useDecidable } from '../keyboard';
 import { useMediaQuery } from '../useMediaQuery';
@@ -18,7 +18,7 @@ import type { FeedbackHandle } from './FeedbackThread';
 import { FocusStepContext } from './focusStep';
 
 export function Choice({ block, interactions }: { block: ChoiceBlock; interactions: Interactions }) {
-  const { post, closed } = usePresent();
+  const { post: postAnswer, closed } = usePresent();
   const readOnly = useGroupReadOnly();
   const focus = useContext(FocusStepContext);
   const narrow = useMediaQuery('(max-width: 720px)');
@@ -44,6 +44,8 @@ export function Choice({ block, interactions }: { block: ChoiceBlock; interactio
     else draftStore.clear(block.id, 'other');
   }, [readOnly, block.id, draft]);
   const [dirty, setDirty] = useState(false);
+  const [delivery, setDelivery] = useState<'settled' | 'sending' | 'failed'>('settled');
+  const lastSent = useRef<Interaction | null>(null);
   const lastAction = useRef(0);
   const [synced, setSynced] = useState(committed);
   if (synced !== committed) {
@@ -54,6 +56,15 @@ export function Choice({ block, interactions }: { block: ChoiceBlock; interactio
   const text = draft.trim();
   const otherOn = dirty ? text !== '' : committed !== '';
   const picks = !multi && dirty && text !== '' ? [] : selected;
+
+  function post(interaction: Interaction) {
+    lastSent.current = interaction;
+    setDelivery('sending');
+    return postAnswer(interaction).then((ok) => {
+      if (lastSent.current === interaction) setDelivery(ok ? 'settled' : 'failed');
+      return ok;
+    });
+  }
 
   function toggle(optionId: string) {
     lastAction.current += 1;
@@ -156,6 +167,9 @@ export function Choice({ block, interactions }: { block: ChoiceBlock; interactio
     },
     [ref],
   );
+
+  const answer = choiceAnswer(block, selection);
+  const otherUnsent = text !== '' && !otherOn && !otherComposing;
 
   const shownId = pointed ?? picks.at(-1) ?? block.options.find((option) => option.visual)?.id;
   const shownVisual = block.options.find((option) => option.id === shownId)?.visual;
@@ -288,6 +302,25 @@ export function Choice({ block, interactions }: { block: ChoiceBlock; interactio
           ))}
           {other}
         </div>
+      )}
+      {!locked && delivery === 'sending' && (
+        <p className="choice-delivery" role="status">
+          Saving…
+        </p>
+      )}
+      {!locked && delivery === 'failed' && (
+        <p className="choice-delivery choice-delivery-failed" role="alert">
+          Not recorded.{' '}
+          <button type="button" onClick={() => lastSent.current && void post(lastSent.current)}>
+            Try again
+          </button>
+        </p>
+      )}
+      {!locked && delivery === 'settled' && (answer || otherUnsent) && (
+        <p className="choice-delivery" role="status">
+          {answer && `Recorded: ${answer}. `}
+          {otherUnsent && 'Your Other text is not sent; pick Other to send it.'}
+        </p>
       )}
       {thread}
     </div>

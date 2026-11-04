@@ -928,8 +928,8 @@ func TestATapDecodesOnlyTheEventsSinceThePreviousTap(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if w := h.post(t, `{"subject":"board--abcd0000","nonce":"n3","interaction":{"type":"choice.selected","blockId":"ch1","optionIds":["o1"]}}`); w.Code != http.StatusBadRequest || !strings.Contains(w.Body.String(), "unknown block") {
-		t.Fatalf("tap on a removed block = %d %s, want 400 unknown block from the caught-up state", w.Code, w.Body)
+	if w := h.post(t, `{"subject":"board--abcd0000","nonce":"n3","interaction":{"type":"feedback.created","blockId":"ch1","text":"x"}}`); w.Code != http.StatusBadRequest || !strings.Contains(w.Body.String(), "unknown block") {
+		t.Fatalf("note on a removed block = %d %s, want 400 unknown block from the caught-up state", w.Code, w.Body)
 	}
 }
 
@@ -1000,5 +1000,52 @@ func TestNoteWritersAdmitNamedDevices(t *testing.T) {
 				t.Fatalf("events = %d, want %d", len(events), wantEvents)
 			}
 		})
+	}
+}
+
+func TestAnAnswerOnABlockThatLeftTheBoardIsStillRecorded(t *testing.T) {
+	h := newRestHarness(t)
+	if _, err := h.cc.AppendEvent(context.Background(), &ccevent.Event{
+		SubjectID: h.id, Origin: ccevent.OriginAgent, Type: EventBlockRemoved,
+		Payload: injectIdentity(EventBlockRemoved, json.RawMessage(`{"id":"ch1"}`)),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if w := h.post(t, `{"subject":"board--abcd0000","nonce":"late","interaction":{"type":"choice.selected","blockId":"ch1","optionIds":["o2"]}}`); w.Code != http.StatusOK {
+		t.Fatalf("late answer = %d %s", w.Code, w.Body)
+	}
+	if w := h.post(t, `{"subject":"board--abcd0000","nonce":"wrong","interaction":{"type":"choice.selected","blockId":"ch1","optionIds":["o9"]}}`); w.Code != http.StatusBadRequest {
+		t.Fatalf("an option the block never had = %d, want 400", w.Code)
+	}
+	if w := h.post(t, `{"subject":"board--abcd0000","nonce":"never","interaction":{"type":"choice.selected","blockId":"nope","optionIds":["o2"]}}`); w.Code != http.StatusBadRequest {
+		t.Fatalf("a block that never existed = %d, want 400", w.Code)
+	}
+	if sel := h.reduce(t).Interactions.Choices["ch1"]; !slices.Equal(sel.OptionIDs, []string{"o2"}) {
+		t.Fatalf("selection = %v, want the late answer", sel.OptionIDs)
+	}
+}
+
+func TestTouchingHoldsTheTopLevelCardAndWritesNoEvent(t *testing.T) {
+	h := newRestHarnessWith(t, `{"version":1,"title":"T","blocks":[`+syncedCardJSON+`]}`, emptyPackLoader(t))
+	before, err := loadEvents(context.Background(), h.cc.DB(), h.id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := httptest.NewRequest(http.MethodPost, "/api/touching", strings.NewReader(`{"subject":"board--abcd0000","blockId":"step-3:merge-answer"}`))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	h.mux().ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("touching = %d %s", w.Code, w.Body)
+	}
+	if err := boardFor(h.cc.DB(), h.id).touching.refuse("step-3:merge", "remove"); err == nil {
+		t.Fatal("the card is not held after its child was reported touched")
+	}
+	after, err := loadEvents(context.Background(), h.cc.DB(), h.id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(after) != len(before) {
+		t.Fatalf("touching appended %d events", len(after)-len(before))
 	}
 }

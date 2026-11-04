@@ -5,8 +5,8 @@
 
 import { getOptionalPackTypes } from './packs/registry';
 import { isPackBlock } from './schema';
-import type { Block, BuiltinBlockType } from './schema';
-import type { Interactions, Verdict } from './events';
+import type { Block, BuiltinBlockType, Choice } from './schema';
+import type { Interactions, Selection, Verdict } from './events';
 import { allDecided } from './prgroups';
 
 export interface SubmitItem {
@@ -136,6 +136,21 @@ export function submitItems(
 // blockDecided drives a board row's data-decided receipt: the block has at least
 // one tallied decidable and every one is decided. Unlike the shallow isDecided
 // (never true for a card), it aggregates a card over its children via submitItems.
+export function choiceAnswer(block: Choice, selection: Selection | undefined): string {
+  if (!selection) return '';
+  const picked = block.options.filter((option) => selection.optionIds.includes(option.id)).map((option) => option.label);
+  return [...picked, ...(selection.other ? [selection.other] : [])].join(', ');
+}
+
+export function recordedAnswer(block: Block, interactions: Interactions): string {
+  for (const b of flatten([block])) {
+    if (b.type === 'choice' && interactions.choices[b.id]) return choiceAnswer(b as Choice, interactions.choices[b.id]);
+    if (b.type === 'approval' && interactions.decisions[b.id]) return interactions.decisions[b.id]!.verdict;
+    if (b.type === 'input' && interactions.inputs[b.id]?.text) return interactions.inputs[b.id]!.text;
+  }
+  return '';
+}
+
 export function blockDecided(
   block: Block,
   interactions: Interactions,

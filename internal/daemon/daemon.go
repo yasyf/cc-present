@@ -268,6 +268,7 @@ func appendSeedDoc(hc ccd.HandlerCtx, subID string, raw json.RawMessage, d *doc.
 	if err != nil {
 		return nil, 0, err
 	}
+	gate.touching = board.touching
 	raw, warnings, err := gate.admitDoc(d, raw)
 	if err != nil {
 		return nil, 0, err
@@ -324,6 +325,7 @@ func handlePush(hc ccd.HandlerCtx, pt doc.PackTypes, display displayFunc) ccd.Re
 	if err != nil {
 		return errReply(err.Error())
 	}
+	gate.touching = board.touching
 	raw, warnings, err := gate.admitDoc(d, b.Doc)
 	if err != nil {
 		return errReply(err.Error())
@@ -404,6 +406,7 @@ func handleUpsertBlock(hc ccd.HandlerCtx, pt doc.PackTypes) ccd.Reply {
 	if err != nil {
 		return errReply(err.Error())
 	}
+	gate.touching = board.touching
 	kept, warnings := gate.strip([]doc.Block{blk})
 	if len(kept) == 0 {
 		return okReply(result{Warnings: warnings})
@@ -501,6 +504,9 @@ func handleRemoveBlock(hc ccd.HandlerCtx) ccd.Reply {
 	}
 	if loc.Visual() {
 		return errReply(pointingError(b.ID, loc).Error())
+	}
+	if err := board.touching.refuse(loc.TopID, "remove"); err != nil {
+		return errReply(err.Error())
 	}
 	if _, answered := st.AnsweredBy(loc.Block); b.OwnerOrder == "" && !answered {
 		held, err := recentTouches(hc.Ctx, hc.DB, sub.ID)

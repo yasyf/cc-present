@@ -12,12 +12,15 @@ import { createEventStream } from '@cc-interact/react';
 import type { StreamToast } from '@cc-interact/react';
 import { applyEvent } from './reduce';
 import { presentKey, queryClient, revisionKey, snapshotKey } from './api';
+import { flatten, recordedAnswer } from './decide';
 import { markdownText } from './markdown';
 import { revisionStore } from './revision';
 import { blockLabel, threadFeed } from './threadFeed';
 import { hasThreadOpener, openThread } from './threadOpen';
 import { withToken } from './token';
 import type { PresentEvent, PresentState, WireFrame } from './events';
+
+const RECORDED_TOAST_MS = 60_000;
 
 // TOAST_TEXT is the toast copy per wire type; null for frames that never toast
 // (human echoes, channel presence). `satisfies` keeps it exhaustive. A reply
@@ -56,7 +59,12 @@ export function toastFor(frame: WireFrame, before: PresentState, after: PresentS
   const text = TOAST_TEXT[frame.type];
   if (text === null) return null;
   if (frame.type === 'block.upserted') return inFocusMode() ? null : named(text, blockLabel(after.doc.blocks, frame.block.id));
-  if (frame.type === 'block.removed') return named(text, blockLabel(before.doc.blocks, frame.id));
+  if (frame.type === 'block.removed') {
+    const title = blockLabel(before.doc.blocks, frame.id);
+    const gone = flatten(before.doc.blocks).find((b) => b.id === frame.id);
+    const answer = gone ? recordedAnswer(gone, before.interactions) : '';
+    return answer ? { ...named(`Recorded: ${answer}`, title), durationMs: RECORDED_TOAST_MS } : named(text, title);
+  }
   if (frame.type !== 'reply.created') return { kind: 'info', text };
   const entry = threadFeed(after, frame.blockId).pinned;
   if (!entry) return { kind: 'info', text };

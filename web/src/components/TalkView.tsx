@@ -181,8 +181,8 @@ export function TalkView({ subject, talkId }: { subject: string; talkId: string 
     staleTime: Infinity,
     gcTime: Infinity,
   });
-  const mutation = usePostInteraction(subject, (_err, interaction) =>
-    stream.notify({ kind: 'error', text: interactionErrorText(interaction) }),
+  const mutation = usePostInteraction(subject, (err, interaction) =>
+    stream.notify({ kind: 'error', text: interactionErrorText(interaction, err) }),
   );
   usePackToastSink(stream.notify);
 
