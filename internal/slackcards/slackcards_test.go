@@ -232,11 +232,20 @@ func TestAPRCarryingItsLinesDrawsAsAPRNotALink(t *testing.T) {
 	}
 	got := slackcards.ToSlack(c, q)
 	want := []slackcards.CardPR{{URL: "https://github.com/acme/app/pull/41", Title: "Relay fix", Head: "abc1234", Change: "Chats load", Plan: "Nothing differed", Risk: "Low", Blocks: "Your tap"}}
-	if !slices.Equal(got.PRs, want) {
+	if !reflect.DeepEqual(got.PRs, want) {
 		t.Errorf("prs = %+v, want %+v", got.PRs, want)
 	}
 	if strings.Contains(got.Body, "PR 41") || !strings.Contains(got.Body, "app PR 42") || len(got.Refs) != 1 {
 		t.Errorf("body %q refs %+v, want only the PR with no lines as a link", got.Body, got.Refs)
+	}
+}
+
+func TestAPRsLedgerRowReachesItsSlackCardUnread(t *testing.T) {
+	c := card(t, `{"id":"card-r1","type":"card","title":"The relay fix","children":[`+
+		`{"id":"p","type":"pr","repo":"acme/app","number":41,"row":{"number":41,"ci":"green"}}]}`)
+	got := slackcards.ToSlack(c, nil)
+	if len(got.PRs) != 1 || string(got.PRs[0].Row) != `{"number":41,"ci":"green"}` || len(got.Refs) != 0 {
+		t.Errorf("prs = %+v refs = %+v, want the row carried on the card's PR", got.PRs, got.Refs)
 	}
 }
 
