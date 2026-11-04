@@ -384,6 +384,27 @@ func TestAReplyOnASyncedCardNamesItsSlackCard(t *testing.T) {
 	}
 }
 
+func TestAReplyRepeatingTheBlocksLastReplyStaysOffSlack(t *testing.T) {
+	h := newHarness(t)
+	if r := handleSlackCard(slackWindow(h, body{Block: json.RawMessage(syncedCardJSON)}), doc.NoPacks, nilDisplay); !r.OK {
+		t.Fatalf("card: %s", r.Error)
+	}
+	for _, step := range []struct {
+		md    string
+		waits string
+	}{
+		{"Merging lands #41 before the freeze.", "step-3:merge"},
+		{"Merging lands #41 before the freeze.", ""},
+		{"It landed.", "step-3:merge"},
+	} {
+		r := handleReply(slackWindow(h, body{BlockID: "step-3:merge", Md: step.md}))
+		var res result
+		if err := json.Unmarshal(r.Body, &res); err != nil || !r.OK || res.Waits != step.waits {
+			t.Fatalf("reply %q = %+v (%s), want waits %q", step.md, res, r.Error, step.waits)
+		}
+	}
+}
+
 func TestSlackCardRefusesACardWhoseChildIDsCollideWithTheBoard(t *testing.T) {
 	h := newHarness(t)
 	if r := handleSlackCard(slackWindow(h, body{Block: json.RawMessage(syncedCardJSON)}), doc.NoPacks, nilDisplay); !r.OK {

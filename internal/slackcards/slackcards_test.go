@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"unicode/utf8"
@@ -384,5 +385,23 @@ func TestToSlackTurnsALinkInTheSummaryIntoASlackLink(t *testing.T) {
 	}
 	if got := slackcards.ToSlack(c, ch).Body; got != "Read <https://docs.example.com/plan|the plan> first." {
 		t.Fatalf("Body = %q", got)
+	}
+}
+
+func TestACardShowsALeadItsSummaryRepeatsOnce(t *testing.T) {
+	for md, want := range map[string]string{
+		"Checks passed\non every job.\n\nIt ships tonight.": "Checks passed on every job.\nIt ships tonight.",
+		"Checks passed on every job.":                       "Checks passed on every job.",
+		"It ships tonight.":                                 "Checks passed on every job.\nIt ships tonight.",
+	} {
+		c := card(t, `{"id":"step-3:merge","type":"card","title":"Merge?","summary":"Checks passed on every job.","children":[`+
+			`{"id":"why","type":"markdown","md":`+strconv.Quote(md)+`},{"id":"q","type":"approval"}]}`)
+		q, err := slackcards.Check(c)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := slackcards.ToSlack(c, q).Body; got != want {
+			t.Errorf("markdown %q: Body = %q, want %q", md, got, want)
+		}
 	}
 }

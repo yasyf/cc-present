@@ -273,7 +273,7 @@ func ToSlack(c *doc.Card, q doc.Block) StatusCard {
 		switch b := child.(type) {
 		case *doc.Markdown:
 			if !b.Struck {
-				parts = append(parts, markdownLink.ReplaceAllString(b.Md, "<$2|$1>"))
+				parts = append(parts, markdownLink.ReplaceAllString(withoutLead(b.Md, c.Summary), "<$2|$1>"))
 			}
 		case *doc.PR:
 			url := fmt.Sprintf("https://github.com/%s/pull/%d", b.Repo, b.Number)
@@ -324,6 +324,14 @@ func Cards(c *doc.Card, q doc.Block, verdicts map[string]state.Decision) []Statu
 		cards[i] = page
 	}
 	return cards
+}
+
+func withoutLead(md, summary string) string {
+	lead, rest, _ := strings.Cut(strings.TrimSpace(md), "\n\n")
+	if strings.Join(strings.Fields(lead), " ") != strings.Join(strings.Fields(summary), " ") {
+		return md
+	}
+	return strings.TrimSpace(rest)
 }
 
 func itemText(item doc.Item) string {
@@ -679,30 +687,49 @@ func cutLast(s string) (string, string, bool) {
 }
 
 // GroupCards is every card a pr-groups block's push edits: a card with no
-// buttons for each group of before that it dropped, then one per group it carries.
+// buttons for each group of before that it dropped, listing only the pull
+// requests no group it carries holds, then one per group it carries that
+// changed.
 func GroupCards(before, g *doc.PRGroups, verdicts map[string]state.Decision) []StatusCard {
-	kept := map[string]bool{}
+	kept, carried := map[string]bool{}, map[int]bool{}
 	for _, group := range g.Groups {
 		kept[group.ID] = true
+		for _, r := range group.PRs {
+			carried[r.Number] = true
+		}
 	}
 	var cards []StatusCard
 	if before != nil {
 		for _, group := range before.Groups {
 			if !kept[group.ID] {
+				group.PRs = slices.DeleteFunc(slices.Clone(group.PRs), func(r doc.PRRow) bool { return carried[r.Number] })
 				cards = append(cards, GroupCard(before, group, verdicts, false, 0)...)
 			}
 		}
 	}
 	for _, group := range g.Groups {
 		held := 0
+		var was []StatusCard
 		if before != nil {
 			if i := slices.IndexFunc(before.Groups, func(b doc.PRGroup) bool { return b.ID == group.ID }); i >= 0 {
+				if before.Repo == g.Repo && reflect.DeepEqual(before.Groups[i], group) {
+					continue
+				}
 				held = len(before.Groups[i].PRs)
+				was = GroupCard(before, before.Groups[i], verdicts, true, 0)
 			}
 		}
-		cards = append(cards, GroupCard(g, group, verdicts, true, held)...)
+		now := GroupCard(g, group, verdicts, true, held)
+		if was != nil && asksNothing(was) && asksNothing(now) {
+			continue
+		}
+		cards = append(cards, now...)
 	}
 	return cards
+}
+
+func asksNothing(cards []StatusCard) bool {
+	return !slices.ContainsFunc(cards, func(c StatusCard) bool { return len(c.Rows) > 0 })
 }
 
 // PostGroupCard posts or edits a group card at the DM root, keeping the message

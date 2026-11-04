@@ -532,7 +532,8 @@ func handleRemoveBlock(hc ccd.HandlerCtx) ccd.Reply {
 // thread that no reply answers yet. A reply naming a block absent from the
 // current document or a feedback id no human filed is rejected, as is a reply to
 // a closed artifact. There is deliberately no round check: replying to a block
-// whose round has already closed is a supported flow.
+// whose round has already closed is a supported flow. A reply repeating the
+// block's previous reply names no Slack card, so its text reaches Slack once.
 func handleReply(hc ccd.HandlerCtx) ccd.Reply {
 	b := decodeBody(hc.Env.Body)
 	if b.BlockID == "" {
@@ -580,7 +581,8 @@ func handleReply(hc ccd.HandlerCtx) ccd.Reply {
 		return errReply(err.Error())
 	}
 	var res result
-	if card, _, err := syncedCard(st.Doc, top); err == nil {
+	prior := st.Interactions.Replies[b.BlockID]
+	if card, _, err := syncedCard(st.Doc, top); err == nil && (len(prior) == 0 || prior[len(prior)-1].Md != b.Md) {
 		res.Waits = card.ID
 	}
 	return okReply(res)
