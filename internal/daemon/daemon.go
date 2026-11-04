@@ -477,7 +477,8 @@ func upsertedDoc(cur *doc.Doc, blk doc.Block, after string) *doc.Doc {
 }
 
 // handleRemoveBlock removes a block by id. A closed artifact rejects the
-// removal.
+// removal. The hold on a block the human just touched protects it from agents,
+// so a removal carrying the human's own order passes it.
 func handleRemoveBlock(hc ccd.HandlerCtx) ccd.Reply {
 	b := decodeBody(hc.Env.Body)
 	if b.ID == "" {
@@ -500,12 +501,14 @@ func handleRemoveBlock(hc ccd.HandlerCtx) ccd.Reply {
 	if loc.Visual() {
 		return errReply(pointingError(b.ID, loc).Error())
 	}
-	held, err := recentTouches(hc.Ctx, hc.DB, sub.ID)
-	if err != nil {
-		return errReply(err.Error())
-	}
-	if err := held.refuse(loc.Block, "remove", true); err != nil {
-		return errReply(err.Error())
+	if b.OwnerOrder == "" {
+		held, err := recentTouches(hc.Ctx, hc.DB, sub.ID)
+		if err != nil {
+			return errReply(err.Error())
+		}
+		if err := held.refuse(loc.Block, "remove", true); err != nil {
+			return errReply(err.Error())
+		}
 	}
 	if err := b.admit(st, board.seq, loc.TopID); err != nil {
 		return errReply(err.Error())
