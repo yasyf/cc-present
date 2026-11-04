@@ -136,6 +136,9 @@ func (g answerGate) admitDoc(d *doc.Doc, raw json.RawMessage) (json.RawMessage, 
 		if _, kept := doc.Locate(d, b.BlockID()); kept {
 			continue
 		}
+		if _, answered := g.st.AnsweredBy(b); answered {
+			continue
+		}
 		if err := g.touches.refuse(b, "drop", true); err != nil {
 			return nil, nil, err
 		}
