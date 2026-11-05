@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -353,6 +354,56 @@ func TestABoardCardReachesCCSlackWithItsButtonsAndImageBytes(t *testing.T) {
 	}
 	if !strings.Contains(warn.String(), `image "Pieces first" stays on the board`) {
 		t.Errorf("warnings %q, want the WebP image named", warn.String())
+	}
+}
+
+func TestAPostedCardIsEditedWhereItIs(t *testing.T) {
+	const root = "https://example.slack.com/archives/D1/p1700000000000100"
+	for name, tc := range map[string]struct {
+		posted, ts, want string
+	}{
+		"never posted":     {"", "", ""},
+		"at the root":      {root, "", root},
+		"under a thread":   {root + "?thread_ts=1699999999.000100", "", ""},
+		"sent to a thread": {root, "1699999999.000100", ""},
+	} {
+		t.Run(name, func(t *testing.T) {
+			dir := t.TempDir()
+			//nolint:gosec // G306: the fake cc-slack on PATH has to be executable.
+			if err := os.WriteFile(filepath.Join(dir, "cc-slack"), []byte(fakeCCSlack), 0o700); err != nil {
+				t.Fatal(err)
+			}
+			t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+			t.Setenv("FAKE_CC_SLACK_DIR", dir)
+			blk, err := doc.DecodeBlock(json.RawMessage(`{"id":"c","type":"card","title":"Which?","children":[{"id":"q","type":"choice","options":[{"id":"a","label":"A"},{"id":"b","label":"B"}]}]}`))
+			if err != nil {
+				t.Fatal(err)
+			}
+			card := blk.(*doc.Card)
+			if tc.posted != "" {
+				card.Slack = &doc.CardSlack{URL: tc.posted}
+			}
+			q, err := slackcards.Check(card)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := postCard(t.Context(), "s1", 0, question{card, q, nil}, tc.ts, io.Discard); err != nil {
+				t.Fatal(err)
+			}
+			//nolint:gosec // G304: the test's own temp dir.
+			raw, err := os.ReadFile(filepath.Join(dir, "args"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			args := strings.Split(strings.TrimSpace(string(raw)), "\n")
+			var sent slackcards.StatusCard
+			if err := json.Unmarshal([]byte(args[slices.Index(args, "--card")+1]), &sent); err != nil {
+				t.Fatal(err)
+			}
+			if sent.Replaces != tc.want {
+				t.Errorf("replaces %q, want %q", sent.Replaces, tc.want)
+			}
+		})
 	}
 }
 

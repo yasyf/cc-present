@@ -450,7 +450,11 @@ func postCard(ctx context.Context, session string, port int, q question, ts stri
 	if _, rows := q.control.(*doc.Triage); rows {
 		return postRows(ctx, session, q, ts, warn)
 	}
-	sc, err := json.Marshal(slackcards.ToSlack(card, q.control))
+	status := slackcards.ToSlack(card, q.control)
+	if card.Slack != nil && ts == "" && !strings.Contains(card.Slack.URL, "thread_ts=") {
+		status.Replaces = cmp.Or(status.Replaces, card.Slack.URL)
+	}
+	sc, err := json.Marshal(status)
 	if err != nil {
 		return cardPost{}, err
 	}
