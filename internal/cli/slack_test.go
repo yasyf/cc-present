@@ -364,7 +364,7 @@ func TestAPostedCardIsEditedWhereItIs(t *testing.T) {
 	}{
 		"never posted":     {"", "", ""},
 		"at the root":      {root, "", root},
-		"under a thread":   {root + "?thread_ts=1699999999.000100", "", ""},
+		"under a thread":   {root + "?thread_ts=1699999999.000100", "", root + "?thread_ts=1699999999.000100"},
 		"sent to a thread": {root, "1699999999.000100", ""},
 	} {
 		t.Run(name, func(t *testing.T) {
