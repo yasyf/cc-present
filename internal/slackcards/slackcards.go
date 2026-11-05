@@ -118,7 +118,17 @@ type StatusCard struct {
 	Replaces    string   `json:"replaces,omitempty"`
 	PRs         []CardPR `json:"prs,omitempty"`
 	// Hints are the words to read for an option, keyed by the option.
-	Hints map[string]string `json:"hints,omitempty"`
+	Hints     map[string]string `json:"hints,omitempty"`
+	Artifacts []Artifact        `json:"artifacts,omitempty"`
+}
+
+// Artifact is a picture a pack block names for Slack, which cc-slack uploads
+// and draws as a Work Object whose Open button goes to the block's live view.
+type Artifact struct {
+	Title string `json:"title"`
+	Kind  string `json:"kind"`
+	URL   string `json:"url"`
+	Image string `json:"image"`
 }
 
 // Row is one item on a group card, with the board's verdict buttons. A pull
@@ -347,10 +357,30 @@ func ToSlack(c *doc.Card, q doc.Block, posts Posts) StatusCard {
 			sc.Refs = append(sc.Refs, Ref{URL: url})
 			_, name, _ := strings.Cut(b.Repo, "/")
 			parts = append(parts, fmt.Sprintf("<%s|%s PR %d>", url, name, b.Number))
+		case *doc.PackBlock:
+			if a, pictured := packArtifact(b, title); pictured {
+				sc.Artifacts = append(sc.Artifacts, a)
+			}
 		}
 	}
 	sc.Body = strings.Join(slices.DeleteFunc(parts, func(s string) bool { return s == "" }), "\n")
 	return sc
+}
+
+// packArtifact is the Work Object a pack block draws in Slack when it names a
+// picture file and a link to its live view; a block naming neither draws nothing there.
+func packArtifact(b *doc.PackBlock, cardTitle string) (Artifact, bool) {
+	var title, picture, link string
+	for field, into := range map[string]*string{"title": &title, "picture": &picture, "link": &link} {
+		if raw, ok := b.Fields[field]; ok {
+			_ = json.Unmarshal(raw, into)
+		}
+	}
+	if picture == "" || link == "" {
+		return Artifact{}, false
+	}
+	_, kind, _ := strings.Cut(b.Type, ".")
+	return Artifact{Title: clip(cmp.Or(title, cardTitle), maxTitle), Kind: kind, URL: link, Image: picture}, true
 }
 
 // Cards is the cc-slack cards that ask a card Check passed: its one waiting card,

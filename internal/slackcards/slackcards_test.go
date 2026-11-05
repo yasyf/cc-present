@@ -526,3 +526,19 @@ func TestACardShowsALeadItsSummaryRepeatsOnce(t *testing.T) {
 		}
 	}
 }
+
+func TestToSlackDrawsAPackBlockThatNamesAPictureAndALinkAsAWorkObject(t *testing.T) {
+	c := card(t, `{"id":"card-relay","type":"card","title":"Which relay?","summary":"The relay drops one in ten.","children":[`+
+		`{"id":"relay-diagram","type":"lr.arch","title":"The relay","doc":{"arch":1},"picture":"/state/diagrams/relay-diagram.png","link":"http://mac.tail1.ts.net:61210/#/question/card-relay"},`+
+		`{"id":"relay-plain","type":"lr.arch","doc":{"arch":1}},`+
+		`{"id":"q","type":"choice","options":[{"id":"o1","label":"Fix it","recommended":true},{"id":"o2","label":"Keep it"}]}]}`)
+	ch, err := slackcards.Check(c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := slackcards.ToSlack(c, ch, nil).Artifacts
+	want := []slackcards.Artifact{{Title: "The relay", Kind: "arch", URL: "http://mac.tail1.ts.net:61210/#/question/card-relay", Image: "/state/diagrams/relay-diagram.png"}}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("Artifacts = %+v, want %+v", got, want)
+	}
+}
