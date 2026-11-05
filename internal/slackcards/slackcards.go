@@ -110,8 +110,6 @@ type CardPR struct {
 	Plan   string `json:"plan"`
 	Risk   string `json:"risk"`
 	Blocks string `json:"blocks"`
-
-	Row json.RawMessage `json:"row,omitempty"`
 }
 
 // Decided is a tap on a group card's row, as `cc-present slack-sync decided` reads it.
@@ -311,8 +309,8 @@ func ToSlack(c *doc.Card, q doc.Block) StatusCard {
 			}
 		case *doc.PR:
 			url := fmt.Sprintf("https://github.com/%s/pull/%d", b.Repo, b.Number)
-			if b.Change != "" || b.Plan != "" || b.Risk != "" || b.Blocker != "" || len(b.Row) > 0 {
-				sc.PRs = append(sc.PRs, CardPR{URL: url, Title: b.Title, Head: b.Head, Change: b.Change, Plan: b.Plan, Risk: b.Risk, Blocks: b.Blocker, Row: b.Row})
+			if b.Change != "" || b.Plan != "" || b.Risk != "" || b.Blocker != "" {
+				sc.PRs = append(sc.PRs, CardPR{URL: url, Title: b.Title, Head: b.Head, Change: b.Change, Plan: b.Plan, Risk: b.Risk, Blocks: b.Blocker})
 				continue
 			}
 			sc.Refs = append(sc.Refs, Ref{URL: url})
