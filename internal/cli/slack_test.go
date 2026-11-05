@@ -317,7 +317,7 @@ func TestABoardCardReachesCCSlackWithItsButtonsAndImageBytes(t *testing.T) {
 		t.Fatal(err)
 	}
 	var warn bytes.Buffer
-	posted, err := postCard(t.Context(), "s1", port, question{card, q, nil}, "", &warn)
+	posted, err := postCard(t.Context(), "s1", port, question{card, q, nil, nil}, "", &warn)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -387,7 +387,7 @@ func TestAPostedCardIsEditedWhereItIs(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if _, err := postCard(t.Context(), "s1", 0, question{card, q, nil}, tc.ts, io.Discard); err != nil {
+			if _, err := postCard(t.Context(), "s1", 0, question{card, q, nil, nil}, tc.ts, io.Discard); err != nil {
 				t.Fatal(err)
 			}
 			//nolint:gosec // G304: the test's own temp dir.

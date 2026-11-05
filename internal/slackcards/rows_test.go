@@ -47,7 +47,7 @@ func TestCardsAsksEachOpenItemAsItsOwnRowAndNamesEachDecidedOne(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	fresh := slackcards.Cards(c, q, nil)
+	fresh := slackcards.Cards(c, q, nil, nil)
 	if len(fresh) != 1 || fresh[0].Group != "devices" || fresh[0].Waits != "" || fresh[0].Status != "needs_you" {
 		t.Fatalf("cards = %+v, want one group card named for the card", fresh)
 	}
@@ -61,7 +61,7 @@ func TestCardsAsksEachOpenItemAsItsOwnRowAndNamesEachDecidedOne(t *testing.T) {
 		t.Errorf("body = %q, want the card's summary", fresh[0].Body)
 	}
 
-	partial := slackcards.Cards(c, q, map[string]state.Decision{"ipad-2": {Verdict: "rejected", Note: "not **ours**"}})
+	partial := slackcards.Cards(c, q, map[string]state.Decision{"ipad-2": {Verdict: "rejected", Note: "not **ours**"}}, nil)
 	if got := rowIDs(partial[0]); !slices.Equal(got, []string{"tr:mbp-1", "tr:pi-3"}) || partial[0].Status != "needs_you" {
 		t.Fatalf("rows = %q status %q, want the two open items still asking", got, partial[0].Status)
 	}
@@ -70,7 +70,7 @@ func TestCardsAsksEachOpenItemAsItsOwnRowAndNamesEachDecidedOne(t *testing.T) {
 	}
 
 	all := map[string]state.Decision{"mbp-1": {Verdict: "approved"}, "ipad-2": {Verdict: "rejected"}, "pi-3": {Verdict: "approved"}}
-	if done := slackcards.Cards(c, q, all); len(done[0].Rows) != 0 || done[0].Status != "done" {
+	if done := slackcards.Cards(c, q, all, nil); len(done[0].Rows) != 0 || done[0].Status != "done" {
 		t.Errorf("card = %+v, want no buttons once every item has a verdict", done[0])
 	}
 }
@@ -85,7 +85,7 @@ func TestATriagePastTwentyRowsAsksOnOneCardPerTwenty(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cards := slackcards.Cards(c, q, nil)
+	cards := slackcards.Cards(c, q, nil, nil)
 	groups, titles := make([]string, 0, len(cards)), make([]string, 0, len(cards))
 	rows := 0
 	for _, sc := range cards {

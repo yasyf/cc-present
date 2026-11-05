@@ -495,7 +495,7 @@ func triageCards(st *state.State, top string, tr *doc.Triage) []slackcards.Statu
 	if _, ok := slackcards.Question(card); !ok {
 		return nil
 	}
-	return slackcards.Cards(card, tr, st.Interactions.Triage[tr.ID])
+	return slackcards.Cards(card, tr, st.Interactions.Triage[tr.ID], slackcards.PostsOf(st.Doc))
 }
 
 func subjectSlug(ctx context.Context, db *sql.DB, subID string) (string, error) {

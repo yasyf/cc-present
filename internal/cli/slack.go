@@ -75,7 +75,7 @@ func newAskCmd(d cmd.Deps) *cobra.Command {
 			if err := inlineImages([]doc.Block{card}, httpUploader(port)); err != nil {
 				return err
 			}
-			res, _, err := mirror(ctx, cl, board{sess, scope, pid, w}, w, false, question{card, ch, nil}, ts, c.ErrOrStderr())
+			res, _, err := mirror(ctx, cl, board{sess, scope, pid, w}, w, false, question{card, ch, nil, nil}, ts, c.ErrOrStderr())
 			if err != nil {
 				return err
 			}
@@ -277,6 +277,7 @@ type question struct {
 	card     *doc.Card
 	control  doc.Block
 	verdicts map[string]state.Decision
+	posts    slackcards.Posts
 }
 
 // writtenQuestions is what a write of blocks puts in front of Slack: each card it
@@ -303,7 +304,7 @@ func writtenQuestions(before, after *sendBoard, blocks []doc.Block) ([]question,
 		}
 		q, ok := slackcards.Question(card)
 		if ok && !settled(after, card, q) && !postedTheSame(before, card) {
-			picked = append(picked, question{card, q, after.Interactions.Triage[q.BlockID()]})
+			picked = append(picked, question{card, q, after.Interactions.Triage[q.BlockID()], slackcards.PostsOf(after.Doc)})
 		}
 	}
 	return picked, nudges
@@ -378,7 +379,7 @@ func openQuestions(b *sendBoard, named []string) ([]question, []string, error) {
 		case err != nil:
 			skipped = append(skipped, err.Error())
 		default:
-			picked = append(picked, question{card, q, b.Interactions.Triage[q.BlockID()]})
+			picked = append(picked, question{card, q, b.Interactions.Triage[q.BlockID()], slackcards.PostsOf(b.Doc)})
 		}
 	}
 	for _, id := range named {
@@ -450,7 +451,7 @@ func postCard(ctx context.Context, session string, port int, q question, ts stri
 	if _, rows := q.control.(*doc.Triage); rows {
 		return postRows(ctx, session, q, ts, warn)
 	}
-	status := slackcards.ToSlack(card, q.control)
+	status := slackcards.ToSlack(card, q.control, q.posts)
 	if card.Slack != nil && ts == "" && !strings.Contains(card.Slack.URL, "thread_ts=") {
 		status.Replaces = cmp.Or(status.Replaces, card.Slack.URL)
 	}
@@ -505,7 +506,7 @@ func postRows(ctx context.Context, session string, q question, ts string, warn i
 		_, _ = fmt.Fprintf(warn, "warning: card %q: image %q stays on the board; a Slack card with rows carries no image\n", q.card.ID, image.Title)
 	}
 	var first cardPost
-	for _, sc := range slackcards.Cards(q.card, q.control, q.verdicts) {
+	for _, sc := range slackcards.Cards(q.card, q.control, q.verdicts, q.posts) {
 		raw, err := json.Marshal(sc)
 		if err != nil {
 			return cardPost{}, err
