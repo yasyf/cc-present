@@ -418,6 +418,43 @@ func TestALongTitleReachesSlackCutTo140CharactersWithAnEllipsis(t *testing.T) {
 	}
 }
 
+func TestTheSlackCardCarriesEachAnswersWords(t *testing.T) {
+	c := card(t, askCard(`{"id":"o1","label":"Wait durably","md":"A refused call waits and **resumes**, see [PR 41](https://github.com/acme/app/pull/41).","recommended":true,"build":{"none":"a process pick"}},{"id":"o2","label":"Raise the limit"}`))
+	q, err := slackcards.Check(c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := slackcards.ToSlack(c, q)
+	want := map[string]string{"Wait durably": "A refused call waits and *resumes*, see <https://github.com/acme/app/pull/41|PR 41>.\nBuilds nothing: a process pick"}
+	if !reflect.DeepEqual(got.Hints, want) {
+		t.Errorf("hints = %q, want %q", got.Hints, want)
+	}
+}
+
+func TestTheSlackCardCarriesAnAnswersHintAndFactsBeforeItsWords(t *testing.T) {
+	c := card(t, askCard(`{"id":"o1","label":"Ship","hint":"goes out tonight","facts":[{"label":"For a user","value":"chats load faster"},{"value":"no migration"}],"md":"Paragraph one.\n\nParagraph two.","recommended":true},{"id":"o2","label":"Hold"}`))
+	q, err := slackcards.Check(c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "goes out tonight\n*For a user:* chats load faster\nno migration\nParagraph one.\n\nParagraph two."
+	if got := slackcards.ToSlack(c, q).Hints["Ship"]; got != want {
+		t.Errorf("hint = %q, want %q", got, want)
+	}
+}
+
+func TestTheSlackCardKeepsEveryWordOfALongAnswer(t *testing.T) {
+	long := strings.Repeat("Each stopped run starts again from the top. ", 100) + "Last words."
+	c := card(t, askCard(`{"id":"o1","label":"Long","md":"`+long+`","recommended":true},{"id":"o2","label":"Short"}`))
+	q, err := slackcards.Check(c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := slackcards.ToSlack(c, q).Hints["Long"]; got != long {
+		t.Errorf("a long answer changed to %q", got)
+	}
+}
+
 func TestTheSlackCardNamesWhatEachAnswerIsBuiltOn(t *testing.T) {
 	c := card(t, askCard(`{"id":"o1","label":"Ship it","recommended":true,"build":{"repo":"yasyf/cc-present","branch":"faster-boards"}},{"id":"o2","label":"Hold","build":{"none":"a process pick"}}`))
 	q, err := slackcards.Check(c)

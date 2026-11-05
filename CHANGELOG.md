@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- A card's Slack copy shows each option's own words: its hint, its facts and its `md`, in that order and with their Markdown links and bold turned into Slack's. An option with only `md`, as every `lr ask-owner` option has, used to reach the DM as its label alone. A long option keeps every word; cc-slack carries past Slack's 3,000-character section limit in the next block.
+
 - A board refresh writes to Slack only the pr-groups cards it changed. A group the push left as it was writes nothing, a group whose rows are all settled is written once and not again, and a pull request that moved to another group leaves the card of the group it left. Each refresh used to re-send every group, so one pull request showed up under several group titles.
 - A board reply that repeats the block's previous reply stays off Slack.
 - A Slack card shows its summary once. A card whose markdown opens with the paragraph its summary already carries used to print that paragraph twice in one message; every card kind now drops the repeated lead.

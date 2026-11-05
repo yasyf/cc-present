@@ -377,17 +377,22 @@ func itemText(item doc.Item) string {
 	if item.Hint != "" {
 		lines = append(lines, mrkdwn(item.Hint))
 	}
-	for _, f := range item.Facts {
-		if f.Label != "" {
-			lines = append(lines, "*"+mrkdwn(f.Label)+":* "+mrkdwn(f.Value))
-		} else {
-			lines = append(lines, mrkdwn(f.Value))
-		}
-	}
+	lines = append(lines, factLines(item.Facts)...)
 	if item.Md != "" {
 		lines = append(lines, mrkdwn(item.Md))
 	}
 	return strings.Join(lines, "\n")
+}
+
+func factLines(facts []doc.Fact) []string {
+	lines := make([]string, len(facts))
+	for i, f := range facts {
+		lines[i] = mrkdwn(f.Value)
+		if f.Label != "" {
+			lines[i] = "*" + mrkdwn(f.Label) + ":* " + lines[i]
+		}
+	}
+	return lines
 }
 
 func optionHint(o doc.Option, label string) string {
@@ -396,7 +401,11 @@ func optionHint(o doc.Option, label string) string {
 		lines = append(lines, o.Label)
 	}
 	if o.Hint != "" {
-		lines = append(lines, o.Hint)
+		lines = append(lines, mrkdwn(o.Hint))
+	}
+	lines = append(lines, factLines(o.Facts)...)
+	if o.Md != "" {
+		lines = append(lines, mrkdwn(o.Md))
 	}
 	switch {
 	case o.Build == nil:
