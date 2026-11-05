@@ -325,6 +325,9 @@ func recordAnswer(ctx context.Context, appendFn ccd.AppendFunc, subID string, ca
 		if heads := askedHeads(card); len(heads) > 0 {
 			p["heads"] = heads
 		}
+		if approved := approvedHeads(q, ids); len(approved) > 0 {
+			p["approves"] = approved
+		}
 		if words := shownWords(card); words != "" {
 			p["shown"], p["picked"] = words, pickedLabels(q, ids)
 		}

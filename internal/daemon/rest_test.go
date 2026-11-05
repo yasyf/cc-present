@@ -1011,6 +1011,27 @@ func TestAPickRecordsTheHeadsItsCardAskedAbout(t *testing.T) {
 	}
 }
 
+func TestAPickRecordsThePullRequestItsOptionApproves(t *testing.T) {
+	const asked = `{"version":1,"title":"T","blocks":[{"id":"c1","type":"card","children":[` +
+		`{"id":"ch1","type":"choice","options":[{"id":"o1","label":"Land it","approves":{"repo":"o/r","number":7,"head":"abc1234"}},{"id":"o2","label":"Hold"}]}]},` +
+		`{"id":"c2","type":"card","children":[` +
+		`{"id":"ch2","type":"choice","options":[{"id":"o1","label":"Land it","approves":{"repo":"o/r","number":8,"head":"def5678"}},{"id":"o2","label":"Hold"}]}]}]}`
+	h := newRestHarnessWith(t, asked, emptyPackLoader(t))
+	if w := h.post(t, `{"subject":"board--abcd0000","nonce":"n1","interaction":{"type":"choice.selected","blockId":"ch1","optionIds":["o1"],"approves":{"o/r#9":"fff0000"}}}`); w.Code != http.StatusOK {
+		t.Fatalf("pick = %d %s", w.Code, w.Body)
+	}
+	if w := h.post(t, `{"subject":"board--abcd0000","nonce":"n2","interaction":{"type":"choice.selected","blockId":"ch2","optionIds":["o2"]}}`); w.Code != http.StatusOK {
+		t.Fatalf("pick = %d %s", w.Code, w.Body)
+	}
+	st := h.reduce(t)
+	if got := st.Interactions.Choices["ch1"].Approves; !maps.Equal(got, map[string]string{"o/r#7": "abc1234"}) {
+		t.Fatalf("approves = %v, want the option's own o/r#7 at abc1234, never the client's", got)
+	}
+	if got := st.Interactions.Choices["ch2"].Approves; got != nil {
+		t.Fatalf("approves on a pick of an option approving nothing = %v, want none", got)
+	}
+}
+
 const talkDoc = `{"version":1,"title":"Talk","blocks":[
 	{"id":"talk","type":"section","title":"Talk","writers":["yphone"]},
 	{"id":"m1","type":"markdown","md":"a reply"}

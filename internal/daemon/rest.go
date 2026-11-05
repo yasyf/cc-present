@@ -439,6 +439,9 @@ func validateInteraction(st *state.State, revision int, it *interaction, reg *pa
 		if heads := askedHeads(card); len(heads) > 0 {
 			p["heads"] = heads
 		}
+		if approved := approvedHeads(ch, ids); len(approved) > 0 {
+			p["approves"] = approved
+		}
 		if words := shownWords(card); words != "" {
 			p["shown"], p["picked"] = words, pickedLabels(ch, ids)
 		}
