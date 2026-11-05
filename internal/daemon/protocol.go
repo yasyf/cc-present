@@ -69,6 +69,7 @@ type body struct {
 	After      string          `json:"after,omitempty"`      // upsert-block
 	ID         string          `json:"id,omitempty"`         // remove-block | reply | block-show
 	Reason     string          `json:"reason,omitempty"`     // remove-block
+	ReplacedBy string          `json:"replacedBy,omitempty"` // remove-block
 	OwnerOrder string          `json:"ownerOrder,omitempty"` // remove-block
 	BlockID    string          `json:"blockId,omitempty"`    // reply
 	Md         string          `json:"md,omitempty"`         // reply

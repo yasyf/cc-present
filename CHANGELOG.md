@@ -6,6 +6,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `remove-block --replaced-by <permalink>` names the Slack message that replaces a card. Its Slack card says `Replaced: <reason>` and links that message, where it used to say `Withdrawn: <reason>` with no link. Needs a cc-slack whose withdrawal says `Replaced:` when `--via` names another message.
+
 ### Fixed
 
 - A card's written words lose their HTML comments at `push`, `update-block`, `start` and `ask`, so no surface shows one.

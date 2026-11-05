@@ -488,6 +488,9 @@ func handleRemoveBlock(hc ccd.HandlerCtx) ccd.Reply {
 	if b.ID == "" {
 		return errReply("remove-block requires an id")
 	}
+	if b.ReplacedBy != "" && !strings.HasPrefix(b.ReplacedBy, "https://") {
+		return errReply(fmt.Sprintf("remove-block --replaced-by %q must be the replacing Slack message's https permalink", b.ReplacedBy))
+	}
 	sub, err := resolveOpen(hc)
 	if err != nil {
 		return errReply(err.Error())
@@ -522,7 +525,7 @@ func handleRemoveBlock(hc ccd.HandlerCtx) ccd.Reply {
 	}
 	seq, err := appendEvent(hc.Ctx, hc.Append, &ccevent.Event{
 		SubjectID: sub.ID, Origin: ccevent.OriginAgent, Type: EventBlockRemoved,
-		Payload: blockRemovedPayload(b.ID, withdrawnCopy(loc), b.Reason, b.Writer),
+		Payload: blockRemovedPayload(b.ID, withdrawnCopy(loc), b.Reason, b.ReplacedBy, b.Writer),
 	})
 	if err != nil {
 		return errReply(err.Error())
@@ -882,13 +885,14 @@ func blockUpsertedPayload(rawBlock json.RawMessage, after string, w Writer) json
 	}{rawBlock, after, by(w)})
 }
 
-func blockRemovedPayload(id, slack, reason string, w Writer) json.RawMessage {
+func blockRemovedPayload(id, slack, reason, replacedBy string, w Writer) json.RawMessage {
 	return mustJSON(struct {
-		ID     string `json:"id"`
-		Slack  string `json:"slack,omitempty"`
-		Reason string `json:"reason,omitempty"`
+		ID         string `json:"id"`
+		Slack      string `json:"slack,omitempty"`
+		Reason     string `json:"reason,omitempty"`
+		ReplacedBy string `json:"replacedBy,omitempty"`
 		writtenBy
-	}{id, slack, reason, by(w)})
+	}{id, slack, reason, replacedBy, by(w)})
 }
 
 type writtenBy struct {

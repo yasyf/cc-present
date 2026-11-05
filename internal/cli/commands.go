@@ -649,7 +649,7 @@ func newUpdateBlockCmd(d cmd.Deps) *cobra.Command {
 
 // newRemoveBlockCmd removes a block by id.
 func newRemoveBlockCmd(d cmd.Deps) *cobra.Command {
-	var session, cwd, reason, ownerOrder string
+	var session, cwd, reason, replacedBy, ownerOrder string
 	var w ccdaemon.Writer
 	c := &cobra.Command{
 		Use:   "remove-block <id>",
@@ -666,7 +666,7 @@ func newRemoveBlockCmd(d cmd.Deps) *cobra.Command {
 			}
 			defer func() { _ = cl.CloseSession() }()
 			sess, pid := artifactWindow(d, session)
-			rev, err := cl.RemoveBlock(ctx, sess, mustCwd(cwd), pid, w, args[0], reason, ownerOrder)
+			rev, err := cl.RemoveBlock(ctx, sess, mustCwd(cwd), pid, w, args[0], reason, replacedBy, ownerOrder)
 			if err != nil {
 				return err
 			}
@@ -676,6 +676,7 @@ func newRemoveBlockCmd(d cmd.Deps) *cobra.Command {
 	}
 	c.Flags().StringVar(&ownerOrder, "owner-order", "", "the human's message ordering this block off the board; passes the hold on a block he just touched, though never while his page reports him working on it, and only his explicit order may use it")
 	c.Flags().StringVar(&reason, "reason", "", "why the block leaves the board; a card synced with Slack shows it as \"Withdrawn: <reason>\" in place of its buttons")
+	c.Flags().StringVar(&replacedBy, "replaced-by", "", "the https permalink of the Slack message that replaces this card; its Slack card then says \"Replaced: <reason>\" and links that message")
 	c.Flags().StringVar(&session, "session", "", "Claude session id (defaults to $CLAUDE_CODE_SESSION_ID)")
 	c.Flags().StringVar(&cwd, "cwd", "", "working directory (recorded on the request; artifacts are per-window, not resolved by directory)")
 	writerFlags(c, &w)
