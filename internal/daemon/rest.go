@@ -57,6 +57,7 @@ type restServer struct {
 	assets      *assets.Store
 	packs       *packs.Loader
 	fetchPR     prFetcher
+	readLive liveReader
 	answerSlack slackAnswerer
 	postGroup   groupPoster
 	static      http.Handler
@@ -110,7 +111,7 @@ type triageEntry struct {
 // asset store, the pack registry and bundle routes, and the SPA static handler
 // on the daemon's mux. Go's pattern mux gives the more specific /api, /assets,
 // and /packs routes precedence over the catch-all.
-func mountREST(s *ccd.Server, ast *assets.Store, loader *packs.Loader, version string, tp *meshtrust.Provider) {
+func mountREST(s *ccd.Server, ast *assets.Store, loader *packs.Loader, version, stateDir string, tp *meshtrust.Provider) {
 	rs := &restServer{
 		db:          s.DB,
 		append:      s.Append,
@@ -118,6 +119,7 @@ func mountREST(s *ccd.Server, ast *assets.Store, loader *packs.Loader, version s
 		assets:      ast,
 		packs:       loader,
 		fetchPR:     ghPRFetcher(&prs.Cache{Floor: prReadFloor}),
+		readLive:    hostLiveReader(stateDir),
 		answerSlack: ccSlackCardAnswer,
 		postGroup:   slackcards.PostGroupCard,
 		static:      staticAssets(web.Dist(), sse.StaticHandler(web.Dist())),
@@ -142,6 +144,7 @@ func (rs *restServer) routes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/assets", rs.handlePutAsset)
 	mux.HandleFunc("GET /api/packs", rs.handlePacks)
 	mux.HandleFunc("GET /api/pr", rs.handlePR)
+	mux.HandleFunc("GET /api/live", rs.handleLive)
 	mux.HandleFunc("GET /api/design-doc", rs.handleDesignDoc)
 	mux.HandleFunc("GET /design-docs/{commit}/{file...}", rs.handleDesignDocFile)
 	mux.HandleFunc("GET /packs/{pack}/{file...}", rs.handlePackFile)

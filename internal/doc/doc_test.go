@@ -428,6 +428,40 @@ func TestValidate(t *testing.T) {
 	}
 }
 
+func TestValidateLive(t *testing.T) {
+	for name, tc := range map[string]struct {
+		block string
+		says  string
+	}{
+		"refs":    {`{"id":"l","type":"live","view":"embed","refs":["pr:1"]}`, ""},
+		"source":  {`{"id":"l","type":"live","view":"table","source":"prs","where":{"waits":"you"},"columns":["title"],"limit":5}`, ""},
+		"view":    {`{"id":"l","type":"live","view":"carousel","source":"prs"}`, "view must be"},
+		"both":    {`{"id":"l","type":"live","view":"group","source":"prs","refs":["pr:1"]}`, "not both or neither"},
+		"neither": {`{"id":"l","type":"live","view":"group"}`, "not both or neither"},
+		"limit":   {`{"id":"l","type":"live","view":"count","source":"prs","limit":-1}`, "must not be negative"},
+	} {
+		var d doc.Doc
+		err := json.Unmarshal([]byte(`{"version":1,"title":"t","blocks":[`+tc.block+`]}`), &d)
+		if err == nil {
+			err = d.Validate(doc.NoPacks)
+		}
+		switch {
+		case tc.says == "" && err != nil:
+			t.Errorf("%s: %v", name, err)
+		case tc.says != "" && (err == nil || !strings.Contains(err.Error(), tc.says)):
+			t.Errorf("%s: got %v", name, err)
+		}
+	}
+}
+
+func TestALiveBlockHoldsNoRows(t *testing.T) {
+	var d doc.Doc
+	err := json.Unmarshal([]byte(`{"version":1,"title":"t","blocks":[{"id":"l","type":"live","view":"table","source":"prs","rows":[{"title":"typed"}]}]}`), &d)
+	if err == nil {
+		t.Fatal("a live block carrying rows decoded")
+	}
+}
+
 func TestValidateDesignCard(t *testing.T) {
 	mock := `{"id":"m1","type":"plan.mock","html":"<main>v4</main>"}`
 	live := `{"id":"shot-live","type":"image","src":"https://x/live.png","alt":"the dashboard today"}`

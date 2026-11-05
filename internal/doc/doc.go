@@ -436,6 +436,19 @@ type TableAction struct {
 	Target string `json:"target,omitempty"`
 }
 
+// Live is a block that stores what to read and never a value: typed keys in
+// Refs, or a Source with Where. The host's live command answers its rows when a
+// surface draws it, and its keys mean nothing to the board.
+type Live struct {
+	base
+	View    string            `json:"view"`
+	Refs    []string          `json:"refs,omitempty"`
+	Source  string            `json:"source,omitempty"`
+	Where   map[string]string `json:"where,omitempty"`
+	Columns []string          `json:"columns,omitempty"`
+	Limit   int               `json:"limit,omitempty"`
+}
+
 // Progress is a progress bar; State is agent-owned display state.
 type Progress struct {
 	base
@@ -1534,6 +1547,21 @@ func validateTable(t *Table) error {
 		if action.ID == "" || action.Label == "" {
 			return fmt.Errorf("table %q: an action needs an id and a label", t.ID)
 		}
+	}
+	return nil
+}
+
+var validLiveView = map[string]bool{"embed": true, "group": true, "table": true, "count": true}
+
+func validateLive(l *Live) error {
+	if !validLiveView[l.View] {
+		return fmt.Errorf("live %q: view must be embed, group, table or count, got %q", l.ID, l.View)
+	}
+	if (len(l.Refs) == 0) == (l.Source == "") {
+		return fmt.Errorf("live %q: names its refs or one source, not both or neither", l.ID)
+	}
+	if l.Limit < 0 {
+		return fmt.Errorf("live %q: limit must not be negative, got %d", l.ID, l.Limit)
 	}
 	return nil
 }

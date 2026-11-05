@@ -960,7 +960,7 @@ public enum Block: Codable, Equatable, Sendable {
         case "pr": self = try .pr(PR(from: decoder))
         case "pr-groups": self = try .prGroups(PRGroups(from: decoder))
         default:
-            if type.contains(".") {
+            if type.contains(".") || type == "live" {
                 let id = try container.decode(String.self, forKey: .id)
                 self = try .pack(Pack(id: id, packType: type, raw: JSONValue(from: decoder)))
                 return

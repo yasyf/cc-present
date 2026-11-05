@@ -34,6 +34,10 @@ type Config struct {
 	// DisabledPacks names packs (by manifest name) to drop unconditionally,
 	// beating every discovery and conflict rule.
 	DisabledPacks []string `json:"disabledPacks,omitempty"`
+	// LiveCommand reads a live block's rows: its stdin is {"bindings", "cards"} and
+	// its stdout one {"items", "total"} per binding. Empty leaves those blocks
+	// with nothing to read from.
+	LiveCommand []string `json:"liveCommand,omitempty"`
 }
 
 // ConfigPath is the host config file (~/.cc-present/config.json).

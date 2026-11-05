@@ -90,6 +90,10 @@ func init() {
 			validate: func(b Block) error { return validateTable(b.(*Table)) },
 			markdown: func(b Block, f func(*string)) { tableMarkdown(b.(*Table), f) },
 		},
+		"live": {
+			decode:   decodeLeaf[Live],
+			validate: func(b Block) error { return validateLive(b.(*Live)) },
+		},
 		"progress": {
 			decode:   decodeLeaf[Progress],
 			validate: func(b Block) error { return validateProgress(b.(*Progress)) },

@@ -17,6 +17,7 @@ export type BuiltinBlockType =
   | 'diagram'
   | 'image'
   | 'table'
+  | 'live'
   | 'progress'
   | 'chart'
   | 'term'
@@ -278,6 +279,17 @@ export interface TableAction {
   target?: string;
 }
 
+export interface Live {
+  id: string;
+  type: 'live';
+  view: 'embed' | 'group' | 'table' | 'count';
+  refs?: string[];
+  source?: string;
+  where?: Record<string, string>;
+  columns?: string[];
+  limit?: number;
+}
+
 export type ProgressState = 'active' | 'done' | 'error';
 
 export interface Progress {
@@ -436,6 +448,7 @@ export type ContentBlock =
   | Diagram
   | Image
   | Table
+  | Live
   | Progress
   | Chart
   | Term

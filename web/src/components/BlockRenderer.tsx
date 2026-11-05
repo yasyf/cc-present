@@ -19,6 +19,7 @@ import { DiffView } from './DiffView';
 import { DiagramView } from './DiagramView';
 import { ImageView } from './ImageView';
 import { TableView } from './TableView';
+import { LiveView } from './LiveView';
 import { ProgressView } from './ProgressView';
 import { ChartView } from './ChartView';
 import { TermView } from './TermView';
@@ -59,6 +60,7 @@ const BUILTIN: { [T in BuiltinBlockType]: BuiltinRenderer<T> } = {
   diagram: DiagramView,
   image: ImageView,
   table: TableView,
+  live: LiveView,
   progress: ProgressView,
   chart: ChartView,
   term: TermView,
