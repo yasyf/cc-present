@@ -414,6 +414,15 @@ func answeredOnBoard(b *sendBoard, q doc.Block) bool {
 
 func mirror(ctx context.Context, cl *ccdaemon.Client, b board, wr ccdaemon.Writer, onBoard bool, q question, ts string, warn io.Writer) (ccdaemon.StartResult, string, error) {
 	card := q.card
+	if card.Slack == nil && setKey(card.Title) != "" {
+		st, err := readBoard(ctx, cl, b)
+		if err != nil {
+			return ccdaemon.StartResult{}, "", err
+		}
+		if thread, found := setPlace(st.Doc, card); found {
+			ts = thread
+		}
+	}
 	unposted, err := json.Marshal(card)
 	if err != nil {
 		return ccdaemon.StartResult{}, "", err
@@ -439,6 +448,43 @@ func mirror(ctx context.Context, cl *ccdaemon.Client, b board, wr ccdaemon.Write
 		return ccdaemon.StartResult{}, "", fmt.Errorf("card %q is posted in Slack at %s but not on the board: %w", card.ID, posted.Permalink, err)
 	}
 	return res, posted.TS, nil
+}
+
+// setKey names the numbered set a card's title puts it in, such as "Editing a
+// message, 2 of 4: ...", empty for a card in no set.
+func setKey(title string) string {
+	found := numberedTitle.FindStringSubmatch(title)
+	if found == nil {
+		return ""
+	}
+	return strings.ToLower(found[1]) + "/" + found[2]
+}
+
+// setPlace is where the first posted card of this card's set draws, so a set
+// stays in one place in whatever order its cards arrive: that card's thread, or
+// the DM root, empty, when it stands at the root with its own thread. found says
+// a card of the set is posted at all.
+func setPlace(board *doc.Doc, card *doc.Card) (thread string, found bool) {
+	if board == nil {
+		return "", false
+	}
+	key := setKey(card.Title)
+	for _, block := range board.Blocks {
+		other, isCard := block.(*doc.Card)
+		if !isCard || other.ID == card.ID || other.Slack == nil || setKey(other.Title) != key {
+			continue
+		}
+		thread, err := slackThread(other.Slack.URL)
+		if err != nil {
+			continue
+		}
+		link, _, _ := strings.Cut(other.Slack.URL, "?")
+		if own, err := slackThread(link); err == nil && own == thread {
+			return "", true
+		}
+		return thread, true
+	}
+	return "", false
 }
 
 type cardPost struct {
@@ -598,6 +644,7 @@ func printBoard(w io.Writer, res ccdaemon.StartResult) {
 
 var (
 	slackTS        = regexp.MustCompile(`^\d{10}\.\d{6}$`)
+	numberedTitle  = regexp.MustCompile(`^(.+?)\s*[,:(]\s*\d+\s+of\s+(\d+)\b`)
 	slackPermalink = regexp.MustCompile(`/p(\d{10})(\d{6})$`)
 )
 

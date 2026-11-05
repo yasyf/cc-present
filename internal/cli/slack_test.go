@@ -407,6 +407,40 @@ func TestAPostedCardIsEditedWhereItIs(t *testing.T) {
 	}
 }
 
+func TestANumberedCardDrawsWhereItsSetDraws(t *testing.T) {
+	const inThread = "https://example.slack.com/archives/D1/p1793836800000100?thread_ts=1793836781.819889"
+	const atRoot = "https://example.slack.com/archives/D1/p1800000001000100"
+	for name, tc := range map[string]struct {
+		firstURL, title, thread string
+		found                   bool
+	}{
+		"its first card in a thread": {inThread, "Editing a message, 2 of 4: what happens?", "1793836781.819889", true},
+		"its first card at the root": {atRoot, "Editing a message, 3 of 4: what next?", "", true},
+		"a root card naming itself":  {atRoot + "?thread_ts=1800000001.000100", "Editing a message (4 of 4)", "", true},
+		"another word case":          {inThread, "editing a message: 4 of 4", "1793836781.819889", true},
+		"another set":                {inThread, "Editing a chat, 2 of 4: what happens?", "", false},
+		"another size":               {inThread, "Editing a message, 2 of 5: what happens?", "", false},
+		"its first card not posted":  {"", "Editing a message, 2 of 4: what happens?", "", false},
+	} {
+		t.Run(name, func(t *testing.T) {
+			first := &doc.Card{Title: "Editing a message, 1 of 4: which?"}
+			first.ID = "first"
+			if tc.firstURL != "" {
+				first.Slack = &doc.CardSlack{URL: tc.firstURL}
+			}
+			card := &doc.Card{Title: tc.title}
+			card.ID = "next"
+			thread, found := setPlace(&doc.Doc{Blocks: []doc.Block{first, card}}, card)
+			if thread != tc.thread || found != tc.found {
+				t.Errorf("place %q, %v, want %q, %v", thread, found, tc.thread, tc.found)
+			}
+		})
+	}
+	if key := setKey("Editing a message?"); key != "" {
+		t.Errorf("a card with no number is in set %q", key)
+	}
+}
+
 func TestADataImageDecodes(t *testing.T) {
 	b, err := imageBytes(t.Context(), 0, "data:image/png;base64,iVBORw0KGgo=")
 	if err != nil {
