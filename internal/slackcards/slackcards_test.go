@@ -66,7 +66,7 @@ func TestACardsOwnExplainMoreReachesSlackOnceAndCountsAsNoAnswer(t *testing.T) {
 	if err != nil {
 		t.Fatalf("a card carrying its own Explain more: %v", err)
 	}
-	if got := slackcards.ToSlack(c, q).Options; !slices.Equal(got, []string{"A", "B", "C", "D"}) {
+	if got := slackcards.ToSlack(c, q, nil).Options; !slices.Equal(got, []string{"A", "B", "C", "D"}) {
 		t.Errorf("Slack options = %q, want the four answers with no Explain more beside cc-slack's own", got)
 	}
 	ch := q.(*doc.Choice)
@@ -83,7 +83,7 @@ func TestToSlackAsksTheSameQuestionAndLinksItsPRs(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	got := slackcards.ToSlack(c, ch)
+	got := slackcards.ToSlack(c, ch, nil)
 	want := slackcards.StatusCard{
 		Supersedes: []string{permalink},
 		Status:     "needs_you", Title: "Merge #41 now?", Body: "CI is green.\n<https://github.com/acme/app/pull/41|app PR 41>",
@@ -95,6 +95,20 @@ func TestToSlackAsksTheSameQuestionAndLinksItsPRs(t *testing.T) {
 	}
 }
 
+func TestACardLinkGoesToThatCardsSlackMessage(t *testing.T) {
+	c := card(t, `{"id":"card-a","type":"card","title":"Land it?","summary":"Waits on [the window question](card:card-b).","children":[`+
+		`{"id":"md","type":"markdown","md":"Also [a gone one](card:card-c)."},`+
+		`{"id":"q","type":"choice","options":[{"id":"o1","label":"Hold"},{"id":"o2","label":"Land"}]}]}`)
+	ch, err := slackcards.Check(c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := slackcards.ToSlack(c, ch, slackcards.Posts{"card-b": permalink}).Body
+	if want := "Waits on <" + permalink + "|the window question>.\nAlso a gone one."; got != want {
+		t.Fatalf("body = %q, want %q", got, want)
+	}
+}
+
 func TestACardThatReplacesAPostTakesThatPostToSlack(t *testing.T) {
 	c := card(t, `{"id":"step-3:merge","type":"card","title":"Merge #41 now?","replaces":"`+permalink+`","children":[`+
 		`{"id":"q","type":"choice","options":[{"id":"o1","label":"Hold"},{"id":"o2","label":"Merge","recommended":true}]}]}`)
@@ -102,7 +116,7 @@ func TestACardThatReplacesAPostTakesThatPostToSlack(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := slackcards.ToSlack(c, ch); got.Replaces != permalink {
+	if got := slackcards.ToSlack(c, ch, nil); got.Replaces != permalink {
 		t.Fatalf("ToSlack = %+v, want it to replace %s", got, permalink)
 	}
 }
@@ -177,7 +191,7 @@ func TestAnApprovalAndAnInputAskInSlack(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	got := slackcards.ToSlack(approval, q)
+	got := slackcards.ToSlack(approval, q, nil)
 	if !slices.Equal(got.Options, []string{"Approve", "Reject"}) || got.Recommended != "" || got.Body != "Approve the release" {
 		t.Fatalf("approval = %+v, want Approve and Reject, with its prompt in the body", got)
 	}
@@ -186,7 +200,7 @@ func TestAnApprovalAndAnInputAskInSlack(t *testing.T) {
 	if q, err = slackcards.Check(input); err != nil {
 		t.Fatal(err)
 	}
-	got = slackcards.ToSlack(input, q)
+	got = slackcards.ToSlack(input, q, nil)
 	if len(got.Options) != 0 || got.Title != "What should it be called?" || got.Waits != "name" {
 		t.Fatalf("input = %+v, want its label as the question and no preset answers", got)
 	}
@@ -224,7 +238,7 @@ func TestALongBodyAndALongTitleReachSlackWhole(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	got := slackcards.ToSlack(c, q)
+	got := slackcards.ToSlack(c, q, nil)
 	if !strings.Contains(got.Body, c.Summary) {
 		t.Errorf("body of %d characters lost the summary", len(got.Body))
 	}
@@ -242,7 +256,7 @@ func TestAPRCarryingItsLinesDrawsAsAPRNotALink(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	got := slackcards.ToSlack(c, q)
+	got := slackcards.ToSlack(c, q, nil)
 	want := []slackcards.CardPR{{URL: "https://github.com/acme/app/pull/41", Title: "Relay fix", Head: "abc1234", Change: "Chats load", Plan: "Nothing differed", Risk: "Low", Blocks: "Your tap"}}
 	if !slices.Equal(got.PRs, want) {
 		t.Errorf("prs = %+v, want %+v", got.PRs, want)
@@ -259,7 +273,7 @@ func TestALongAnswerIsCutForItsButtonAndStillNamesItsOption(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	got := slackcards.ToSlack(c, q)
+	got := slackcards.ToSlack(c, q, nil)
 	button := got.Options[0]
 	if n := utf8.RuneCountInString(button); n != 200 || !strings.HasSuffix(button, "…") || got.Recommended != button {
 		t.Fatalf("button %q is %d characters, recommended %q; want it cut to 200 with an ellipsis", button, n, got.Recommended)
@@ -286,7 +300,7 @@ func TestALabelPastAButtonReachesSlackWhole(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	got := slackcards.ToSlack(c, q)
+	got := slackcards.ToSlack(c, q, nil)
 	if got.Options[0] != label {
 		t.Fatalf("option = %q, want the label whole", got.Options[0])
 	}
@@ -310,7 +324,7 @@ func TestEveryPickDrawsWhatItDoes(t *testing.T) {
 		"Detail only": "It waits a week.",
 		"Facts":       "*Cost:* 1 hour",
 	}
-	if got := slackcards.ToSlack(c, q).Hints; !reflect.DeepEqual(got, want) {
+	if got := slackcards.ToSlack(c, q, nil).Hints; !reflect.DeepEqual(got, want) {
 		t.Errorf("hints = %q, want %q", got, want)
 	}
 }
@@ -322,7 +336,7 @@ func TestALongBodyReachesCCSlackWhole(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if n := utf8.RuneCountInString(slackcards.ToSlack(c, q).Body); n < len(strings.TrimSpace(md)) {
+	if n := utf8.RuneCountInString(slackcards.ToSlack(c, q, nil).Body); n < len(strings.TrimSpace(md)) {
 		t.Fatalf("body is %d characters, want all %d of the markdown", n, len(strings.TrimSpace(md)))
 	}
 }
@@ -408,7 +422,7 @@ func TestASlackBodyCrossesToTheBoardAndBackUnchanged(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := slackcards.ToSlack(c, ch).Body; got != body {
+	if got := slackcards.ToSlack(c, ch, nil).Body; got != body {
 		t.Fatalf("ToSlack body = %q, want the Slack body back: %q", got, body)
 	}
 }
@@ -421,7 +435,7 @@ func TestStruckContextStaysOffTheSlackCard(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := slackcards.ToSlack(c, ch).Body; got != "The freeze is over." {
+	if got := slackcards.ToSlack(c, ch, nil).Body; got != "The freeze is over." {
 		t.Fatalf("ToSlack body = %q, want only the live context", got)
 	}
 }
@@ -434,13 +448,13 @@ func TestALongTitleReachesSlackCutTo140CharactersWithAnEllipsis(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	got := slackcards.ToSlack(long, ch).Title
+	got := slackcards.ToSlack(long, ch, nil).Title
 	if n := len([]rune(got)); n != 140 || !strings.HasSuffix(got, "…") || !strings.HasPrefix(got, "“éé") {
 		t.Fatalf("a 209-character title reached Slack's header as %d characters: %q", n, got)
 	}
 	exact := card(t, askCard(ok))
 	exact.Title = strings.Repeat("a", 140)
-	if got := slackcards.ToSlack(exact, ch).Title; got != exact.Title {
+	if got := slackcards.ToSlack(exact, ch, nil).Title; got != exact.Title {
 		t.Fatalf("a 140-character title changed to %q", got)
 	}
 }
@@ -451,7 +465,7 @@ func TestTheSlackCardNamesWhatEachAnswerIsBuiltOn(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	got := slackcards.ToSlack(c, q)
+	got := slackcards.ToSlack(c, q, nil)
 	want := map[string]string{
 		"Ship it": "Built on <https://github.com/yasyf/cc-present/tree/faster-boards|yasyf/cc-present faster-boards>",
 		"Hold":    "Builds nothing: a process pick",
@@ -468,7 +482,7 @@ func TestToSlackTurnsALinkInTheSummaryIntoASlackLink(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := slackcards.ToSlack(c, ch).Body; got != "Read <https://docs.example.com/plan|the plan> first." {
+	if got := slackcards.ToSlack(c, ch, nil).Body; got != "Read <https://docs.example.com/plan|the plan> first." {
 		t.Fatalf("Body = %q", got)
 	}
 }
@@ -489,7 +503,7 @@ func TestToSlackDrawsAResolvedReferenceAsItsLabelOrItsLink(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if got := slackcards.ToSlack(c, ch).Body; got != want {
+		if got := slackcards.ToSlack(c, ch, nil).Body; got != want {
 			t.Errorf("Body of %q = %q, want %q", summary, got, want)
 		}
 	}
@@ -507,7 +521,7 @@ func TestACardShowsALeadItsSummaryRepeatsOnce(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if got := slackcards.ToSlack(c, q).Body; got != want {
+		if got := slackcards.ToSlack(c, q, nil).Body; got != want {
 			t.Errorf("markdown %q: Body = %q, want %q", md, got, want)
 		}
 	}

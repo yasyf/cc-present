@@ -37,6 +37,33 @@ var slackLink = regexp.MustCompile(`<(https?://[^|>\s]+)\|([^>]+)>`)
 
 var markdownLink = regexp.MustCompile(`\[([^\]]+)\]\((https?://[^)\s]+)\)`)
 
+var cardLink = regexp.MustCompile(`\[([^\]]*)\]\(card:([^)\s]+)\)`)
+
+// Posts maps a board card's id to its Slack message, the one place a card:ID
+// link goes when it is drawn in Slack.
+type Posts map[string]string
+
+// PostsOf reads each card's Slack message from the board doc.
+func PostsOf(d *doc.Doc) Posts {
+	posts := Posts{}
+	for _, b := range d.Blocks {
+		if c, ok := b.(*doc.Card); ok && c.Slack != nil {
+			posts[c.ID] = c.Slack.URL
+		}
+	}
+	return posts
+}
+
+func (p Posts) text(md string) string {
+	return slackText(cardLink.ReplaceAllStringFunc(md, func(link string) string {
+		found := cardLink.FindStringSubmatch(link)
+		if url := p[found[2]]; url != "" {
+			return "[" + cmp.Or(found[1], url) + "](" + url + ")"
+		}
+		return found[1]
+	}))
+}
+
 var (
 	refWithURL = regexp.MustCompile(`\[([^\]]+)\]\(<(https?://[^>\s]+)>(?:\s+"ref:[0-9a-f]{64}")?\)`)
 	refNoURL   = regexp.MustCompile(`\[([^\]]+)\]\(<>\s+"ref:[0-9a-f]{64}"\)`)
@@ -277,10 +304,10 @@ func Nudge(b doc.Block) string {
 }
 
 // ToSlack is the cc-slack card for a card Check passed.
-func ToSlack(c *doc.Card, q doc.Block) StatusCard {
+func ToSlack(c *doc.Card, q doc.Block, posts Posts) StatusCard {
 	title := cmp.Or(c.Title, prompt(q))
 	sc := StatusCard{Status: "needs_you", Title: clip(title, maxTitle), Waits: c.ID, Supersedes: c.Supersedes, Replaces: c.Replaces}
-	parts := []string{slackText(c.Summary)}
+	parts := []string{posts.text(c.Summary)}
 	if sc.Title != title {
 		parts = slices.Insert(parts, 0, "*"+title+"*")
 	}
@@ -309,7 +336,7 @@ func ToSlack(c *doc.Card, q doc.Block) StatusCard {
 		switch b := child.(type) {
 		case *doc.Markdown:
 			if !b.Struck {
-				parts = append(parts, slackText(withoutLead(b.Md, c.Summary)))
+				parts = append(parts, posts.text(withoutLead(b.Md, c.Summary)))
 			}
 		case *doc.PR:
 			url := fmt.Sprintf("https://github.com/%s/pull/%d", b.Repo, b.Number)
@@ -330,8 +357,8 @@ func ToSlack(c *doc.Card, q doc.Block) StatusCard {
 // or for a triage one group card per maxGroupRows items, each item still open a
 // row with the board's Approve and Reject, and each decided one a line naming
 // its verdict.
-func Cards(c *doc.Card, q doc.Block, verdicts map[string]state.Decision) []StatusCard {
-	sc := ToSlack(c, q)
+func Cards(c *doc.Card, q doc.Block, verdicts map[string]state.Decision, posts Posts) []StatusCard {
+	sc := ToSlack(c, q, posts)
 	tr, ok := q.(*doc.Triage)
 	if !ok {
 		return []StatusCard{sc}
@@ -460,7 +487,7 @@ func Images(c *doc.Card) []Image {
 func Same(a, b *doc.Card) bool {
 	qa, oka := Question(a)
 	qb, okb := Question(b)
-	return oka && okb && reflect.DeepEqual(Cards(a, qa, nil), Cards(b, qb, nil)) && slices.Equal(Images(a), Images(b))
+	return oka && okb && reflect.DeepEqual(Cards(a, qa, nil, nil), Cards(b, qb, nil, nil)) && slices.Equal(Images(a), Images(b))
 }
 
 // Installed reports whether cc-slack is here to carry a card to Slack.
