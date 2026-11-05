@@ -48,6 +48,7 @@ func newAskCmd(d cmd.Deps) *cobra.Command {
 			if !ok {
 				return fmt.Errorf("ask takes one card, not a %s", blk.BlockType())
 			}
+			doc.DropComments(card)
 			ch, err := slackcards.Check(card)
 			if err != nil {
 				return err
