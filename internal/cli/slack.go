@@ -452,7 +452,7 @@ func postCard(ctx context.Context, session string, port int, q question, ts stri
 		return postRows(ctx, session, q, ts, warn)
 	}
 	status := slackcards.ToSlack(card, q.control, q.posts)
-	if card.Slack != nil && ts == "" && !strings.Contains(card.Slack.URL, "thread_ts=") {
+	if card.Slack != nil && ts == "" {
 		status.Replaces = cmp.Or(status.Replaces, card.Slack.URL)
 	}
 	sc, err := json.Marshal(status)
