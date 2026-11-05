@@ -135,8 +135,8 @@ func (cl *Client) UpsertBlock(ctx context.Context, session, scope string, pid in
 // removal landed at. A card synced with Slack shows reason on its Slack card. A
 // non-empty ownerOrder names the human's order and passes the hold on a block he
 // just touched.
-func (cl *Client) RemoveBlock(ctx context.Context, session, scope string, pid int, w Writer, id, reason, ownerOrder string) (int64, error) {
-	_, res, err := cl.do(ctx, OpRemoveBlock, session, scope, pid, body{Writer: w, ID: id, Reason: reason, OwnerOrder: ownerOrder})
+func (cl *Client) RemoveBlock(ctx context.Context, session, scope string, pid int, w Writer, id, reason, replacedBy, ownerOrder string) (int64, error) {
+	_, res, err := cl.do(ctx, OpRemoveBlock, session, scope, pid, body{Writer: w, ID: id, Reason: reason, ReplacedBy: replacedBy, OwnerOrder: ownerOrder})
 	return res.Rev, err
 }
 

@@ -1,6 +1,7 @@
 package daemon
 
 import (
+	"cmp"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -22,10 +23,10 @@ const defaultWithdrawReason = "removed from the board"
 
 var mirrors sync.Map
 
-type slackWithdrawer func(ctx context.Context, waits, card, reason string) error
+type slackWithdrawer func(ctx context.Context, waits, card, reason, via string) error
 
-func ccSlackCardWithdraw(ctx context.Context, waits, card, reason string) error {
-	_, err := slackcards.CCSlack(ctx, "card-answer", "--waits", waits, "--card", card, "--label", reason, "--withdrawn", "--via", card)
+func ccSlackCardWithdraw(ctx context.Context, waits, card, reason, via string) error {
+	_, err := slackcards.CCSlack(ctx, "card-answer", "--waits", waits, "--card", card, "--label", reason, "--withdrawn", "--via", via)
 	return err
 }
 
@@ -35,7 +36,7 @@ type slackMirror struct {
 }
 
 type withdrawal struct {
-	card, slack, reason string
+	card, slack, reason, replacedBy string
 }
 
 func withdrawnCopy(loc doc.Location) string {
@@ -53,11 +54,12 @@ func withdrawnCopy(loc doc.Location) string {
 func trackWithdrawals(events []state.Event, owed map[int64]withdrawal) error {
 	for _, ev := range events {
 		var p struct {
-			ID       string `json:"id"`
-			BlockID  string `json:"blockId"`
-			Slack    string `json:"slack"`
-			Reason   string `json:"reason"`
-			Withdrew int64  `json:"withdrew"`
+			ID         string `json:"id"`
+			BlockID    string `json:"blockId"`
+			Slack      string `json:"slack"`
+			Reason     string `json:"reason"`
+			ReplacedBy string `json:"replacedBy"`
+			Withdrew   int64  `json:"withdrew"`
 		}
 		switch ev.Type {
 		case EventBlockRemoved, EventReplyCreated:
@@ -69,7 +71,7 @@ func trackWithdrawals(events []state.Event, owed map[int64]withdrawal) error {
 		}
 		switch {
 		case ev.Type == EventBlockRemoved && p.Slack != "":
-			owed[ev.Seq] = withdrawal{card: p.ID, slack: p.Slack, reason: p.Reason}
+			owed[ev.Seq] = withdrawal{card: p.ID, slack: p.Slack, reason: p.Reason, replacedBy: p.ReplacedBy}
 		case ev.Type == EventReplyCreated && p.Withdrew != 0:
 			delete(owed, p.Withdrew)
 		}
@@ -84,7 +86,7 @@ func (m *slackMirror) settle(ctx context.Context, db *sql.DB, subID string, owed
 		if reason == "" {
 			reason = defaultWithdrawReason
 		}
-		if err := m.withdraw(ctx, w.card, w.slack, reason); err != nil {
+		if err := m.withdraw(ctx, w.card, w.slack, reason, cmp.Or(w.replacedBy, w.slack)); err != nil {
 			slog.Warn("slack card still open after its card left the board; retrying on the board's next event", "subject", subID, "card", w.card, "slack", w.slack, "err", err)
 			continue
 		}

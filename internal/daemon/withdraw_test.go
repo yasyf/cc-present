@@ -13,7 +13,7 @@ import (
 )
 
 type withdrawCall struct {
-	waits, card, reason string
+	waits, card, reason, via string
 }
 
 type fakeWithdrawer struct {
@@ -22,10 +22,10 @@ type fakeWithdrawer struct {
 	fail  int
 }
 
-func (f *fakeWithdrawer) withdraw(_ context.Context, waits, card, reason string) error {
+func (f *fakeWithdrawer) withdraw(_ context.Context, waits, card, reason, via string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	f.calls = append(f.calls, withdrawCall{waits, card, reason})
+	f.calls = append(f.calls, withdrawCall{waits, card, reason, via})
 	if f.fail > 0 {
 		f.fail--
 		return errors.New("cc-slack is not running")
@@ -101,7 +101,7 @@ func TestRemovingASlackCardWithdrawsItsSlackCardOnceAcrossARestart(t *testing.T)
 		t.Fatal(r.Error)
 	}
 	settled(t, h, sub)
-	want := withdrawCall{"step-3:merge", slackPermalink, "superseded by step 4"}
+	want := withdrawCall{"step-3:merge", slackPermalink, "superseded by step 4", slackPermalink}
 	if got := f.made(); len(got) != 1 || got[0] != want {
 		t.Fatalf("withdrawals = %+v, want only %+v", got, want)
 	}
@@ -118,6 +118,25 @@ func TestRemovingASlackCardWithdrawsItsSlackCardOnceAcrossARestart(t *testing.T)
 	settled(t, h, sub)
 	if got := f.made(); len(got) != 1 {
 		t.Fatalf("withdrawals after a restart = %+v, want the card edited once", got)
+	}
+}
+
+func TestACardReplacedByANewOneNamesItAsWhatReplacedIt(t *testing.T) {
+	h := newHarness(t)
+	f := &fakeWithdrawer{}
+	mirrorTo(t, h, f)
+	sub := postSynced(t, h, syncedCardJSON)
+	const next = "https://example.slack.com/archives/D1/p1800000009000100"
+	if r := handleRemoveBlock(slackWindow(h, body{ID: "step-3:merge", Reason: "a new version asks again", ReplacedBy: "slack.com/no-scheme"})); r.OK {
+		t.Fatal("remove-block took a --replaced-by that is no https permalink")
+	}
+	if r := handleRemoveBlock(slackWindow(h, body{ID: "step-3:merge", Reason: "a new version asks again", ReplacedBy: next})); !r.OK {
+		t.Fatal(r.Error)
+	}
+	settled(t, h, sub)
+	want := withdrawCall{"step-3:merge", slackPermalink, "a new version asks again", next}
+	if got := f.made(); len(got) != 1 || got[0] != want {
+		t.Fatalf("withdrawals = %+v, want %+v", got, want)
 	}
 }
 
@@ -140,7 +159,7 @@ func TestAFailedWithdrawalRetriesOnTheBoardsNextEvent(t *testing.T) {
 	}
 	board.mu.Unlock()
 	settled(t, h, sub)
-	want := withdrawCall{"step-3:merge", slackPermalink, defaultWithdrawReason}
+	want := withdrawCall{"step-3:merge", slackPermalink, defaultWithdrawReason, slackPermalink}
 	if got := f.made(); len(got) != 2 || got[1] != want {
 		t.Fatalf("withdrawals = %+v, want a retry of %+v", got, want)
 	}
