@@ -130,6 +130,8 @@ export interface ChoiceOption {
   visual?: OptionVisual;
   // The branch the option is built on, or why it has nothing to build.
   build?: Build;
+  // The pull request, at the head the human saw, that picking this option approves.
+  approves?: { repo: string; number: number; head: string };
 }
 
 export type Build = { repo: string; branch: string; none?: undefined } | { none: string; repo?: undefined; branch?: undefined };

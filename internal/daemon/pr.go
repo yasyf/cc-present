@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"slices"
 	"strconv"
 	"time"
 
@@ -90,6 +91,18 @@ func findPRBlock(st *state.State, id, repo string, number int) *doc.PR {
 		}
 	}
 	return nil
+}
+
+// approvedHeads maps each pull request a picked option approves to the head it
+// names, keyed owner/name#number as askedHeads keys a card's pr blocks.
+func approvedHeads(ch *doc.Choice, ids []string) map[string]string {
+	approved := map[string]string{}
+	for _, o := range ch.Options {
+		if o.Approves != nil && slices.Contains(ids, o.ID) {
+			approved[fmt.Sprintf("%s#%d", o.Approves.Repo, o.Approves.Number)] = o.Approves.Head
+		}
+	}
+	return approved
 }
 
 // askedHeads maps each pr block on card that names a head to that head, keyed

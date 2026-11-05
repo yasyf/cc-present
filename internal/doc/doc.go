@@ -200,17 +200,27 @@ type Detail struct {
 // author's suggested pick (at most one per single-select choice). Visual is an
 // optional restricted leaf — a code, diagram, image, or diff block — rendered in
 // the option's visual stage rather than inside the row. Build names what the
-// option already built for the human to try before answering.
+// option already built for the human to try before answering. Approves names the
+// pull request, at the head the human saw, that picking the option approves.
 type Option struct {
-	ID          string  `json:"id"`
-	Label       string  `json:"label"`
-	Hint        string  `json:"hint,omitempty"`
-	Md          string  `json:"md,omitempty"`
-	Facts       []Fact  `json:"facts,omitempty"`
-	Detail      *Detail `json:"detail,omitempty"`
-	Recommended bool    `json:"recommended,omitempty"`
-	Visual      Block   `json:"visual,omitempty"`
-	Build       *Build  `json:"build,omitempty"`
+	ID          string    `json:"id"`
+	Label       string    `json:"label"`
+	Hint        string    `json:"hint,omitempty"`
+	Md          string    `json:"md,omitempty"`
+	Facts       []Fact    `json:"facts,omitempty"`
+	Detail      *Detail   `json:"detail,omitempty"`
+	Recommended bool      `json:"recommended,omitempty"`
+	Visual      Block     `json:"visual,omitempty"`
+	Build       *Build    `json:"build,omitempty"`
+	Approves    *Approves `json:"approves,omitempty"`
+}
+
+// Approves is the pull request Number in Repo, as OWNER/NAME, at the commit
+// Head that a pick of its option approves.
+type Approves struct {
+	Repo   string `json:"repo"`
+	Number int    `json:"number"`
+	Head   string `json:"head"`
 }
 
 // Build is the branch an option is built on, in Repo as OWNER/NAME, or None,
@@ -240,6 +250,7 @@ func decodeOption(data json.RawMessage, unmarshal unmarshalFunc) (Option, error)
 		Recommended bool            `json:"recommended"`
 		Visual      json.RawMessage `json:"visual"`
 		Build       *Build          `json:"build"`
+		Approves    *Approves       `json:"approves"`
 	}
 	if err := unmarshal(data, &raw); err != nil {
 		return Option{}, fmt.Errorf("unmarshal option: %w", err)
@@ -258,6 +269,7 @@ func decodeOption(data json.RawMessage, unmarshal unmarshalFunc) (Option, error)
 		Recommended: raw.Recommended,
 		Visual:      v,
 		Build:       raw.Build,
+		Approves:    raw.Approves,
 	}, nil
 }
 
@@ -1274,6 +1286,9 @@ func validateChoice(c *Choice) error {
 		}
 		if err := validateBuild(o.Build); err != nil {
 			return fmt.Errorf("choice %q: option %q build: %w", c.ID, o.ID, err)
+		}
+		if a := o.Approves; a != nil && (!repoPattern.MatchString(a.Repo) || a.Number <= 0 || !headPattern.MatchString(a.Head)) {
+			return fmt.Errorf("choice %q: option %q approves repo %q number %d head %q: name the pull request as OWNER/NAME, its number, and the commit it approves", c.ID, o.ID, a.Repo, a.Number, a.Head)
 		}
 		if o.Recommended {
 			recommended++

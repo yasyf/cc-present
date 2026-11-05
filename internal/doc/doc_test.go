@@ -265,6 +265,10 @@ func TestValidate(t *testing.T) {
 		{"option build branch and none", docWith(card("c1", `{"id":"ch1","type":"choice","options":[{"id":"o1","label":"A","build":{"repo":"a/b","branch":"x","none":"why"}}]}`)), "never both"},
 		{"option build bare repo", docWith(card("c1", `{"id":"ch1","type":"choice","options":[{"id":"o1","label":"A","build":{"repo":"cc-present","branch":"x"}}]}`)), "name the repo as OWNER/NAME"},
 		{"option build no branch", docWith(card("c1", `{"id":"ch1","type":"choice","options":[{"id":"o1","label":"A","build":{"repo":"a/b"}}]}`)), "name the repo as OWNER/NAME"},
+		{"option approves a PR at a head", docWith(card("c1", `{"id":"ch1","type":"choice","options":[{"id":"o1","label":"Approve","approves":{"repo":"o/r","number":7,"head":"abc1234"}},{"id":"o2","label":"Hold"}]}`)), ""},
+		{"option approves no head", docWith(card("c1", `{"id":"ch1","type":"choice","options":[{"id":"o1","label":"Approve","approves":{"repo":"o/r","number":7}}]}`)), "the commit it approves"},
+		{"option approves no number", docWith(card("c1", `{"id":"ch1","type":"choice","options":[{"id":"o1","label":"Approve","approves":{"repo":"o/r","head":"abc1234"}}]}`)), "the commit it approves"},
+		{"option approves a bare repo", docWith(card("c1", `{"id":"ch1","type":"choice","options":[{"id":"o1","label":"Approve","approves":{"repo":"r","number":7,"head":"abc1234"}}]}`)), "the commit it approves"},
 		{"choice two recommended multi-select", docWith(card("c1", `{"id":"ch1","type":"choice","multi":true,"options":[{"id":"o1","label":"A","recommended":true},{"id":"o2","label":"B","recommended":true}]}`)), ""},
 
 		{"option visual code", docWith(card("c1", `{"id":"ch1","type":"choice","options":[{"id":"o1","label":"A","visual":{"id":"v1","type":"code","lang":"go","code":"x"}}]}`)), ""},
