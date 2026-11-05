@@ -253,7 +253,7 @@ func TestAPRCarryingItsLinesDrawsAsAPRNotALink(t *testing.T) {
 }
 
 func TestALongAnswerIsCutForItsButtonAndStillNamesItsOption(t *testing.T) {
-	long := strings.Repeat("Refuse with rebuild ", 5)
+	long := strings.Repeat("Refuse with rebuild ", 12)
 	c := card(t, askCard(`{"id":"o1","label":"`+long+`","hint":"keeps your line","recommended":true},{"id":"o2","label":"Hold","hint":"waits"}`))
 	q, err := slackcards.Check(c)
 	if err != nil {
@@ -261,8 +261,8 @@ func TestALongAnswerIsCutForItsButtonAndStillNamesItsOption(t *testing.T) {
 	}
 	got := slackcards.ToSlack(c, q)
 	button := got.Options[0]
-	if n := utf8.RuneCountInString(button); n != 61 || !strings.HasSuffix(button, "…") || got.Recommended != button {
-		t.Fatalf("button %q is %d characters, recommended %q; want it cut to 61 with an ellipsis", button, n, got.Recommended)
+	if n := utf8.RuneCountInString(button); n != 200 || !strings.HasSuffix(button, "…") || got.Recommended != button {
+		t.Fatalf("button %q is %d characters, recommended %q; want it cut to 200 with an ellipsis", button, n, got.Recommended)
 	}
 	if want := map[string]string{button: long + "\nkeeps your line", "Hold": "waits"}; !reflect.DeepEqual(got.Hints, want) {
 		t.Errorf("hints = %q, want %q", got.Hints, want)
@@ -276,6 +276,42 @@ func TestALongAnswerIsCutForItsButtonAndStillNamesItsOption(t *testing.T) {
 	}
 	if label, other := slackcards.Label(ch, []string{"o1"}, ""); label != button || other {
 		t.Errorf("a board pick answered Slack with %q %v, want the button's own words", label, other)
+	}
+}
+
+func TestALabelPastAButtonReachesSlackWhole(t *testing.T) {
+	label := strings.Repeat("Keep the held steps under a job ", 5)
+	c := card(t, askCard(`{"id":"o1","label":"`+label+`"},{"id":"o2","label":"Hold"}`))
+	q, err := slackcards.Check(c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := slackcards.ToSlack(c, q)
+	if got.Options[0] != label {
+		t.Fatalf("option = %q, want the label whole", got.Options[0])
+	}
+	if _, repeated := got.Hints[label]; repeated {
+		t.Errorf("hints = %q, want no second copy of a label that is whole", got.Hints)
+	}
+}
+
+func TestEveryPickDrawsWhatItDoes(t *testing.T) {
+	c := card(t, askCard(`{"id":"o1","label":"Title alone","md":"Nothing changes for [you](https://example.com/a)."},`+
+		`{"id":"o2","label":"Title plus","hint":"Costs a summary","md":"Iris writes more."},`+
+		`{"id":"o3","label":"Detail only","detail":{"md":"It waits a week."}},`+
+		`{"id":"o4","label":"Facts","facts":[{"label":"Cost","value":"1 hour"}]}`))
+	q, err := slackcards.Check(c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]string{
+		"Title alone": "Nothing changes for <https://example.com/a|you>.",
+		"Title plus":  "Costs a summary\nIris writes more.",
+		"Detail only": "It waits a week.",
+		"Facts":       "*Cost:* 1 hour",
+	}
+	if got := slackcards.ToSlack(c, q).Hints; !reflect.DeepEqual(got, want) {
+		t.Errorf("hints = %q, want %q", got, want)
 	}
 }
 

@@ -209,7 +209,49 @@ func tableMarkdown(t *Table, f func(*string)) {
 	}
 }
 
-var refTitlePattern = regexp.MustCompile(`ref:([0-9a-f]{64})`)
+var (
+	refTitlePattern = regexp.MustCompile(`ref:([0-9a-f]{64})`)
+	htmlComment     = regexp.MustCompile(`(?s)[ \t]*<!--.*?-->`)
+)
+
+// DropComments removes HTML comments from the words of b and its nested blocks.
+// A comment is for its writer, and not every surface hides one.
+func DropComments(b Block) {
+	drop := func(words *string) {
+		if strings.Contains(*words, "<!--") {
+			*words = strings.TrimSpace(htmlComment.ReplaceAllString(*words, ""))
+		}
+	}
+	markdownPtrs(b, drop)
+	Walk(b, func(b Block) {
+		switch b := b.(type) {
+		case *Card:
+			drop(&b.Title)
+		case *Choice:
+			for i := range b.Options {
+				drop(&b.Options[i].Label)
+				dropFacts(b.Options[i].Facts, drop)
+			}
+		case *Record:
+			dropFacts(b.Facts, drop)
+		case *PackBlock:
+			var md string
+			if json.Unmarshal(b.Fields["md"], &md) != nil {
+				return
+			}
+			drop(&md)
+			if raw, err := json.Marshal(md); err == nil {
+				b.Fields["md"] = raw
+			}
+		}
+	})
+}
+
+func dropFacts(facts []Fact, drop func(*string)) {
+	for i := range facts {
+		drop(&facts[i].Value)
+	}
+}
 
 // RefTitle is the link title that marks a markdown link as a resolved reference
 // whose hover snippet is the stored asset sha.

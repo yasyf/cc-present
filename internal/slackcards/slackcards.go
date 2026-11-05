@@ -26,7 +26,7 @@ const (
 	explainLabel    = "Explain more"
 	recommendedMark = "(Recommended)"
 	maxTitle        = 140
-	maxLabel        = 61
+	maxLabel        = 200
 	maxAnswers      = 4
 )
 
@@ -44,6 +44,10 @@ var (
 
 func withoutRefs(md string) string {
 	return refNoURL.ReplaceAllString(refWithURL.ReplaceAllString(md, "[$1]($2)"), "$1")
+}
+
+func slackText(md string) string {
+	return markdownLink.ReplaceAllString(withoutRefs(md), "<$2|$1>")
 }
 
 // Posted is a waiting card cc-slack posted, as `cc-present slack-sync posted` reads it.
@@ -276,7 +280,7 @@ func Nudge(b doc.Block) string {
 func ToSlack(c *doc.Card, q doc.Block) StatusCard {
 	title := cmp.Or(c.Title, prompt(q))
 	sc := StatusCard{Status: "needs_you", Title: clip(title, maxTitle), Waits: c.ID, Supersedes: c.Supersedes, Replaces: c.Replaces}
-	parts := []string{markdownLink.ReplaceAllString(withoutRefs(c.Summary), "<$2|$1>")}
+	parts := []string{slackText(c.Summary)}
 	if sc.Title != title {
 		parts = slices.Insert(parts, 0, "*"+title+"*")
 	}
@@ -305,7 +309,7 @@ func ToSlack(c *doc.Card, q doc.Block) StatusCard {
 		switch b := child.(type) {
 		case *doc.Markdown:
 			if !b.Struck {
-				parts = append(parts, markdownLink.ReplaceAllString(withoutRefs(withoutLead(b.Md, c.Summary)), "<$2|$1>"))
+				parts = append(parts, slackText(withoutLead(b.Md, c.Summary)))
 			}
 		case *doc.PR:
 			url := fmt.Sprintf("https://github.com/%s/pull/%d", b.Repo, b.Number)
@@ -393,8 +397,20 @@ func optionHint(o doc.Option, label string) string {
 	if label != o.Label {
 		lines = append(lines, o.Label)
 	}
-	if o.Hint != "" {
-		lines = append(lines, o.Hint)
+	for _, effect := range []string{o.Hint, o.Md} {
+		if effect != "" {
+			lines = append(lines, slackText(effect))
+		}
+	}
+	if o.Hint == "" && o.Md == "" && o.Detail != nil && o.Detail.Md != "" {
+		lines = append(lines, slackText(o.Detail.Md))
+	}
+	for _, f := range o.Facts {
+		if f.Label == "" {
+			lines = append(lines, mrkdwn(f.Value))
+			continue
+		}
+		lines = append(lines, "*"+mrkdwn(f.Label)+":* "+mrkdwn(f.Value))
 	}
 	switch {
 	case o.Build == nil:

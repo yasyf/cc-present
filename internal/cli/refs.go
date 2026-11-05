@@ -133,6 +133,9 @@ func linkRefsWith(
 		records:  map[string]*assets.Snippet{},
 		stored:   map[string]string{},
 	}
+	for _, b := range blocks {
+		doc.DropComments(b)
+	}
 	if err := l.prefetchRecords(ctx, blocks); err != nil {
 		return nil, err
 	}

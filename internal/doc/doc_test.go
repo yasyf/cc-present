@@ -1064,3 +1064,32 @@ func TestATableWithRowsThatOpenAndAct(t *testing.T) {
 		})
 	}
 }
+
+func TestDropCommentsLeavesNoCommentInAnyWordHeReads(t *testing.T) {
+	raw := strings.ReplaceAll(`{"id":"c","type":"card","title":"Land it?~","summary":"It broke.~ Then it healed.","children":[`+
+		`{"id":"m","type":"markdown","md":"Cause.~"},`+
+		`{"id":"f","type":"record","facts":[{"label":"Why","value":"The move.~"}]},`+
+		`{"id":"t","type":"table","columns":[{"key":"a","label":"A"}],"rows":[{"a":"Cell.~"}]},`+
+		`{"id":"p","type":"display.page","md":"Explain.~"},`+
+		`{"id":"k","type":"code","lang":"html","code":"<!-- kept -->"},`+
+		`{"id":"q","type":"choice","options":[{"id":"o1","label":"Yes~","hint":"H~","md":"M~","facts":[{"label":"Cost","value":"V~"}],"detail":{"md":"D~"}},{"id":"o2","label":"No"}]}]}`,
+		"~", " <!-- cci #453550 -->")
+	block, err := doc.DecodeBlock([]byte(raw))
+	if err != nil {
+		t.Fatal(err)
+	}
+	doc.DropComments(block)
+	got, err := json.Marshal(block)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(got), "453550") {
+		t.Errorf("a comment survived: %s", got)
+	}
+	if !strings.Contains(string(got), "It broke. Then it healed.") {
+		t.Errorf("the words around a comment do not run on: %s", got)
+	}
+	if !strings.Contains(string(got), "kept") {
+		t.Errorf("a code block's own text went: %s", got)
+	}
+}
