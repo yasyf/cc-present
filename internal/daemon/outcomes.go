@@ -82,7 +82,7 @@ func handleOutcomes(hc ccd.HandlerCtx, cursors string) ccd.Reply {
 		return errReply(err.Error())
 	}
 	head := board.seq
-	res := result{Rev: head, Retired: newAnswerGate(hc.Ctx, hc.DB, sub.ID, &board.st, board.retired, nil).retiredIDs()}
+	res := result{Rev: head, Owners: board.st.Owners(), Retired: newAnswerGate(hc.Ctx, hc.DB, sub.ID, &board.st, board.retired, nil).retiredIDs()}
 	if !delta {
 		res.State, err = outcomeState(&board.st, req.View)
 	}

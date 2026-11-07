@@ -90,19 +90,20 @@ type body struct {
 // result is the domain payload a handler returns in Reply.Body. Envelope-level
 // outputs (subject id, http port) ride on the Reply itself.
 type result struct {
-	URL          string          `json:"url,omitempty"`          // start | push
-	TailnetURLs  []string        `json:"tailnetUrls,omitempty"`  // start | push
-	Slug         string          `json:"slug,omitempty"`         // start | close
-	ChannelState string          `json:"channelState,omitempty"` // start
-	Revision     int             `json:"revision,omitempty"`     // push
-	Rev          int64           `json:"rev,omitempty"`          // start | push | upsert-block | remove-block | slack-card | outcomes | block-show
-	Round        int             `json:"round,omitempty"`        // round
-	State        json.RawMessage `json:"state,omitempty"`        // outcomes | import-verdicts | carry-verdict | block-show
-	Delta        json.RawMessage `json:"delta,omitempty"`        // outcomes
-	Waits        string          `json:"waits,omitempty"`        // reply
-	Warnings     []string        `json:"warnings,omitempty"`
-	Retired      []string        `json:"retired,omitempty"`
-	Reworded     json.RawMessage `json:"reworded,omitempty"`
+	URL          string            `json:"url,omitempty"`          // start | push
+	TailnetURLs  []string          `json:"tailnetUrls,omitempty"`  // start | push
+	Slug         string            `json:"slug,omitempty"`         // start | close
+	ChannelState string            `json:"channelState,omitempty"` // start
+	Revision     int               `json:"revision,omitempty"`     // push
+	Rev          int64             `json:"rev,omitempty"`          // start | push | upsert-block | remove-block | slack-card | outcomes | block-show
+	Round        int               `json:"round,omitempty"`        // round
+	State        json.RawMessage   `json:"state,omitempty"`        // outcomes | import-verdicts | carry-verdict | block-show
+	Delta        json.RawMessage   `json:"delta,omitempty"`        // outcomes
+	Waits        string            `json:"waits,omitempty"`        // reply
+	Warnings     []string          `json:"warnings,omitempty"`
+	Retired      []string          `json:"retired,omitempty"`
+	Owners       map[string]string `json:"owners,omitempty"` // outcomes
+	Reworded     json.RawMessage   `json:"reworded,omitempty"`
 }
 
 func decodeBody(raw json.RawMessage) body {

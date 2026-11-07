@@ -413,3 +413,20 @@ func TestAProofBoardKeepsItsMarkThroughStartAndAPush(t *testing.T) {
 		t.Fatal("push dropped the proof mark")
 	}
 }
+
+func TestOutcomesNameTheLaneThatOwnsEachCardOnTheBoard(t *testing.T) {
+	h := newHarness(t)
+	startAs(t, h, "", cardDoc)
+	if r := upsertAs(h, Writer{Lane: "dashboard-proof-1"}, `{"id":"c2","type":"card","children":[{"id":"m3","type":"markdown","md":"proof"}]}`); !r.OK {
+		t.Fatalf("upsert c2: %s", r.Error)
+	}
+	if got := outcome(t, h).Owners; len(got) != 1 || got["c2"] != "dashboard-proof-1" {
+		t.Fatalf("owners = %v, want only c2 owned by dashboard-proof-1", got)
+	}
+	if r := handleRemoveBlock(h.hc(body{Writer: Writer{Lane: "dashboard-proof-1"}, ID: "c2"})); !r.OK {
+		t.Fatalf("remove c2: %s", r.Error)
+	}
+	if got := outcome(t, h).Owners; len(got) != 0 {
+		t.Fatalf("owners after c2 left the board = %v, want none", got)
+	}
+}
