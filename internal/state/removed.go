@@ -69,6 +69,17 @@ func (s *State) markRemoved(top, b doc.Block) {
 	})
 }
 
+func (s *State) rewordRemoved(top doc.Block) {
+	doc.Walk(top, func(c doc.Block) {
+		at, held := s.removed[c.BlockID()]
+		if !held || at.Top != top.BlockID() {
+			return
+		}
+		s.removed[c.BlockID()] = removedFrom(top, at.Round)
+		s.removedBlocks[c.BlockID()] = c
+	})
+}
+
 func (s *State) dropMissing(before, after []doc.Block) {
 	shown := map[string]bool{}
 	for _, b := range after {

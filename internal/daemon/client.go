@@ -7,6 +7,8 @@ import (
 	"fmt"
 
 	ccd "github.com/yasyf/cc-interact/daemon"
+
+	"github.com/yasyf/cc-present/internal/doc"
 )
 
 // resolveConsumer names the CLI's resolve poll, distinct from the stream
@@ -115,12 +117,15 @@ func (cl *Client) Push(ctx context.Context, session, scope string, pid int, w Wr
 }
 
 // UpsertResult is what an upsert reports back: the round an advance opened (0
-// if none), the board revision the write landed at (0 when the answer gate kept
-// the block off the board), and the gate's warnings.
+// if none), the board revision the write landed at (0 when the answer gate
+// dropped the block), the gate's warnings, and Reworded, the answered card the
+// write gave new words as the board now holds it, on the board or off it, nil
+// for any other write.
 type UpsertResult struct {
 	Round    int
 	Rev      int64
 	Warnings []string
+	Reworded doc.Block
 }
 
 // UpsertBlock inserts or replaces a single block as w, optionally after another.
@@ -128,7 +133,12 @@ type UpsertResult struct {
 // roundTitle titles a newly opened round.
 func (cl *Client) UpsertBlock(ctx context.Context, session, scope string, pid int, w Writer, blockJSON json.RawMessage, reopen []string, reask Reask, after, round, roundTitle string) (UpsertResult, error) {
 	_, res, err := cl.do(ctx, OpUpsertBlock, session, scope, pid, body{Writer: w, Block: blockJSON, Reopen: reopen, Reask: reask, After: after, Round: round, Title: roundTitle})
-	return UpsertResult{Round: res.Round, Rev: res.Rev, Warnings: res.Warnings}, err
+	out := UpsertResult{Round: res.Round, Rev: res.Rev, Warnings: res.Warnings}
+	if err != nil || res.Reworded == nil {
+		return out, err
+	}
+	out.Reworded, err = doc.DecodeStoredBlock(res.Reworded)
+	return out, err
 }
 
 // RemoveBlock removes a block by id as w and returns the board revision the

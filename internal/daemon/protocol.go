@@ -102,6 +102,7 @@ type result struct {
 	Waits        string          `json:"waits,omitempty"`        // reply
 	Warnings     []string        `json:"warnings,omitempty"`
 	Retired      []string        `json:"retired,omitempty"`
+	Reworded     json.RawMessage `json:"reworded,omitempty"`
 }
 
 func decodeBody(raw json.RawMessage) body {

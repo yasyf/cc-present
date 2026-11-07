@@ -318,6 +318,7 @@ func (s *State) apply(ev Event, up upsert) error {
 			Doc      storedDoc `json:"doc"`
 			Revision int       `json:"revision"`
 			Retained []string  `json:"retained"`
+			Redrawn  string    `json:"redrawn"`
 		}
 		if err := decodeEventPayload(ev, &p); err != nil {
 			return err
@@ -325,6 +326,11 @@ func (s *State) apply(ev Event, up upsert) error {
 		prior := s.Rounds.BlockRounds
 		s.dropMissing(s.Doc.Blocks, p.Doc.doc.Blocks)
 		s.wroteDoc(ev.Seq, p.writer, s.Doc.Blocks, p.Doc.doc.Blocks, p.Retained)
+		for _, b := range p.Doc.doc.Blocks {
+			if b.BlockID() == p.Redrawn {
+				s.wrote(b.BlockID(), ev.Seq, p.writer, b)
+			}
+		}
 		if DocShape(s.Doc) != DocShape(p.Doc.doc) {
 			s.docWrite = Write{Rev: ev.Seq, Lane: p.Lane}
 		}
@@ -362,12 +368,22 @@ func (s *State) apply(ev Event, up upsert) error {
 		var p struct {
 			payloadIdentity
 			writer
-			ID string `json:"id"`
+			ID    string          `json:"id"`
+			Block json.RawMessage `json:"block"`
 		}
 		if err := decodeEventPayload(ev, &p); err != nil {
 			return err
 		}
 		loc, ok := doc.Locate(s.Doc, p.ID)
+		if !ok && p.Block != nil {
+			b, err := doc.DecodeStoredBlock(p.Block)
+			if err != nil {
+				return err
+			}
+			s.rewordRemoved(b)
+			s.writes[p.ID] = Write{Rev: ev.Seq, Lane: p.Lane, Removed: true}
+			return nil
+		}
 		if !ok || loc.Visual() {
 			return nil
 		}
