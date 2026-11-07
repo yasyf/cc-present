@@ -8,6 +8,9 @@ import (
 	"slices"
 	"time"
 
+	ccd "github.com/yasyf/cc-interact/daemon"
+	ccevent "github.com/yasyf/cc-interact/event"
+
 	"github.com/yasyf/cc-present/internal/doc"
 	"github.com/yasyf/cc-present/internal/state"
 )
@@ -69,8 +72,8 @@ func (g answerGate) check(b doc.Block) error {
 }
 
 func (g answerGate) answered(b doc.Block) error {
-	decidable, answered := g.st.AnsweredBy(b)
-	if !answered || slices.Contains(g.reopen, b.BlockID()) || slices.Contains(g.reopen, decidable) {
+	decidable, held := g.holding(b)
+	if !held {
 		return nil
 	}
 	at, err := g.answeredAt(decidable)
@@ -79,6 +82,90 @@ func (g answerGate) answered(b doc.Block) error {
 	}
 	return fmt.Errorf("block %q was answered at %s (%q carries the human's verdict) and answered blocks never come back; pass --reopen %s to ask again",
 		b.BlockID(), at, decidable, b.BlockID())
+}
+
+func (g answerGate) holding(b doc.Block) (string, bool) {
+	decidable, answered := g.st.AnsweredBy(b)
+	return decidable, answered && !slices.Contains(g.reopen, b.BlockID()) && !slices.Contains(g.reopen, decidable)
+}
+
+func (g answerGate) redraws(shown, b doc.Block) bool {
+	_, held := g.holding(b)
+	return held && wordsOnly(shown, b)
+}
+
+func wordsOnly(shown, b doc.Block) bool {
+	return string(mustJSON(unworded(shown))) == string(mustJSON(unworded(b)))
+}
+
+func unworded(b doc.Block) doc.Block {
+	switch b := b.(type) {
+	case *doc.Card:
+		c := *b
+		c.Title, c.Summary, c.Children = "", "", make([]doc.Block, len(b.Children))
+		for i, child := range b.Children {
+			c.Children[i] = unworded(child)
+		}
+		return &c
+	case *doc.Markdown:
+		m := *b
+		m.Md = ""
+		return &m
+	case *doc.PR:
+		p := *b
+		p.Title, p.Change, p.Plan, p.Risk, p.Blocker = "", "", "", "", ""
+		return &p
+	case *doc.Image:
+		i := *b
+		i.Alt = ""
+		return &i
+	}
+	return b
+}
+
+func redrawRemoved(hc ccd.HandlerCtx, subID string, board *reducedBoard, gate answerGate, b body, blk doc.Block) (ccd.Reply, bool) {
+	st := &board.st
+	shown, top, removed := st.RemovedBlock(blk.BlockID())
+	if _, held := gate.holding(blk); !removed || top != blk.BlockID() || b.After != "" || !held {
+		return ccd.Reply{}, false
+	}
+	doc.KeepSlack(&doc.Doc{Blocks: []doc.Block{shown}}, []doc.Block{blk})
+	if !wordsOnly(shown, blk) {
+		return ccd.Reply{}, false
+	}
+	if err := b.admit(st, board.seq, blk.BlockID()); err != nil {
+		return errReply(err.Error()), true
+	}
+	raw := mustJSON(blk)
+	seq, err := appendEvent(hc.Ctx, hc.Append, &ccevent.Event{
+		SubjectID: subID, Origin: ccevent.OriginAgent, Type: EventBlockRemoved,
+		Payload: blockRewordedPayload(blk.BlockID(), raw, b.Writer),
+	})
+	if err != nil {
+		return errReply(err.Error()), true
+	}
+	return okReply(result{Rev: seq, Reworded: raw}), true
+}
+
+func appendRedraw(hc ccd.HandlerCtx, subID string, cur *doc.Doc, blk doc.Block, w Writer) (int64, error) {
+	d := *cur
+	d.Blocks = doc.UpsertBlocks(cur.Blocks, blk, "")
+	raw, err := json.Marshal(&d)
+	if err != nil {
+		return 0, err
+	}
+	rev, err := nextRevision(hc.Ctx, hc.DB, subID)
+	if err != nil {
+		return 0, err
+	}
+	retained := make([]string, len(d.Blocks))
+	for i, top := range d.Blocks {
+		retained[i] = top.BlockID()
+	}
+	return appendEvent(hc.Ctx, hc.Append, &ccevent.Event{
+		SubjectID: subID, Origin: ccevent.OriginAgent, Type: EventDocReplaced,
+		Payload: docRedrawnPayload(raw, rev, retained, blk.BlockID(), w),
+	})
 }
 
 func (g answerGate) answeredAt(id string) (string, error) {

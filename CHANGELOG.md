@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- An answered card takes new words in place. `update-block` of a card the human answered, on the board or removed, records a change to its title, summary, markdown, a `pr` child's title, change, plan, risk or blocker, or an image's alt text without `--reopen`. The card keeps its verdict and its round, a removed card stays off the board, and a card answered in Slack has that message edited to the new words, its answer kept and no buttons back. Any other change is refused as before. Needs a cc-slack that redraws an answered card's words in place.
 - `remove-block --replaced-by <permalink>` names the Slack message that replaces a card. Its Slack card says `Replaced: <reason>` and links that message, where it used to say `Withdrawn: <reason>` with no link. Needs a cc-slack whose withdrawal says `Replaced:` when `--via` names another message.
 
 ### Fixed

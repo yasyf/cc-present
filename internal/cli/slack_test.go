@@ -493,3 +493,52 @@ func TestPRGroupIDsFindsEveryBlockAPushCarries(t *testing.T) {
 		})
 	}
 }
+
+func TestNewWordsOnAnAnsweredCardEditItsOwnSlackPost(t *testing.T) {
+	const (
+		post  = "https://example.slack.com/archives/D1/p1800000001000100"
+		title = "Port, old tree to new: dev #41: Merge?"
+	)
+	answered := func(status string) *doc.Card {
+		blk, err := doc.DecodeBlock(json.RawMessage(`{"id":"c","type":"card","title":"` + title + `","status":"` + status + `",` +
+			`"replaces":"https://example.slack.com/archives/D1/p1700000000000100","slack":{"url":"` + post + `"},` +
+			`"children":[{"id":"q","type":"choice","options":[{"id":"a","label":"Merge","recommended":true},{"id":"b","label":"Hold"}]}]}`))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return blk.(*doc.Card)
+	}
+	if _, ok := rewording(answered(""), nil); ok {
+		t.Fatal("new words went to a Slack card that holds no answer, which would ask it again")
+	}
+	q, ok := rewording(answered(slackcards.Resolved), nil)
+	if !ok {
+		t.Fatal("new words on a card answered in Slack stayed off Slack")
+	}
+	dir := t.TempDir()
+	//nolint:gosec // G306: the fake cc-slack on PATH has to be executable.
+	if err := os.WriteFile(filepath.Join(dir, "cc-slack"), []byte(fakeCCSlack), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	t.Setenv("FAKE_CC_SLACK_DIR", dir)
+	if _, err := postCard(t.Context(), "s1", 0, q, "", io.Discard); err != nil {
+		t.Fatal(err)
+	}
+	//nolint:gosec // G304: the test's own temp dir.
+	raw, err := os.ReadFile(filepath.Join(dir, "args"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	args := strings.Split(strings.TrimSpace(string(raw)), "\n")
+	var sent slackcards.StatusCard
+	if err := json.Unmarshal([]byte(args[slices.Index(args, "--card")+1]), &sent); err != nil {
+		t.Fatal(err)
+	}
+	if args[0] != "dm-status" || !slices.Contains(args, "--mirrored") || slices.Contains(args, "--thread") {
+		t.Errorf("args %q, want a mirrored dm-status at the card's own post", args)
+	}
+	if sent.Replaces != post || sent.Waits != "c" || sent.Title != title || !slices.Equal(sent.Options, []string{"Merge", "Hold"}) || sent.Recommended != "Merge" {
+		t.Errorf("card %+v, want the new title over the same answers, replacing its own post %s", sent, post)
+	}
+}

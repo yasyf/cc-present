@@ -179,10 +179,11 @@ func readBoard(ctx context.Context, cl *ccdaemon.Client, b board) (*sendBoard, e
 	return &st, nil
 }
 
-// syncSlack carries a board write to Slack: the group cards it touched, and the
-// simple questions it asked. A board's session is its Slack thread, so a board
-// with no session asks nothing there.
-func syncSlack(ctx context.Context, cl *ccdaemon.Client, b board, w, warn io.Writer, before *sendBoard, blocks []doc.Block) error {
+// syncSlack carries a board write to Slack: the group cards it touched, the
+// simple questions it asked, and the new words of the answered card it
+// reworded. A board's session is its Slack thread, so a board with no session
+// asks nothing there.
+func syncSlack(ctx context.Context, cl *ccdaemon.Client, b board, w, warn io.Writer, before *sendBoard, blocks []doc.Block, reworded doc.Block) error {
 	ids := prGroupIDs(blocks)
 	bound := boundGroups(before)
 	mirrors := b.session != "" && slackcards.Installed()
@@ -201,8 +202,40 @@ func syncSlack(ctx context.Context, cl *ccdaemon.Client, b board, w, warn io.Wri
 		}
 		_, err := sendQuestions(ctx, cl, b, after.rev, questions, "", w, warn)
 		errs = append(errs, err)
+		if card, ok := reworded.(*doc.Card); ok {
+			errs = append(errs, rewordPost(ctx, cl, b, card, slackcards.PostsOf(after.Doc), w, warn))
+		}
 	}
 	return errors.Join(errs...)
+}
+
+func rewordPost(ctx context.Context, cl *ccdaemon.Client, b board, card *doc.Card, posts slackcards.Posts, w, warn io.Writer) error {
+	q, ok := rewording(card, posts)
+	if !ok {
+		if card.Slack != nil {
+			_, _ = fmt.Fprintf(warn, "warning: card %q keeps its old words in Slack: its Slack card holds no answer, and new words there would ask again\n", card.ID)
+		}
+		return nil
+	}
+	_, port, err := cl.Resolve(ctx, b.session, b.scope, b.pid)
+	if err != nil {
+		return err
+	}
+	if _, err := postCard(ctx, b.session, port, q, "", warn); err != nil {
+		return fmt.Errorf("card %q: %w", card.ID, err)
+	}
+	_, _ = fmt.Fprintf(w, "reworded: %s %s\n", card.ID, card.Slack.URL)
+	return nil
+}
+
+func rewording(card *doc.Card, posts slackcards.Posts) (question, bool) {
+	q, ok := slackcards.Question(card)
+	if _, rows := q.(*doc.Triage); !ok || rows || card.Slack == nil || card.Status != slackcards.Resolved || !card.Mirrors() {
+		return question{}, false
+	}
+	own := *card
+	own.Replaces = card.Slack.URL
+	return question{&own, q, nil, posts}, true
 }
 
 func boundGroups(st *sendBoard) []*doc.PRGroups {

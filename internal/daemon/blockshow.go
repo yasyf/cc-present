@@ -90,8 +90,8 @@ func handleBlockShow(hc ccd.HandlerCtx) ccd.Reply {
 // card that held it.
 func lastShown(ctx context.Context, db *sql.DB, subjectID, id string) (doc.Block, error) {
 	quoted, _ := json.Marshal(id)
-	events, err := queryEvents(ctx, db, `SELECT origin, type, seq, payload FROM events WHERE subject_id=? AND type IN (?,?) AND instr(payload, ?) > 0 ORDER BY seq DESC`,
-		subjectID, EventDocReplaced, EventBlockUpserted, string(quoted))
+	events, err := queryEvents(ctx, db, `SELECT origin, type, seq, payload FROM events WHERE subject_id=? AND type IN (?,?,?) AND instr(payload, ?) > 0 ORDER BY seq DESC`,
+		subjectID, EventDocReplaced, EventBlockUpserted, EventBlockRemoved, string(quoted))
 	if err != nil {
 		return nil, err
 	}
@@ -103,6 +103,9 @@ func lastShown(ctx context.Context, db *sql.DB, subjectID, id string) (doc.Block
 		}
 		if err := json.Unmarshal(ev.Payload, &p); err != nil {
 			return nil, fmt.Errorf("read %s at seq %d: %w", ev.Type, ev.Seq, err)
+		}
+		if ev.Type == EventBlockRemoved && p.Block == nil {
+			continue
 		}
 		d := &doc.Doc{}
 		if ev.Type == EventDocReplaced {

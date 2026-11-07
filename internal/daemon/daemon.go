@@ -391,8 +391,9 @@ func handleUpsertBlock(hc ccd.HandlerCtx, pt doc.PackTypes) ccd.Reply {
 	}
 	defer board.mu.Unlock()
 	st := &board.st
-	if loc, ok := doc.Locate(st.Doc, blk.BlockID()); ok && loc.Visual() {
-		return errReply(pointingError(blk.BlockID(), loc).Error())
+	shown, onBoard := doc.Locate(st.Doc, blk.BlockID())
+	if onBoard && shown.Visual() {
+		return errReply(pointingError(blk.BlockID(), shown).Error())
 	}
 	if doc.KeepSlack(st.Doc, []doc.Block{blk}) {
 		if b.Block, err = json.Marshal(blk); err != nil {
@@ -407,6 +408,9 @@ func handleUpsertBlock(hc ccd.HandlerCtx, pt doc.PackTypes) ccd.Reply {
 		return errReply(err.Error())
 	}
 	gate.touching = board.touching
+	if reply, reworded := redrawRemoved(hc, sub.ID, board, gate, b, blk); reworded {
+		return reply
+	}
 	kept, warnings := gate.strip([]doc.Block{blk})
 	if len(kept) == 0 {
 		return okReply(result{Warnings: warnings})
@@ -418,8 +422,11 @@ func handleUpsertBlock(hc ccd.HandlerCtx, pt doc.PackTypes) ccd.Reply {
 			return errReply(err.Error())
 		}
 	}
-	if err := gate.check(blk); err != nil {
-		return errReply(err.Error())
+	redraw := onBoard && shown.Kind == doc.TopLevel && b.After == "" && gate.redraws(shown.Block, blk)
+	if !redraw {
+		if err := gate.check(blk); err != nil {
+			return errReply(err.Error())
+		}
 	}
 	if b.After != "" {
 		loc, ok := doc.Locate(st.Doc, b.After)
@@ -456,6 +463,13 @@ func handleUpsertBlock(hc ccd.HandlerCtx, pt doc.PackTypes) ccd.Reply {
 			return errReply(err.Error())
 		}
 		round = st.Rounds.Current + 1
+	}
+	if redraw {
+		seq, err := appendRedraw(hc, sub.ID, st.Doc, blk, w)
+		if err != nil {
+			return errReply(err.Error())
+		}
+		return okReply(result{Round: round, Rev: seq, Warnings: warnings, Reworded: blockJSON})
 	}
 	seq, err := appendEvent(hc.Ctx, hc.Append, &ccevent.Event{
 		SubjectID: sub.ID, Origin: ccevent.OriginAgent, Type: EventBlockUpserted,
@@ -877,6 +891,16 @@ func docReplacedPayload(rawDoc json.RawMessage, revision int, retained []string,
 	}{rawDoc, revision, retained, by(w)})
 }
 
+func docRedrawnPayload(rawDoc json.RawMessage, revision int, retained []string, redrawn string, w Writer) json.RawMessage {
+	return mustJSON(struct {
+		Doc      json.RawMessage `json:"doc"`
+		Revision int             `json:"revision"`
+		Retained []string        `json:"retained"`
+		Redrawn  string          `json:"redrawn"`
+		writtenBy
+	}{rawDoc, revision, retained, redrawn, by(w)})
+}
+
 func blockUpsertedPayload(rawBlock json.RawMessage, after string, w Writer) json.RawMessage {
 	return mustJSON(struct {
 		Block json.RawMessage `json:"block"`
@@ -893,6 +917,14 @@ func blockRemovedPayload(id, slack, reason, replacedBy string, w Writer) json.Ra
 		ReplacedBy string `json:"replacedBy,omitempty"`
 		writtenBy
 	}{id, slack, reason, replacedBy, by(w)})
+}
+
+func blockRewordedPayload(id string, rawBlock json.RawMessage, w Writer) json.RawMessage {
+	return mustJSON(struct {
+		ID    string          `json:"id"`
+		Block json.RawMessage `json:"block"`
+		writtenBy
+	}{id, rawBlock, by(w)})
 }
 
 type writtenBy struct {

@@ -341,7 +341,7 @@ func newStartCmd(d cmd.Deps) *cobra.Command {
 				return nil
 			}
 			_, _ = fmt.Fprintf(c.OutOrStdout(), "rev: %d\n", res.Rev)
-			if err := syncSlack(ctx, cl, board{sess, scope, pid, w}, c.OutOrStdout(), c.ErrOrStderr(), before, blocks); err != nil {
+			if err := syncSlack(ctx, cl, board{sess, scope, pid, w}, c.OutOrStdout(), c.ErrOrStderr(), before, blocks, nil); err != nil {
 				return fmt.Errorf("started the board, but Slack did not take all of it: %w", err)
 			}
 			return nil
@@ -512,7 +512,7 @@ func newPushCmd(d cmd.Deps) *cobra.Command {
 			if hint := unresolvedRefsHint(unresolved); hint != "" {
 				_, _ = fmt.Fprintln(c.ErrOrStderr(), hint)
 			}
-			if err := syncSlack(ctx, cl, board{sess, scope, pid, w}, out, c.ErrOrStderr(), before, dd.Blocks); err != nil {
+			if err := syncSlack(ctx, cl, board{sess, scope, pid, w}, out, c.ErrOrStderr(), before, dd.Blocks, nil); err != nil {
 				return fmt.Errorf("pushed revision %d, but Slack did not take all of it: %w", res.Revision, err)
 			}
 			return nil
@@ -628,7 +628,7 @@ func newUpdateBlockCmd(d cmd.Deps) *cobra.Command {
 			if hint := unresolvedRefsHint(unresolved); hint != "" {
 				_, _ = fmt.Fprintln(c.ErrOrStderr(), hint)
 			}
-			if err := syncSlack(ctx, cl, board{sess, scope, pid, w}, c.OutOrStdout(), c.ErrOrStderr(), before, []doc.Block{blk}); err != nil {
+			if err := syncSlack(ctx, cl, board{sess, scope, pid, w}, c.OutOrStdout(), c.ErrOrStderr(), before, []doc.Block{blk}, res.Reworded); err != nil {
 				return fmt.Errorf("updated %q, but Slack did not take all of it: %w", blk.BlockID(), err)
 			}
 			return nil
