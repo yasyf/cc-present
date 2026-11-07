@@ -50,9 +50,9 @@ func TestGroupCardAsksOnlyRowsWhoseVerdictDoesNotStand(t *testing.T) {
 		wantBody string
 	}{
 		{"no verdict asks", row(41, "abc1234def"), nil, []string{"pg:41:abc1234def"}, ""},
-		{"a verdict at the head reads as its verdict", row(41, "abc1234def"), map[string]state.Decision{"41": approvedAt("abc1234")}, nil, "Approved at abc1234 on " + decidedClock},
-		{"a verdict at a carried head reads as its verdict", row(41, "abc1234def", "0001111"), map[string]state.Decision{"41": approvedAt("0001111")}, nil, "Approved at 0001111 on " + decidedClock},
-		{"a hold reads with its note", row(41, "abc1234def"), map[string]state.Decision{"41": {Verdict: "rejected", Head: "abc1234", At: decidedAt, Note: "wait for **CI**"}}, nil, "Held at abc1234 on " + decidedClock + ": wait for *CI*"},
+		{"a verdict at the head reads as its verdict", row(41, "abc1234def"), map[string]state.Decision{"41": approvedAt("abc1234")}, nil, "Approved on " + decidedClock},
+		{"a verdict at a carried head reads as its verdict", row(41, "abc1234def", "0001111"), map[string]state.Decision{"41": approvedAt("0001111")}, nil, "Approved on " + decidedClock},
+		{"a hold reads with its note", row(41, "abc1234def"), map[string]state.Decision{"41": {Verdict: "rejected", Head: "abc1234", At: decidedAt, Note: "wait for **CI**"}}, nil, "Held on " + decidedClock + ": wait for *CI*"},
 		{"a verdict at an old head asks again", row(41, "abc1234def"), map[string]state.Decision{"41": approvedAt("0001111")}, []string{"pg:41:abc1234def"}, ""},
 	}
 	for _, tt := range tests {
@@ -69,6 +69,11 @@ func TestGroupCardAsksOnlyRowsWhoseVerdictDoesNotStand(t *testing.T) {
 			}
 			if !strings.Contains(sc.Body, tt.wantBody) {
 				t.Fatalf("body lacks %q:\n%s", tt.wantBody, sc.Body)
+			}
+			for _, d := range tt.verdicts {
+				if tt.wantBody != "" && (strings.Contains(sc.Body, d.Head) || strings.Contains(sc.Body, tt.row.Head[:7])) {
+					t.Fatalf("an answered row shows a commit, which the owner ruled out on Nov 6:\n%s", sc.Body)
+				}
 			}
 			if sc.Group != "pg:login" {
 				t.Fatalf("group = %q, want pg:login", sc.Group)
@@ -90,7 +95,7 @@ func TestGroupCardRowCarriesTheFiveFactsInSlackMarkup(t *testing.T) {
 	if got.PR == nil || *got.PR != want {
 		t.Errorf("row PR = %+v, want %+v, so cc-slack draws its link and four lines", got.PR, want)
 	}
-	if note := "_Held at 0001111 on " + decidedClock + "; new head abc1234 needs your tap._"; got.Text != note {
+	if note := "_Held on " + decidedClock + "; new head abc1234 needs your tap._"; got.Text != note {
 		t.Errorf("row text = %q, want %q", got.Text, note)
 	}
 }
@@ -108,7 +113,7 @@ func TestGroupCardsRetireAGroupThatLeftTheBoard(t *testing.T) {
 	if len(retired.Rows) != 0 || retired.Status != "done" {
 		t.Fatalf("retired card = %+v, want no buttons and done", retired)
 	}
-	for _, want := range []string{"app PR 41>* Fix the <https://x.test/l|login> &lt;form&gt; `abc1234` · Approved at 0001111", "app PR 42>* Fix the <https://x.test/l|login> &lt;form&gt; `fed4321` · left the board"} {
+	for _, want := range []string{"app PR 41>* Fix the <https://x.test/l|login> &lt;form&gt; · Approved on " + decidedClock, "app PR 42>* Fix the <https://x.test/l|login> &lt;form&gt; · left the board"} {
 		if !strings.Contains(retired.Body, want) {
 			t.Errorf("retired body lacks %q:\n%s", want, retired.Body)
 		}
