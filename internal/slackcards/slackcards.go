@@ -692,7 +692,7 @@ func groupBody(summary string, settled []string) string {
 
 func prLink(repo string, r doc.PRRow) string {
 	_, name, _ := strings.Cut(repo, "/")
-	return fmt.Sprintf("*<https://github.com/%s/pull/%d|%s PR %d>* %s `%s`", repo, r.Number, name, r.Number, mrkdwn(r.Title), r.Head[:shortHead])
+	return fmt.Sprintf("*<https://github.com/%s/pull/%d|%s PR %d>* %s", repo, r.Number, name, r.Number, mrkdwn(r.Title))
 }
 
 func rowNote(repo string, r doc.PRRow, d state.Decision, decided bool) string {
@@ -718,9 +718,6 @@ func verdictLine(d state.Decision, rejected string) string {
 	word := rejected
 	if d.Verdict == "approved" {
 		word = "Approved"
-	}
-	if tapped := cmp.Or(d.CarriedFrom, d.Head); tapped != "" {
-		word += " at " + tapped[:min(len(tapped), shortHead)]
 	}
 	if at, err := time.Parse(time.RFC3339, d.At); err == nil {
 		word += " on " + at.Local().Format("Jan 2 3:04 PM")

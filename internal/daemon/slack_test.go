@@ -722,7 +722,7 @@ func TestBoardVerdictAnswersBeforeItsSlackGroupCardRedraws(t *testing.T) {
 	if call.session != "s1" || call.thread != "1792842193.708029" || call.card.Group != "pg:g1" {
 		t.Fatalf("cc-slack call = %+v, want an edit of pg:g1 in the bound thread", call)
 	}
-	if len(call.card.Rows) != 1 || call.card.Rows[0].ID != "pg:9:def5678" || !strings.Contains(call.card.Body, "`abc1234` · Approved at abc1234") {
+	if len(call.card.Rows) != 1 || call.card.Rows[0].ID != "pg:9:def5678" || !strings.Contains(call.card.Body, "· Approved on ") || strings.Contains(call.card.Body, "abc1234") {
 		t.Fatalf("card = %+v, want row 9 still asking and row 8 approved in the body", call.card)
 	}
 }
