@@ -889,6 +889,22 @@ func withRev(raw json.RawMessage, rev int64) (json.RawMessage, error) {
 	return json.Marshal(m)
 }
 
+func withOwners(raw json.RawMessage, owners map[string]string) (json.RawMessage, error) {
+	if len(owners) == 0 {
+		return raw, nil
+	}
+	var m map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &m); err != nil {
+		return nil, err
+	}
+	encoded, err := json.Marshal(owners)
+	if err != nil {
+		return nil, err
+	}
+	m["owners"] = encoded
+	return json.Marshal(m)
+}
+
 func shapeState(read ccdaemon.OutcomesRead, show *ccdaemon.BlockShow, block string, noDoc bool) (json.RawMessage, error) {
 	raw, err := withRetired(read.State, read.Retired)
 	if err != nil {
@@ -898,7 +914,7 @@ func shapeState(read ccdaemon.OutcomesRead, show *ccdaemon.BlockShow, block stri
 		return nil, err
 	}
 	if block == "" {
-		return raw, nil
+		return withOwners(raw, read.Owners)
 	}
 	if raw, err = filterBlock(raw, block, *show); err != nil {
 		return nil, err
