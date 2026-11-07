@@ -208,6 +208,7 @@ type OutcomesRead struct {
 	Retired []string
 	Delta   json.RawMessage
 	Rev     int64
+	Owners  map[string]string
 }
 
 // OutcomesSince reads the window's artifact for a caller draining it, as a
@@ -217,7 +218,7 @@ type OutcomesRead struct {
 // Every read moves the board's cursor to the log's head.
 func (cl *Client) OutcomesSince(ctx context.Context, session, scope string, pid int, view OutcomeView, since string) (OutcomesRead, error) {
 	_, res, err := cl.do(ctx, OpOutcomes, session, scope, pid, body{View: view, Since: since})
-	return OutcomesRead{State: res.State, Retired: res.Retired, Delta: res.Delta, Rev: res.Rev}, err
+	return OutcomesRead{State: res.State, Retired: res.Retired, Delta: res.Delta, Rev: res.Rev, Owners: res.Owners}, err
 }
 
 // SlackCard puts a card synced with a Slack ask card on the window's board as

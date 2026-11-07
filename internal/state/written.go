@@ -38,6 +38,17 @@ func (s *State) UpsertTop(b doc.Block, after string) string {
 	return b.BlockID()
 }
 
+// Owners maps each card on the board that a lane owns to that lane.
+func (s *State) Owners() map[string]string {
+	owners := map[string]string{}
+	for _, b := range s.Doc.Blocks {
+		if w := s.writes[b.BlockID()]; w.Owner != "" {
+			owners[b.BlockID()] = w.Owner
+		}
+	}
+	return owners
+}
+
 // DocWritten returns the last agent write that changed the board's title,
 // header or block order.
 func (s *State) DocWritten() Write { return s.docWrite }
