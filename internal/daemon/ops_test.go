@@ -1871,3 +1871,53 @@ func TestAnOpDecodesOnlyTheEventsSinceThePreviousOp(t *testing.T) {
 func loadEvents(ctx context.Context, db *sql.DB, subjectID string) ([]state.Event, error) {
 	return loadEventsAfter(ctx, db, subjectID, 0)
 }
+
+func TestMoveBlockReordersTheBoardAndRetainsEveryCard(t *testing.T) {
+	const board = `{"version":1,"title":"Board","blocks":[{"id":"a","type":"markdown","md":"a"},{"id":"b","type":"markdown","md":"b"},{"id":"c","type":"markdown","md":"c"}]}`
+	for _, tt := range []struct {
+		name, id, after, wantErr string
+		want                     []string
+	}{
+		{name: "to the top", id: "c", want: []string{"c", "a", "b"}},
+		{name: "after another", id: "a", after: "b", want: []string{"b", "a", "c"}},
+		{name: "unknown block", id: "nope", wantErr: `no top-level block "nope" to move`},
+		{name: "unknown after", id: "a", after: "nope", wantErr: `--after names "nope", not a top-level block`},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			h := newHarness(t)
+			start := handleStart(h.hc(body{Doc: json.RawMessage(board)}), doc.NoPacks, nilDisplay)
+			if !start.OK {
+				t.Fatalf("start not ok: %s", start.Error)
+			}
+			before := len(h.eventsOfType(t, start.SubjectID, EventDocReplaced))
+			reply := handleMoveBlock(h.hc(body{ID: tt.id, After: tt.after}))
+			replaced := h.eventsOfType(t, start.SubjectID, EventDocReplaced)
+			if tt.wantErr != "" {
+				if reply.OK || !strings.Contains(reply.Error, tt.wantErr) || len(replaced) != before {
+					t.Fatalf("move: ok=%v err=%q, %d new doc.replaced; want %q and none", reply.OK, reply.Error, len(replaced)-before, tt.wantErr)
+				}
+				return
+			}
+			if !reply.OK || len(replaced) != before+1 {
+				t.Fatalf("move: ok=%v err=%q, %d new doc.replaced; want one", reply.OK, reply.Error, len(replaced)-before)
+			}
+			if removed := h.eventsOfType(t, start.SubjectID, EventBlockRemoved); len(removed) != 0 {
+				t.Fatalf("a move withdrew %d blocks, want none", len(removed))
+			}
+			var payload struct {
+				Retained []string `json:"retained"`
+			}
+			if err := json.Unmarshal(replaced[len(replaced)-1].Payload, &payload); err != nil || !slices.Equal(payload.Retained, tt.want) {
+				t.Fatalf("retained = %v, %v; want every block %v, so no Slack card is withdrawn", payload.Retained, err, tt.want)
+			}
+			st := reduceSubject(t, h, start.SubjectID)
+			got := make([]string, len(st.Doc.Blocks))
+			for i, blk := range st.Doc.Blocks {
+				got[i] = blk.BlockID()
+			}
+			if !slices.Equal(got, tt.want) {
+				t.Fatalf("order = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}

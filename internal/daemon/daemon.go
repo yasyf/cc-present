@@ -115,6 +115,7 @@ func BuildServer(ctx context.Context, p paths.Paths, spec daemonkit.Daemon, runt
 	s.Register(OpPush, func(hc ccd.HandlerCtx) ccd.Reply { return handlePush(hc, loader.Settled(hc.Ctx), display) })
 	s.Register(OpUpsertBlock, func(hc ccd.HandlerCtx) ccd.Reply { return handleUpsertBlock(hc, loader.Settled(hc.Ctx)) })
 	s.Register(OpRemoveBlock, handleRemoveBlock)
+	s.Register(OpMoveBlock, handleMoveBlock)
 	s.Register(OpReply, handleReply)
 	s.Register(OpRound, handleRound)
 	s.Register(OpRevising, handleRevising)
@@ -548,6 +549,51 @@ func handleRemoveBlock(hc ccd.HandlerCtx) ccd.Reply {
 		return errReply(err.Error())
 	}
 	return okReply(result{Rev: seq})
+}
+
+// handleMoveBlock moves one top-level block after another, or to the top, by
+// replacing the document with the same blocks in the new order. Every block is
+// retained, so no card is withdrawn and each Slack card stays where it was sent.
+func handleMoveBlock(hc ccd.HandlerCtx) ccd.Reply {
+	b := decodeBody(hc.Env.Body)
+	if b.ID == "" {
+		return errReply("move-block requires an id")
+	}
+	sub, err := resolveOpen(hc)
+	if err != nil {
+		return errReply(err.Error())
+	}
+	writeMu.Lock()
+	defer writeMu.Unlock()
+	board, err := caughtUp(hc.Ctx, hc.DB, sub.ID)
+	if err != nil {
+		return errReply(err.Error())
+	}
+	defer board.mu.Unlock()
+	d := *board.st.Doc
+	if d.Blocks, err = doc.MoveBlock(d.Blocks, b.ID, b.After); err != nil {
+		return errReply(err.Error())
+	}
+	raw, err := json.Marshal(&d)
+	if err != nil {
+		return errReply(err.Error())
+	}
+	rev, err := nextRevision(hc.Ctx, hc.DB, sub.ID)
+	if err != nil {
+		return errReply(err.Error())
+	}
+	retained := make([]string, len(d.Blocks))
+	for i, top := range d.Blocks {
+		retained[i] = top.BlockID()
+	}
+	seq, err := appendEvent(hc.Ctx, hc.Append, &ccevent.Event{
+		SubjectID: sub.ID, Origin: ccevent.OriginAgent, Type: EventDocReplaced,
+		Payload: docReplacedPayload(raw, rev, retained, b.Writer),
+	})
+	if err != nil {
+		return errReply(err.Error())
+	}
+	return okReply(result{Revision: rev, Rev: seq})
 }
 
 // handleReply appends an agent reply to a block's thread, anchored under the

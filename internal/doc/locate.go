@@ -1,6 +1,9 @@
 package doc
 
-import "slices"
+import (
+	"fmt"
+	"slices"
+)
 
 // LocationKind classifies where a block sits in a document: at the top level, as
 // a card's child, as a choice option's visual, or as a triage item's visual.
@@ -130,6 +133,28 @@ func UpsertBlocks(blocks []Block, blk Block, after string) []Block {
 		}
 	}
 	return append(cloneBlocks(blocks), blk)
+}
+
+// MoveBlock returns blocks with the top-level block id moved right after the
+// top-level block after, or to the top when after is empty, never mutating the
+// input. Every block keeps its content, so only the board's order changes.
+func MoveBlock(blocks []Block, id, after string) ([]Block, error) {
+	from := slices.IndexFunc(blocks, func(b Block) bool { return b.BlockID() == id })
+	if from < 0 {
+		return nil, fmt.Errorf("no top-level block %q to move", id)
+	}
+	if after == id {
+		return nil, fmt.Errorf("block %q cannot move after itself", id)
+	}
+	out := slices.Delete(cloneBlocks(blocks), from, from+1)
+	to := 0
+	if after != "" {
+		to = slices.IndexFunc(out, func(b Block) bool { return b.BlockID() == after }) + 1
+		if to == 0 {
+			return nil, fmt.Errorf("--after names %q, not a top-level block", after)
+		}
+	}
+	return slices.Insert(out, to, blocks[from]), nil
 }
 
 // RemoveBlock returns blocks with id removed plus the top-level id whose
