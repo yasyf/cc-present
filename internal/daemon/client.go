@@ -150,6 +150,14 @@ func (cl *Client) RemoveBlock(ctx context.Context, session, scope string, pid in
 	return res.Rev, err
 }
 
+// MoveBlock moves the top-level block id right after the top-level block after,
+// or to the top when after is empty, as w, keeping every card and its Slack
+// message, and returns the board revision the move landed at.
+func (cl *Client) MoveBlock(ctx context.Context, session, scope string, pid int, w Writer, id, after string) (int64, error) {
+	_, res, err := cl.do(ctx, OpMoveBlock, session, scope, pid, body{Writer: w, ID: id, After: after})
+	return res.Rev, err
+}
+
 // Reply appends an agent reply to a block's thread, under the feedback entry re
 // names when re is set, returning the waits id of the Slack ask card the block's
 // card is synced with, if any.

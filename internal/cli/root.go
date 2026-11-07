@@ -45,6 +45,7 @@ func NewRootCmd() *cobra.Command {
 		newPushCmd(d),
 		newUpdateBlockCmd(d),
 		newRemoveBlockCmd(d),
+		newMoveBlockCmd(d),
 		newReplyCmd(d),
 		newVerdictCmd(d),
 		newAskCmd(d),

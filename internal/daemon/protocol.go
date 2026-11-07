@@ -17,6 +17,7 @@ const (
 	OpPush           ccd.Op = "push"
 	OpUpsertBlock    ccd.Op = "upsert-block"
 	OpRemoveBlock    ccd.Op = "remove-block"
+	OpMoveBlock      ccd.Op = "move-block"
 	OpReply          ccd.Op = "reply"
 	OpRound          ccd.Op = "round"
 	OpRevising       ccd.Op = "revising"
@@ -66,7 +67,7 @@ type body struct {
 	Title      string          `json:"title,omitempty"`      // start | round | push,upsert-block round-title
 	Doc        json.RawMessage `json:"doc,omitempty"`        // start | push
 	Block      json.RawMessage `json:"block,omitempty"`      // upsert-block
-	After      string          `json:"after,omitempty"`      // upsert-block
+	After      string          `json:"after,omitempty"`      // upsert-block | move-block
 	ID         string          `json:"id,omitempty"`         // remove-block | reply | block-show
 	Reason     string          `json:"reason,omitempty"`     // remove-block
 	ReplacedBy string          `json:"replacedBy,omitempty"` // remove-block

@@ -683,6 +683,40 @@ func newRemoveBlockCmd(d cmd.Deps) *cobra.Command {
 	return c
 }
 
+// newMoveBlockCmd moves a top-level block to the top, or after another one.
+func newMoveBlockCmd(d cmd.Deps) *cobra.Command {
+	var session, cwd, after string
+	var w ccdaemon.Writer
+	c := &cobra.Command{
+		Use:   "move-block <id>",
+		Short: "Move a top-level block to the top of the board, or after another, keeping its Slack card",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(c *cobra.Command, args []string) error {
+			ctx := c.Context()
+			if err := d.EnsureCurrent(ctx); err != nil {
+				return err
+			}
+			cl, err := client(ctx, d)
+			if err != nil {
+				return err
+			}
+			defer func() { _ = cl.CloseSession() }()
+			sess, pid := artifactWindow(d, session)
+			rev, err := cl.MoveBlock(ctx, sess, mustCwd(cwd), pid, w, args[0], after)
+			if err != nil {
+				return err
+			}
+			_, _ = fmt.Fprintf(c.OutOrStdout(), "rev: %d\n", rev)
+			return nil
+		},
+	}
+	c.Flags().StringVar(&after, "after", "", "the top-level block it moves right after; without it, it moves to the top")
+	c.Flags().StringVar(&session, "session", "", "Claude session id (defaults to $CLAUDE_CODE_SESSION_ID)")
+	c.Flags().StringVar(&cwd, "cwd", "", "working directory (recorded on the request; artifacts are per-window, not resolved by directory)")
+	writerFlags(c, &w)
+	return c
+}
+
 // newReplyCmd appends an agent reply to a block's thread, under the note --re
 // names when set.
 func newReplyCmd(d cmd.Deps) *cobra.Command {
