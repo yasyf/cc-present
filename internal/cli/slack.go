@@ -542,6 +542,9 @@ func postCard(ctx context.Context, session string, port int, q question, ts stri
 	if ts != "" {
 		args = append(args, "--thread", ts)
 	}
+	for _, url := range slackcards.TapPRs(card) {
+		args = append(args, "--tap-pr", url)
+	}
 	dir, err := os.MkdirTemp("", "cc-present-images-")
 	if err != nil {
 		return cardPost{}, err
