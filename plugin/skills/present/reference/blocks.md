@@ -369,6 +369,8 @@ Write only `repo` and `number`; the board reads everything else live from GitHub
 
 `change`, `plan`, `risk` and `blocker` are its plain lines: what it changes for a user, what differed from the plan, the risk and what blocks it. A card whose `pr` carries any of them draws it in Slack with its link, live CI, the lines it has as fields and its description from GitHub. The board shows `summary`, so repeat them there.
 
+`tap: true` on a card's `pr` makes its Slack message carry that PR's own Approve, which cc-slack draws from the PR's tap card, beside whatever the card asks. Set it when the card's question is not the PR's approval itself.
+
 A PR mentioned on a board is a `pr` block, never a bare number or link. It works at the top level or inside a card, so a card that decides a merge leads with its PR.
 
 ### `pr-groups` — pull requests grouped for a merge sign-off

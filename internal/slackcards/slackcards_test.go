@@ -266,6 +266,16 @@ func TestAPRCarryingItsLinesDrawsAsAPRNotALink(t *testing.T) {
 	}
 }
 
+func TestOnlyAPRAskingForItsTapIsPassedOnForItsApprove(t *testing.T) {
+	c := card(t, `{"id":"card-t1","type":"card","title":"May a run read another run's step log?","children":[`+
+		`{"id":"p1","type":"pr","repo":"acme/app","number":41,"change":"Chats load","tap":true},`+
+		`{"id":"p2","type":"pr","repo":"acme/app","number":42,"change":"Logs read"},`+
+		`{"id":"q","type":"choice","options":[{"id":"o1","label":"Leave it as is","recommended":true},{"id":"o2","label":"Build it as its own change"}]}]}`)
+	if got, want := slackcards.TapPRs(c), []string{"https://github.com/acme/app/pull/41"}; !slices.Equal(got, want) {
+		t.Errorf("tap prs = %q, want %q", got, want)
+	}
+}
+
 func TestALongAnswerIsCutForItsButtonAndStillNamesItsOption(t *testing.T) {
 	long := strings.Repeat("Refuse with rebuild ", 12)
 	c := card(t, askCard(`{"id":"o1","label":"`+long+`","hint":"keeps your line","recommended":true},{"id":"o2","label":"Hold","hint":"waits"}`))

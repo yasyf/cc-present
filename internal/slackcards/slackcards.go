@@ -313,6 +313,18 @@ func Nudge(b doc.Block) string {
 	return ""
 }
 
+// TapPRs is the URL of each pr child of c that asks its Slack message to carry
+// the PR's own Approve.
+func TapPRs(c *doc.Card) []string {
+	var urls []string
+	for _, child := range c.Children {
+		if pr, ok := child.(*doc.PR); ok && pr.Tap {
+			urls = append(urls, fmt.Sprintf("https://github.com/%s/pull/%d", pr.Repo, pr.Number))
+		}
+	}
+	return urls
+}
+
 // ToSlack is the cc-slack card for a card Check passed.
 func ToSlack(c *doc.Card, q doc.Block, posts Posts) StatusCard {
 	title := cmp.Or(c.Title, prompt(q))
