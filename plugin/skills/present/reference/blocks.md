@@ -367,7 +367,7 @@ Write only `repo` and `number`; the board reads everything else live from GitHub
 | `summary` | no | Markdown under the heading that says why this PR is on the board. |
 | `files` | no | Up to 50 globs or directory prefixes, such as `["internal/doc", "*.md"]`, that narrow the file list to the part worth reading. |
 
-`change`, `plan`, `risk` and `blocker` are its plain lines: what it changes for a user, what differed from the plan, the risk and what blocks it. A card whose `pr` carries any of them draws it in Slack with its link, live CI, the lines it has as fields and its description from GitHub. The board shows `summary`, so repeat them there.
+`change`, `plan`, `eli5` and `blocker` are its plain lines: what it changes for a user, what differed from the plan, a one- or two-line plain explainer of the change and what blocks it. A card whose `pr` carries any of them draws it in Slack with its link, live CI, the lines it has as fields and its description from GitHub. The board shows `summary`, so repeat them there.
 
 `tap: true` on a card's `pr` makes its Slack message carry that PR's own Approve, which cc-slack draws from the PR's tap card, beside whatever the card asks. Set it when the card's question is not the PR's approval itself.
 
