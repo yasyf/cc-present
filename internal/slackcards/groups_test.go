@@ -91,7 +91,7 @@ func TestGroupCardRowCarriesTheFiveFactsInSlackMarkup(t *testing.T) {
 	g.ID = "pg"
 	stale := map[string]state.Decision{"41": {Verdict: "rejected", Head: "0001111", At: decidedAt}}
 	got := slackcards.GroupCard(g, group, stale, true, 0)[0].Rows[0]
-	want := slackcards.CardPR{URL: "https://github.com/acme/app/pull/41", Title: "Fix the [login](https://x.test/l) <form>", Head: "abc1234def", Review: "**Green**.", Change: "Login works.", Plan: "Matches the plan.", Risk: "Low.", Blocks: "Nothing."}
+	want := slackcards.CardPR{URL: "https://github.com/acme/app/pull/41", Title: "Fix the [login](https://x.test/l) <form>", Head: "abc1234def", Review: "**Green**.", Change: "Login works.", Plan: "Matches the plan.", Blocks: "Nothing."}
 	if got.PR == nil || *got.PR != want {
 		t.Errorf("row PR = %+v, want %+v, so cc-slack draws its link and four lines", got.PR, want)
 	}

@@ -249,7 +249,7 @@ func TestALongBodyAndALongTitleReachSlackWhole(t *testing.T) {
 
 func TestAPRCarryingItsLinesDrawsAsAPRNotALink(t *testing.T) {
 	c := card(t, `{"id":"card-r1","type":"card","title":"Land the relay fix?","children":[`+
-		`{"id":"p","type":"pr","repo":"acme/app","number":41,"title":"Relay fix","head":"abc1234","change":"Chats load","plan":"Nothing differed","risk":"Low","blocker":"Your tap"},`+
+		`{"id":"p","type":"pr","repo":"acme/app","number":41,"title":"Relay fix","head":"abc1234","change":"Chats load","plan":"Nothing differed","eli5":"Chats come back on their own.","blocker":"Your tap"},`+
 		`{"id":"plain","type":"pr","repo":"acme/app","number":42},`+
 		`{"id":"q","type":"choice","options":[{"id":"o1","label":"Approve","recommended":true},{"id":"o2","label":"Hold"}]}]}`)
 	q, err := slackcards.Check(c)
@@ -257,7 +257,7 @@ func TestAPRCarryingItsLinesDrawsAsAPRNotALink(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := slackcards.ToSlack(c, q, nil)
-	want := []slackcards.CardPR{{URL: "https://github.com/acme/app/pull/41", Title: "Relay fix", Head: "abc1234", Change: "Chats load", Plan: "Nothing differed", Risk: "Low", Blocks: "Your tap"}}
+	want := []slackcards.CardPR{{URL: "https://github.com/acme/app/pull/41", Title: "Relay fix", Head: "abc1234", Change: "Chats load", Plan: "Nothing differed", ELI5: "Chats come back on their own.", Blocks: "Your tap"}}
 	if !slices.Equal(got.PRs, want) {
 		t.Errorf("prs = %+v, want %+v", got.PRs, want)
 	}

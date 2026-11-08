@@ -149,7 +149,7 @@ type CardPR struct {
 	Review string `json:"review,omitempty"`
 	Change string `json:"change"`
 	Plan   string `json:"plan"`
-	Risk   string `json:"risk"`
+	ELI5   string `json:"eli5"`
 	Blocks string `json:"blocks"`
 }
 
@@ -362,8 +362,8 @@ func ToSlack(c *doc.Card, q doc.Block, posts Posts) StatusCard {
 			}
 		case *doc.PR:
 			url := fmt.Sprintf("https://github.com/%s/pull/%d", b.Repo, b.Number)
-			if b.Change != "" || b.Plan != "" || b.Risk != "" || b.Blocker != "" {
-				sc.PRs = append(sc.PRs, CardPR{URL: url, Title: b.Title, Head: b.Head, Change: b.Change, Plan: b.Plan, Risk: b.Risk, Blocks: b.Blocker})
+			if b.Change != "" || b.Plan != "" || b.ELI5 != "" || b.Blocker != "" {
+				sc.PRs = append(sc.PRs, CardPR{URL: url, Title: b.Title, Head: b.Head, Change: b.Change, Plan: b.Plan, ELI5: b.ELI5, Blocks: b.Blocker})
 				continue
 			}
 			sc.Refs = append(sc.Refs, Ref{URL: url})
@@ -664,7 +664,7 @@ func GroupCard(g *doc.PRGroups, group doc.PRGroup, verdicts map[string]state.Dec
 				Buttons: []string{approveLabel, holdLabel},
 				PR: &CardPR{
 					URL: fmt.Sprintf("https://github.com/%s/pull/%d", g.Repo, r.Number), Title: r.Title, Head: r.Head, Review: r.Review,
-					Change: r.Change, Plan: r.Plan, Risk: r.Risk, Blocks: r.Blocker,
+					Change: r.Change, Plan: r.Plan, Blocks: r.Blocker,
 				},
 			})
 		}

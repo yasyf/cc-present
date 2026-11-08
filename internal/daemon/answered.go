@@ -113,7 +113,7 @@ func unworded(b doc.Block) doc.Block {
 		return &m
 	case *doc.PR:
 		p := *b
-		p.Title, p.Change, p.Plan, p.Risk, p.Blocker = "", "", "", "", ""
+		p.Title, p.Change, p.Plan, p.ELI5, p.Risk, p.Blocker = "", "", "", "", "", ""
 		return &p
 	case *doc.Image:
 		i := *b

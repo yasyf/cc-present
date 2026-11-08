@@ -519,9 +519,11 @@ type Record struct {
 // owner/name, Title overrides the PR's own title, Summary is markdown under the
 // heading, Files narrows the changed-file list to matching paths, and Head is
 // the commit a question about the PR was asked at, which the board flags once
-// the PR's live head moves past it. Change, Plan, Risk and Blocker are the plain
+// the PR's live head moves past it. Change, Plan, ELI5 and Blocker are the plain
 // lines a Slack card shows as fields; a card whose PR carries them draws the PR
-// there with its live state, and its description behind Explain more. Tap asks
+// there with its live state, and its description behind Explain more. Risk is
+// the line ELI5 replaced: a Slack card no longer shows it, and it stays only so
+// boards that recorded it still replay. Tap asks
 // the card's Slack message to carry the PR's own Approve, the tap card cc-slack
 // draws for it.
 type PR struct {
@@ -534,6 +536,7 @@ type PR struct {
 	Head    string   `json:"head,omitempty"`
 	Change  string   `json:"change,omitempty"`
 	Plan    string   `json:"plan,omitempty"`
+	ELI5    string   `json:"eli5,omitempty"`
 	Risk    string   `json:"risk,omitempty"`
 	Blocker string   `json:"blocker,omitempty"`
 	Tap     bool     `json:"tap,omitempty"`
