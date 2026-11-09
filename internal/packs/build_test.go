@@ -337,6 +337,30 @@ func TestFailedBuildKeepsPreviousBundle(t *testing.T) {
 	}
 }
 
+func TestARebuildKeepsThePreviousBundleInPlaceUntilTheNewOneSwapsIn(t *testing.T) {
+	requireBun(t)
+	t.Setenv("CLAUDE_CONFIG_DIR", t.TempDir())
+	files := sourcePackFiles(`"d=$(dirname $(readlink node_modules)); grep -q previous $d/dist/pack.js && mkdir -p dist && echo fresh > dist/pack.js"`)
+	files["dist/pack.js"] = "previous bundle"
+	dir := writeTree(t, files)
+	if err := writeBuildRecord(dir, "previous-digest"); err != nil {
+		t.Fatal(err)
+	}
+	setModTimes(t, dir, buildEpoch, "dist/pack.js")
+
+	if _, err := Lint(t.Context(), dir); err != nil {
+		t.Fatalf("Lint() err = %v, want the build to find the previous bundle in place", err)
+	}
+	//nolint:gosec // G304: reading the bundle under t.TempDir().
+	got, err := os.ReadFile(filepath.Join(dir, "dist", "pack.js"))
+	if err != nil || string(got) != "fresh\n" {
+		t.Fatalf("dist/pack.js = %q, %v, want the fresh bundle", got, err)
+	}
+	if staged, _ := filepath.Glob(filepath.Join(filepath.Dir(dir), ".*.cc-present-build-*")); len(staged) != 0 {
+		t.Fatalf("staging dirs left behind: %v", staged)
+	}
+}
+
 func TestLoaderPicksUpANewDevDir(t *testing.T) {
 	dir := t.TempDir()
 	if _, err := Scaffold(dir, "late", examples.ExamplePack, examples.ExamplePackRoot); err != nil {
