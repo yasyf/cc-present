@@ -319,11 +319,14 @@ Without `package.json`, the entry must already exist. `entry` remains required
 and must live under `dist/`.
 
 Builds run `bun install --frozen-lockfile` when `bun.lock` or `bun.lockb` exists,
-plain `bun install` otherwise, then `bun run build`, in the pack root. Output
-stays in that pack's `dist/`, including for installed plugin packs. `bun`
-resolves from PATH, then the mise shim directories. Builds serialize per pack
-across processes, time out after 5 minutes, and restore the previous `dist/`
-if installation or the build fails or the build omits the entry.
+plain `bun install` otherwise, in the pack root, then `bun run build` in a copy
+of the pack beside it, without its `dist/` or manifest, whose `node_modules`
+links to the pack's. The copy's `dist/` then swaps with the pack's in one
+rename, so `dist/` holds the previous bundle until the new one is complete,
+including for installed plugin packs. `bun` resolves from PATH, then the mise
+shim directories. Builds serialize per pack across processes and time out after
+5 minutes; when installation or the build fails or the build omits the entry,
+the previous `dist/` stays as it was.
 
 The daemon builds in the background, dropping the pack as `building` until a
 re-scan picks up the result. It retries a failed build only after the source

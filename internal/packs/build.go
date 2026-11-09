@@ -263,42 +263,49 @@ func rebuild(ctx context.Context, dir, entry, bun string) (string, error) {
 	if !st.stale {
 		return st.recorded, nil
 	}
-	snap, err := snapshotDist(dir)
+	staged, err := stageSources(dir)
 	if err != nil {
 		return "", err
 	}
-	defer snap.discard()
+	defer func() { _ = os.RemoveAll(staged) }()
 	started := time.Now()
-	if err := runBuild(ctx, dir, bun); err != nil {
-		return "", errors.Join(fmt.Errorf("build failed: %w", err), snap.restore())
+	if err := runBuild(ctx, dir, staged, bun); err != nil {
+		return "", fmt.Errorf("build failed: %w", err)
 	}
-	entryPath := filepath.Join(dir, entry)
+	entryPath := filepath.Join(staged, entry)
 	if !fileExists(entryPath) {
-		return "", errors.Join(fmt.Errorf("build did not produce entry %q", entry), snap.restore())
+		return "", fmt.Errorf("build did not produce entry %q", entry)
 	}
 	// A source edited mid-build must read as newer than the bundle it missed.
 	if err := os.Chtimes(entryPath, started, started); err != nil {
 		return "", fmt.Errorf("backdate entry: %w", err)
 	}
-	if err := writeBuildRecord(dir, st.digest); err != nil {
+	if err := writeBuildRecord(staged, st.digest); err != nil {
 		return "", err
+	}
+	if err := swapDist(filepath.Join(staged, "dist"), filepath.Join(dir, "dist")); err != nil {
+		return "", fmt.Errorf("swap dist: %w", err)
 	}
 	return st.digest, nil
 }
 
-func runBuild(ctx context.Context, dir, bun string) error {
+func runBuild(ctx context.Context, dir, staged, bun string) error {
 	ctx, cancel := context.WithTimeout(ctx, buildTimeout)
 	defer cancel()
 	var log bytes.Buffer
-	for _, args := range [][]string{installArgs(dir), {"run", "build"}} {
+	path := strings.Join([]string{filepath.Join(dir, "node_modules", ".bin"), filepath.Dir(bun), os.Getenv("PATH")}, string(os.PathListSeparator))
+	for _, step := range []struct {
+		dir  string
+		args []string
+	}{{dir, installArgs(dir)}, {staged, []string{"run", "build"}}} {
 		//nolint:gosec // G204: bun is the resolved toolchain and args are fixed install/build verbs.
-		cmd := exec.CommandContext(ctx, bun, args...)
-		cmd.Dir = dir
-		cmd.Env = append(os.Environ(), "PATH="+filepath.Dir(bun)+string(os.PathListSeparator)+os.Getenv("PATH"))
+		cmd := exec.CommandContext(ctx, bun, step.args...)
+		cmd.Dir = step.dir
+		cmd.Env = append(os.Environ(), "PATH="+path)
 		cmd.Stdout = &log
 		cmd.Stderr = &log
 		if err := cmd.Run(); err != nil {
-			return fmt.Errorf("bun %s: %w\n%s", strings.Join(args, " "), err, logTail(log.String(), buildLogLines))
+			return fmt.Errorf("bun %s: %w\n%s", strings.Join(step.args, " "), err, logTail(log.String(), buildLogLines))
 		}
 	}
 	return nil
@@ -357,41 +364,57 @@ func lockBuild(dir string) (func(), error) {
 	return func() { _ = f.Close() }, nil
 }
 
-type distSnapshot struct {
-	dist  string
-	saved string
+func stageSources(dir string) (string, error) {
+	abs, err := filepath.Abs(dir)
+	if err != nil {
+		return "", fmt.Errorf("stage sources: %w", err)
+	}
+	staged, err := os.MkdirTemp(filepath.Dir(abs), "."+filepath.Base(abs)+".cc-present-build-")
+	if err != nil {
+		return "", fmt.Errorf("stage sources: %w", err)
+	}
+	err = filepath.WalkDir(abs, func(p string, e fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		rel, err := filepath.Rel(abs, p)
+		if err != nil || rel == "." {
+			return err
+		}
+		switch rel {
+		case "dist", "node_modules", ManifestName:
+			if e.IsDir() {
+				return fs.SkipDir
+			}
+			return nil
+		}
+		info, err := e.Info()
+		if err != nil {
+			return err
+		}
+		if e.IsDir() {
+			return os.Mkdir(filepath.Join(staged, rel), info.Mode().Perm())
+		}
+		//nolint:gosec // G304: copying the pack's own files into its staging dir.
+		data, err := os.ReadFile(p)
+		if err != nil {
+			return err
+		}
+		//nolint:gosec // G703: rel comes from walking the pack root, so it stays inside the staging dir.
+		return os.WriteFile(filepath.Join(staged, rel), data, info.Mode().Perm())
+	})
+	if err == nil {
+		err = os.Symlink(filepath.Join(abs, "node_modules"), filepath.Join(staged, "node_modules"))
+	}
+	if err != nil {
+		return "", errors.Join(fmt.Errorf("stage sources: %w", err), os.RemoveAll(staged))
+	}
+	return staged, nil
 }
 
-func snapshotDist(dir string) (*distSnapshot, error) {
-	saved, err := os.MkdirTemp(dir, ".cc-present-dist-")
-	if err != nil {
-		return nil, fmt.Errorf("snapshot dist: %w", err)
+func swapDist(built, dist string) error {
+	if _, err := os.Lstat(dist); errors.Is(err, fs.ErrNotExist) {
+		return os.Rename(built, dist)
 	}
-	s := &distSnapshot{dist: filepath.Join(dir, "dist"), saved: filepath.Join(saved, "dist")}
-	err = os.Rename(s.dist, s.saved)
-	if errors.Is(err, fs.ErrNotExist) {
-		return s, nil
-	}
-	if err != nil {
-		return nil, errors.Join(fmt.Errorf("snapshot dist: %w", err), os.RemoveAll(saved))
-	}
-	return s, nil
-}
-
-func (s *distSnapshot) restore() error {
-	if err := os.RemoveAll(s.dist); err != nil {
-		return fmt.Errorf("restore dist: %w", err)
-	}
-	err := os.Rename(s.saved, s.dist)
-	if errors.Is(err, fs.ErrNotExist) {
-		return nil
-	}
-	if err != nil {
-		return fmt.Errorf("restore dist: %w", err)
-	}
-	return nil
-}
-
-func (s *distSnapshot) discard() {
-	_ = os.RemoveAll(filepath.Dir(s.saved))
+	return exchange(built, dist)
 }
