@@ -23,7 +23,7 @@ func ageEvents(t *testing.T, h *harness, subjectID string) {
 func touchedBoard(t *testing.T) (*harness, string) {
 	t.Helper()
 	h := newHarness(t)
-	start := handleStart(h.hc(body{Doc: json.RawMessage(answeredCardDoc)}), doc.NoPacks, nilDisplay)
+	start := handleStart(h.hc(body{Doc: json.RawMessage(answeredCardDoc)}), doc.NoPacks, nilDisplay, noChannel)
 	if !start.OK {
 		t.Fatalf("start not ok: %s", start.Error)
 	}
@@ -114,7 +114,7 @@ func TestABlockTheHumanTouchedStaysUntilTheHoldPassesOrTheRoundIsSubmitted(t *te
 
 	t.Run("a pick on a pull-request row holds the block from removal, not from a redraw", func(t *testing.T) {
 		h := newHarness(t)
-		start := handleStart(h.hc(body{Doc: json.RawMessage(prGroupsDoc)}), doc.NoPacks, nilDisplay)
+		start := handleStart(h.hc(body{Doc: json.RawMessage(prGroupsDoc)}), doc.NoPacks, nilDisplay, noChannel)
 		if !start.OK {
 			t.Fatalf("start not ok: %s", start.Error)
 		}

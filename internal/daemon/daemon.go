@@ -37,11 +37,8 @@ const (
 	displayPackPrefix = "display."
 
 	// channelConsumer is the stream-consumer name the channel server registers
-	// under; channelState keys presence to it.
+	// under; ChannelState keys presence to it.
 	channelConsumer = "channel"
-	// channelPollWindow is how recent a channel resolve poll must be to count as
-	// presence; it only distinguishes pending from inactive.
-	channelPollWindow = 2 * ccd.ResolvePollCeiling
 )
 
 // scopeSentinel is the constant ownership scope every envelope's raw scope
@@ -111,7 +108,9 @@ func BuildServer(ctx context.Context, p paths.Paths, spec daemonkit.Daemon, runt
 	display := displayFunc(func(ctx context.Context, slug string, port int) []string {
 		return tn.URLs(ctx, port, "/p/"+slug)
 	})
-	s.Register(OpStart, func(hc ccd.HandlerCtx) ccd.Reply { return handleStart(hc, loader.Settled(hc.Ctx), display) })
+	s.Register(OpStart, func(hc ccd.HandlerCtx) ccd.Reply {
+		return handleStart(hc, loader.Settled(hc.Ctx), display, s.ChannelState)
+	})
 	s.Register(OpPush, func(hc ccd.HandlerCtx) ccd.Reply { return handlePush(hc, loader.Settled(hc.Ctx), display) })
 	s.Register(OpUpsertBlock, func(hc ccd.HandlerCtx) ccd.Reply { return handleUpsertBlock(hc, loader.Settled(hc.Ctx)) })
 	s.Register(OpRemoveBlock, handleRemoveBlock)
@@ -155,7 +154,7 @@ func Serve(ctx context.Context, p paths.Paths, spec daemonkit.Daemon, runtimeBui
 // prior close is terminal, so a resume that would land on a closed subject is
 // forced fresh instead. A new start refuses while the session's own artifact is
 // open; only a replace closes it.
-func handleStart(hc ccd.HandlerCtx, pt doc.PackTypes, display displayFunc) ccd.Reply {
+func handleStart(hc ccd.HandlerCtx, pt doc.PackTypes, display displayFunc, channel func(ccd.HandlerCtx, string, string) ccd.ChannelState) ccd.Reply {
 	b := decodeBody(hc.Env.Body)
 	var d *doc.Doc
 	if len(b.Doc) > 0 {
@@ -217,8 +216,7 @@ func handleStart(hc ccd.HandlerCtx, pt doc.PackTypes, display displayFunc) ccd.R
 			return errReply(err.Error())
 		}
 	}
-	cs := channelState(hc.Activity, sub.ID, hc.Scope, hc.Window.ClaudePID)
-	res := result{URL: artifactURL(hc.HTTPPort, sub.Slug), TailnetURLs: display(hc.Ctx, sub.Slug, hc.HTTPPort), Slug: sub.Slug, ChannelState: cs, Warnings: warnings, Rev: seq}
+	res := result{URL: artifactURL(hc.HTTPPort, sub.Slug), TailnetURLs: display(hc.Ctx, sub.Slug, hc.HTTPPort), Slug: sub.Slug, ChannelState: string(channel(hc, sub.ID, channelConsumer)), Warnings: warnings, Rev: seq}
 	raw, _ := json.Marshal(res)
 	return ccd.Reply{OK: true, SubjectID: sub.ID, HTTPPort: hc.HTTPPort, Body: raw}
 }
@@ -900,21 +898,6 @@ func resolveOpen(hc ccd.HandlerCtx) (subject.Subject, error) {
 		return subject.Subject{}, fmt.Errorf("artifact %s is closed", sub.Slug)
 	}
 	return sub, nil
-}
-
-// channelState classifies this window's channel route: active once the model has
-// proven a delivered channel tag while a channel consumer is attached, pending
-// while attached or recently polling but unproven, inactive otherwise. The pid
-// key keeps one window's presence from lighting up another's start.
-func channelState(act *ccd.Activity, subjectID, scope string, pid int) string {
-	attached := act.Attached(subjectID, channelConsumer, pid)
-	if attached && act.Proven(pid) {
-		return "active"
-	}
-	if attached || act.PolledSince(scope, channelConsumer, pid, channelPollWindow) {
-		return "pending"
-	}
-	return "inactive"
 }
 
 // validateBlock validates a single block by folding it into a minimal document,

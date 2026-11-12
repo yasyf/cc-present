@@ -61,7 +61,7 @@ func deltaSeqs(d Delta) []int64 {
 
 func startApproval(t *testing.T, h *harness) string {
 	t.Helper()
-	start := handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks, nilDisplay)
+	start := handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks, nilDisplay, noChannel)
 	if !start.OK {
 		t.Fatalf("start not ok: %s", start.Error)
 	}

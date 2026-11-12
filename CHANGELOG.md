@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- A `claude --bg` session is its own window: cc-interact 0.42.1 matches a process titled `claude bg-spare`, so a board started in one `--bg` session no longer resolves to the `claude daemon run` process every `--bg` session shares. `start` reports its channel state through cc-interact's `Server.ChannelState`, as cc-review and cc-slack do, in place of cc-present's own copy, which read the channel proof from `Activity` that cc-interact 0.41.1 moved to disk. An attached channel not yet proven gets the delivery probe the skill already answers with `channel-ack`.
 - A card's written words lose their HTML comments at `push`, `update-block`, `start` and `ask`, so no surface shows one.
 - A Slack card draws each pick's effect: its hint, md, facts, or its detail when it has neither hint nor md. An option's md was written and dropped.
 - A pick's label reaches Slack whole up to 200 characters, in place of a cut at 61.

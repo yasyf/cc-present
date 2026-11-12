@@ -39,7 +39,7 @@ func answer(t *testing.T, h *harness, subjectID, blockID string) {
 func answeredBoard(t *testing.T) (*harness, string) {
 	t.Helper()
 	h := newHarness(t)
-	start := handleStart(h.hc(body{Doc: json.RawMessage(answeredCardDoc)}), doc.NoPacks, nilDisplay)
+	start := handleStart(h.hc(body{Doc: json.RawMessage(answeredCardDoc)}), doc.NoPacks, nilDisplay, noChannel)
 	if !start.OK {
 		t.Fatalf("start not ok: %s", start.Error)
 	}
@@ -243,7 +243,7 @@ func TestAnAnsweredCardTakesNewWordsAndNothingElse(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			h := newHarness(t)
-			start := handleStart(h.hc(body{Doc: json.RawMessage(`{"version":1,"title":"Board","blocks":[` + asked + `]}`)}), doc.NoPacks, nilDisplay)
+			start := handleStart(h.hc(body{Doc: json.RawMessage(`{"version":1,"title":"Board","blocks":[` + asked + `]}`)}), doc.NoPacks, nilDisplay, noChannel)
 			if !start.OK {
 				t.Fatalf("start not ok: %s", start.Error)
 			}

@@ -32,7 +32,7 @@ func blockShow(t *testing.T, h *harness, id string) BlockShow {
 
 func TestBlockShowReadsARemovedChildFromTheLog(t *testing.T) {
 	h := newHarness(t)
-	start := handleStart(h.hc(body{Doc: json.RawMessage(routeDoc)}), doc.NoPacks, nilDisplay)
+	start := handleStart(h.hc(body{Doc: json.RawMessage(routeDoc)}), doc.NoPacks, nilDisplay, noChannel)
 	if !start.OK {
 		t.Fatalf("start not ok: %s", start.Error)
 	}
@@ -78,7 +78,7 @@ func TestBlockShowReadsARemovedChildFromTheLog(t *testing.T) {
 
 func TestARemovedAnsweredCardKeepsItsAnswers(t *testing.T) {
 	h := newHarness(t)
-	start := handleStart(h.hc(body{Doc: json.RawMessage(routeDoc)}), doc.NoPacks, nilDisplay)
+	start := handleStart(h.hc(body{Doc: json.RawMessage(routeDoc)}), doc.NoPacks, nilDisplay, noChannel)
 	if !start.OK {
 		t.Fatalf("start not ok: %s", start.Error)
 	}

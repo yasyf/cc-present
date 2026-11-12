@@ -28,7 +28,7 @@ func readRev(t *testing.T, h *harness) int64 {
 
 func startAs(t *testing.T, h *harness, lane, docJSON string) string {
 	t.Helper()
-	start := handleStart(h.hc(body{Writer: Writer{Lane: lane}, Doc: json.RawMessage(docJSON)}), doc.NoPacks, nilDisplay)
+	start := handleStart(h.hc(body{Writer: Writer{Lane: lane}, Doc: json.RawMessage(docJSON)}), doc.NoPacks, nilDisplay, noChannel)
 	if !start.OK {
 		t.Fatalf("start: %s", start.Error)
 	}
@@ -339,7 +339,7 @@ func TestAReplaceRefusedByAnOwnerLeavesTheBoardOpenAndATakeOverReplacesIt(t *tes
 	h := newHarness(t)
 	sub := startAs(t, h, "card-mirror-2", cardDoc)
 	replace := func(w Writer) ccd.Reply {
-		return handleStart(h.hc(body{Writer: w, Replace: true, Doc: json.RawMessage(`{"version":1,"title":"New","blocks":[]}`)}), doc.NoPacks, nilDisplay)
+		return handleStart(h.hc(body{Writer: w, Replace: true, Doc: json.RawMessage(`{"version":1,"title":"New","blocks":[]}`)}), doc.NoPacks, nilDisplay, noChannel)
 	}
 	if r := replace(Writer{Lane: "board-refresher-6", Rev: 100000}); r.OK {
 		t.Fatalf("a replace from a rev past the board = ok, want a refusal")
