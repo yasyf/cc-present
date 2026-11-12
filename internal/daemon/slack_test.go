@@ -515,7 +515,7 @@ func TestSlackDecidedRecordsTheBoardsOwnVerdict(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			h := newHarness(t)
-			start := handleStart(h.hc(body{Doc: json.RawMessage(prGroupsDoc)}), doc.NoPacks, nilDisplay)
+			start := handleStart(h.hc(body{Doc: json.RawMessage(prGroupsDoc)}), doc.NoPacks, nilDisplay, noChannel)
 			if !start.OK {
 				t.Fatal(start.Error)
 			}
@@ -557,7 +557,7 @@ func TestASlackRowTapOnATriageCardRecordsThatItemAlone(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			h := newHarness(t)
-			start := handleStart(h.hc(body{Doc: json.RawMessage(triageCardDoc)}), doc.NoPacks, nilDisplay)
+			start := handleStart(h.hc(body{Doc: json.RawMessage(triageCardDoc)}), doc.NoPacks, nilDisplay, noChannel)
 			if !start.OK {
 				t.Fatal(start.Error)
 			}
@@ -628,7 +628,7 @@ func TestABoundPRGroupsBlockKeepsItsThreadUntilAPushUnbindsIt(t *testing.T) {
 		t.Fatal(err)
 	}
 	h := newHarness(t)
-	start := handleStart(h.hc(body{Doc: json.RawMessage(withSlack(`"slack":"` + thread + `",`))}), doc.NoPacks, nilDisplay)
+	start := handleStart(h.hc(body{Doc: json.RawMessage(withSlack(`"slack":"` + thread + `",`))}), doc.NoPacks, nilDisplay, noChannel)
 	if !start.OK {
 		t.Fatal(start.Error)
 	}
@@ -661,7 +661,7 @@ func TestABoundPRGroupsBlockKeepsItsThreadUntilAPushUnbindsIt(t *testing.T) {
 func TestABoardCannotBindASlackThreadAnotherOpenBoardDrives(t *testing.T) {
 	bound := json.RawMessage(strings.Replace(prGroupsDoc, `"repo":"a/b",`, `"repo":"a/b","slack":"1792842193.708029",`, 1))
 	h := newHarness(t)
-	if r := handleStart(h.hc(body{Doc: bound}), doc.NoPacks, nilDisplay); !r.OK {
+	if r := handleStart(h.hc(body{Doc: bound}), doc.NoPacks, nilDisplay, noChannel); !r.OK {
 		t.Fatal(r.Error)
 	}
 	other := func(b body) ccd.HandlerCtx {
@@ -670,7 +670,7 @@ func TestABoardCannotBindASlackThreadAnotherOpenBoardDrives(t *testing.T) {
 		hc.Window = subject.Window{Session: "s2", ClaudePID: 200}
 		return hc
 	}
-	if r := handleStart(other(body{Doc: bound}), doc.NoPacks, nilDisplay); r.OK || !strings.Contains(r.Error, "belongs to the open board") {
+	if r := handleStart(other(body{Doc: bound}), doc.NoPacks, nilDisplay, noChannel); r.OK || !strings.Contains(r.Error, "belongs to the open board") {
 		t.Fatalf("seeding a second board with the bound thread = %+v, want refused", r)
 	}
 	if r := handlePush(other(body{Doc: bound}), doc.NoPacks, nilDisplay); r.OK || !strings.Contains(r.Error, "belongs to the open board") {
@@ -745,7 +745,7 @@ func TestASlackThreadIsFreeOnceItsBoardUnbindsIt(t *testing.T) {
 	bound := json.RawMessage(strings.Replace(prGroupsDoc, `"repo":"a/b",`, `"repo":"a/b","slack":"1792842193.708029",`, 1))
 	unbound := json.RawMessage(strings.Replace(prGroupsDoc, `"repo":"a/b",`, `"repo":"a/b","slack":"",`, 1))
 	h := newHarness(t)
-	if r := handleStart(h.hc(body{Doc: bound}), doc.NoPacks, nilDisplay); !r.OK {
+	if r := handleStart(h.hc(body{Doc: bound}), doc.NoPacks, nilDisplay, noChannel); !r.OK {
 		t.Fatal(r.Error)
 	}
 	if r := handlePush(h.hc(body{Doc: unbound}), doc.NoPacks, nilDisplay); !r.OK {
@@ -754,7 +754,7 @@ func TestASlackThreadIsFreeOnceItsBoardUnbindsIt(t *testing.T) {
 	other := h.hc(body{Doc: bound})
 	other.Env.Session, other.Env.ClaudePID = "s2", 200
 	other.Window = subject.Window{Session: "s2", ClaudePID: 200}
-	if r := handleStart(other, doc.NoPacks, nilDisplay); !r.OK {
+	if r := handleStart(other, doc.NoPacks, nilDisplay, noChannel); !r.OK {
 		t.Fatalf("binding a thread its first board unbound: %s", r.Error)
 	}
 }

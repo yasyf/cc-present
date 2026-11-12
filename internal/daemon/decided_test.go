@@ -11,7 +11,7 @@ import (
 func decidedBoard(t *testing.T, verdict string) *harness {
 	t.Helper()
 	h := newHarness(t)
-	if reply := handleStart(h.hc(body{Doc: json.RawMessage(prGroupsDoc)}), doc.NoPacks, nilDisplay); !reply.OK {
+	if reply := handleStart(h.hc(body{Doc: json.RawMessage(prGroupsDoc)}), doc.NoPacks, nilDisplay, noChannel); !reply.OK {
 		t.Fatalf("start: %s", reply.Error)
 	}
 	tap := json.RawMessage(`[{"block":"pg","row":"8","verdict":"` + verdict + `","at":"2026-10-31T09:30:00Z"}]`)

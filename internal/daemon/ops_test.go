@@ -104,6 +104,8 @@ const storedLegacyDoc = `{"version":1,"title":"Legacy","legacy":true,"blocks":[{
 // start or push then carries no tailnet URLs.
 func nilDisplay(context.Context, string, int) []string { return nil }
 
+func noChannel(ccd.HandlerCtx, string, string) ccd.ChannelState { return ccd.ChannelInactive }
+
 // fakeDisplay stands in for the mesh-trust display closure, echoing its slug so
 // a test can assert the URLs reached the reply.
 func fakeDisplay(_ context.Context, slug string, _ int) []string {
@@ -130,9 +132,9 @@ func childOf(h *harness, b body, session string) ccd.HandlerCtx {
 }
 
 func TestStart(t *testing.T) {
-	t.Run("fresh start reports url and inactive channel", func(t *testing.T) {
+	t.Run("fresh start reports its url", func(t *testing.T) {
 		h := newHarness(t)
-		reply := handleStart(h.hc(body{Title: "My Board"}), doc.NoPacks, nilDisplay)
+		reply := handleStart(h.hc(body{Title: "My Board"}), doc.NoPacks, nilDisplay, noChannel)
 		if !reply.OK {
 			t.Fatalf("start not ok: %s", reply.Error)
 		}
@@ -146,9 +148,6 @@ func TestStart(t *testing.T) {
 		if !strings.Contains(res.URL, "/p/my-board--") {
 			t.Fatalf("url = %q, want /p/my-board--<hash>", res.URL)
 		}
-		if res.ChannelState != "inactive" {
-			t.Fatalf("channel = %q, want inactive", res.ChannelState)
-		}
 		if got := h.eventsOfType(t, reply.SubjectID, EventDocReplaced); len(got) != 0 {
 			t.Fatalf("no-doc start appended %d doc.replaced, want 0", len(got))
 		}
@@ -156,7 +155,7 @@ func TestStart(t *testing.T) {
 
 	t.Run("start with a doc appends revision 1", func(t *testing.T) {
 		h := newHarness(t)
-		reply := handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks, nilDisplay)
+		reply := handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks, nilDisplay, noChannel)
 		if !reply.OK {
 			t.Fatalf("start not ok: %s", reply.Error)
 		}
@@ -171,10 +170,10 @@ func TestStart(t *testing.T) {
 
 	t.Run("fresh start under another session keeps the window's open artifact", func(t *testing.T) {
 		h := newHarness(t)
-		parent := handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks, nilDisplay)
+		parent := handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks, nilDisplay, noChannel)
 		child := h.hc(body{Title: "Child", New: true})
 		child.Env.Session, child.Window.Session = "s2", "s2"
-		reply := handleStart(child, doc.NoPacks, nilDisplay)
+		reply := handleStart(child, doc.NoPacks, nilDisplay, noChannel)
 		if !reply.OK {
 			t.Fatalf("child start not ok: %s", reply.Error)
 		}
@@ -192,8 +191,8 @@ func TestStart(t *testing.T) {
 
 	t.Run("new start refuses while the session's artifact is open", func(t *testing.T) {
 		h := newHarness(t)
-		open := handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks, nilDisplay)
-		reply := handleStart(h.hc(body{Title: "Again", New: true}), doc.NoPacks, nilDisplay)
+		open := handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks, nilDisplay, noChannel)
+		reply := handleStart(h.hc(body{Title: "Again", New: true}), doc.NoPacks, nilDisplay, noChannel)
 		if reply.OK {
 			t.Fatal("new start over an open artifact succeeded")
 		}
@@ -213,8 +212,8 @@ func TestStart(t *testing.T) {
 
 	t.Run("replace start closes the session's open artifact", func(t *testing.T) {
 		h := newHarness(t)
-		old := handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks, nilDisplay)
-		reply := handleStart(h.hc(body{Title: "Again", Replace: true}), doc.NoPacks, nilDisplay)
+		old := handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks, nilDisplay, noChannel)
+		reply := handleStart(h.hc(body{Title: "Again", Replace: true}), doc.NoPacks, nilDisplay, noChannel)
 		if !reply.OK {
 			t.Fatalf("replace start not ok: %s", reply.Error)
 		}
@@ -229,11 +228,11 @@ func TestStart(t *testing.T) {
 
 	t.Run("start after close creates a fresh subject", func(t *testing.T) {
 		h := newHarness(t)
-		first := handleStart(h.hc(body{Title: "One"}), doc.NoPacks, nilDisplay)
+		first := handleStart(h.hc(body{Title: "One"}), doc.NoPacks, nilDisplay, noChannel)
 		if reply := handleClose(h.hc(body{}), h.assets); !reply.OK {
 			t.Fatalf("close not ok: %s", reply.Error)
 		}
-		second := handleStart(h.hc(body{Title: "One"}), doc.NoPacks, nilDisplay)
+		second := handleStart(h.hc(body{Title: "One"}), doc.NoPacks, nilDisplay, noChannel)
 		if !second.OK {
 			t.Fatalf("second start not ok: %s", second.Error)
 		}
@@ -244,8 +243,8 @@ func TestStart(t *testing.T) {
 
 	t.Run("display page refuses to replace a board document", func(t *testing.T) {
 		h := newHarness(t)
-		board := handleStart(h.hc(body{Doc: json.RawMessage(twoApprovalDoc)}), displayPacks{}, nilDisplay)
-		reply := handleStart(h.hc(body{Doc: json.RawMessage(displayDoc)}), displayPacks{}, nilDisplay)
+		board := handleStart(h.hc(body{Doc: json.RawMessage(twoApprovalDoc)}), displayPacks{}, nilDisplay, noChannel)
+		reply := handleStart(h.hc(body{Doc: json.RawMessage(displayDoc)}), displayPacks{}, nilDisplay, noChannel)
 		if reply.OK {
 			t.Fatal("display page replaced the board document")
 		}
@@ -261,11 +260,11 @@ func TestStart(t *testing.T) {
 		if got := h.eventsOfType(t, board.SubjectID, EventDocReplaced); len(got) != 1 {
 			t.Fatalf("board has %d doc.replaced, want only its seed", len(got))
 		}
-		replaced := handleStart(h.hc(body{Doc: json.RawMessage(displayDoc), Replace: true}), displayPacks{}, nilDisplay)
+		replaced := handleStart(h.hc(body{Doc: json.RawMessage(displayDoc), Replace: true}), displayPacks{}, nilDisplay, noChannel)
 		if !replaced.OK || replaced.SubjectID == board.SubjectID {
 			t.Fatalf("replace show = %+v, want a fresh artifact", replaced)
 		}
-		again := handleStart(h.hc(body{Doc: json.RawMessage(displayDoc)}), displayPacks{}, nilDisplay)
+		again := handleStart(h.hc(body{Doc: json.RawMessage(displayDoc)}), displayPacks{}, nilDisplay, noChannel)
 		if !again.OK || again.SubjectID != replaced.SubjectID {
 			t.Fatalf("display over display = %+v, want a resume of %q", again, replaced.SubjectID)
 		}
@@ -273,8 +272,8 @@ func TestStart(t *testing.T) {
 
 	t.Run("start naming another session never rebinds the window's artifact", func(t *testing.T) {
 		h := newHarness(t)
-		parent := handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), displayPacks{}, nilDisplay)
-		reply := handleStart(childOf(h, body{Title: "Probe", Named: true}, "s2"), displayPacks{}, nilDisplay)
+		parent := handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), displayPacks{}, nilDisplay, noChannel)
+		reply := handleStart(childOf(h, body{Title: "Probe", Named: true}, "s2"), displayPacks{}, nilDisplay, noChannel)
 		if reply.OK {
 			t.Fatal("named start rebound the parent's artifact")
 		}
@@ -287,7 +286,7 @@ func TestStart(t *testing.T) {
 		if err != nil || !ok || owned.ID != parent.SubjectID {
 			t.Fatalf("s1 binds %q (ok=%v err=%v), want %q", owned.ID, ok, err, parent.SubjectID)
 		}
-		fresh := handleStart(childOf(h, body{Title: "Probe", Named: true, New: true}, "s2"), displayPacks{}, nilDisplay)
+		fresh := handleStart(childOf(h, body{Title: "Probe", Named: true, New: true}, "s2"), displayPacks{}, nilDisplay, noChannel)
 		if !fresh.OK || fresh.SubjectID == parent.SubjectID {
 			t.Fatalf("named --new = %+v, want a fresh artifact", fresh)
 		}
@@ -299,8 +298,8 @@ func TestStart(t *testing.T) {
 
 	t.Run("subagent show under its own session leaves the parent's board intact", func(t *testing.T) {
 		h := newHarness(t)
-		parent := handleStart(h.hc(body{Doc: json.RawMessage(twoApprovalDoc)}), displayPacks{}, nilDisplay)
-		reply := handleStart(childOf(h, body{Doc: json.RawMessage(displayDoc), Named: true}, "probe"), displayPacks{}, nilDisplay)
+		parent := handleStart(h.hc(body{Doc: json.RawMessage(twoApprovalDoc)}), displayPacks{}, nilDisplay, noChannel)
+		reply := handleStart(childOf(h, body{Doc: json.RawMessage(displayDoc), Named: true}, "probe"), displayPacks{}, nilDisplay, noChannel)
 		if reply.OK {
 			t.Fatal("subagent show took over the parent's board")
 		}
@@ -315,8 +314,8 @@ func TestStart(t *testing.T) {
 
 	t.Run("rotated session resumes the window's artifact", func(t *testing.T) {
 		h := newHarness(t)
-		parent := handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), displayPacks{}, nilDisplay)
-		reply := handleStart(childOf(h, body{Title: "Again"}, "s2"), displayPacks{}, nilDisplay)
+		parent := handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), displayPacks{}, nilDisplay, noChannel)
+		reply := handleStart(childOf(h, body{Title: "Again"}, "s2"), displayPacks{}, nilDisplay, noChannel)
 		if !reply.OK || reply.SubjectID != parent.SubjectID {
 			t.Fatalf("rotated start = %+v, want a resume of %q", reply, parent.SubjectID)
 		}
@@ -324,7 +323,7 @@ func TestStart(t *testing.T) {
 
 	t.Run("mesh trust surfaces tailnet urls in the reply", func(t *testing.T) {
 		h := newHarness(t)
-		reply := handleStart(h.hc(body{Title: "Mesh"}), doc.NoPacks, fakeDisplay)
+		reply := handleStart(h.hc(body{Title: "Mesh"}), doc.NoPacks, fakeDisplay, noChannel)
 		if !reply.OK {
 			t.Fatalf("start not ok: %s", reply.Error)
 		}
@@ -342,7 +341,7 @@ func TestStart(t *testing.T) {
 func TestPush(t *testing.T) {
 	t.Run("push increments revision", func(t *testing.T) {
 		h := newHarness(t)
-		start := handleStart(h.hc(body{Title: "T"}), doc.NoPacks, nilDisplay)
+		start := handleStart(h.hc(body{Title: "T"}), doc.NoPacks, nilDisplay, noChannel)
 		if rev := pushRev(t, h, approvalDoc); rev != 1 {
 			t.Fatalf("first push revision = %d, want 1", rev)
 		}
@@ -356,7 +355,7 @@ func TestPush(t *testing.T) {
 
 	t.Run("push surfaces the loopback and tailnet urls", func(t *testing.T) {
 		h := newHarness(t)
-		handleStart(h.hc(body{Title: "T"}), doc.NoPacks, nilDisplay)
+		handleStart(h.hc(body{Title: "T"}), doc.NoPacks, nilDisplay, noChannel)
 		reply := handlePush(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks, fakeDisplay)
 		if !reply.OK {
 			t.Fatalf("push not ok: %s", reply.Error)
@@ -385,7 +384,7 @@ func TestPush(t *testing.T) {
 
 	t.Run("push to a closed artifact is rejected", func(t *testing.T) {
 		h := newHarness(t)
-		handleStart(h.hc(body{Title: "T"}), doc.NoPacks, nilDisplay)
+		handleStart(h.hc(body{Title: "T"}), doc.NoPacks, nilDisplay, noChannel)
 		handleClose(h.hc(body{}), h.assets)
 		reply := handlePush(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks, nilDisplay)
 		if reply.OK || !strings.Contains(reply.Error, "closed") {
@@ -395,7 +394,7 @@ func TestPush(t *testing.T) {
 
 	t.Run("push rejects an invalid document", func(t *testing.T) {
 		h := newHarness(t)
-		handleStart(h.hc(body{Title: "T"}), doc.NoPacks, nilDisplay)
+		handleStart(h.hc(body{Title: "T"}), doc.NoPacks, nilDisplay, noChannel)
 		reply := handlePush(h.hc(body{Doc: json.RawMessage(`{"version":1,"title":"","blocks":[]}`)}), doc.NoPacks, nilDisplay)
 		if reply.OK || !strings.Contains(reply.Error, "title") {
 			t.Fatalf("push invalid doc: ok=%v err=%q", reply.OK, reply.Error)
@@ -416,7 +415,7 @@ func TestUpsertBlock(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			h := newHarness(t)
-			start := handleStart(h.hc(body{Title: "T"}), doc.NoPacks, nilDisplay)
+			start := handleStart(h.hc(body{Title: "T"}), doc.NoPacks, nilDisplay, noChannel)
 			reply := handleUpsertBlock(h.hc(body{Block: json.RawMessage(tt.block)}), doc.NoPacks)
 			if tt.wantErr == "" {
 				if !reply.OK {
@@ -437,7 +436,7 @@ func TestUpsertBlock(t *testing.T) {
 func TestUpsertBlockDocValidation(t *testing.T) {
 	t.Run("option visual id colliding with an existing block id is rejected", func(t *testing.T) {
 		h := newHarness(t)
-		start := handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks, nilDisplay)
+		start := handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks, nilDisplay, noChannel)
 		// ch1's option visual reuses "a1", the existing top-level approval's id; the
 		// upserted document would carry two "a1"s, which the whole-doc check rejects.
 		dup := `{"id":"ch1","type":"choice","options":[{"id":"o1","label":"A","visual":{"id":"a1","type":"code","lang":"go","code":"x"}}]}`
@@ -454,7 +453,7 @@ func TestUpsertBlockDocValidation(t *testing.T) {
 		h := newHarness(t)
 		big := strings.Repeat("x", (doc.MaxDocBytes*3)/4)
 		seed := `{"version":1,"title":"Board","blocks":[{"id":"m1","type":"markdown","md":"` + big + `"}]}`
-		start := handleStart(h.hc(body{Doc: json.RawMessage(seed)}), doc.NoPacks, nilDisplay)
+		start := handleStart(h.hc(body{Doc: json.RawMessage(seed)}), doc.NoPacks, nilDisplay, noChannel)
 		if !start.OK {
 			t.Fatalf("seed start not ok: %s", start.Error)
 		}
@@ -471,7 +470,7 @@ func TestUpsertBlockDocValidation(t *testing.T) {
 	t.Run("untouched pack block whose pack is unresolvable does not block an update", func(t *testing.T) {
 		h := newHarness(t)
 		seed := `{"version":1,"title":"Board","blocks":[{"id":"card-merge-triage","type":"card","title":"Merge triage","children":[{"id":"page","type":"display.page","source":"triage"}]}]}`
-		start := handleStart(h.hc(body{Doc: json.RawMessage(seed)}), displayPacks{}, nilDisplay)
+		start := handleStart(h.hc(body{Doc: json.RawMessage(seed)}), displayPacks{}, nilDisplay, noChannel)
 		if !start.OK {
 			t.Fatalf("seed start not ok: %s", start.Error)
 		}
@@ -490,7 +489,7 @@ func TestUpsertBlockDocValidation(t *testing.T) {
 
 	t.Run("same-id replacement upsert still passes", func(t *testing.T) {
 		h := newHarness(t)
-		start := handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks, nilDisplay)
+		start := handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks, nilDisplay, noChannel)
 		reply := handleUpsertBlock(h.hc(body{Block: json.RawMessage(`{"id":"a1","type":"markdown","md":"replaced"}`)}), doc.NoPacks)
 		if !reply.OK {
 			t.Fatalf("same-id replacement upsert not ok: %s", reply.Error)
@@ -566,7 +565,7 @@ func TestUpsertBlockAddressing(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			h := newHarness(t)
-			start := handleStart(h.hc(body{Doc: json.RawMessage(tt.seed)}), doc.NoPacks, nilDisplay)
+			start := handleStart(h.hc(body{Doc: json.RawMessage(tt.seed)}), doc.NoPacks, nilDisplay, noChannel)
 			if !start.OK {
 				t.Fatalf("start not ok: %s", start.Error)
 			}
@@ -625,7 +624,7 @@ func TestUpsertBlockPack(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			h := newHarness(t)
-			handleStart(h.hc(body{Title: "T"}), reg, nilDisplay)
+			handleStart(h.hc(body{Title: "T"}), reg, nilDisplay, noChannel)
 			reply := handleUpsertBlock(h.hc(body{Block: json.RawMessage(tt.block)}), reg)
 			if tt.wantErr == "" {
 				if !reply.OK {
@@ -693,7 +692,7 @@ func TestRemoveBlock(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			h := newHarness(t)
-			start := handleStart(h.hc(body{Doc: json.RawMessage(tt.seed)}), doc.NoPacks, nilDisplay)
+			start := handleStart(h.hc(body{Doc: json.RawMessage(tt.seed)}), doc.NoPacks, nilDisplay, noChannel)
 			if !start.OK {
 				t.Fatalf("start not ok: %s", start.Error)
 			}
@@ -742,7 +741,7 @@ func TestRemoveBlock(t *testing.T) {
 func TestPushPack(t *testing.T) {
 	reg := packLoader(t, writePackTree(t)).Current()
 	h := newHarness(t)
-	handleStart(h.hc(body{Title: "T"}), reg, nilDisplay)
+	handleStart(h.hc(body{Title: "T"}), reg, nilDisplay, noChannel)
 	declared := `{"version":1,"title":"T","blocks":[{"id":"c1","type":"example.callout","tone":"warn"}]}`
 	if reply := handlePush(h.hc(body{Doc: json.RawMessage(declared)}), reg, nilDisplay); !reply.OK {
 		t.Fatalf("push declared pack block: %s", reply.Error)
@@ -756,7 +755,7 @@ func TestPushPack(t *testing.T) {
 
 func TestClose(t *testing.T) {
 	h := newHarness(t)
-	start := handleStart(h.hc(body{Title: "T"}), doc.NoPacks, nilDisplay)
+	start := handleStart(h.hc(body{Title: "T"}), doc.NoPacks, nilDisplay, noChannel)
 	if reply := handleClose(h.hc(body{Summary: "done"}), h.assets); !reply.OK {
 		t.Fatalf("close not ok: %s", reply.Error)
 	}
@@ -801,7 +800,7 @@ func TestReply(t *testing.T) {
 			if tt.doc != "" {
 				seed = body{Doc: json.RawMessage(tt.doc)}
 			}
-			start := handleStart(h.hc(seed), doc.NoPacks, nilDisplay)
+			start := handleStart(h.hc(seed), doc.NoPacks, nilDisplay, noChannel)
 			if !start.OK {
 				t.Fatalf("start not ok: %s", start.Error)
 			}
@@ -865,7 +864,7 @@ func TestAReplyWithoutReAnswersTheNewestUnansweredNote(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			h := newHarness(t)
-			start := handleStart(h.hc(body{Doc: json.RawMessage(tt.doc)}), doc.NoPacks, nilDisplay)
+			start := handleStart(h.hc(body{Doc: json.RawMessage(tt.doc)}), doc.NoPacks, nilDisplay, noChannel)
 			if !start.OK {
 				t.Fatalf("start not ok: %s", start.Error)
 			}
@@ -903,7 +902,7 @@ func TestRound(t *testing.T) {
 		{
 			name: "advance on a dirty round",
 			setup: func(t *testing.T, h *harness) {
-				if r := handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks, nilDisplay); !r.OK {
+				if r := handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks, nilDisplay, noChannel); !r.OK {
 					t.Fatalf("start not ok: %s", r.Error)
 				}
 			},
@@ -912,7 +911,7 @@ func TestRound(t *testing.T) {
 		{
 			name: "title-only on a clean round after submit",
 			setup: func(t *testing.T, h *harness) {
-				start := handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks, nilDisplay)
+				start := handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks, nilDisplay, noChannel)
 				// A submit on the dirty round closes it and advances to round 2; the
 				// live block keeps its round-1 stamp, so round 2 is clean.
 				if _, err := h.cc.AppendEvent(context.Background(), &ccevent.Event{
@@ -928,7 +927,7 @@ func TestRound(t *testing.T) {
 		{
 			name: "rejected on a closed artifact",
 			setup: func(_ *testing.T, h *harness) {
-				handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks, nilDisplay)
+				handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks, nilDisplay, noChannel)
 				handleClose(h.hc(body{}), h.assets)
 			},
 			wantErr: "closed",
@@ -960,7 +959,7 @@ func TestRound(t *testing.T) {
 
 	t.Run("advance freezes all tops and emits no carry", func(t *testing.T) {
 		h := newHarness(t)
-		start := handleStart(h.hc(body{Doc: json.RawMessage(twoApprovalDoc)}), doc.NoPacks, nilDisplay)
+		start := handleStart(h.hc(body{Doc: json.RawMessage(twoApprovalDoc)}), doc.NoPacks, nilDisplay, noChannel)
 		engageDecision(t, h, start.SubjectID, "a1")
 		reply := handleRound(h.hc(body{}))
 		if !reply.OK {
@@ -1052,7 +1051,7 @@ func TestRevising(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			h := newHarness(t)
-			start := handleStart(h.hc(body{Doc: json.RawMessage(tt.seed)}), doc.NoPacks, nilDisplay)
+			start := handleStart(h.hc(body{Doc: json.RawMessage(tt.seed)}), doc.NoPacks, nilDisplay, noChannel)
 			if !start.OK {
 				t.Fatalf("start not ok: %s", start.Error)
 			}
@@ -1160,7 +1159,7 @@ func TestUpsertBlockRoundIntent(t *testing.T) {
 
 	t.Run("engaged round demands an explicit intent", func(t *testing.T) {
 		h := newHarness(t)
-		start := handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks, nilDisplay)
+		start := handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks, nilDisplay, noChannel)
 		engageDecision(t, h, start.SubjectID, "a1")
 		reply := handleUpsertBlock(h.hc(body{Block: json.RawMessage(newTop)}), doc.NoPacks)
 		if reply.OK {
@@ -1178,7 +1177,7 @@ func TestUpsertBlockRoundIntent(t *testing.T) {
 
 	t.Run("current joins the engaged round", func(t *testing.T) {
 		h := newHarness(t)
-		start := handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks, nilDisplay)
+		start := handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks, nilDisplay, noChannel)
 		engageDecision(t, h, start.SubjectID, "a1")
 		reply := handleUpsertBlock(h.hc(body{Block: json.RawMessage(newTop), Round: "current"}), doc.NoPacks)
 		if !reply.OK {
@@ -1205,7 +1204,7 @@ func TestUpsertBlockRoundIntent(t *testing.T) {
 
 	t.Run("new closes the engaged round; new top enters, prior tops freeze", func(t *testing.T) {
 		h := newHarness(t)
-		start := handleStart(h.hc(body{Doc: json.RawMessage(twoApprovalDoc)}), doc.NoPacks, nilDisplay)
+		start := handleStart(h.hc(body{Doc: json.RawMessage(twoApprovalDoc)}), doc.NoPacks, nilDisplay, noChannel)
 		engageDecision(t, h, start.SubjectID, "a1") // a1 answered; a2 still awaiting
 		reply := handleUpsertBlock(h.hc(body{Block: json.RawMessage(newTop), Round: "new", Title: "Round Two"}), doc.NoPacks)
 		if !reply.OK {
@@ -1251,7 +1250,7 @@ func TestUpsertBlockRoundIntent(t *testing.T) {
 
 	t.Run("re-upsert of an existing id while engaged needs no intent", func(t *testing.T) {
 		h := newHarness(t)
-		start := handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks, nilDisplay)
+		start := handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks, nilDisplay, noChannel)
 		engageDecision(t, h, start.SubjectID, "a1")
 		reply := handleUpsertBlock(h.hc(body{Block: json.RawMessage(`{"id":"a1","type":"markdown","md":"replaced"}`), Reopen: []string{"a1"}}), doc.NoPacks)
 		if !reply.OK {
@@ -1261,7 +1260,7 @@ func TestUpsertBlockRoundIntent(t *testing.T) {
 
 	t.Run("new top on a dirty but unengaged round needs no intent", func(t *testing.T) {
 		h := newHarness(t)
-		handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks, nilDisplay)
+		handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks, nilDisplay, noChannel)
 		reply := handleUpsertBlock(h.hc(body{Block: json.RawMessage(newTop)}), doc.NoPacks)
 		if !reply.OK {
 			t.Fatalf("unengaged upsert not ok: %s", reply.Error)
@@ -1270,7 +1269,7 @@ func TestUpsertBlockRoundIntent(t *testing.T) {
 
 	t.Run("new top on a clean round needs no intent", func(t *testing.T) {
 		h := newHarness(t)
-		start := handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks, nilDisplay)
+		start := handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks, nilDisplay, noChannel)
 		submitRevision(t, h, start.SubjectID, 1)
 		reply := handleUpsertBlock(h.hc(body{Block: json.RawMessage(newTop)}), doc.NoPacks)
 		if !reply.OK {
@@ -1280,7 +1279,7 @@ func TestUpsertBlockRoundIntent(t *testing.T) {
 
 	t.Run("an unknown round intent is rejected", func(t *testing.T) {
 		h := newHarness(t)
-		handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks, nilDisplay)
+		handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks, nilDisplay, noChannel)
 		reply := handleUpsertBlock(h.hc(body{Block: json.RawMessage(newTop), Round: "bogus"}), doc.NoPacks)
 		if reply.OK || !strings.Contains(reply.Error, "unknown round intent") {
 			t.Fatalf("bogus intent: ok=%v err=%q", reply.OK, reply.Error)
@@ -1289,7 +1288,7 @@ func TestUpsertBlockRoundIntent(t *testing.T) {
 
 	t.Run("new on a clean round appends no round.started", func(t *testing.T) {
 		h := newHarness(t)
-		start := handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks, nilDisplay)
+		start := handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks, nilDisplay, noChannel)
 		submitRevision(t, h, start.SubjectID, 1)
 		reply := handleUpsertBlock(h.hc(body{Block: json.RawMessage(newTop), Round: "new"}), doc.NoPacks)
 		if !reply.OK {
@@ -1320,7 +1319,7 @@ func TestPushRoundIntent(t *testing.T) {
 
 	t.Run("engaged round demands an explicit intent", func(t *testing.T) {
 		h := newHarness(t)
-		start := handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks, nilDisplay)
+		start := handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks, nilDisplay, noChannel)
 		engageDecision(t, h, start.SubjectID, "a1")
 		reply := push(h, newTopDoc, "", "")
 		if reply.OK {
@@ -1338,7 +1337,7 @@ func TestPushRoundIntent(t *testing.T) {
 
 	t.Run("current joins the engaged round", func(t *testing.T) {
 		h := newHarness(t)
-		start := handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks, nilDisplay)
+		start := handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks, nilDisplay, noChannel)
 		engageDecision(t, h, start.SubjectID, "a1")
 		reply := push(h, newTopDoc, "current", "")
 		if !reply.OK {
@@ -1365,7 +1364,7 @@ func TestPushRoundIntent(t *testing.T) {
 
 	t.Run("new closes the engaged round; unchanged tops stay, new tops enter", func(t *testing.T) {
 		h := newHarness(t)
-		start := handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks, nilDisplay)
+		start := handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks, nilDisplay, noChannel)
 		engageDecision(t, h, start.SubjectID, "a1")
 		reply := push(h, newTopDoc, "new", "Round Two")
 		if !reply.OK {
@@ -1399,7 +1398,7 @@ func TestPushRoundIntent(t *testing.T) {
 
 	t.Run("a push with no new top while engaged needs no intent", func(t *testing.T) {
 		h := newHarness(t)
-		start := handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks, nilDisplay)
+		start := handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks, nilDisplay, noChannel)
 		engageDecision(t, h, start.SubjectID, "a1")
 		if reply := handlePush(h.hc(body{Doc: json.RawMessage(sameIDDoc), Reopen: []string{"a1"}}), doc.NoPacks, nilDisplay); !reply.OK {
 			t.Fatalf("same-id push not ok: %s", reply.Error)
@@ -1418,7 +1417,7 @@ func TestPushRoundIntent(t *testing.T) {
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
 				h := newHarness(t)
-				start := handleStart(h.hc(body{Doc: json.RawMessage(childApprovalDoc)}), doc.NoPacks, nilDisplay)
+				start := handleStart(h.hc(body{Doc: json.RawMessage(childApprovalDoc)}), doc.NoPacks, nilDisplay, noChannel)
 				engageDecision(t, h, start.SubjectID, "a1")
 				reply := handlePush(h.hc(body{Doc: json.RawMessage(promotedChildDoc), Round: tt.round, Reopen: []string{"a1"}}), doc.NoPacks, nilDisplay)
 				if reply.OK != tt.wantOK {
@@ -1446,7 +1445,7 @@ func TestPushRoundIntent(t *testing.T) {
 
 	t.Run("new top on a dirty but unengaged round needs no intent", func(t *testing.T) {
 		h := newHarness(t)
-		handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks, nilDisplay)
+		handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks, nilDisplay, noChannel)
 		if reply := push(h, newTopDoc, "", ""); !reply.OK {
 			t.Fatalf("unengaged push not ok: %s", reply.Error)
 		}
@@ -1454,7 +1453,7 @@ func TestPushRoundIntent(t *testing.T) {
 
 	t.Run("new top on a clean round needs no intent", func(t *testing.T) {
 		h := newHarness(t)
-		start := handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks, nilDisplay)
+		start := handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks, nilDisplay, noChannel)
 		submitRevision(t, h, start.SubjectID, 1)
 		if reply := push(h, newTopDoc, "", ""); !reply.OK {
 			t.Fatalf("clean-round push not ok: %s", reply.Error)
@@ -1463,7 +1462,7 @@ func TestPushRoundIntent(t *testing.T) {
 
 	t.Run("an unknown round intent is rejected", func(t *testing.T) {
 		h := newHarness(t)
-		handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks, nilDisplay)
+		handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks, nilDisplay, noChannel)
 		reply := push(h, newTopDoc, "bogus", "")
 		if reply.OK || !strings.Contains(reply.Error, "unknown round intent") {
 			t.Fatalf("bogus intent: ok=%v err=%q", reply.OK, reply.Error)
@@ -1472,7 +1471,7 @@ func TestPushRoundIntent(t *testing.T) {
 
 	t.Run("new on a clean round appends no round.started", func(t *testing.T) {
 		h := newHarness(t)
-		start := handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks, nilDisplay)
+		start := handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks, nilDisplay, noChannel)
 		submitRevision(t, h, start.SubjectID, 1)
 		reply := push(h, newTopDoc, "new", "")
 		if !reply.OK {
@@ -1493,7 +1492,7 @@ func TestPushRoundIntent(t *testing.T) {
 
 func TestOutcomes(t *testing.T) {
 	h := newHarness(t)
-	start := handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks, nilDisplay)
+	start := handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks, nilDisplay, noChannel)
 	// A human decision lands directly on the log, as the REST plane would append it.
 	if _, err := h.cc.AppendEvent(context.Background(), &ccevent.Event{
 		SubjectID: start.SubjectID, Origin: ccevent.OriginHuman, Type: EventDecisionCreated,
@@ -1523,7 +1522,7 @@ func TestOutcomes(t *testing.T) {
 
 func TestNamedSessionNeverFallsBackToTheWindow(t *testing.T) {
 	h := newHarness(t)
-	start := handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks, nilDisplay)
+	start := handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks, nilDisplay, noChannel)
 	if !start.OK {
 		t.Fatalf("start not ok: %s", start.Error)
 	}
@@ -1588,10 +1587,10 @@ func TestStoredUnknownKeysLoadWhileWritesRejectThem(t *testing.T) {
 	for _, tt := range docs {
 		t.Run(tt.name, func(t *testing.T) {
 			h := newHarness(t)
-			if reply := handleStart(h.hc(body{Doc: json.RawMessage(tt.doc)}), doc.NoPacks, nilDisplay); reply.OK || !strings.Contains(reply.Error, tt.wantErr) {
+			if reply := handleStart(h.hc(body{Doc: json.RawMessage(tt.doc)}), doc.NoPacks, nilDisplay, noChannel); reply.OK || !strings.Contains(reply.Error, tt.wantErr) {
 				t.Fatalf("start --doc: ok=%v err=%q, want %q", reply.OK, reply.Error, tt.wantErr)
 			}
-			start := handleStart(h.hc(body{Title: "T"}), doc.NoPacks, nilDisplay)
+			start := handleStart(h.hc(body{Title: "T"}), doc.NoPacks, nilDisplay, noChannel)
 			appendStored(t, h, start.SubjectID, EventDocReplaced, docReplacedPayload(json.RawMessage(tt.doc), 1, nil, Writer{}))
 			if st := reduceSubject(t, h, start.SubjectID); st.Doc.Title != "Legacy" {
 				t.Fatalf("reduced doc title = %q, want Legacy", st.Doc.Title)
@@ -1639,7 +1638,7 @@ func TestStoredUnknownKeysLoadWhileWritesRejectThem(t *testing.T) {
 	for _, tt := range blocks {
 		t.Run("update-block "+tt.name, func(t *testing.T) {
 			h := newHarness(t)
-			start := handleStart(h.hc(body{Title: "T"}), doc.NoPacks, nilDisplay)
+			start := handleStart(h.hc(body{Title: "T"}), doc.NoPacks, nilDisplay, noChannel)
 			appendStored(t, h, start.SubjectID, EventDocReplaced, docReplacedPayload(json.RawMessage(storedLegacyDoc), 1, nil, Writer{}))
 			appendStored(t, h, start.SubjectID, EventBlockUpserted, blockUpsertedPayload(json.RawMessage(tt.block), "", Writer{}))
 			st := reduceSubject(t, h, start.SubjectID)
@@ -1739,7 +1738,7 @@ func TestPushRoundRetention(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			h := newHarness(t)
-			start := handleStart(h.hc(body{Doc: json.RawMessage(tt.seed)}), doc.NoPacks, nilDisplay)
+			start := handleStart(h.hc(body{Doc: json.RawMessage(tt.seed)}), doc.NoPacks, nilDisplay, noChannel)
 			if !start.OK {
 				t.Fatalf("start not ok: %s", start.Error)
 			}
@@ -1783,7 +1782,7 @@ func TestPushRoundRetention(t *testing.T) {
 
 func TestPushRevisionsConcurrent(t *testing.T) {
 	h := newHarness(t)
-	start := handleStart(h.hc(body{Title: "T"}), doc.NoPacks, nilDisplay)
+	start := handleStart(h.hc(body{Title: "T"}), doc.NoPacks, nilDisplay, noChannel)
 	if !start.OK {
 		t.Fatalf("start not ok: %s", start.Error)
 	}
@@ -1842,7 +1841,7 @@ func revisionOf(t *testing.T, e ccevent.Event) int {
 
 func TestAnOpDecodesOnlyTheEventsSinceThePreviousOp(t *testing.T) {
 	h := newHarness(t)
-	start := handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks, nilDisplay)
+	start := handleStart(h.hc(body{Doc: json.RawMessage(approvalDoc)}), doc.NoPacks, nilDisplay, noChannel)
 	if !start.OK {
 		t.Fatalf("start: %s", start.Error)
 	}
@@ -1885,7 +1884,7 @@ func TestMoveBlockReordersTheBoardAndRetainsEveryCard(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			h := newHarness(t)
-			start := handleStart(h.hc(body{Doc: json.RawMessage(board)}), doc.NoPacks, nilDisplay)
+			start := handleStart(h.hc(body{Doc: json.RawMessage(board)}), doc.NoPacks, nilDisplay, noChannel)
 			if !start.OK {
 				t.Fatalf("start not ok: %s", start.Error)
 			}
