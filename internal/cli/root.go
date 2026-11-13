@@ -34,6 +34,8 @@ func NewRootCmd() *cobra.Command {
 		cmd.SessionRecordCmd(d),
 		cmd.ChannelAckCmd(d),
 		cmd.ChannelCmd(d),
+		cmd.ToolsCmd(d),
+		cmd.ChannelCheckCmd(d),
 		// Substrate agent-plane hook handlers (hidden).
 		cmd.AgentStartCmd(d),
 		cmd.AgentInjectCmd(d),

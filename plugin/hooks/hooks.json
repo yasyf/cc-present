@@ -6,6 +6,13 @@
           { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/session-start.sh" }
         ]
       }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/cc-present\" channel-check", "timeout": 15 }
+        ]
+      }
     ]
   }
 }

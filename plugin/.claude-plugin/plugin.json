@@ -16,13 +16,23 @@
     }
   ],
   "mcpServers": {
+    "channel": {
+      "command": "cc-present",
+      "args": [
+        "channel",
+        "--no-tools"
+      ],
+      "env": {
+        "CLAUDE_PLUGIN_ROOT": ""
+      }
+    },
     "cc-present": {
       "command": "${CLAUDE_PLUGIN_ROOT}/scripts/mcp-channel.sh"
     }
   },
   "channels": [
     {
-      "server": "cc-present",
+      "server": "channel",
       "displayName": "cc-present"
     }
   ]

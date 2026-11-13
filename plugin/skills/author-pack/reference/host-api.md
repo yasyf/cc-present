@@ -145,7 +145,7 @@ This is race-free by construction: posts serialize per artifact, and the optimis
 | Type not installed / not interactive | `pack block type "triage.severity" is not installed` / `… is not interactive` |
 | Payload fails the interaction schema | `pack interaction "triage.severity": <schema violation>` |
 
-An accepted payload appends to the event log and reaches the agent as a `<channel source="cc-present">` tag (or a `watch` line):
+An accepted payload appends to the event log and reaches the agent as a `<channel source="plugin:cc-present:channel">` tag (or a `watch` line):
 
 ```json
 {"blockId":"sev","payload":{"value":3},"type":"pack.interaction"}
