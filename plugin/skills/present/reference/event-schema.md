@@ -1,6 +1,6 @@
 # Event schema
 
-`cc-present watch` prints one JSON object per line; the channel delivers the same JSON inside `<channel source="cc-present">` tags. Every domain frame is the event's **payload**, self-describing via exact `schemaVersion: 1` and `type` fields — no envelope, no seq. Route on `type`. `channel.changed` is the cc-interact framework frame and carries only its own framework identity. The **React** column below names the move SKILL.md step 4 routes: the main session notes informational events in its ledger and dispatches writers for actionable ones. Your own agent-origin events are filtered out of every feed and never echo back; the one lifecycle event you do receive is the `system`-origin `present.closed`, on which `watch` exits.
+`cc-present watch` prints one JSON object per line; the channel delivers the same JSON inside `<channel source="plugin:cc-present:channel">` tags. Every domain frame is the event's **payload**, self-describing via exact `schemaVersion: 1` and `type` fields — no envelope, no seq. Route on `type`. `channel.changed` is the cc-interact framework frame and carries only its own framework identity. The **React** column below names the move SKILL.md step 4 routes: the main session notes informational events in its ledger and dispatches writers for actionable ones. Your own agent-origin events are filtered out of every feed and never echo back; the one lifecycle event you do receive is the `system`-origin `present.closed`, on which `watch` exits.
 
 ## Events you receive
 

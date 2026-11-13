@@ -148,7 +148,7 @@ board and under the Slack card, opening with a link back to it.
 
 Route by the `channel:` line from step 2:
 
-- **`active`** — this window's channel is proven and streaming. Do **not** arm a Monitor (you'd receive every event twice). Events arrive as `<channel source="cc-present">` tags carrying the event JSON.
+- **`active`** — this window's channel is proven and streaming. Do **not** arm a Monitor (you'd receive every event twice). Events arrive as `<channel source="plugin:cc-present:channel">` tags carrying the event JSON.
 - **`pending`** or **`inactive`** — launch a **Monitor** (`persistent: true`, description `cc-present events`) wrapping:
 
   ```bash
@@ -157,7 +157,7 @@ Route by the `channel:` line from step 2:
 
   Each line it prints is one JSON event. Pass every line to the Monitor. A `grep` that names the types you expect drops every type it leaves out. `--session` is required — `watch` does not read the environment, and without it it polls forever.
 
-If a `<channel source="cc-present">` tag arrives while the Monitor is armed, the channel went live: run `cc-present channel-ack --session "$CLAUDE_CODE_SESSION_ID"`, stop the Monitor with **TaskStop**, and rely on tags from then on. Delivery is at-least-once; re-delivery is harmless — decisions, choices, and inputs are last-write-wins, and feedback carries its own `id`.
+If a `<channel source="plugin:cc-present:channel">` tag arrives while the Monitor is armed, the channel went live: run `cc-present channel-ack --session "$CLAUDE_CODE_SESSION_ID"`, stop the Monitor with **TaskStop**, and rely on tags from then on. Delivery is at-least-once; re-delivery is harmless — decisions, choices, and inputs are last-write-wins, and feedback carries its own `id`.
 
 Either way: **do not block waiting.** Tell the user you're watching and continue the underlying task.
 
