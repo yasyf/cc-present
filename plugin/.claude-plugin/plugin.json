@@ -28,9 +28,6 @@
       "env": {
         "CLAUDE_PLUGIN_ROOT": ""
       }
-    },
-    "cc-present": {
-      "command": "${CLAUDE_PLUGIN_ROOT}/scripts/mcp-channel.sh"
     }
   },
   "channels": [
