@@ -85,12 +85,13 @@ func launcher() (ccd.Launcher, error) {
 	return ccd.Launcher{Daemon: spec, Paths: Paths(), RuntimeBuild: version.String()}, nil
 }
 
-// usableDaemon accepts a newer incumbent instead of refusing the command. The
-// refusal exists to stop a rollback, but daemonkit's handshake — not the
-// release order — is what proves compatibility, so a command that only needs a
-// daemon runs against the newer one; a real wire change fails at the connect.
+// usableDaemon accepts a newer incumbent, or one an upgrade with no time left
+// to finish leaves serving, instead of refusing the command. The newer refusal
+// exists to stop a rollback, but daemonkit's handshake — not the release
+// order — is what proves compatibility, so a command that only needs a daemon
+// runs against the incumbent; a real wire change fails at the connect.
 func usableDaemon(err error) error {
-	if errors.Is(err, ccd.ErrIncumbentNewer) {
+	if errors.Is(err, ccd.ErrIncumbentNewer) || errors.Is(err, ccd.ErrUpgradeDeferred) {
 		return nil
 	}
 	return err
@@ -115,7 +116,7 @@ func recoveryFor(l ccd.Launcher) wedgeRecovery {
 			defer cancel()
 			return cycleAgent(cycleCtx)
 		},
-		reensure: func(ctx context.Context) error { return l.EnsureCurrent(ctx, ccd.UpgradeTimeout) },
+		reensure: func(ctx context.Context) error { return l.EnsureCurrent(ctx) },
 	}
 }
 
@@ -170,7 +171,7 @@ func Deps() cmd.Deps {
 			if err != nil {
 				return err
 			}
-			return usableDaemon(recoveryFor(l).after(ctx, l.EnsureCurrent(ctx, ccd.UpgradeTimeout)))
+			return usableDaemon(recoveryFor(l).after(ctx, l.EnsureCurrent(ctx)))
 		},
 		EnsureCurrentIfRunning: func(ctx context.Context) error {
 			l, err := launcher()
@@ -184,7 +185,7 @@ func Deps() cmd.Deps {
 			if err != nil {
 				return err
 			}
-			return l.Stop(ctx, ccd.UpgradeTimeout)
+			return l.Stop(ctx)
 		},
 		ClaudePID:     procs.ClaudePID,
 		WindowAlive:   procs.LiveClaude,

@@ -6,6 +6,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- On cc-interact v0.45.0. An upgrade of the cc-present daemon gets the budget cc-interact derives from the daemon's shutdown grace plus its boot allowance, where it used to get a flat 30 s, and holds its turn until the new daemon is Ready. A command whose deadline cannot cover that budget runs against the daemon already serving instead of starting the upgrade. A cc-present older than the newest one already placed no longer installs itself when it finds no daemon running.
+
 ### Added
 
 - cc-present's channel runs on its own toolless server, `channel`, which Claude Code starts as `cc-present channel --no-tools` from `PATH` with `CLAUDE_PLUGIN_ROOT` emptied, so its config is the same in every version and `/reload-plugins` leaves it running. The channel server moves itself onto the newest installed cc-present once that one reports a newer release. A `Stop` hook, `cc-present channel-check`, notices a channel that stopped in a session inside Orca and types `/mcp reconnect plugin:cc-present:channel` at its next idle prompt with an empty draft, at most once every 5 minutes. Board clicks now arrive as `<channel source="plugin:cc-present:channel">` tags. The `cc-present` binary must be on `PATH`, which the Homebrew cask puts there.
