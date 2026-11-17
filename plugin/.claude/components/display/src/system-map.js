@@ -1,5 +1,5 @@
 const NS = "http://www.w3.org/2000/svg";
-const FONT_HREF = "https://fonts.googleapis.com/css2?family=Shantell+Sans:wght@400;500;600;700&display=swap";
+const FACES = [["Shantell Sans", "shantell-sans"], ["Geist", "geist"]];
 
 const LIGHT = String.raw`
   --smap-d-paper: #fbfaf5; --smap-d-ink: #1f2633; --smap-d-line: #e3e0d4;
@@ -23,8 +23,9 @@ const DARK = String.raw`
   --wb-sticky: #4a4220; --wb-sticky-ink: #f6edc4;
   --wb-shadow: 0 10px 30px rgba(0, 0, 0, .45), 0 2px 6px rgba(0, 0, 0, .3);`;
 
-const HAND = '"Shantell Sans", ui-rounded, system-ui, sans-serif';
-const SANS = 'ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+const MARKS = "Noto Sans Symbols 2";
+const HAND = `"Shantell Sans", "${MARKS}", ui-rounded, system-ui, sans-serif`;
+const SANS = `"Geist", "${MARKS}", ui-sans-serif, system-ui, sans-serif`;
 
 const CSS = String.raw`
 .smap {${LIGHT}
@@ -146,6 +147,9 @@ const CSS = String.raw`
 .smap svg .step { cursor: pointer; }
 .smap svg .step .hl { opacity: 0; transition: opacity .2s; }
 .smap svg .step.hot .hl { opacity: .7; }
+.smap svg .step[role="button"]:focus-visible > rect { stroke: var(--wb-marker); stroke-width: 2; }
+.smap svg .bd[role="button"], .smap svg .bub[role="button"] { cursor: pointer; }
+.smap svg .bd[role="button"]:focus-visible .face, .smap svg .bub[role="button"]:focus-visible > path { stroke: var(--wb-marker); stroke-width: 2.5; }
 .smap svg .part { cursor: pointer; outline: none; }
 .smap svg .part .sel { opacity: 0; }
 .smap svg .part.on .sel, .smap svg .part:focus-visible .sel { opacity: 1; }
@@ -341,14 +345,9 @@ const watchPrint = () => {
   addEventListener("afterprint", () => { printFlag = false; again(); });
 };
 let fontWait = null;
-const sheet = () => {
-  const link = document.querySelector('link[href*="family=Shantell+Sans"]');
-  if (!link || link.sheet) return Promise.resolve();
-  return new Promise((r) => { link.addEventListener("load", r, { once: true }); link.addEventListener("error", r, { once: true }); });
-};
 const loadFonts = () => {
   if (!fontWait) {
-    const faces = sheet().then(() => Promise.all([400, 500, 600, 700].map((w) => document.fonts.load(`${w} 20px "Shantell Sans"`))));
+    const faces = Promise.all([...FACES.flatMap(([family]) => [400, 500, 600, 700].map((w) => document.fonts.load(`${w} 20px "${family}"`))), document.fonts.load(`20px "${MARKS}"`, "\u2713\u2717")]);
     fontWait = Promise.race([faces, new Promise((r) => setTimeout(r, 3000))]).catch(() => {}).then(() => { widths.clear(); fontGen += 1; });
   }
   return fontWait;
@@ -360,12 +359,14 @@ const injectCss = () => {
   st.textContent = CSS;
   document.head.append(st);
 };
-const injectFont = () => {
-  if (document.querySelector('link[href*="family=Shantell+Sans"]')) return;
-  const link = document.createElement("link");
-  link.rel = "stylesheet";
-  link.href = FONT_HREF;
-  document.head.append(link);
+const LATIN_EXT = "U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF";
+const faceCss = (font) => FACES.map(([family, file]) => ["latin", "latin-ext"].map((range) => `@font-face { font-family: "${family}"; font-style: normal; font-weight: 400 700; font-display: block; src: url("${font(`${file}-${range}.woff2`)}") format("woff2");${range === "latin-ext" ? ` unicode-range: ${LATIN_EXT};` : ""} }`).join("\n")).join("\n").concat(`\n@font-face { font-family: "${MARKS}"; font-display: block; src: url("${font("noto-symbols-marks.woff2")}") format("woff2"); unicode-range: U+2713, U+2717; }`);
+const injectFont = (font = (file) => new URL(`./fonts/${file}`, import.meta.url)) => {
+  if (document.getElementById("smap-fonts")) return;
+  const st = document.createElement("style");
+  st.id = "smap-fonts";
+  st.textContent = faceCss(font);
+  document.head.append(st);
 };
 
 const crisp = () => {
@@ -398,7 +399,7 @@ const crisp = () => {
   };
 };
 
-function router(boxes, vg, hg, avoid) {
+function router(boxes, vg, hg, avoid, solid = []) {
   const list = Object.entries(boxes);
   const shy = avoid || [];
   const segHits = (x1, y1, x2, y2, r, pad) => {
@@ -416,6 +417,7 @@ function router(boxes, vg, hg, avoid) {
         if ((id === a && i === 0) || (id === b && i === pts.length - 2)) continue;
         if (segHits(x1, y1, x2, y2, r, 7)) return true;
       }
+      if (solid.some((r) => segHits(x1, y1, x2, y2, r, 4))) return true;
     }
     return false;
   };
@@ -572,7 +574,7 @@ function tracks(routes) {
   }
 }
 
-function placer(hard) {
+function placer(hard, bounds) {
   const taken = hard.map((r) => ({ ...r }));
   const leads = [];
   const through = (r, [[x1, y1], [x2, y2]]) => {
@@ -584,7 +586,7 @@ function placer(hard) {
     }
     return false;
   };
-  const free = (r) => taken.every((o) => !(r.x < o.x + o.w && o.x < r.x + r.w && r.y < o.y + o.h && o.y < r.y + r.h)) && !leads.some((l) => through(r, l));
+  const free = (r) => (!bounds || r.x >= bounds.x && r.x + r.w <= bounds.x + bounds.w) && taken.every((o) => !(r.x < o.x + o.w && o.x < r.x + r.w && r.y < o.y + o.h && o.y < r.y + r.h)) && !leads.some((l) => through(r, l));
   const crosses = (pts, r) => {
     for (let i = 0; i < pts.length - 1; i++) {
       const [x1, y1] = pts[i];
@@ -640,7 +642,8 @@ function placer(hard) {
             const r = { x, y, w: size.w, h: size.h };
             if (!free(r)) continue;
             const n = soft.filter((s) => crosses(s, r)).length;
-            const cost = Math.abs(t - 0.5) * 30 + d * 1.1 + rank * 8 + n * 40;
+            const badgeGap = size.rows?.[0].n != null && horiz ? Math.max(0, Math.abs(y + 14 - cy) - size.ty.lh * 2) : 0;
+            const cost = Math.abs(t - 0.5) * 30 + d * 1.1 + rank * 8 + n * 40 + badgeGap * 4;
             if (!best || cost < best.cost) best = { r, cost, n };
           }
         }
@@ -662,7 +665,7 @@ function placer(hard) {
     if (leader) leads.push(leader);
     return { r, leader };
   };
-  near.around = (size, bx, soft, within) => {
+  near.around = (size, bx, soft, within, adjacent = false) => {
     const opts = [];
     for (const d of [12, 26, 44]) {
       opts.push([bx.x + bx.w + d, bx.y + bx.h - size.h + 8], [bx.x + bx.w + d, bx.y - 4], [bx.x + bx.w - size.w + 20, bx.y + bx.h + d], [bx.x, bx.y + bx.h + d], [bx.x + bx.w - size.w, bx.y - size.h - d], [bx.x - size.w - d, bx.y + bx.h - size.h], [bx.x - size.w - d, bx.y]);
@@ -677,7 +680,7 @@ function placer(hard) {
       const cost = i + n * 400 + outside(r) * 0.6;
       if (!best || cost < best.cost) best = { r, cost, n };
     });
-    if (best && best.n) {
+    if (best && best.n && !adjacent) {
       const cx = bx.x + bx.w / 2;
       const cy = bx.y + bx.h / 2;
       for (const loose of [false, true]) {
@@ -690,7 +693,7 @@ function placer(hard) {
         }
       }
     }
-    const r = best ? best.r : spiral(size, bx.x + bx.w / 2, bx.y + bx.h / 2, soft);
+    const r = best ? best.r : adjacent ? null : spiral(size, bx.x + bx.w / 2, bx.y + bx.h / 2, soft);
     if (r) taken.push(r);
     return r;
   };
@@ -746,6 +749,9 @@ export function validate(map, o = {}) {
   const ref = (where, field, id) => { if (kindOf[id] !== "block" && kindOf[id] !== "part") out.push(`${where}: "${field}" names "${id}", which is not a block or part`); };
   for (const b of map.blocks) {
     if (b.group && kindOf[b.group] !== "group") out.push(`block "${b.id}": "group" names "${b.group}", which is not a group`);
+    for (const x of [b, ...(b.parts || [])]) for (const badge of x.badges || []) {
+      if (badge.detail !== undefined && (typeof badge.detail !== "string" || [...badge.detail].length > 280)) out.push(`${kindOf[x.id]} "${x.id}": badge "${badge.text}" detail must be a string of at most 280 characters`);
+    }
     const store = STORES.has(b.kind);
     if (store && !b.medium) out.push(`block "${b.id}": a ${b.kind} block needs a "medium"`);
     if (!store) for (const f of ["medium", "tag", "contents"]) if (b[f] != null) out.push(`block "${b.id}": only store and log blocks take "${f}"`);
@@ -888,7 +894,7 @@ class Board {
     this.L = this.skin.ly;
     this.ty = this.T;
     this.id = ++boards;
-    this.st = { layout: null, stack: false, story: null, shape: null, part: null, sel: null, step: null, vb: null, hot: null };
+    this.st = { layout: null, stack: false, story: null, shape: null, part: null, sel: null, step: null, badge: null, vb: null, hot: null };
     this.root = document.createElement("div");
     this.root.className = `smap${o.dialog ? " dialog" : ""}${this.skin.clean ? " clean" : ""}`;
     const end = o.dialog
@@ -938,6 +944,7 @@ class Board {
     this.st.part = null;
     this.st.sel = null;
     this.st.step = null;
+    this.st.badge = null;
     this.applyView(view || was);
     this.key = null;
     this.refresh();
@@ -969,6 +976,7 @@ class Board {
   }
 
   path(id) { return this.P[id] || null; }
+  overlay() { return this.st.story ? this.path(this.st.story) : this.st.step != null ? this.B.spine : null; }
   labelOf(id) { return this.items[id] ? this.items[id].label : this.nameOf(id); }
   nameOf(id) { return this.K[id] ? this.K[id].name : id; }
   pathTone(p) { return CHIP[p.tone] || ""; }
@@ -1061,7 +1069,7 @@ class Board {
     return this.B.links[i].label ? this.rowsOf([{ text: this.B.links[i].label }], this.T.link) : null;
   }
 
-  arrange() {
+  arrange(noteTails = new Set()) {
     const B = this.B;
     const tall = this.st.layout === "tall";
     const compact = this.o.compact;
@@ -1204,10 +1212,29 @@ class Board {
         rgap[j] = Math.max(rgap[j], (tall ? this.L.phoneRowGap : this.L.rowGap) + 60);
       }
     }
+    if (!compact && !tall) B.links.forEach((l, i) => {
+      if (!this.SM.on[i] || gy[l.from] !== gy[l.to] || Math.abs(gx[l.from] - gx[l.to]) < 2) return;
+      const size = this.linkLabel(i);
+      const j = gy[l.from];
+      if (size.h > this.T.step.lh * 2 + 8 && j < ny - 1) rgap[j] = Math.max(rgap[j], size.h * 2 + 40);
+    });
+    const callouts = !compact ? B.callouts.filter((c) => tall || c.block).map((c) => {
+      const id = c.block || B.owner[c.link[0]];
+      const lines = wrap(c.text, tall ? colW[gx[id]] - 36 : 176, this.T.note);
+      const w = Math.max(...lines.map((ln) => measure(ln, this.T.note))) + 24;
+      return { c, id, lines, w, h: lines.length * this.T.note.lh + 18 };
+    }) : [];
+    const noteGut = Array(gut.length).fill(0);
+    for (const id of noteTails) {
+      const w = Math.max(...callouts.filter((n) => n.id === id).map((n) => n.w)) + 24;
+      for (const i of [gx[id] - 1, gx[id]]) if (i >= 0 && i < gut.length) noteGut[i] += w;
+    }
+    gut.forEach((w, i) => { gut[i] = Math.max(w, noteGut[i]); });
+    const tail = Object.fromEntries(B.blocks.map((b) => [b.id, tall || noteTails.has(b.id) ? callouts.filter((n) => n.id === b.id).reduce((s, n) => s + n.h + 24, 0) : 0]));
     const stackGap = (id, i) => (i === 0 ? 0 : Math.max(this.L.stack, sgap[id] || 0));
-    const stackH = (list) => list.reduce((s, id, i) => s + h[id] + stackGap(id, i), 0);
+    const stackH = (list) => list.reduce((s, id, i) => s + h[id] + tail[id] + stackGap(id, i), 0);
     const off = {};
-    for (const list of Object.values(cells)) { let yy = 0; list.forEach((id, n) => { yy += stackGap(id, n); off[id] = yy; yy += h[id]; }); }
+    for (const list of Object.values(cells)) { let yy = 0; list.forEach((id, n) => { yy += stackGap(id, n); off[id] = yy; yy += h[id] + tail[id]; }); }
     for (const list of Object.values(cells)) {
       const id = list[0];
       if (this.K[id].kind !== "service") continue;
@@ -1235,7 +1262,13 @@ class Board {
     for (const [k, list] of Object.entries(cells)) {
       const [i, j] = k.split(",").map(Number);
       let yy = rowY[j];
-      list.forEach((id, n) => { yy += stackGap(id, n); box[id] = { x: colX[i], y: yy, w: colW[i], h: h[id] }; yy += h[id]; });
+      list.forEach((id, n) => { yy += stackGap(id, n); box[id] = { x: colX[i], y: yy, w: colW[i], h: h[id] }; yy += h[id] + tail[id]; });
+    }
+    const noteY = Object.fromEntries(B.blocks.map((b) => [b.id, box[b.id].y + box[b.id].h + 20]));
+    for (const n of tall ? callouts : []) {
+      n.x = box[n.id].x + (box[n.id].w - n.w) / 2;
+      n.y = noteY[n.id];
+      noteY[n.id] += n.h + 24;
     }
     const bb = (ids, pad) => {
       const rs = ids.map((id) => box[id]);
@@ -1267,7 +1300,15 @@ class Board {
     }
     frames.sort((a, b) => (a.f.scope === "machine" ? 0 : 1) - (b.f.scope === "machine" ? 0 : 1));
     const fixed = [...B.blocks.map((b) => grow(box[b.id], b.critical && !compact ? 14 : 2)),...B.blocks.map((b) => this.marksZone(b.id, box[b.id])).filter(Boolean), { x: left, y: thesisTop, w: width, h: thesisBottom - thesisTop + 8 }];
-    const busy = [...fixed];
+    if (!tall) {
+      const place = placer(fixed);
+      for (const n of callouts) {
+        const at = place.around({ w: n.w + 8, h: n.h + 8 }, grow(box[n.id], 2), [], null, true);
+        if (!at) return this.arrange(new Set([...noteTails, n.id]));
+        Object.assign(n, grow(at, -4));
+      }
+    }
+    const busy = [...fixed, ...(tall ? [] : callouts.map((n) => grow(n, 4)))];
     for (const fr of frames) {
       const w = measure(fr.f.label, this.ty.frame) + 10;
       const lh = this.ty.frame.lh + 2;
@@ -1298,17 +1339,17 @@ class Board {
     } else if (showLanes) {
       for (let j = 0; j < ny; j++) lanes.push({ text: B.lanes[rowLane[j]], x: this.L.margin - 6, y: rowY[j], h: rowH[j], vertical: true });
     }
-    const all = [...Object.values(box), ...frames.flatMap((fr) => (fr.label ? [fr.rect, fr.label] : [fr.rect])), ...(thesis.length ? [{ x: left, y: thesisTop, w: Math.max(width, ...thesis.map((ln) => measure(ln, this.ty.thesis) + 6)), h: thesisBottom - thesisTop }] : [])];
+    const all = [...Object.values(box), ...callouts, ...frames.flatMap((fr) => (fr.label ? [fr.rect, fr.label] : [fr.rect])), ...(thesis.length ? [{ x: left, y: thesisTop, w: Math.max(width, ...thesis.map((ln) => measure(ln, this.ty.thesis) + 6)), h: thesisBottom - thesisTop }] : [])];
     const ext = union(all);
     const vg = [colX[0] - 40, ...colX.slice(0, -1).map((cx, i) => cx + colW[i] + gut[i] / 2), right + 40];
     const hg = [topY - 26, ...rowY.slice(0, -1).map((ry, j) => ry + rowH[j] + rgap[j] / 2), bottom + 40];
-    return { box, text, frames, lanes, thesis: { x: left, y: thesisTop, lines: thesis, w: width }, vg, hg, ext, colX, colW, rowY, rowH, gx, gy, col, fixed };
+    return { box, text, frames, lanes, thesis: { x: left, y: thesisTop, lines: thesis, w: width }, vg, hg, ext, span: ext, callouts, colX, colW, rowY, rowH, gx, gy, col, fixed };
   }
 
   route() {
     const G = this.G;
     const B = this.B;
-    const go = router(G.box, G.vg, G.hg, G.frames.map((fr) => fr.label).filter(Boolean));
+    const go = router(G.box, G.vg, G.hg, [...G.frames.map((fr) => fr.label).filter(Boolean), ...G.callouts], this.st.layout === "tall" ? [] : G.callouts);
     const order = B.links.map((l, i) => i).sort((a, b) => (this.SM.on[b] ? 1 : 0) - (this.SM.on[a] ? 1 : 0) || (this.rec.has(a) ? 1 : 0) - (this.rec.has(b) ? 1 : 0) || (B.links[a].kind === "sync" ? 0 : 1) - (B.links[b].kind === "sync" ? 0 : 1) || a - b);
     const taken = [];
     const routes = [];
@@ -1791,22 +1832,28 @@ class Board {
 
   drawBadges(b, g) {
     for (const q of this.badgeRects(b, this.G.box[b.id])) {
-      this.drawMark(g, q, b.name);
+      this.drawMark(g, q, b.name, b.id);
       this.marks[`${b.id}:${q.x}`] = grow(q, 2);
     }
   }
 
-  drawMark(g, q, what) {
+  drawMark(g, q, what, id) {
     const ty = q.ty;
+    const bg = this.el("g", { class: q.ask ? "bub" : `bd ${TONE[q.d.tone]}` }, g);
+    if (q.d.detail !== undefined) {
+      bg.setAttribute("role", "button");
+      bg.setAttribute("tabindex", "0");
+      bg.setAttribute("aria-label", `${what}: ${q.d.text}`);
+      bg.addEventListener("click", (ev) => { if (this.dragMoved) return; ev.stopPropagation(); this.pickBadge(id, q.d); });
+      bg.addEventListener("keydown", (ev) => { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); ev.stopPropagation(); this.pickBadge(id, q.d); } });
+    }
     if (q.ask) {
-      const bg = this.el("g", { class: "bub" }, g);
       this.el("title", {}, bg).textContent = `${q.d.text}: a question about ${what}`;
       this.bubblePath(bg, q.x, q.y, q.w);
       this.text(bg, q.x + q.w / 2, q.y + 15, [q.label], ty, "t-ink2", "middle");
       return;
     }
     const tone = { ok: "t-green", fail: "t-red", warn: "t-amber", info: "t-ink3" }[q.d.tone];
-    const bg = this.el("g", { class: `bd ${TONE[q.d.tone]}` }, g);
     this.el("title", {}, bg).textContent = `${what}: ${q.d.text}`;
     this.el("rect", { x: q.x, y: q.y, width: q.w, height: q.h, rx: q.h / 2, class: "base" }, bg);
     this.el("rect", { x: q.x, y: q.y, width: q.w, height: q.h, rx: q.h / 2, class: "face" }, bg);
@@ -1927,7 +1974,7 @@ class Board {
 
   drawLinks() {
     const B = this.B;
-    const place = placer(this.obstacles());
+    const place = placer(this.obstacles(), this.st.layout === "tall" ? this.G.span : null);
     this.place = place;
     this.placed = [];
     const edges = this.G.frames.map(({ rect: f }) => [[f.x, f.y], [f.x + f.w, f.y], [f.x + f.w, f.y + f.h], [f.x, f.y + f.h], [f.x, f.y]]);
@@ -2003,6 +2050,13 @@ class Board {
   wireStep(g, n, p) {
     g.classList.add("step");
     g.dataset.step = String(n);
+    if (g.querySelector("text") && !g.querySelector(".step")) {
+      const s = (p || this.B.spine).steps[n];
+      g.setAttribute("role", "button");
+      g.setAttribute("tabindex", "0");
+      g.setAttribute("aria-label", `Step ${n + 1}: ${s.say}, ${this.nameOf(s.from)} to ${this.nameOf(s.to)}`);
+      g.addEventListener("keydown", (ev) => { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); ev.stopPropagation(); this.pickStep(n, p ? p.id : null); } });
+    }
     g.addEventListener("mouseenter", () => this.hot(n));
     g.addEventListener("mouseleave", () => this.hot(this.st.step));
     g.addEventListener("click", (ev) => { if (this.dragMoved) return; ev.stopPropagation(); this.pickStep(n, p ? p.id : null); });
@@ -2089,41 +2143,41 @@ class Board {
 
   drawCallouts() {
     if (this.o.compact) return;
+    for (const n of this.G.callouts) {
+      const r = grow(n, 4);
+      this.place.add(r);
+      this.placed.push(r);
+      this.drawSticky(this.layers.notes, n, n.lines, n.c.text);
+    }
+    if (this.st.layout === "tall") return;
     const loose = [...this.B.paths.map((p) => p.steps), this.B.spine.steps].flatMap((steps) => steps.filter((s) => s.from !== s.to && this.linkFor(s.from, s.to) < 0).map((s) => this.loose(s.from, s.to, steps).pts));
     const soft = [...this.routes.filter(Boolean).map((x) => x.pts), ...Object.values(this.railPts), ...loose];
     (this.B.callouts || []).forEach((c) => {
+      if (!c.link) return;
       const lines = wrap(c.text, 176, this.T.note);
       const w = Math.max(...lines.map((ln) => measure(ln, this.T.note))) + 24;
       const h = lines.length * this.T.note.lh + 18;
-      if (c.link) {
-        const [a, z] = c.link.map((id) => this.B.owner[id]);
-        const li = this.B.links.findIndex((l) => (l.from === a && l.to === z) || (l.from === z && l.to === a));
-        const route = li >= 0 && this.routes[li];
-        if (!route) return;
-        const spot = this.place({ w: w + 8, h: h + 8 }, route.pts, soft);
-        if (!spot) return;
-        this.placed.push(spot.r);
-        if (spot.leader) this.R("k-ink3 lead", this.rc.line(spot.leader[0][0], spot.leader[0][1], spot.leader[1][0], spot.leader[1][1], this.O({ strokeWidth: 1.1, roughness: 0.4, strokeLineDash: [3, 4] })), this.layers.notes);
-        this.drawSticky(this.layers.notes, grow(spot.r, -4), lines, c.text);
-        return;
-      }
-      const r = this.G.box[c.block];
-      if (!r) return;
-      const at = this.place.around({ w: w + 8, h: h + 8 }, grow(r, 2), soft, this.extent());
-      if (!at) return;
-      this.placed.push(at);
-      this.drawSticky(this.layers.notes, grow(at, -4), lines, c.text);
+      const [a, z] = c.link.map((id) => this.B.owner[id]);
+      const li = this.B.links.findIndex((l) => (l.from === a && l.to === z) || (l.from === z && l.to === a));
+      const route = li >= 0 && this.routes[li];
+      if (!route) return;
+      const spot = this.place({ w: w + 8, h: h + 8 }, route.pts, soft);
+      if (!spot) return;
+      this.placed.push(spot.r);
+      if (spot.leader) this.R("k-ink3 lead", this.rc.line(spot.leader[0][0], spot.leader[0][1], spot.leader[1][0], spot.leader[1][1], this.O({ strokeWidth: 1.1, roughness: 0.4, strokeLineDash: [3, 4] })), this.layers.notes);
+      this.drawSticky(this.layers.notes, grow(spot.r, -4), lines, c.text);
     });
   }
 
   drawPath() {
     const layer = this.layers.path;
     layer.replaceChildren();
-    const p = this.st.story && this.path(this.st.story);
+    const p = this.overlay();
     this.layers.spine.classList.toggle("gone", !!p);
     this.layers.spineRing.classList.toggle("gone", !!p);
     this.layers.pathRing.replaceChildren();
-    const flows = p ? new Set(p.steps.flatMap((s) => s.flows)) : null;
+    const selected = p && this.st.step != null ? [p.steps[this.st.step]] : p ? p.steps : [];
+    const flows = p ? new Set(selected.flatMap((s) => s.flows)) : null;
     this.litLinks = p ? new Set(this.B.links.map((l, i) => (l.flows.some((f) => flows.has(f)) ? i : -1)).filter((i) => i >= 0)) : null;
     for (const e of this.labEls || []) {
       const carries = p && p.steps.some((s) => s.from !== s.to && this.linkFor(s.from, s.to) === e.i);
@@ -2133,7 +2187,7 @@ class Board {
     if (!p) return;
     const hard = [...this.obstacles(), ...this.svg.querySelectorAll(".overview .note")].map((x) => (x instanceof Element ? this.boxOf(x) : x));
     for (const e of this.labEls || []) if (!e.g.classList.contains("gone")) hard.push(this.boxOf(e.g));
-    const place = placer(hard);
+    const place = placer(hard, this.st.layout === "tall" ? this.G.span : null);
     const onLink = {};
     p.steps.forEach((s, i) => { if (s.from !== s.to) { const li = this.linkFor(s.from, s.to); if (li >= 0) (onLink[li] = onLink[li] || []).push(i); } });
     const lines = this.routes.filter(Boolean).map((r) => r.pts);
@@ -2189,6 +2243,7 @@ class Board {
   }
 
   hot(i) {
+    i = this.st.step ?? i;
     this.st.hot = i;
     const scope = this.st.story ? [this.layers.path, this.layers.pathRing] : [this.layers.ov];
     for (const sc of scope) sc.querySelectorAll(".step").forEach((g) => g.classList.toggle("hot", Number(g.dataset.step) === i));
@@ -2196,13 +2251,22 @@ class Board {
 
   applyFocus() {
     if (!this.blockEls) return;
-    const p = this.st.story && this.path(this.st.story);
-    const inPath = p ? new Set(p.steps.flatMap((s) => [s.from, s.to])) : null;
-    for (const [id, e] of Object.entries(this.blockEls)) { e.g.classList.toggle("dim", !!inPath && !inPath.has(id)); e.g.classList.toggle("sel", id === this.st.sel); }
+    const p = this.overlay();
+    const step = p && this.st.step != null ? p.steps[this.st.step] : null;
+    const inPath = p ? new Set((step ? [step] : p.steps).flatMap((s) => [s.from, s.to])) : null;
+    for (const [id, e] of Object.entries(this.blockEls)) { e.g.classList.toggle("dim", !!inPath && !inPath.has(id)); e.g.classList.toggle("sel", id === this.st.sel || !!step && inPath.has(id)); }
     (this.linkEls || []).forEach((g, i) => g && g.classList.toggle("dim", !!p && !(this.litLinks && this.litLinks.has(i))));
     for (const e of this.labEls || []) e.g.classList.toggle("dim", !!p && !(this.litLinks && this.litLinks.has(e.i)));
     for (const e of [...(this.linkEls || []), ...(this.labEls || []).map((x) => x.g)]) if (e) e.classList.toggle("lit", !!p && !!this.litLinks && this.litLinks.has(Number(e.dataset.link)));
-    this.svg.querySelectorAll(".frame, .lanes, .thesis").forEach((x) => x.classList.toggle("dim", !!p));
+    this.svg.querySelectorAll(".frame, .lanes, .thesis, .overview > .spine, .overview .note").forEach((x) => x.classList.toggle("dim", !!p));
+    for (const layer of [this.layers.path, this.layers.pathRing]) layer.querySelectorAll(".step").forEach((g) => g.classList.toggle("dim", !!step && Number(g.dataset.step) !== this.st.step));
+    this.svg.querySelectorAll('.step[role="button"]').forEach((g) => {
+      const hidden = !!g.closest(".gone");
+      g.setAttribute("tabindex", hidden ? "-1" : "0");
+      g.setAttribute("aria-hidden", String(hidden));
+      g.setAttribute("aria-pressed", String(!hidden && Number(g.dataset.step) === this.st.step));
+    });
+    this.hot(this.st.step);
     this.svg.querySelectorAll(".part").forEach((x) => x.classList.toggle("on", x.dataset.part === this.st.part));
     this.svg.querySelectorAll(".edge, .elab").forEach((x) => x.classList.toggle("on", !!this.st.part && (x.dataset.a === this.st.part || x.dataset.b === this.st.part)));
     this.svg.querySelector(".inside-art")?.classList.toggle("picked", !!this.st.part);
@@ -2648,7 +2712,7 @@ class Board {
   }
 
   drawMarks(pg, m, list) {
-    for (const q of list) this.drawMark(pg, q, this.labelOf(m));
+    for (const q of list) this.drawMark(pg, q, this.labelOf(m), m);
   }
 
   bubblePath(g, x, y, w) {
@@ -2910,7 +2974,7 @@ class Board {
     const tall = this.st.layout === "tall";
     const t = this.G.thesis;
     const core = grow(this.union([...Object.values(this.G.box), ...this.G.frames.map((f) => f.rect), ...(t.lines.length ? [{ x: t.x, y: t.y, w: Math.max(...t.lines.map((ln) => measure(ln, this.ty.thesis))), h: t.lines.length * this.ty.thesis.lh }] : [])]), m);
-    const span = r.width / box.w >= READ ? box : core;
+    const span = tall || r.width / box.w >= READ ? box : core;
     const k = tall ? Math.min(r.width / span.w, 1.25) : READ;
     const w = r.width / k;
     const h = r.height / k;
@@ -3068,6 +3132,8 @@ class Board {
     svg.addEventListener("click", () => {
       if (this.dragMoved) return;
       if (this.o.compact) this.o.onOpen(this.want || {});
+      else if (this.st.step != null) this.pickStep(this.st.step, this.st.story);
+      else if (this.st.badge) { this.st.badge = null; this.st.sel = null; this.st.part = null; this.applyFocus(); this.renderCrumbs(); this.renderReadout(); this.emit(); }
       else if (this.st.shape) this.unfocus();
       else if (this.st.sel) { this.st.sel = null; this.applyFocus(); this.renderReadout(); this.emit(); }
     });
@@ -3109,10 +3175,13 @@ class Board {
     this.st.part = null;
     this.st.sel = null;
     this.st.step = null;
+    this.st.badge = null;
   }
 
   pickShape(sid) {
     if (this.o.compact) { this.o.onOpen({ block: sid }); return; }
+    this.st.badge = null;
+    if (this.st.step != null) this.pickStep(this.st.step, this.st.story);
     if (!this.openable(sid)) {
       this.st.sel = this.st.sel === sid ? null : sid;
       this.applyFocus();
@@ -3129,6 +3198,18 @@ class Board {
     this.emit();
   }
 
+  pickBadge(id, badge) {
+    if (this.o.compact) { this.o.onOpen({}, { id, badge }); return; }
+    if (this.st.step != null) this.pickStep(this.st.step, this.st.story);
+    this.st.badge = badge;
+    this.st.sel = this.st.shape ? null : this.blockOf[id];
+    this.st.part = this.st.shape && id !== this.st.shape ? id : null;
+    this.applyFocus();
+    this.renderCrumbs();
+    this.renderReadout();
+    this.emit();
+  }
+
   goTo(o) {
     if (this.openable(o)) { this.focus(o, null); this.emit(); return; }
     this.unfocus();
@@ -3140,13 +3221,23 @@ class Board {
 
   pickStep(n, story) {
     if (this.o.compact) { this.o.onOpen({ story: story || undefined }); return; }
-    this.st.step = n;
-    this.hot(n);
+    const focused = this.svg.contains(document.activeElement) && document.activeElement.dataset.step;
+    this.st.badge = null;
+    this.st.sel = null;
+    this.st.step = this.st.step === n ? null : n;
+    this.drawPath();
+    this.applyFocus();
     this.renderReadout();
+    if (focused) {
+      const scope = this.st.step != null || this.st.story ? this.layers.path : this.layers.ov;
+      scope.querySelector(`.step[role="button"][data-step="${focused}"]`)?.focus({ preventScroll: true });
+    }
   }
 
   focus(sid, pid) {
     const was = this.st.shape;
+    this.st.badge = null;
+    if (this.st.step != null) this.pickStep(this.st.step, this.st.story);
     this.st.shape = sid;
     this.st.part = pid;
     this.st.sel = null;
@@ -3160,6 +3251,7 @@ class Board {
 
   unfocus() {
     const had = this.st.shape;
+    this.st.badge = null;
     this.st.shape = null;
     this.st.part = null;
     this.applyFocus();
@@ -3171,6 +3263,8 @@ class Board {
 
   escape() {
     if (!this.B || this.o.compact) return false;
+    if (this.st.step != null) { this.pickStep(this.st.step, this.st.story); return true; }
+    if (this.st.badge) { this.st.badge = null; this.st.sel = null; this.st.part = null; this.applyFocus(); this.renderCrumbs(); this.renderReadout(); this.emit(); return true; }
     if (this.st.part) { this.focus(this.st.shape, null); this.emit(); return true; }
     if (this.st.shape) { this.unfocus(); return true; }
     if (this.st.sel) { this.st.sel = null; this.applyFocus(); this.renderReadout(); this.emit(); return true; }
@@ -3180,6 +3274,8 @@ class Board {
 
   show(q) {
     if (!this.B || this.o.compact) return;
+    this.st.badge = null;
+    if (this.st.step != null) this.pickStep(this.st.step, this.st.story);
     const story = q.story && this.path(q.story) ? q.story : null;
     if (story !== this.st.story) this.setStory(story, true);
     const pid = q.part && this.items[q.part] && this.openable(this.blockOf[q.part]) ? q.part : null;
@@ -3187,12 +3283,14 @@ class Board {
     if (sid && (sid !== this.st.shape || pid !== this.st.part)) this.focus(sid, pid);
     else if (!sid && this.st.shape) this.unfocus();
     const sel = !sid && q.block && this.K[q.block] ? q.block : null;
-    if (sel !== this.st.sel) { this.st.sel = sel; this.applyFocus(); this.renderReadout(); }
+    if (sel !== this.st.sel) { this.st.sel = sel; this.applyFocus(); }
+    this.renderReadout();
   }
 
   setStory(id, quiet) {
     this.st.story = id;
     this.st.step = null;
+    this.st.badge = null;
     this.renderChips();
     if (this.layers) {
       this.drawPath();
@@ -3247,7 +3345,12 @@ class Board {
     const steps = (list) => `<ol>${list.map((s, i) => `<li class="${s.risk ? "risk" : s.stop ? "stop" : ""}"><span class="n">${i + 1}</span>${esc(s.say)}${s.waitsFor ? ` (waits for step ${s.waitsFor})` : ""}</li>`).join("")}</ol>`;
     const id = this.st.part || this.st.shape || this.st.sel;
     let html;
-    if (id) {
+    if (this.st.badge) {
+      html = `<b>${esc(this.st.badge.text)}</b>: ${esc(this.st.badge.detail)}`;
+    } else if (this.st.step != null) {
+      const s = (p || this.B.spine).steps[this.st.step];
+      html = `<b>Step ${this.st.step + 1}: ${esc(s.say)}</b> · ${esc(this.nameOf(s.from))} → ${esc(this.nameOf(s.to))}`;
+    } else if (id) {
       const part = this.st.part ? this.shapeOf(id) : null;
       const name = this.st.part ? this.labelOf(id) : this.K[id].name;
       const role = this.st.part ? (part ? part.role : "") : this.K[id].role;
@@ -3477,7 +3580,7 @@ class Board {
 
 export function mount(host, map, opts) {
   injectCss();
-  if (opts.font !== false && opts.skin !== "clean") injectFont();
+  if (opts.font !== false) injectFont(opts.fonts);
   let inline = null;
   let dlg = null;
   let modal = null;
@@ -3521,7 +3624,7 @@ export function mount(host, map, opts) {
     model = normalize(next);
     if (!inline) {
       host.replaceChildren();
-      inline = new Board(host, model, { rough: opts.rough, skin: opts.skin, nav: opts.nav, fill: opts.fill, dialog: false, state: opts.state && Object.values(opts.state).some(Boolean) ? opts.state : null, onState, onOpen: (v) => { open(v); }, onClose: close });
+      inline = new Board(host, model, { rough: opts.rough, skin: opts.skin, nav: opts.nav, fill: opts.fill, dialog: false, state: opts.state && Object.values(opts.state).some(Boolean) ? opts.state : null, onState, onOpen: (v, detail) => { open(v).then((b) => { if (detail) b.pickBadge(detail.id, detail.badge); }); }, onClose: close });
       inline.ready.then(settle);
     } else inline.setModel(model, view);
     if (dlg) dlg.setModel(model, view);
