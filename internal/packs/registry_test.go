@@ -1,7 +1,9 @@
 package packs
 
 import (
+	"bytes"
 	"encoding/json"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -121,5 +123,27 @@ func TestRegistrySatisfiesPackTypes(t *testing.T) {
 	}
 	if err := bad.Validate(pt); err == nil {
 		t.Fatal("Validate undeclared pack type = nil, want error")
+	}
+}
+
+func TestDroppedPackStaysOffTheLogAndNamesItselfOnTheRefusal(t *testing.T) {
+	var logged bytes.Buffer
+	prev := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&logged, nil)))
+	t.Cleanup(func() { slog.SetDefault(prev) })
+
+	good := writeTree(t, validFiles())
+	broken := t.TempDir()
+	reg := buildRegistry([]packRoot{{dir: good, tier: tierDev}, {dir: broken, tier: tierDev}}, nil, nil, syncBuilds{ctx: t.Context()})
+	if logged.Len() != 0 {
+		t.Fatalf("scan logged %q, want nothing: a pack no board uses is noise on every push", logged.String())
+	}
+
+	if err := reg.ValidateBlock("example.callout", json.RawMessage(`{"id":"c","type":"example.callout"}`)); err != nil {
+		t.Fatalf("ValidateBlock(installed) = %v, want nil", err)
+	}
+	err := reg.ValidateBlock("other.thing", json.RawMessage(`{}`))
+	if err == nil || !strings.Contains(err.Error(), "not installed") || !strings.Contains(err.Error(), broken) {
+		t.Fatalf("ValidateBlock(uninstalled) = %v, want a not-installed refusal naming dropped pack %s", err, broken)
 	}
 }

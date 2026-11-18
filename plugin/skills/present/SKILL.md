@@ -155,7 +155,7 @@ Route by the `channel:` line from step 2:
   cc-present watch --session "$CLAUDE_CODE_SESSION_ID"
   ```
 
-  Each line it prints is one JSON event. Pass every line to the Monitor. A `grep` that names the types you expect drops every type it leaves out. `--session` is required — `watch` does not read the environment, and without it it polls forever.
+  Each line it prints is one JSON event, and the Monitor command is exactly that line: no pipe, no `2>&1`. A filter drops every type it leaves out, and a `grep -v` in Claude Code's shell holds each event until the next one arrives, so a note lands minutes late; the plugin's hook refuses a piped `watch`. `watch` writes nothing to stderr worth filtering. `--session` is required — `watch` does not read the environment, and without it it polls forever.
 
 If a `<channel source="plugin:cc-present:channel">` tag arrives while the Monitor is armed, the channel went live: run `cc-present channel-ack --session "$CLAUDE_CODE_SESSION_ID"`, stop the Monitor with **TaskStop**, and rely on tags from then on. Delivery is at-least-once; re-delivery is harmless — decisions, choices, and inputs are last-write-wins, and feedback carries its own `id`.
 

@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"os"
 	"sort"
+	"strings"
 
 	"github.com/santhosh-tekuri/jsonschema/v6"
 	"github.com/yasyf/cc-present/internal/doc"
@@ -88,7 +89,7 @@ func (r *Registry) Packs() []*Pack { return append([]*Pack(nil), r.packs...) }
 func (r *Registry) ValidateBlock(typeName string, payload json.RawMessage) error {
 	bt, ok := r.byType[typeName]
 	if !ok {
-		return fmt.Errorf("pack block type %q is not installed", typeName)
+		return fmt.Errorf("pack block type %q is not installed%s", typeName, r.droppedSuffix())
 	}
 	inst, err := jsonschema.UnmarshalJSON(bytes.NewReader(payload))
 	if err != nil {
@@ -145,7 +146,6 @@ func buildRegistry(roots []packRoot, dropped []DroppedPack, disabled []string, b
 		if err != nil {
 			r.building = r.building || errors.Is(err, errBuilding)
 			r.drop(root.dir, err.Error())
-			slog.Warn("dropped pack", "dir", root.dir, "reason", err.Error())
 			continue
 		}
 		p.tier = root.tier
@@ -205,6 +205,17 @@ func (r *Registry) resolveGroup(name string, group []builtPack) *Pack {
 		slog.Warn("duplicate pack name", "pack", name, "dir", b.root.dir)
 	}
 	return nil
+}
+
+func (r *Registry) droppedSuffix() string {
+	if len(r.Dropped) == 0 {
+		return ""
+	}
+	lines := make([]string, 0, len(r.Dropped))
+	for _, d := range r.Dropped {
+		lines = append(lines, fmt.Sprintf("\n  %s: %s", d.Dir, d.Reason))
+	}
+	return "; dropped packs:" + strings.Join(lines, "")
 }
 
 func (r *Registry) drop(dir, reason string) {
