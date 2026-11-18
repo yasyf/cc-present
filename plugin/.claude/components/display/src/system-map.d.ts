@@ -31,6 +31,7 @@ export type PartShape =
 export interface Badge {
   tone: 'ok' | 'fail' | 'warn' | 'info' | 'ask';
   text: string;
+  detail?: string;
 }
 
 export interface Group {
@@ -142,7 +143,7 @@ export interface Levels {
   down(id: string): void;
 }
 
-export type MountOptions = { font?: boolean; state?: View; onState?: (v: View) => void; nav?: Levels; derived?: boolean; fill?: boolean } & ({ skin?: 'sketch'; rough: Rough } | { skin: 'clean'; rough?: Rough });
+export type MountOptions = { font?: boolean; fonts?: (file: string) => string | URL; state?: View; onState?: (v: View) => void; nav?: Levels; derived?: boolean; fill?: boolean } & ({ skin?: 'sketch'; rough: Rough } | { skin: 'clean'; rough?: Rough });
 
 export function mount(host: HTMLElement, map: SystemMap, opts: MountOptions): MapHandle;
 export function validate(map: unknown, opts?: { derived?: boolean }): string[];

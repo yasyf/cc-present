@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- The display pack's system map is now cc-sketch v0.1.0's renderer. A sketch map loads Shantell Sans and Geist from fonts shipped with the pack instead of Google Fonts, so it draws offline. Tapping a numbered step highlights it, a badge can carry a `detail` that opens on a tap, sticky notes sit beside the box they are about, and a phone lays the map out tall without clipping.
 - On cc-interact v0.45.0. An upgrade of the cc-present daemon gets the budget cc-interact derives from the daemon's shutdown grace plus its boot allowance, where it used to get a flat 30 s, and holds its turn until the new daemon is Ready. A command whose deadline cannot cover that budget runs against the daemon already serving instead of starting the upgrade. A cc-present older than the newest one already placed no longer installs itself when it finds no daemon running.
 
 ### Added
