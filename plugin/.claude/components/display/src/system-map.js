@@ -586,7 +586,7 @@ function placer(hard, bounds) {
     }
     return false;
   };
-  const free = (r) => (!bounds || r.x >= bounds.x && r.x + r.w <= bounds.x + bounds.w) && taken.every((o) => !(r.x < o.x + o.w && o.x < r.x + r.w && r.y < o.y + o.h && o.y < r.y + r.h)) && !leads.some((l) => through(r, l));
+  const free = (r, bounded = true) => (!bounded || !bounds || r.x >= bounds.x && r.x + r.w <= bounds.x + bounds.w) && taken.every((o) => !(r.x < o.x + o.w && o.x < r.x + r.w && r.y < o.y + o.h && o.y < r.y + r.h)) && !leads.some((l) => through(r, l));
   const crosses = (pts, r) => {
     for (let i = 0; i < pts.length - 1; i++) {
       const [x1, y1] = pts[i];
@@ -1275,7 +1275,7 @@ class Board {
       const x0 = Math.min(...rs.map((r) => r.x));
       const y0 = Math.min(...rs.map((r) => r.y));
       const x1 = Math.max(...rs.map((r) => r.x + r.w));
-      const y1 = Math.max(...ids.map((id) => box[id].y + box[id].h + (this.sil(this.K[id]) === "chip" ? 8 : 0)));
+      const y1 = Math.max(...ids.map((id) => box[id].y + box[id].h + (tall ? tail[id] : 0) + (this.sil(this.K[id]) === "chip" ? 8 : 0)));
       return { x: x0 - pad, y: y0 - pad, w: x1 - x0 + pad * 2, h: y1 - y0 + pad * 2 };
     };
     const union = (rs) => {
@@ -1300,15 +1300,7 @@ class Board {
     }
     frames.sort((a, b) => (a.f.scope === "machine" ? 0 : 1) - (b.f.scope === "machine" ? 0 : 1));
     const fixed = [...B.blocks.map((b) => grow(box[b.id], b.critical && !compact ? 14 : 2)),...B.blocks.map((b) => this.marksZone(b.id, box[b.id])).filter(Boolean), { x: left, y: thesisTop, w: width, h: thesisBottom - thesisTop + 8 }];
-    if (!tall) {
-      const place = placer(fixed);
-      for (const n of callouts) {
-        const at = place.around({ w: n.w + 8, h: n.h + 8 }, grow(box[n.id], 2), [], null, true);
-        if (!at) return this.arrange(new Set([...noteTails, n.id]));
-        Object.assign(n, grow(at, -4));
-      }
-    }
-    const busy = [...fixed, ...(tall ? [] : callouts.map((n) => grow(n, 4)))];
+    const busy = [...fixed, ...(tall ? callouts.map((n) => grow(n, 4)) : [])];
     for (const fr of frames) {
       const w = measure(fr.f.label, this.ty.frame) + 10;
       const lh = this.ty.frame.lh + 2;
@@ -1328,6 +1320,14 @@ class Board {
       if (!pick) pick = [...spots, foot, { ...foot, x: r.x + r.w - 14 - w }].map((q) => [q, busy.reduce((n, o) => n + area(q, o), 0)]).sort((a, z) => a[1] - z[1])[0][0];
       fr.label = pick;
       busy.push(grow(pick, 3));
+    }
+    if (!tall) {
+      const place = placer(busy);
+      for (const n of callouts) {
+        const at = place.around({ w: n.w + 8, h: n.h + 8 }, grow(box[n.id], 2), [], null, true);
+        if (!at) return this.arrange(new Set([...noteTails, n.id]));
+        Object.assign(n, grow(at, -4));
+      }
     }
     const lanes = [];
     if (showLanes && tall) {
@@ -1374,12 +1374,16 @@ class Board {
     for (const fr of G.frames) {
       const L = fr.label;
       if (!L || !cut(L)) continue;
-      const others = [...G.fixed, ...G.frames.filter((o) => o !== fr && o.label).map((o) => grow(o.label, 3))];
+      const others = [...G.fixed, ...G.callouts.map((n) => grow(n, 4)), ...G.frames.filter((o) => o !== fr && o.label).map((o) => grow(o.label, 3))];
       const clear = (q) => !cut(q) && others.every((o) => !area(q, o));
       const rows = [...new Set([L.y, fr.rect.y - L.h / 2, fr.rect.y + fr.rect.h - L.h / 2])];
-      const spot = rows.flatMap((y) => Array.from({ length: Math.max(0, Math.floor((fr.rect.w - L.w - 28) / 12) + 1) }, (_, k) => ({ ...L, x: fr.rect.x + 14 + k * 12, y }))).find(clear);
+      const room = fr.rect.w - (L.w > fr.rect.w - 28 ? 0 : L.w) - 28;
+      const columns = Array.from({ length: Math.max(0, Math.floor(room / 12) + 1) }, (_, k) => fr.rect.x + 14 + k * 12);
+      if (L.w > fr.rect.w - 28) columns.push(fr.rect.x + 14 - L.w);
+      const spot = rows.flatMap((y) => columns.map((x) => ({ ...L, x, y }))).find(clear);
       if (spot) Object.assign(L, spot);
     }
+    G.span = this.union([G.span, ...lines.flat().map(([x, y]) => ({ x, y, w: 0, h: 0 }))]);
     this.go = go;
     this.taken = taken;
     this.routes = routes;
@@ -1435,6 +1439,7 @@ class Board {
   obstacles() {
     const G = this.G;
     const out = Object.values(G.box).map((r) => grow(r, 3));
+    for (const n of G.callouts) out.push(grow(n, 4));
     for (const fr of G.frames) if (fr.label) out.push(fr.label);
     if (G.thesis.lines.length) out.push({ x: -1e5, y: -1e5, w: 2e5, h: 1e5 + G.thesis.y + G.thesis.lines.length * this.ty.thesis.lh + 8 });
     for (const ln of G.lanes) out.push(ln.vertical ? { x: ln.x - 10, y: ln.y, w: 18, h: ln.h } : { x: ln.x, y: ln.y - 12, w: ln.w, h: 16 });
@@ -1922,31 +1927,32 @@ class Board {
 
   waitBar(i, n) {
     const li = Object.keys(this.SM.on).find((k) => this.SM.on[k].includes(i));
-    const [p, q] = this.railPts[i] || this.loosePts[i] || this.routes[li].pts;
-    const horiz = Math.abs(p[1] - q[1]) < Math.abs(p[0] - q[0]);
-    const barAt = (t) => {
+    const pts = this.railPts[i] || this.loosePts[i] || this.routes[li].pts;
+    const barAt = (p, q, t) => {
+      const horiz = Math.abs(p[1] - q[1]) < Math.abs(p[0] - q[0]);
       const cx = p[0] + (q[0] - p[0]) * t;
       const cy = p[1] + (q[1] - p[1]) * t;
-      return { cx, cy, bar: horiz ? { x: cx - 4, y: cy - 19, w: 8, h: 38 } : { x: cx - 19, y: cy - 4, w: 38, h: 8 } };
+      return { cx, cy, horiz, bar: horiz ? { x: cx - 4, y: cy - 19, w: 8, h: 38 } : { x: cx - 19, y: cy - 4, w: 38, h: 8 } };
     };
     const hard = this.obstacles();
     const cost = (x) => hard.reduce((k, o) => k + area(grow(x.bar, 2), o), 0);
-    const opts = [0.3, 0.2, 0.42, 0.12, 0.55, 0.65].map(barAt).filter((x) => this.place.free(grow(x.bar, 6)));
+    const options = pts.slice(1).map((q, j) => [0.3, 0.2, 0.42, 0.12, 0.55, 0.65, 0.5, 0.38, 0.62, 0.26, 0.74, 0.14, 0.86].map((t) => barAt(pts[j], q, t)));
     const soft = [...this.routes.filter(Boolean).map((r) => r.pts), ...Object.values(this.railPts), ...Object.values(this.loosePts)];
     const clear = (r) => !soft.some((pts) => this.crossesRect(pts, r));
     const sizes = [this.waitSize(n, 140), this.waitSize(n, 80)];
-    const beside = ({ cx, cy, bar }, z) => (horiz
+    const beside = ({ cx, cy, bar, horiz }, z) => (horiz
       ? [[bar.x + bar.w + 3, cy - z.h - 3], [bar.x + bar.w + 3, cy + 3], [bar.x - z.w - 3, cy - z.h - 3], [bar.x - z.w - 3, cy + 3], [cx - z.w / 2, bar.y - z.h - 2], [cx - z.w / 2, bar.y + bar.h + 2]]
       : [[bar.x + bar.w + 4, cy - z.h / 2], [bar.x - z.w - 4, cy - z.h / 2], [cx + 3, bar.y - z.h - 2], [cx + 3, bar.y + bar.h + 2]]
     ).map(([x, y]) => ({ x, y, w: z.w, h: z.h }));
-    const snug = [true, false].flatMap((strict) => opts.flatMap((x) => sizes.flatMap((z) => beside(x, z).filter((r) => this.place.free(r) && (!strict || clear(r))).map((r) => ({ x, r, z })))))[0];
-    const pick = snug ? snug.x : opts[0] || [0.3, 0.2, 0.42, 0.12, 0.55, 0.65].map(barAt).reduce((a, b) => (cost(b) < cost(a) ? b : a));
+    const free = options.map((opts) => opts.filter((x) => this.place.free(grow(x.bar, 6), false)));
+    const snug = free.flatMap((opts) => [true, false].flatMap((strict) => opts.flatMap((x) => sizes.flatMap((z) => beside(x, z).filter((r) => this.place.free(r) && (!strict || clear(r))).map((r) => ({ x, r, z }))))))[0];
+    const pick = snug ? snug.x : free.flat()[0] || options.flat().reduce((a, b) => (cost(b) < cost(a) ? b : a));
     this.place.add(grow(pick.bar, 3));
     this.checks[`bar${i}`] = grow(pick.bar, 3);
     const cap = snug ? { r: snug.r, z: snug.z } : { r: this.place.around(sizes[0], grow(pick.bar, 4), soft), z: sizes[0] };
     if (snug) this.place.add(cap.r);
     if (cap.r) this.checks[`lab${i}`] = cap.r;
-    return { ...pick, horiz, cap };
+    return { ...pick, cap };
   }
 
   waitSize(n, w) {
@@ -2087,7 +2093,13 @@ class Board {
           const gap = (a0, a1, b0, b1) => (a1 < b0 ? [a1, b0 - 3] : a0 > b1 ? [a0, b1 + 3] : Array(2).fill((Math.max(a0, b0) + Math.min(a1, b1)) / 2));
           const [x0, x1] = gap(spot.x, spot.x + spot.w, heap.x, heap.x + heap.w);
           const [y0, y1] = gap(spot.y, spot.y + spot.h, heap.y, heap.y + heap.h);
-          const into = [[x0, y0], [x1, y1]];
+          let into = [[x0, y0], [x1, y1]];
+          if (this.crossesRect(into, { x: r.x, y: r.y, w: r.w, h: heap.y - r.y })) {
+            const left = spot.x + spot.w / 2 < r.x + r.w / 2;
+            const x = left ? r.x - 12 : r.x + r.w + 12;
+            const y = heap.y + heap.h / 2;
+            into = [[x0, y0], [x, y0], [x, y], [left ? heap.x : heap.x + heap.w, y]];
+          }
           this.drawArrow(g, into, 2, dashed ? [8, 6] : null, "fill", cls, cls.replace("k-", "fh-"));
           this.drawRows(lab, spot, size, mode);
           this.placed.push(spot);
@@ -2145,7 +2157,6 @@ class Board {
     if (this.o.compact) return;
     for (const n of this.G.callouts) {
       const r = grow(n, 4);
-      this.place.add(r);
       this.placed.push(r);
       this.drawSticky(this.layers.notes, n, n.lines, n.c.text);
     }
