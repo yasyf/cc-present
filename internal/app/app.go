@@ -35,8 +35,9 @@ const (
 	daemonServiceLabel = "com.yasyf.cc-present.daemon"
 
 	// channelNotifyMethod is the JSON-RPC method each subject event is pushed
-	// under on the cc-present channel.
-	channelNotifyMethod = "notifications/cc-present/channel"
+	// under: the one method Claude Code turns into a <channel> tag. It drops a
+	// notification under any other method without a word.
+	channelNotifyMethod = "notifications/claude/channel"
 )
 
 // channelInstructions is folded into the agent's system prompt at the channel's

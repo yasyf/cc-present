@@ -11,8 +11,8 @@ func TestChannelToolsAdvertisesNoTools(t *testing.T) {
 	if err != nil {
 		t.Fatalf("channelTools() error = %v", err)
 	}
-	if method != channelNotifyMethod {
-		t.Fatalf("notify method = %q, want %q", method, channelNotifyMethod)
+	if want := "notifications/claude/channel"; method != want {
+		t.Fatalf("notify method = %q, want %q: Claude Code drops a channel notification under any other method", method, want)
 	}
 	if instructions != channelInstructions {
 		t.Fatal("channelTools() changed the channel instructions")
